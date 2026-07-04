@@ -1,0 +1,14 @@
+# Render deployment configuration
+services:
+  - type: web
+    name: hakkutsu-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DEBUG
+        value: "false"
+      - key: SUDACHI_MODE
+        value: "C"
+    rootDir: backend
+    plan: free

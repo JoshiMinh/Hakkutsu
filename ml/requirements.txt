@@ -1,0 +1,9 @@
+# Phase 2 — ML Pipeline Dependencies
+torch>=2.0.0
+transformers>=4.30.0
+datasets>=2.14.0
+scikit-learn>=1.3.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+jupyter>=1.0.0
+huggingface-hub>=0.16.0

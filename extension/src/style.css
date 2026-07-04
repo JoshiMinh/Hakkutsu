@@ -1,0 +1,726 @@
+/*
+ * Hakkutsu Design System
+ * Dark-mode-first Japanese aesthetic with warm accents.
+ */
+
+/* ── Design Tokens ─────────────────────────────────────────────── */
+
+:root {
+  /* Base palette */
+  --hk-bg-primary: #0f0f1a;
+  --hk-bg-secondary: #1a1a2e;
+  --hk-bg-tertiary: #232340;
+  --hk-bg-hover: #2a2a4a;
+  --hk-bg-glass: rgba(26, 26, 46, 0.85);
+
+  /* Text */
+  --hk-text-primary: #e8e6f0;
+  --hk-text-secondary: #a8a4b8;
+  --hk-text-muted: #6b6880;
+  --hk-text-accent: #f0c674;
+
+  /* Accent colors */
+  --hk-accent-gold: #f0c674;
+  --hk-accent-crimson: #e85d75;
+  --hk-accent-sakura: #f5a0c0;
+  --hk-accent-teal: #5ec4b6;
+  --hk-accent-indigo: #7c83ff;
+
+  /* JLPT level colors */
+  --hk-jlpt-n5: #22c55e;
+  --hk-jlpt-n4: #3b82f6;
+  --hk-jlpt-n3: #f59e0b;
+  --hk-jlpt-n2: #ef4444;
+  --hk-jlpt-n1: #a855f7;
+
+  /* Borders & shadows */
+  --hk-border: rgba(255, 255, 255, 0.06);
+  --hk-border-focus: rgba(240, 198, 116, 0.4);
+  --hk-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --hk-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --hk-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --hk-shadow-glow: 0 0 20px rgba(240, 198, 116, 0.15);
+
+  /* Spacing */
+  --hk-space-xs: 4px;
+  --hk-space-sm: 8px;
+  --hk-space-md: 12px;
+  --hk-space-lg: 16px;
+  --hk-space-xl: 24px;
+  --hk-space-2xl: 32px;
+
+  /* Typography */
+  --hk-font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --hk-font-jp: "Noto Sans JP", "Hiragino Kaku Gothic Pro", "Yu Gothic", sans-serif;
+  --hk-font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  --hk-text-xs: 11px;
+  --hk-text-sm: 12px;
+  --hk-text-base: 14px;
+  --hk-text-lg: 16px;
+  --hk-text-xl: 20px;
+  --hk-text-2xl: 24px;
+
+  /* Radius */
+  --hk-radius-sm: 6px;
+  --hk-radius-md: 8px;
+  --hk-radius-lg: 12px;
+  --hk-radius-full: 9999px;
+
+  /* Transitions */
+  --hk-transition-fast: 150ms ease;
+  --hk-transition-normal: 250ms ease;
+  --hk-transition-slow: 400ms ease;
+}
+
+/* ── Base Reset ────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Popup Container ───────────────────────────────────────────── */
+
+.hk-popup {
+  width: 420px;
+  min-height: 500px;
+  max-height: 600px;
+  overflow-y: auto;
+  background: var(--hk-bg-primary);
+  color: var(--hk-text-primary);
+  font-family: var(--hk-font-sans);
+  font-size: var(--hk-text-base);
+  line-height: 1.5;
+}
+
+.hk-popup::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hk-popup::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hk-popup::-webkit-scrollbar-thumb {
+  background: var(--hk-bg-tertiary);
+  border-radius: var(--hk-radius-full);
+}
+
+/* ── Header ────────────────────────────────────────────────────── */
+
+.hk-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--hk-space-md) var(--hk-space-lg);
+  background: linear-gradient(
+    135deg,
+    var(--hk-bg-secondary) 0%,
+    var(--hk-bg-tertiary) 100%
+  );
+  border-bottom: 1px solid var(--hk-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(12px);
+}
+
+.hk-header__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--hk-space-sm);
+}
+
+.hk-header__title {
+  font-size: var(--hk-text-lg);
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--hk-accent-gold), var(--hk-accent-crimson));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.5px;
+}
+
+.hk-header__subtitle {
+  font-size: var(--hk-text-xs);
+  color: var(--hk-text-muted);
+  font-weight: 400;
+}
+
+.hk-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--hk-space-sm);
+}
+
+/* ── Navigation Tabs ───────────────────────────────────────────── */
+
+.hk-nav {
+  display: flex;
+  padding: 0 var(--hk-space-lg);
+  background: var(--hk-bg-secondary);
+  border-bottom: 1px solid var(--hk-border);
+  gap: 2px;
+}
+
+.hk-nav__tab {
+  flex: 1;
+  padding: var(--hk-space-sm) var(--hk-space-md);
+  background: transparent;
+  border: none;
+  color: var(--hk-text-muted);
+  font-size: var(--hk-text-sm);
+  font-family: var(--hk-font-sans);
+  cursor: pointer;
+  transition: all var(--hk-transition-fast);
+  position: relative;
+  text-align: center;
+  font-weight: 500;
+}
+
+.hk-nav__tab:hover {
+  color: var(--hk-text-secondary);
+  background: var(--hk-bg-hover);
+}
+
+.hk-nav__tab--active {
+  color: var(--hk-accent-gold);
+}
+
+.hk-nav__tab--active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--hk-accent-gold), var(--hk-accent-crimson));
+  border-radius: var(--hk-radius-full);
+}
+
+/* ── Content Area ──────────────────────────────────────────────── */
+
+.hk-content {
+  padding: var(--hk-space-lg);
+}
+
+/* ── Input Section ─────────────────────────────────────────────── */
+
+.hk-input {
+  position: relative;
+  margin-bottom: var(--hk-space-lg);
+}
+
+.hk-input__textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: var(--hk-space-md);
+  background: var(--hk-bg-secondary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-md);
+  color: var(--hk-text-primary);
+  font-family: var(--hk-font-jp);
+  font-size: var(--hk-text-lg);
+  line-height: 1.7;
+  resize: vertical;
+  transition: border-color var(--hk-transition-fast);
+}
+
+.hk-input__textarea::placeholder {
+  color: var(--hk-text-muted);
+  font-family: var(--hk-font-sans);
+  font-size: var(--hk-text-base);
+}
+
+.hk-input__textarea:focus {
+  outline: none;
+  border-color: var(--hk-border-focus);
+  box-shadow: var(--hk-shadow-glow);
+}
+
+.hk-input__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--hk-space-sm);
+  margin-top: var(--hk-space-sm);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────── */
+
+.hk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hk-space-xs);
+  padding: var(--hk-space-sm) var(--hk-space-lg);
+  border: none;
+  border-radius: var(--hk-radius-sm);
+  font-family: var(--hk-font-sans);
+  font-size: var(--hk-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--hk-transition-fast);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hk-btn--primary {
+  background: linear-gradient(135deg, var(--hk-accent-gold), #d4a853);
+  color: var(--hk-bg-primary);
+}
+
+.hk-btn--primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(240, 198, 116, 0.3);
+}
+
+.hk-btn--primary:active {
+  transform: translateY(0);
+}
+
+.hk-btn--secondary {
+  background: var(--hk-bg-tertiary);
+  color: var(--hk-text-secondary);
+  border: 1px solid var(--hk-border);
+}
+
+.hk-btn--secondary:hover {
+  background: var(--hk-bg-hover);
+  color: var(--hk-text-primary);
+}
+
+.hk-btn--ghost {
+  background: transparent;
+  color: var(--hk-text-muted);
+  padding: var(--hk-space-xs) var(--hk-space-sm);
+}
+
+.hk-btn--ghost:hover {
+  color: var(--hk-text-primary);
+  background: var(--hk-bg-hover);
+}
+
+.hk-btn--sm {
+  padding: var(--hk-space-xs) var(--hk-space-sm);
+  font-size: var(--hk-text-xs);
+}
+
+.hk-btn--icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--hk-radius-sm);
+}
+
+.hk-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* ── Badges ────────────────────────────────────────────────────── */
+
+.hk-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--hk-radius-full);
+  font-size: var(--hk-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.hk-badge--n5 { background: var(--hk-jlpt-n5); color: #fff; }
+.hk-badge--n4 { background: var(--hk-jlpt-n4); color: #fff; }
+.hk-badge--n3 { background: var(--hk-jlpt-n3); color: #1a1a2e; }
+.hk-badge--n2 { background: var(--hk-jlpt-n2); color: #fff; }
+.hk-badge--n1 { background: var(--hk-jlpt-n1); color: #fff; }
+
+.hk-badge--pos {
+  background: var(--hk-bg-tertiary);
+  color: var(--hk-text-secondary);
+  border: 1px solid var(--hk-border);
+  text-transform: none;
+  font-weight: 500;
+}
+
+/* ── Token Display ─────────────────────────────────────────────── */
+
+.hk-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hk-space-xs);
+  margin-bottom: var(--hk-space-lg);
+  padding: var(--hk-space-md);
+  background: var(--hk-bg-secondary);
+  border-radius: var(--hk-radius-md);
+  border: 1px solid var(--hk-border);
+}
+
+.hk-token {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--hk-space-xs) var(--hk-space-sm);
+  border-radius: var(--hk-radius-sm);
+  cursor: pointer;
+  transition: all var(--hk-transition-fast);
+  position: relative;
+}
+
+.hk-token:hover {
+  background: var(--hk-bg-hover);
+}
+
+.hk-token--selected {
+  background: var(--hk-bg-hover);
+  box-shadow: inset 0 0 0 1px var(--hk-accent-gold);
+}
+
+.hk-token__reading {
+  font-size: var(--hk-text-xs);
+  color: var(--hk-accent-sakura);
+  font-family: var(--hk-font-jp);
+  line-height: 1;
+  margin-bottom: 2px;
+  min-height: 14px;
+}
+
+.hk-token__surface {
+  font-size: var(--hk-text-lg);
+  font-family: var(--hk-font-jp);
+  color: var(--hk-text-primary);
+  font-weight: 500;
+}
+
+.hk-token--non-jp .hk-token__surface {
+  color: var(--hk-text-muted);
+  font-family: var(--hk-font-sans);
+}
+
+/* ── Definition Card ───────────────────────────────────────────── */
+
+.hk-definition {
+  background: var(--hk-bg-secondary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-lg);
+  padding: var(--hk-space-lg);
+  margin-bottom: var(--hk-space-md);
+  animation: hk-slideUp 0.2s ease;
+}
+
+@keyframes hk-slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hk-definition__header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hk-space-md);
+  margin-bottom: var(--hk-space-md);
+  padding-bottom: var(--hk-space-md);
+  border-bottom: 1px solid var(--hk-border);
+}
+
+.hk-definition__word {
+  font-size: var(--hk-text-2xl);
+  font-family: var(--hk-font-jp);
+  font-weight: 700;
+  color: var(--hk-text-primary);
+}
+
+.hk-definition__reading {
+  font-size: var(--hk-text-base);
+  font-family: var(--hk-font-jp);
+  color: var(--hk-accent-sakura);
+}
+
+.hk-definition__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--hk-space-sm);
+  margin-left: auto;
+}
+
+.hk-definition__glosses {
+  list-style: none;
+  padding: 0;
+}
+
+.hk-definition__gloss {
+  padding: var(--hk-space-xs) 0;
+  color: var(--hk-text-secondary);
+  font-size: var(--hk-text-sm);
+  line-height: 1.5;
+}
+
+.hk-definition__gloss::before {
+  content: "•";
+  color: var(--hk-accent-gold);
+  margin-right: var(--hk-space-sm);
+  font-weight: 700;
+}
+
+.hk-definition__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--hk-space-sm);
+  margin-top: var(--hk-space-md);
+  padding-top: var(--hk-space-md);
+  border-top: 1px solid var(--hk-border);
+}
+
+/* ── Status Indicators ─────────────────────────────────────────── */
+
+.hk-status {
+  display: flex;
+  align-items: center;
+  gap: var(--hk-space-xs);
+  font-size: var(--hk-text-xs);
+  color: var(--hk-text-muted);
+}
+
+.hk-status__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hk-text-muted);
+}
+
+.hk-status__dot--connected {
+  background: var(--hk-jlpt-n5);
+  box-shadow: 0 0 6px var(--hk-jlpt-n5);
+}
+
+.hk-status__dot--disconnected {
+  background: var(--hk-jlpt-n2);
+}
+
+/* ── Loading ───────────────────────────────────────────────────── */
+
+.hk-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hk-space-2xl);
+  color: var(--hk-text-muted);
+  gap: var(--hk-space-md);
+}
+
+.hk-loading__spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--hk-border);
+  border-top-color: var(--hk-accent-gold);
+  border-radius: 50%;
+  animation: hk-spin 0.8s linear infinite;
+}
+
+@keyframes hk-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Empty State ───────────────────────────────────────────────── */
+
+.hk-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hk-space-2xl);
+  text-align: center;
+  color: var(--hk-text-muted);
+}
+
+.hk-empty__icon {
+  font-size: 48px;
+  margin-bottom: var(--hk-space-md);
+  opacity: 0.3;
+}
+
+.hk-empty__text {
+  font-size: var(--hk-text-sm);
+  max-width: 240px;
+  line-height: 1.6;
+}
+
+/* ── Settings ──────────────────────────────────────────────────── */
+
+.hk-settings__group {
+  margin-bottom: var(--hk-space-lg);
+}
+
+.hk-settings__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--hk-space-md);
+  background: var(--hk-bg-secondary);
+  border-radius: var(--hk-radius-md);
+  border: 1px solid var(--hk-border);
+  margin-bottom: var(--hk-space-sm);
+}
+
+.hk-settings__label-text {
+  font-size: var(--hk-text-sm);
+  color: var(--hk-text-primary);
+}
+
+.hk-settings__label-desc {
+  font-size: var(--hk-text-xs);
+  color: var(--hk-text-muted);
+  margin-top: 2px;
+}
+
+.hk-settings__input {
+  width: 100%;
+  padding: var(--hk-space-sm) var(--hk-space-md);
+  background: var(--hk-bg-secondary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-sm);
+  color: var(--hk-text-primary);
+  font-family: var(--hk-font-mono);
+  font-size: var(--hk-text-sm);
+}
+
+.hk-settings__input:focus {
+  outline: none;
+  border-color: var(--hk-border-focus);
+}
+
+/* ── Toggle Switch ─────────────────────────────────────────────── */
+
+.hk-toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.hk-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.hk-toggle__slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--hk-bg-tertiary);
+  border-radius: var(--hk-radius-full);
+  transition: var(--hk-transition-fast);
+  border: 1px solid var(--hk-border);
+}
+
+.hk-toggle__slider::before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background: var(--hk-text-muted);
+  border-radius: 50%;
+  transition: var(--hk-transition-fast);
+}
+
+.hk-toggle input:checked + .hk-toggle__slider {
+  background: var(--hk-accent-gold);
+  border-color: var(--hk-accent-gold);
+}
+
+.hk-toggle input:checked + .hk-toggle__slider::before {
+  transform: translateX(18px);
+  background: var(--hk-bg-primary);
+}
+
+/* ── Subtitle View ─────────────────────────────────────────────── */
+
+.hk-subtitle__input-group {
+  display: flex;
+  gap: var(--hk-space-sm);
+  margin-bottom: var(--hk-space-lg);
+}
+
+.hk-subtitle__url-input {
+  flex: 1;
+  padding: var(--hk-space-sm) var(--hk-space-md);
+  background: var(--hk-bg-secondary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-sm);
+  color: var(--hk-text-primary);
+  font-family: var(--hk-font-sans);
+  font-size: var(--hk-text-sm);
+}
+
+.hk-subtitle__url-input:focus {
+  outline: none;
+  border-color: var(--hk-border-focus);
+}
+
+.hk-subtitle__segment {
+  padding: var(--hk-space-sm) var(--hk-space-md);
+  background: var(--hk-bg-secondary);
+  border-radius: var(--hk-radius-sm);
+  margin-bottom: var(--hk-space-xs);
+  cursor: pointer;
+  transition: background var(--hk-transition-fast);
+  border: 1px solid transparent;
+}
+
+.hk-subtitle__segment:hover {
+  background: var(--hk-bg-hover);
+  border-color: var(--hk-border);
+}
+
+.hk-subtitle__time {
+  font-size: var(--hk-text-xs);
+  color: var(--hk-accent-teal);
+  font-family: var(--hk-font-mono);
+  margin-bottom: 2px;
+}
+
+.hk-subtitle__text {
+  font-family: var(--hk-font-jp);
+  font-size: var(--hk-text-base);
+  color: var(--hk-text-primary);
+}
+
+/* ── Utility Classes ───────────────────────────────────────────── */
+
+.hk-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.hk-fade-in {
+  animation: hk-fadeIn 0.3s ease;
+}
+
+@keyframes hk-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

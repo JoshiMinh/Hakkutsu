@@ -1,13 +1,14 @@
 {
   "name": "hakkutsu",
-  "displayName": "Hakkutsu",
-  "version": "0.0.1",
-  "description": "AI-powered Japanese immersion browser extension",
+  "displayName": "Hakkutsu — Japanese Immersion",
+  "version": "0.1.0",
+  "description": "AI-powered Japanese immersion browser extension. Learn Japanese while browsing the web.",
   "author": "Hakkutsu Team",
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",
-    "package": "plasmo package"
+    "package": "plasmo package",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "plasmo": "0.90.5",
@@ -25,10 +26,14 @@
   },
   "manifest": {
     "host_permissions": [
-      "https://*/*"
+      "https://*/*",
+      "http://localhost:8000/*",
+      "http://localhost:8765/*"
     ],
     "permissions": [
-      "tabs"
+      "tabs",
+      "storage",
+      "activeTab"
     ]
   }
 }
