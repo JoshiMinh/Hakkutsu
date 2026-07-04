@@ -1,0 +1,62 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Build outputs
+build/
+dist/
+*.tsbuildinfo
+
+# Plasmo
+.plasmo/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+.eggs/
+.venv/
+venv/
+env/
+.Python
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Data files (too large for git)
+backend/app/data/jmdict/
+backend/app/data/frequency/
+ml/data/
+
+# Firebase
+firebase-debug.log
+.firebase/
+
+# Testing
+coverage/
+.pytest_cache/
+htmlcov/
+
+# Docker
+*.log

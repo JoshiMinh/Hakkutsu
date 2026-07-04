@@ -1,0 +1,20 @@
+# Hakkutsu Backend Dependencies
+# Core
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Japanese NLP
+sudachipy>=0.6.8
+sudachidict-core>=20230927
+
+# YouTube subtitles
+youtube-transcript-api>=0.6.0
+
+# Firebase Admin (optional — for token verification)
+# firebase-admin>=6.0.0
+
+# Dev/Testing
+pytest>=7.0.0
+httpx>=0.24.0
