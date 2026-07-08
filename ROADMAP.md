@@ -14,7 +14,7 @@ Each stage includes an **Agent Prompt** that you can copy and paste to an AI cod
 
 ---
 
-## [ ] Stage 1: Core ML Data Pipeline
+## [x] Stage 1: Core ML Data Pipeline (Completed)
 **Focus:** Data Organization & Analysis (Tổ chức và phân tích dữ liệu)
 
 **Overview:** 
