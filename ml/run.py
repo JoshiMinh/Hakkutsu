@@ -44,6 +44,23 @@ def run_script(script_name):
     except KeyboardInterrupt:
         print(f"\n[{script_name}] Execution interrupted by user.\n")
 
+def run_training():
+    python_exec = get_python_exec()
+    train_script_path = os.path.join(os.path.dirname(__file__), "src", "train.py")
+    
+    if not os.path.exists(train_script_path):
+        print(f"Error: Script train.py not found in the src/ folder!")
+        return
+
+    print(f"\n[train.py] Started Training Pipeline...")
+    try:
+        subprocess.run([python_exec, train_script_path], check=True)
+        print(f"[train.py] Completed successfully!\n")
+    except subprocess.CalledProcessError as e:
+        print(f"[train.py] Failed with error code {e.returncode}\n")
+    except KeyboardInterrupt:
+        print(f"\n[train.py] Execution interrupted by user.\n")
+
 def main():
     while True:
         print("========================================")
@@ -53,11 +70,12 @@ def main():
         print("2. Download Data (01_download_data.py)")
         print("3. Preprocess Data (02_preprocess.py)")
         print("4. Run EDA (03_eda.py)")
-        print("5. Run Full Pipeline (2 -> 3 -> 4)")
+        print("5. Run Full Data Pipeline (2 -> 3 -> 4)")
+        print("6. Train Model (src/train.py)")
         print("0. Exit")
         print("========================================")
         
-        choice = input("Select an option (0-5): ").strip()
+        choice = input("Select an option (0-6): ").strip()
         
         if choice == '1':
             install_requirements()
@@ -71,11 +89,13 @@ def main():
             run_script("01_download_data.py")
             run_script("02_preprocess.py")
             run_script("03_eda.py")
+        elif choice == '6':
+            run_training()
         elif choice == '0':
             print("Exiting...")
             break
         else:
-            print("Invalid choice. Please select an option between 0 and 5.\n")
+            print("Invalid choice. Please select an option between 0 and 6.\n")
 
 if __name__ == "__main__":
     main()

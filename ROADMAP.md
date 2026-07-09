@@ -25,7 +25,7 @@ The first step of the AI Difficulty Classifier is gathering and cleaning data. W
 
 ---
 
-## [ ] Stage 2: Model Training & Evaluation
+## [x] Stage 2: Model Training & Evaluation
 **Focus:** Model Selection, Building, and Evaluation (Lựa chọn, xây dựng và đánh giá mô hình)
 
 **Overview:** 
