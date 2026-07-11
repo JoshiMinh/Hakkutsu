@@ -9,6 +9,13 @@ pydantic-settings>=2.0.0
 sudachipy>=0.6.8
 sudachidict-core>=20230927
 
+# Machine Learning (Difficulty Classifier)
+torch>=2.0.0
+transformers>=4.30.0
+fugashi>=1.3.0
+ipadic>=1.0.0
+unidic-lite>=1.0.8
+
 # YouTube subtitles
 youtube-transcript-api>=0.6.0
 

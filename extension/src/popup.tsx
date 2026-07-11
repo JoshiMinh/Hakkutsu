@@ -63,6 +63,31 @@ function EmptyState({ icon, text }: { icon: string; text: string }) {
   );
 }
 
+function DifficultyMeter({ label, score }: { label: string | null; score: number | null }) {
+  if (!label || score === null) return null;
+  const percentage = (score * 100).toFixed(1);
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "10px 14px",
+      background: "var(--hk-bg-secondary)",
+      borderLeft: "4px solid var(--hk-accent-crimson)",
+      borderRadius: "6px",
+      marginBottom: "16px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <span style={{ fontSize: 13, color: "var(--hk-text-muted)", fontWeight: "bold" }}>JLPT Level</span>
+        <JlptBadge level={label} />
+      </div>
+      <div style={{ fontSize: 12, color: "var(--hk-text-secondary)" }}>
+        AI Confidence: <strong>{percentage}%</strong>
+      </div>
+    </div>
+  );
+}
+
 // ── Token Display ───────────────────────────────────────────────────
 
 function TokenDisplay({
@@ -305,6 +330,9 @@ function AnalysisView({
       {/* Results */}
       {result && !loading && (
         <>
+          {/* Difficulty Meter */}
+          <DifficultyMeter label={result.difficulty_label} score={result.difficulty_score} />
+
           {/* Sentence reading */}
           {result.sentence_reading && (
             <div

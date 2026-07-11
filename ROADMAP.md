@@ -36,7 +36,7 @@ Train a Transformer model (like BERT or RoBERTa) on the processed dataset to cla
 
 ---
 
-## [ ] Stage 3: AI Application Integration
+## [x] Stage 3: AI Application Integration
 **Focus:** Application Integration (Áp dụng xây dựng ứng dụng)
 
 **Overview:** 

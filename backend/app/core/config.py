@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     JMDICT_PATH: str = "app/data/jmdict/jmdict-eng.json"
     JLPT_DATA_PATH: str = "app/data/jlpt"
     FREQUENCY_DATA_PATH: str = "app/data/frequency"
+    
+    # ML Models
+    CLASSIFIER_MODEL_PATH: str = "../ml/models/jlpt_classifier"
 
     # Sudachi
     SUDACHI_MODE: str = "C"  # A=short, B=medium, C=long unit

@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev:extension": "pnpm --filter extension dev",
-    "build:extension": "pnpm --filter extension build"
+    "dev": "pnpm --filter ./extension dev",
+    "dev:extension": "pnpm --filter ./extension dev",
+    "build:extension": "pnpm --filter ./extension build"
   }
 }

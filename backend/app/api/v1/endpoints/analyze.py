@@ -8,6 +8,7 @@ from app.models.analysis import AnalyzeRequest, AnalyzeResponse
 from app.services.tokenizer import tokenizer_service
 from app.services.dictionary import dictionary_service
 from app.services.frequency import frequency_service
+from app.services.classifier import classifier_service
 
 router = APIRouter()
 
@@ -44,12 +45,17 @@ async def analyze_text(request: AnalyzeRequest):
 
         # Build sentence reading
         sentence_reading = "".join(t.reading.hiragana for t in enriched_tokens)
+        
+        # Step 3: Predict difficulty
+        diff_label, diff_score = classifier_service.predict_difficulty(request.text)
 
         return AnalyzeResponse(
             text=request.text,
             tokens=enriched_tokens,
             sentence_reading=sentence_reading,
             token_count=len(enriched_tokens),
+            difficulty_label=diff_label,
+            difficulty_score=diff_score,
         )
 
     except Exception as e:

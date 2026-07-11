@@ -60,3 +60,6 @@ htmlcov/
 
 # Docker
 *.log
+ml/models/
+ml/outputs/
+ml/mlflow.db
