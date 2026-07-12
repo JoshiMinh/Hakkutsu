@@ -23,20 +23,16 @@ import type {
 } from "~types";
 import { DEFAULT_SETTINGS } from "~types";
 
+import { JlptBadge, PosBadge } from "~components/Badges";
+import { TokenDisplay } from "~components/TokenDisplay";
+import { DefinitionCard } from "~components/DefinitionCard";
+import { SettingsView } from "~components/SettingsView";
+
 import "./style.css";
 
 // ── Helper Components ───────────────────────────────────────────────
 
-function JlptBadge({ level }: { level: string | null }) {
-  if (!level) return null;
-  const cls = `hk-badge hk-badge--${level.toLowerCase()}`;
-  return <span className={cls}>{level}</span>;
-}
 
-function PosBadge({ pos }: { pos: string }) {
-  const label = POS_LABELS[pos] || pos;
-  return <span className="hk-badge hk-badge--pos">{label}</span>;
-}
 
 function StatusDot({ connected }: { connected: boolean }) {
   const cls = connected
@@ -88,119 +84,7 @@ function DifficultyMeter({ label, score }: { label: string | null; score: number
   );
 }
 
-// ── Token Display ───────────────────────────────────────────────────
 
-function TokenDisplay({
-  tokens,
-  selectedIndex,
-  onSelect,
-}: {
-  tokens: TokenAnalysis[];
-  selectedIndex: number | null;
-  onSelect: (index: number) => void;
-}) {
-  return (
-    <div className="hk-tokens">
-      {tokens.map((token, i) => (
-        <div
-          key={i}
-          className={`hk-token ${!token.is_japanese ? "hk-token--non-jp" : ""} ${
-            selectedIndex === i ? "hk-token--selected" : ""
-          }`}
-          onClick={() => onSelect(i)}
-          role="button"
-          tabIndex={0}
-          title={token.is_japanese ? `${token.dictionary_form} — ${token.pos}` : token.surface}
-        >
-          <span className="hk-token__reading">
-            {token.is_japanese && token.reading.hiragana !== token.surface
-              ? token.reading.hiragana
-              : "\u00A0"}
-          </span>
-          <span className="hk-token__surface">{token.surface}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Definition Card ─────────────────────────────────────────────────
-
-function DefinitionCard({
-  token,
-  onExport,
-  ankiConnected,
-  originalText,
-  sentenceReading,
-}: {
-  token: TokenAnalysis;
-  onExport: (data: AnkiExportData) => void;
-  ankiConnected: boolean;
-  originalText: string;
-  sentenceReading: string;
-}) {
-  const handleExport = () => {
-    const meanings = token.definitions
-      .flatMap((d) => d.glosses)
-      .join("; ");
-
-    onExport({
-      word: token.dictionary_form,
-      reading: token.reading.hiragana,
-      meaning: meanings || "—",
-      sentence: originalText,
-      sentenceReading: sentenceReading,
-      jlptLevel: token.jlpt_level || "",
-      pos: POS_LABELS[token.pos] || token.pos,
-    });
-  };
-
-  return (
-    <div className="hk-definition hk-fade-in">
-      <div className="hk-definition__header">
-        <span className="hk-definition__word">{token.dictionary_form}</span>
-        <span className="hk-definition__reading">{token.reading.hiragana}</span>
-        <div className="hk-definition__meta">
-          <JlptBadge level={token.jlpt_level} />
-          <PosBadge pos={token.pos} />
-        </div>
-      </div>
-
-      {token.definitions.length > 0 ? (
-        <ul className="hk-definition__glosses">
-          {token.definitions.flatMap((def, di) =>
-            def.glosses.map((gloss, gi) => (
-              <li key={`${di}-${gi}`} className="hk-definition__gloss">
-                {gloss}
-              </li>
-            ))
-          )}
-        </ul>
-      ) : (
-        <p className="hk-definition__gloss" style={{ opacity: 0.5 }}>
-          No definitions available. Try downloading JMdict data for the backend.
-        </p>
-      )}
-
-      {token.frequency_rank && (
-        <div style={{ marginTop: 8, fontSize: 11, color: "var(--hk-text-muted)" }}>
-          Frequency rank: #{token.frequency_rank.toLocaleString()}
-        </div>
-      )}
-
-      <div className="hk-definition__actions">
-        <button
-          className="hk-btn hk-btn--primary hk-btn--sm"
-          onClick={handleExport}
-          disabled={!ankiConnected}
-          title={ankiConnected ? "Export to Anki" : "Anki not connected"}
-        >
-          📇 Export to Anki
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // ── Analysis View ───────────────────────────────────────────────────
 
@@ -490,117 +374,7 @@ function SubtitlesView({ backendConnected }: { backendConnected: boolean }) {
   );
 }
 
-// ── Settings View ───────────────────────────────────────────────────
 
-function SettingsView({
-  settings,
-  onUpdate,
-}: {
-  settings: ExtensionSettings;
-  onUpdate: (patch: Partial<ExtensionSettings>) => void;
-}) {
-  return (
-    <div className="hk-content hk-fade-in">
-      <div className="hk-settings__group">
-        <label className="hk-settings__label">
-          <div>
-            <div className="hk-settings__label-text">Backend URL</div>
-            <div className="hk-settings__label-desc">FastAPI server address</div>
-          </div>
-        </label>
-        <input
-          className="hk-settings__input"
-          type="text"
-          value={settings.backendUrl}
-          onChange={(e) => onUpdate({ backendUrl: e.target.value })}
-        />
-      </div>
-
-      <div className="hk-settings__group">
-        <label className="hk-settings__label">
-          <div>
-            <div className="hk-settings__label-text">Auto-detect Japanese</div>
-            <div className="hk-settings__label-desc">Scan pages for Japanese text</div>
-          </div>
-          <label className="hk-toggle">
-            <input
-              type="checkbox"
-              checked={settings.autoDetect}
-              onChange={(e) => onUpdate({ autoDetect: e.target.checked })}
-            />
-            <span className="hk-toggle__slider" />
-          </label>
-        </label>
-      </div>
-
-      <div className="hk-settings__group">
-        <label className="hk-settings__label">
-          <div>
-            <div className="hk-settings__label-text">Show Furigana</div>
-            <div className="hk-settings__label-desc">Display readings above tokens</div>
-          </div>
-          <label className="hk-toggle">
-            <input
-              type="checkbox"
-              checked={settings.showFurigana}
-              onChange={(e) => onUpdate({ showFurigana: e.target.checked })}
-            />
-            <span className="hk-toggle__slider" />
-          </label>
-        </label>
-      </div>
-
-      <div className="hk-settings__group">
-        <label className="hk-settings__label">
-          <div>
-            <div className="hk-settings__label-text">Anki Deck Name</div>
-            <div className="hk-settings__label-desc">Default deck for exports</div>
-          </div>
-        </label>
-        <input
-          className="hk-settings__input"
-          type="text"
-          value={settings.ankiDeck}
-          onChange={(e) => onUpdate({ ankiDeck: e.target.value })}
-        />
-      </div>
-
-      <div className="hk-settings__group">
-        <label className="hk-settings__label">
-          <div>
-            <div className="hk-settings__label-text">Anki Note Type</div>
-            <div className="hk-settings__label-desc">Card model for exports</div>
-          </div>
-        </label>
-        <input
-          className="hk-settings__input"
-          type="text"
-          value={settings.ankiModel}
-          onChange={(e) => onUpdate({ ankiModel: e.target.value })}
-        />
-      </div>
-
-      <div
-        style={{
-          marginTop: 24,
-          padding: 12,
-          background: "var(--hk-bg-secondary)",
-          borderRadius: 8,
-          border: "1px solid var(--hk-border)",
-          fontSize: 11,
-          color: "var(--hk-text-muted)",
-          lineHeight: 1.6,
-        }}
-      >
-        <strong style={{ color: "var(--hk-text-secondary)" }}>Hakkutsu v0.1.0</strong>
-        <br />
-        AI-powered Japanese immersion browser extension.
-        <br />
-        Built with Plasmo, React, TypeScript, FastAPI.
-      </div>
-    </div>
-  );
-}
 
 // ── Main Popup ──────────────────────────────────────────────────────
 
@@ -699,7 +473,18 @@ function Popup() {
         <SubtitlesView backendConnected={backendConnected} />
       )}
       {activeView === "settings" && (
-        <SettingsView settings={settings} onUpdate={handleUpdateSettings} />
+        <>
+          <SettingsView settings={settings} onUpdate={handleUpdateSettings} />
+          <div style={{ padding: "0 16px 16px" }}>
+            <button
+              className="hk-btn hk-btn--secondary"
+              style={{ width: "100%", justifyContent: "center" }}
+              onClick={() => chrome.runtime.openOptionsPage()}
+            >
+              ⚙️ Open Full Settings Page
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

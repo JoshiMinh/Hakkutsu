@@ -1,6 +1,6 @@
 # Hakkutsu Development Roadmap
 
-This document outlines an 8-stage roadmap for completing the AI Difficulty Classifier and expanding the extension's features. 
+This document outlines a 9-stage roadmap for completing the AI Difficulty Classifier and expanding the extension's features. 
 
 Each stage includes an **Agent Prompt** that you can copy and paste to an AI coding assistant to automatically implement that stage.
 
@@ -58,44 +58,56 @@ Prepare the necessary academic documentation and presentations required to succe
 
 ---
 
-## [ ] Stage 5: OCR & Media Integration
+## [x] Stage 5: Interactive Subtitles
+**Focus:** Native YouTube Integration
+
+**Overview:** 
+Allow users to interactively analyze Japanese subtitles directly inside the YouTube player while watching, similar to Migaku or Language Reactor.
+
+**Agent Prompt:**
+> "Execute Stage 5 of the ROADMAP.md: Build a Plasmo UI Content Script to inject a React component directly into the YouTube player. Fetch the timed Japanese subtitle segments from the backend, sync them with the video's currentTime, and render them as hoverable text that pauses the video when interacted with."
+
+
+---
+
+## [ ] Stage 6: OCR & Media Integration
 **Focus:** Computer Vision & Multi-platform Support
 
 **Overview:** 
 Extend the extension's capabilities beyond simple text and YouTube. Add support for images, manga, and other streaming platforms.
 
 **Agent Prompt:**
-> "Execute Stage 5 of the ROADMAP.md: Integrate MangaOCR or PaddleOCR to allow users to extract text directly from images and manga panels via a screenshot tool. Update the extension architecture to support Netflix subtitles, reusing the existing YouTube extraction logic."
+> "Execute Stage 6 of the ROADMAP.md: Integrate MangaOCR or PaddleOCR to allow users to extract text directly from images and manga panels via a screenshot tool. Update the extension architecture to support Netflix subtitles, reusing the existing YouTube extraction logic."
 
 ---
 
-## [ ] Stage 6: Linguistic Deep Dive
+## [ ] Stage 7: Linguistic Deep Dive
 **Focus:** Advanced Japanese Analysis
 
 **Overview:** 
 Provide deeper explanations of Japanese text, going beyond basic dictionary definitions to include grammar, stroke order, and kanji components.
 
 **Agent Prompt:**
-> "Execute Stage 6 of the ROADMAP.md: Integrate an API or local data source to display Kanji stroke order animations and radical breakdowns. Next, implement a grammar pattern recognition module to identify common Japanese grammar structures in the analyzed text and provide detailed explanations for them."
+> "Execute Stage 7 of the ROADMAP.md: Integrate an API or local data source to display Kanji stroke order animations and radical breakdowns. Next, implement a grammar pattern recognition module to identify common Japanese grammar structures in the analyzed text and provide detailed explanations for them."
 
 ---
 
-## [ ] Stage 7: Advanced Learning & SRS Features
+## [ ] Stage 8: Advanced Learning & SRS Features
 **Focus:** User Progression & Spaced Repetition
 
 **Overview:** 
 Help users track their learning journey and retain vocabulary without relying strictly on third-party tools like Anki.
 
 **Agent Prompt:**
-> "Execute Stage 7 of the ROADMAP.md: Build a native Spaced Repetition System (SRS) algorithm directly into the extension and backend. Implement a 'Reading difficulty heatmap' that colors webpages based on the user's known vocabulary. Add a sentence mining mode to auto-collect sentences containing target words."
+> "Execute Stage 8 of the ROADMAP.md: Build a native Spaced Repetition System (SRS) algorithm directly into the extension and backend. Implement a 'Reading difficulty heatmap' that colors webpages based on the user's known vocabulary. Add a sentence mining mode to auto-collect sentences containing target words."
 
 ---
 
-## [ ] Stage 8: Polish, Publishing & CI/CD
+## [ ] Stage 9: Polish, Publishing & CI/CD
 **Focus:** Production Readiness & Community
 
 **Overview:** 
 Prepare the app for public release on the Chrome Web Store and ensure code quality and performance.
 
 **Agent Prompt:**
-> "Execute Stage 8 of the ROADMAP.md: Implement comprehensive performance optimizations (lazy loading, caching). Set up a CI/CD pipeline using GitHub Actions for automated testing and builds. Finally, prepare the required assets and manifest updates for publishing the extension to the Chrome Web Store and porting it to Firefox."
+> "Execute Stage 9 of the ROADMAP.md: Implement comprehensive performance optimizations (lazy loading, caching). Set up a CI/CD pipeline using GitHub Actions for automated testing and builds. Finally, prepare the required assets and manifest updates for publishing the extension to the Chrome Web Store and porting it to Firefox."
