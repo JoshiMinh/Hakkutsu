@@ -6,6 +6,15 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 
 
+class GrammarPattern(BaseModel):
+    """A matched Japanese grammar pattern."""
+    
+    pattern: str = Field(..., description="The grammar structure matched (e.g. ~なければならない)")
+    meaning: str = Field(..., description="English meaning of the pattern")
+    explanation: str = Field(..., description="Detailed explanation of how the grammar is used")
+    jlpt_level: Optional[str] = Field(None, description="JLPT level of this grammar point")
+
+
 class AnalyzeRequest(BaseModel):
     """Request body for text analysis."""
 
@@ -58,4 +67,7 @@ class AnalyzeResponse(BaseModel):
     )
     difficulty_label: Optional[str] = Field(
         None, description="JLPT difficulty label (Phase 2)"
+    )
+    grammar_patterns: List[GrammarPattern] = Field(
+        default_factory=list, description="Recognized grammar patterns in the text"
     )

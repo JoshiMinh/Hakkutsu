@@ -98,11 +98,9 @@ async function handleMessage(message: ExtensionMessage): Promise<ExtensionMessag
       }
     }
 
-    case "GET_SUBTITLES": {
-      const request = message.payload as SubtitleRequest;
-      const result = await apiClient.getSubtitles(request);
-      return { type: "SUBTITLES_RESULT", payload: result };
-    }
+    case "TEXT_SELECTED":
+      // Handled by popup if open. We just return success to avoid background errors.
+      return { type: "IGNORED", payload: {} };
 
     case "EXPORT_ANKI": {
       const data = message.payload as AnkiExportData;

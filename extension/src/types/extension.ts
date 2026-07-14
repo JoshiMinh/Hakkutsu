@@ -59,6 +59,7 @@ export type MessageType =
   | "GET_SETTINGS"
   | "UPDATE_SETTINGS"
   | "TEXT_SELECTED"
+  | "IGNORED"
   | "ERROR";
 
 export interface ExtensionMessage {

@@ -2,6 +2,15 @@
  * API response types matching the FastAPI backend schemas.
  */
 
+// ── Grammar ─────────────────────────────────────────────────────────────────
+
+export interface GrammarPattern {
+  pattern: string;
+  meaning: string;
+  explanation: string;
+  jlpt_level: string | null;
+}
+
 // ── Token Analysis ──────────────────────────────────────────────────────────
 
 export interface TokenReading {
@@ -41,6 +50,7 @@ export interface AnalyzeResponse {
   token_count: number;
   difficulty_score: number | null;
   difficulty_label: string | null;
+  grammar_patterns?: GrammarPattern[];
 }
 
 // ── Subtitles ───────────────────────────────────────────────────────────────

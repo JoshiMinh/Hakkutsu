@@ -9,6 +9,7 @@ from app.services.tokenizer import tokenizer_service
 from app.services.dictionary import dictionary_service
 from app.services.frequency import frequency_service
 from app.services.classifier import classifier_service
+from app.services.grammar import grammar_service
 
 router = APIRouter()
 
@@ -49,6 +50,9 @@ async def analyze_text(request: AnalyzeRequest):
         # Step 3: Predict difficulty
         diff_label, diff_score = classifier_service.predict_difficulty(request.text)
 
+        # Step 4: Extract grammar patterns
+        grammar_patterns = grammar_service.find_patterns(request.text)
+
         return AnalyzeResponse(
             text=request.text,
             tokens=enriched_tokens,
@@ -56,6 +60,7 @@ async def analyze_text(request: AnalyzeRequest):
             token_count=len(enriched_tokens),
             difficulty_label=diff_label,
             difficulty_score=diff_score,
+            grammar_patterns=grammar_patterns,
         )
 
     except Exception as e:

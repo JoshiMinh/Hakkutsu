@@ -1,0 +1,72 @@
+[
+    {
+        "pattern": "なければならない",
+        "regex": "なければならない|なきゃいけない|なくちゃいけない",
+        "meaning": "must do; have to do",
+        "explanation": "Used to express strong obligation or necessity. It literally means 'if you do not do X, it will not become good'.",
+        "jlpt_level": "N5"
+    },
+    {
+        "pattern": "てはいけない",
+        "regex": "てはいけない|ちゃいけない|てはだめ",
+        "meaning": "must not do; may not do",
+        "explanation": "Used to express prohibition. It literally means 'if you do X, it cannot go'.",
+        "jlpt_level": "N5"
+    },
+    {
+        "pattern": "かもしれない",
+        "regex": "かもしれない|かも知れない",
+        "meaning": "might; maybe; probably",
+        "explanation": "Used to express a possibility or an uncertain prediction.",
+        "jlpt_level": "N4"
+    },
+    {
+        "pattern": "ことがある",
+        "regex": "ことがある|事がある",
+        "meaning": "there are times when; sometimes do",
+        "explanation": "When attached to the non-past tense of a verb, it means 'there are times when ~ happens' or 'sometimes I do ~'.",
+        "jlpt_level": "N4"
+    },
+    {
+        "pattern": "たことがある",
+        "regex": "たことがある|た事がある",
+        "meaning": "have done before",
+        "explanation": "When attached to the past tense (た-form) of a verb, it indicates a past experience.",
+        "jlpt_level": "N5"
+    },
+    {
+        "pattern": "ている",
+        "regex": "ている|てる",
+        "meaning": "is doing; currently doing",
+        "explanation": "Expresses an ongoing action or a state resulting from a past action.",
+        "jlpt_level": "N5"
+    },
+    {
+        "pattern": "つもりだ",
+        "regex": "つもりだ|つもりです",
+        "meaning": "plan to; intend to",
+        "explanation": "Used to express an intention or plan.",
+        "jlpt_level": "N5"
+    },
+    {
+        "pattern": "ことができる",
+        "regex": "ことができる|事ができる",
+        "meaning": "can do; be able to",
+        "explanation": "Indicates ability or possibility. Converts a verb into a noun phrase with こと and adds できる.",
+        "jlpt_level": "N5"
+    },
+    {
+        "pattern": "という",
+        "regex": "という",
+        "meaning": "called; named; that says",
+        "explanation": "Used to quote or define something. Often used as 'X という Y' meaning 'Y called X'.",
+        "jlpt_level": "N4"
+    },
+    {
+        "pattern": "てみる",
+        "regex": "てみる",
+        "meaning": "try to do",
+        "explanation": "Indicates doing an action as a trial, to see what happens or how it feels.",
+        "jlpt_level": "N4"
+    }
+]

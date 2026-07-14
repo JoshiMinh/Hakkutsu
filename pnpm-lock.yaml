@@ -10,6 +10,9 @@ importers:
 
   extension:
     dependencies:
+      hanzi-writer:
+        specifier: ^3.7.3
+        version: 3.7.3
       plasmo:
         specifier: 0.90.5
         version: 0.90.5(@swc/core@1.15.43(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(@types/node@20.11.5)(postcss@8.5.16)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -2049,6 +2052,9 @@ packages:
   graphql@15.10.2:
     resolution: {integrity: sha512-1PRqdDPAmViWr4h1GVBT8RoPZfWSGZa7kDzleTilOfVIslsgf+cia3Nl95v1KDmR4iERPaT7WzQ+tN4MJmbg3w==}
     engines: {node: '>= 10.x'}
+
+  hanzi-writer@3.7.3:
+    resolution: {integrity: sha512-fdOFrb1cXWL/pV/oplJkcdziCvjJzhhf+qoIBm5IpVGxPBZEu4eLB6ZG5RJDbKXyNbNlyx8oIpa3XrcUBcSXpg==}
 
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
@@ -5319,6 +5325,8 @@ snapshots:
       graphql: 15.10.2
 
   graphql@15.10.2: {}
+
+  hanzi-writer@3.7.3: {}
 
   has-flag@4.0.0: {}
 

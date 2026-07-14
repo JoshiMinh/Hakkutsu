@@ -22,11 +22,14 @@ import type {
   AnkiExportData,
 } from "~types";
 import { DEFAULT_SETTINGS } from "~types";
+import { YoutubeTranscript } from "youtube-transcript";
 
 import { JlptBadge, PosBadge } from "~components/Badges";
 import { TokenDisplay } from "~components/TokenDisplay";
 import { DefinitionCard } from "~components/DefinitionCard";
 import { SettingsView } from "~components/SettingsView";
+import { GrammarExplanations } from "~components/GrammarExplanations";
+import { KanjiBreakdown } from "~components/KanjiBreakdown";
 
 import "./style.css";
 
@@ -243,13 +246,26 @@ function AnalysisView({
 
           {/* Selected token definition */}
           {selectedTokenData && selectedTokenData.is_japanese && (
-            <DefinitionCard
-              token={selectedTokenData}
-              onExport={handleExport}
-              ankiConnected={ankiConnected}
-              originalText={result.text}
-              sentenceReading={result.sentence_reading}
-            />
+            <>
+              <DefinitionCard
+                token={selectedTokenData}
+                onExport={handleExport}
+                ankiConnected={ankiConnected}
+                originalText={result.text}
+                sentenceReading={result.sentence_reading}
+              />
+              
+              <div style={{ marginTop: 16 }}>
+                {Array.from(new Set(Array.from(selectedTokenData.dictionary_form).filter(c => /[\u4e00-\u9faf]/.test(c)))).map((kanji, i) => (
+                  <KanjiBreakdown key={`${kanji}-${i}`} kanji={kanji} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Grammar Patterns */}
+          {result.grammar_patterns && result.grammar_patterns.length > 0 && (
+            <GrammarExplanations patterns={result.grammar_patterns} />
           )}
 
           {/* Prompt to select a token */}
@@ -288,8 +304,26 @@ function SubtitlesView({ backendConnected }: { backendConnected: boolean }) {
     setError(null);
 
     try {
-      const response = await apiClient.getSubtitles({ video_url: url });
-      setResult(response);
+      const transcripts = await YoutubeTranscript.fetchTranscript(url, { lang: "ja" });
+      
+      if (!transcripts || transcripts.length === 0) {
+        throw new Error("No Japanese subtitles found");
+      }
+
+      const segments: SubtitleSegment[] = transcripts.map(t => ({
+        text: t.text,
+        start: t.offset / 1000,
+        duration: t.duration / 1000
+      }));
+
+      const full_text = segments.map(s => s.text).join(" ");
+
+      setResult({
+        video_id: new URL(url).searchParams.get("v") || "",
+        language: "ja",
+        segments,
+        full_text
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to fetch subtitles";
       setError(msg);
@@ -320,7 +354,7 @@ function SubtitlesView({ backendConnected }: { backendConnected: boolean }) {
         <button
           className="hk-btn hk-btn--primary"
           onClick={handleFetch}
-          disabled={loading || !url.trim() || !backendConnected}
+          disabled={loading || !url.trim()}
         >
           {loading ? "⏳" : "📺"} Fetch
         </button>

@@ -1,6 +1,7 @@
 import type { PlasmoCSConfig, PlasmoGetOverlayAnchor } from "plasmo";
 import { useEffect, useState, useRef } from "react";
 import type { SubtitleResponse, SubtitleSegment, AnalyzeResponse } from "~types";
+import { YoutubeTranscript } from "youtube-transcript";
 
 export const config: PlasmoCSConfig = {
   matches: ["https://www.youtube.com/watch*"],
@@ -17,6 +18,9 @@ const YouTubeSubtitles = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   
+  const [isEnabled, setIsEnabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+
   // Store the current URL to detect navigation within the SPA
   const [currentUrl, setCurrentUrl] = useState(window.location.href);
 
@@ -31,6 +35,7 @@ const YouTubeSubtitles = () => {
         } else {
           setSubtitles(null);
           setCurrentSegment(null);
+          setIsEnabled(false);
         }
       }
     });
@@ -38,33 +43,55 @@ const YouTubeSubtitles = () => {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    const fetchSubtitles = async () => {
+  const fetchSubtitles = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      setSubtitles(null);
+      setCurrentSegment(null);
+      
+      // Try fetching Japanese subtitles natively in the browser
+      let transcripts;
       try {
-        setSubtitles(null);
-        setCurrentSegment(null);
-        const response = await chrome.runtime.sendMessage({
-          type: "GET_SUBTITLES",
-          payload: { video_url: currentUrl },
-        });
-        if (response?.type === "ERROR") {
-          throw new Error(response.payload.error);
-        }
-        if (response?.type === "SUBTITLES_RESULT") {
-          setSubtitles(response.payload as SubtitleResponse);
-        } else {
-          throw new Error("Invalid response");
-        }
-      } catch (err) {
-        console.error("Hakkutsu: Failed to fetch subtitles", err);
-        setError("Failed to load subtitles");
+        transcripts = await YoutubeTranscript.fetchTranscript(currentUrl, { lang: "ja" });
+      } catch (err: any) {
+        // If exact 'ja' fails, try fetching default and see if it's Japanese, 
+        // or just let it fail and tell the user.
+        throw new Error(err.message || "Japanese subtitles not found");
       }
-    };
+      
+      if (!transcripts || transcripts.length === 0) {
+        throw new Error("No Japanese subtitles found");
+      }
 
-    if (currentUrl.includes("watch")) {
+      const segments: SubtitleSegment[] = transcripts.map(t => ({
+        text: t.text,
+        start: t.offset / 1000,
+        duration: t.duration / 1000
+      }));
+
+      const full_text = segments.map(s => s.text).join(" ");
+      
+      setSubtitles({
+        video_id: new URL(currentUrl).searchParams.get("v") || "",
+        language: "ja",
+        segments,
+        full_text
+      });
+    } catch (err: any) {
+      console.error("Hakkutsu: Failed to fetch subtitles", err);
+      setError(err.message || "Failed to load subtitles");
+      setIsEnabled(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isEnabled && !subtitles && currentUrl.includes("watch")) {
       fetchSubtitles();
     }
-  }, [currentUrl]);
+  }, [isEnabled, currentUrl]);
 
   useEffect(() => {
     const video = document.querySelector("video");
@@ -72,7 +99,7 @@ const YouTubeSubtitles = () => {
     videoRef.current = video;
 
     const handleTimeUpdate = () => {
-      if (!subtitles) return;
+      if (!subtitles || !isEnabled) return;
       const currentTime = video.currentTime;
       
       const segment = subtitles.segments.find(
@@ -87,11 +114,11 @@ const YouTubeSubtitles = () => {
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
     };
-  }, [subtitles]);
+  }, [subtitles, isEnabled]);
 
   // Fetch analysis for the current segment when it changes
   useEffect(() => {
-    if (currentSegment) {
+    if (currentSegment && isEnabled) {
       chrome.runtime.sendMessage({
         type: "ANALYZE_TEXT",
         payload: { text: currentSegment.text, include_definitions: false },
@@ -111,7 +138,7 @@ const YouTubeSubtitles = () => {
     } else {
       setAnalyzedSegment(null);
     }
-  }, [currentSegment]);
+  }, [currentSegment, isEnabled]);
 
   const getSelection = () => {
     if (!containerRef.current) return window.getSelection();
@@ -145,6 +172,17 @@ const YouTubeSubtitles = () => {
     const selectedText = selection.toString().trim();
     if (!selectedText) return;
 
+    // Trigger the inline dictionary overlay
+    window.dispatchEvent(
+      new CustomEvent("hakkutsu:analyze", {
+        detail: {
+          text: selectedText,
+          x: e.clientX,
+          y: e.clientY,
+        },
+      })
+    );
+
     // Send selection to background script for Hakkutsu popup
     chrome.runtime.sendMessage({
       type: "TEXT_SELECTED",
@@ -158,9 +196,62 @@ const YouTubeSubtitles = () => {
     }).catch(() => {});
   };
 
-  if (error || !subtitles || !currentSegment) return null;
-
   return (
+    <>
+      {/* Hakkutsu Toggle Switch */}
+      <div style={{
+        position: "absolute",
+        top: "20px",
+        left: "20px",
+        zIndex: 9999,
+        pointerEvents: "auto",
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        background: "rgba(0, 0, 0, 0.6)",
+        padding: "8px 12px",
+        borderRadius: "8px",
+        fontFamily: "var(--hk-font-jp, sans-serif)",
+        color: "white",
+        backdropFilter: "blur(4px)"
+      }}>
+        <div style={{ fontSize: "14px", fontWeight: "bold" }}>
+          Hakkutsu
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsEnabled(!isEnabled);
+            setError(null);
+          }}
+          style={{
+            background: isEnabled ? "var(--hk-accent-crimson, #e85d75)" : "#4b5563",
+            border: "none",
+            borderRadius: "12px",
+            width: "40px",
+            height: "24px",
+            position: "relative",
+            cursor: "pointer",
+            transition: "background 0.2s"
+          }}
+        >
+          <div style={{
+            position: "absolute",
+            top: "2px",
+            left: isEnabled ? "18px" : "2px",
+            width: "20px",
+            height: "20px",
+            background: "white",
+            borderRadius: "50%",
+            transition: "left 0.2s"
+          }} />
+        </button>
+        {loading && <span style={{ fontSize: "12px", marginLeft: "4px" }}>Loading...</span>}
+        {error && <span style={{ fontSize: "12px", color: "#fca5a5", marginLeft: "4px", maxWidth: "150px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={error}>{error}</span>}
+      </div>
+
+      {/* Subtitle Display */}
+      {isEnabled && subtitles && currentSegment && (
     <div
       ref={containerRef}
       style={{
@@ -224,6 +315,8 @@ const YouTubeSubtitles = () => {
         )}
       </div>
     </div>
+      )}
+    </>
   );
 };
 

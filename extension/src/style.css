@@ -724,3 +724,156 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ── Grammar ───────────────────────────────────────────────────────── */
+.hakkutsu-grammar-list {
+  margin-top: 16px;
+  background: var(--hk-bg-secondary);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid var(--hk-bg-tertiary);
+}
+
+.hakkutsu-grammar-title {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--hk-text-primary);
+  font-weight: 600;
+}
+
+.hakkutsu-grammar-empty {
+  margin-top: 16px;
+  padding: 16px;
+  text-align: center;
+  color: var(--hk-text-muted);
+  font-size: 13px;
+  background: var(--hk-bg-secondary);
+  border-radius: 8px;
+}
+
+.hakkutsu-grammar-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hakkutsu-grammar-item {
+  background: var(--hk-bg-tertiary);
+  padding: 12px;
+  border-radius: 6px;
+  border-left: 3px solid var(--hk-accent-gold);
+}
+
+.hakkutsu-grammar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.hakkutsu-grammar-pattern {
+  font-family: var(--hk-font-jp);
+  font-size: 15px;
+  font-weight: bold;
+  color: var(--hk-text-primary);
+}
+
+.hakkutsu-grammar-meaning {
+  font-size: 13px;
+  color: var(--hk-accent-sakura);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.hakkutsu-grammar-explanation {
+  font-size: 13px;
+  color: var(--hk-text-secondary);
+  line-height: 1.4;
+}
+
+/* ── Kanji Breakdown ────────────────────────────────────────────────── */
+.hakkutsu-kanji-breakdown {
+  margin-top: 12px;
+  background: var(--hk-bg-tertiary);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  gap: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.hakkutsu-kanji-loading, .hakkutsu-kanji-error {
+  margin-top: 12px;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--hk-text-muted);
+  background: var(--hk-bg-secondary);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.hakkutsu-kanji-error {
+  color: var(--hk-accent-crimson);
+}
+
+.hakkutsu-kanji-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.hakkutsu-kanji-writer {
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.hakkutsu-kanji-writer:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.hakkutsu-kanji-writer svg {
+  display: block;
+}
+
+.hakkutsu-kanji-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.hakkutsu-kanji-strokes {
+  font-size: 11px;
+  color: var(--hk-text-muted);
+}
+
+.hakkutsu-kanji-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+}
+
+.hakkutsu-kanji-meanings {
+  font-size: 14px;
+  color: var(--hk-text-primary);
+  line-height: 1.4;
+}
+
+.hakkutsu-kanji-reading {
+  font-size: 13px;
+  color: var(--hk-text-secondary);
+  font-family: var(--hk-font-jp);
+}
+
+.hakkutsu-kanji-reading strong {
+  color: var(--hk-accent-teal);
+  font-family: var(--hk-font-sans);
+  margin-right: 4px;
+}
