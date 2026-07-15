@@ -22,7 +22,7 @@ import type {
   AnkiExportData,
 } from "~types";
 import { DEFAULT_SETTINGS } from "~types";
-import { YoutubeTranscript } from "youtube-transcript";
+
 
 import { JlptBadge, PosBadge } from "~components/Badges";
 import { TokenDisplay } from "~components/TokenDisplay";
@@ -304,26 +304,24 @@ function SubtitlesView({ backendConnected }: { backendConnected: boolean }) {
     setError(null);
 
     try {
-      const transcripts = await YoutubeTranscript.fetchTranscript(url, { lang: "ja" });
-      
-      if (!transcripts || transcripts.length === 0) {
-        throw new Error("No Japanese subtitles found");
+      const response = await chrome.runtime.sendMessage({
+        type: "GET_SUBTITLES",
+        payload: { videoUrl: url, language: "ja" },
+      });
+
+      if (response?.type === "ERROR") {
+        throw new Error(response.payload?.error || "Failed to fetch subtitles");
       }
 
-      const segments: SubtitleSegment[] = transcripts.map(t => ({
-        text: t.text,
-        start: t.offset / 1000,
-        duration: t.duration / 1000
-      }));
-
-      const full_text = segments.map(s => s.text).join(" ");
-
-      setResult({
-        video_id: new URL(url).searchParams.get("v") || "",
-        language: "ja",
-        segments,
-        full_text
-      });
+      if (response?.type === "SUBTITLES_RESULT") {
+        const data = response.payload;
+        setResult({
+          video_id: data.videoId,
+          language: data.language,
+          segments: data.segments,
+          full_text: data.fullText,
+        });
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to fetch subtitles";
       setError(msg);

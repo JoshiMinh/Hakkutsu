@@ -8,7 +8,8 @@
 import { getSettings } from "~services/storage";
 import { apiClient } from "~services/api-client";
 import { ankiClient } from "~services/anki-connect";
-import type { ExtensionMessage, AnalyzeRequest, SubtitleRequest, AnkiExportData, AnalyzeResponse } from "~types";
+import { fetchSubtitles, fetchCaptionTracks } from "~services/subtitle-fetcher";
+import type { ExtensionMessage, AnalyzeRequest, AnkiExportData, AnalyzeResponse } from "~types";
 
 // Fallback logic for when the local backend is offline
 async function fetchFromJisho(text: string): Promise<AnalyzeResponse> {
@@ -96,6 +97,18 @@ async function handleMessage(message: ExtensionMessage): Promise<ExtensionMessag
           throw err;
         }
       }
+    }
+
+    case "GET_SUBTITLES": {
+      const { videoUrl, language } = message.payload as { videoUrl: string; language?: string };
+      const subtitleResult = await fetchSubtitles(videoUrl, language || "ja");
+      return { type: "SUBTITLES_RESULT", payload: subtitleResult };
+    }
+
+    case "GET_CAPTION_TRACKS": {
+      const { videoUrl: trackUrl } = message.payload as { videoUrl: string };
+      const tracks = await fetchCaptionTracks(trackUrl);
+      return { type: "CAPTION_TRACKS_RESULT", payload: { tracks } };
     }
 
     case "TEXT_SELECTED":
