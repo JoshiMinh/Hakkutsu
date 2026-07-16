@@ -21,6 +21,7 @@ class AnalyzeRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=5000, description="Japanese text to analyze")
     include_definitions: bool = Field(True, description="Include dictionary definitions")
     include_examples: bool = Field(False, description="Include example sentences")
+    user_id: Optional[str] = Field(None, description="Optional user ID to fetch SRS states")
 
 
 class TokenReading(BaseModel):
@@ -53,6 +54,7 @@ class TokenAnalysis(BaseModel):
     definitions: List[DictionaryEntry] = Field(
         default_factory=list, description="Dictionary definitions"
     )
+    srs_state: Optional[str] = Field(None, description="SRS state (e.g. new, learning, graduated)")
 
 
 class AnalyzeResponse(BaseModel):

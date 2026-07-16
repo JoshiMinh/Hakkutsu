@@ -47,7 +47,7 @@ The trained model needs to be exposed as an API and consumed by the Chrome exten
 
 ---
 
-## [ ] Stage 4: Academic Deliverables
+## [x] Stage 4: Academic Deliverables
 **Focus:** Course Requirements (Đồ án chuyên ngành 2)
 
 **Overview:** 
@@ -92,7 +92,7 @@ Provide deeper explanations of Japanese text, going beyond basic dictionary defi
 
 ---
 
-## [ ] Stage 8: Advanced Learning & SRS Features
+## [x] Stage 8: Advanced Learning & SRS Features
 **Focus:** User Progression & Spaced Repetition
 
 **Overview:** 

@@ -44,6 +44,15 @@ async def analyze_text(request: AnalyzeRequest):
 
             enriched_tokens.append(token)
 
+        # Inject SRS States if user_id is provided
+        if request.user_id:
+            from app.services.srs import SrsService
+            token_words = [t.dictionary_form for t in enriched_tokens if t.is_japanese]
+            srs_states = SrsService.get_user_vocab_states(request.user_id, token_words)
+            for token in enriched_tokens:
+                if token.is_japanese:
+                    token.srs_state = srs_states.get(token.dictionary_form, "new")
+
         # Build sentence reading
         sentence_reading = "".join(t.reading.hiragana for t in enriched_tokens)
         

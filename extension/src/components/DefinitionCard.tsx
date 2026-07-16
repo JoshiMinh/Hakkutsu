@@ -8,12 +8,14 @@ export function DefinitionCard({
   ankiConnected,
   originalText,
   sentenceReading,
+  onSrsAdd,
 }: {
   token: TokenAnalysis;
   onExport?: (data: AnkiExportData) => void;
   ankiConnected: boolean;
   originalText: string;
   sentenceReading: string;
+  onSrsAdd?: () => void;
 }) {
   const handleExport = () => {
     if (!onExport) return;
@@ -65,8 +67,8 @@ export function DefinitionCard({
         </div>
       )}
 
-      {onExport && (
-        <div className="hk-definition__actions">
+      <div className="hk-definition__actions" style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+        {onExport && (
           <button
             className="hk-btn hk-btn--primary hk-btn--sm"
             onClick={handleExport}
@@ -75,8 +77,17 @@ export function DefinitionCard({
           >
             📇 Export to Anki
           </button>
-        </div>
-      )}
+        )}
+        {onSrsAdd && (
+          <button
+            className="hk-btn hk-btn--secondary hk-btn--sm"
+            onClick={onSrsAdd}
+            title="Add to native Hakkutsu Spaced Repetition System"
+          >
+            🧠 Add to SRS
+          </button>
+        )}
+      </div>
     </div>
   );
 }

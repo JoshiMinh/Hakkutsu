@@ -157,6 +157,28 @@ const InlineDictionary = () => {
     }
   };
 
+  const handleSrsAdd = async () => {
+    if (!selectedTokenData) return;
+    const meanings = selectedTokenData.definitions
+      .flatMap((d) => d.glosses)
+      .join("; ");
+      
+    try {
+      await chrome.runtime.sendMessage({
+        type: "ADD_SRS_CARD",
+        payload: {
+          word: selectedTokenData.dictionary_form,
+          reading: selectedTokenData.reading.hiragana,
+          meaning: meanings || "—",
+          sentence: result?.text,
+        },
+      });
+      // Optionally show a success toast here
+    } catch (e) {
+      console.error("SRS Add failed", e);
+    }
+  };
+
   if (!position) return null;
 
   const selectedTokenData =
@@ -211,6 +233,7 @@ const InlineDictionary = () => {
                 ankiConnected={ankiConnected}
                 originalText={result.text}
                 sentenceReading={result.sentence_reading}
+                onSrsAdd={handleSrsAdd}
               />
             ) : (
               <div style={{ fontSize: "12px", color: "var(--hk-text-muted)", textAlign: "center", padding: "10px" }}>

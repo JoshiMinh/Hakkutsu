@@ -30,6 +30,7 @@ import { DefinitionCard } from "~components/DefinitionCard";
 import { SettingsView } from "~components/SettingsView";
 import { GrammarExplanations } from "~components/GrammarExplanations";
 import { KanjiBreakdown } from "~components/KanjiBreakdown";
+import { SrsReview } from "~components/SrsReview";
 
 import "./style.css";
 
@@ -456,6 +457,7 @@ function Popup() {
   const tabs: Array<{ id: ExtensionView; label: string; icon: string }> = [
     { id: "analysis", label: "Analyze", icon: "🔍" },
     { id: "subtitles", label: "Subtitles", icon: "📺" },
+    { id: "srs", label: "Review", icon: "🧠" },
     { id: "settings", label: "Settings", icon: "⚙️" },
   ];
 
@@ -469,7 +471,14 @@ function Popup() {
             <div className="hk-header__subtitle">Japanese Immersion</div>
           </div>
         </div>
-        <div className="hk-header__actions">
+        <div className="hk-header__actions" style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <button 
+            className="hk-btn hk-btn--secondary hk-btn--sm"
+            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/dashboard.html") })}
+            title="Open Full Dashboard"
+          >
+            ↗ Dashboard
+          </button>
           <div className="hk-status" title={backendConnected ? "Backend connected" : "Backend disconnected"}>
             <StatusDot connected={backendConnected} />
             <span>API</span>
@@ -503,6 +512,9 @@ function Popup() {
       )}
       {activeView === "subtitles" && (
         <SubtitlesView backendConnected={backendConnected} />
+      )}
+      {activeView === "srs" && (
+        <SrsReview />
       )}
       {activeView === "settings" && (
         <>

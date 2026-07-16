@@ -35,12 +35,14 @@ export interface TokenAnalysis {
   jlpt_level: string | null;
   frequency_rank: number | null;
   definitions: DictionaryEntry[];
+  srs_state?: string | null;
 }
 
 export interface AnalyzeRequest {
   text: string;
   include_definitions?: boolean;
   include_examples?: boolean;
+  user_id?: string;
 }
 
 export interface AnalyzeResponse {

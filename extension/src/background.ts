@@ -126,6 +126,22 @@ async function handleMessage(message: ExtensionMessage): Promise<ExtensionMessag
       return { type: "ANKI_RESULT", payload: { noteId } };
     }
 
+    case "ADD_SRS_CARD": {
+      // In a real app we'd get user_id from auth, for now we hardcode "user_1"
+      const data = message.payload as { word: string; reading?: string; meaning?: string; sentence?: string };
+      const card = await apiClient.addSrsCard({
+        user_id: "user_1",
+        ...data
+      });
+      return { type: "SRS_RESULT", payload: card };
+    }
+
+    case "MINE_SENTENCE": {
+      const data = message.payload as { user_id: string; sentence: string; source_url?: string; source_title?: string; target_word?: string };
+      const result = await apiClient.mineSentence(data);
+      return { type: "SRS_RESULT", payload: result };
+    }
+
     case "CHECK_ANKI": {
       const connected = await ankiClient.isConnected();
       return { type: "ANKI_STATUS", payload: { connected } };

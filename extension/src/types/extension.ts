@@ -2,7 +2,7 @@
  * Extension-specific type definitions.
  */
 
-export type ExtensionView = "analysis" | "subtitles" | "settings" | "history";
+export type ExtensionView = "analysis" | "subtitles" | "srs" | "settings" | "history";
 
 export interface ExtensionSettings {
   backendUrl: string;
@@ -61,6 +61,9 @@ export type MessageType =
   | "GET_SETTINGS"
   | "UPDATE_SETTINGS"
   | "TEXT_SELECTED"
+  | "ADD_SRS_CARD"
+  | "SRS_RESULT"
+  | "MINE_SENTENCE"
   | "IGNORED"
   | "ERROR";
 

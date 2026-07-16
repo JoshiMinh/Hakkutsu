@@ -4,7 +4,7 @@ API v1 router — aggregates all endpoint routers.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import analyze, subtitles, ocr, health
+from app.api.v1.endpoints import analyze, health, subtitles, ocr, srs
 
 api_v1_router = APIRouter()
 
@@ -30,4 +30,10 @@ api_v1_router.include_router(
     ocr.router,
     prefix="/ocr",
     tags=["ocr"],
+)
+
+api_v1_router.include_router(
+    srs.router,
+    prefix="/srs",
+    tags=["srs"],
 )
