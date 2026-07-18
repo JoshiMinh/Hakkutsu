@@ -25,3 +25,12 @@ firebase-admin>=6.0.0
 # Dev/Testing
 pytest>=7.0.0
 httpx>=0.24.0
+
+# Manga OCR Studio
+python-multipart>=0.0.9
+Pillow>=10.0.0
+easyocr>=1.7.0
+opencv-python-headless>=4.8.0
+manga-ocr>=0.1.11
+ultralytics>=8.0.0
+jamdict>=0.1a11

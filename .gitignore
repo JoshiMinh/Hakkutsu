@@ -47,6 +47,8 @@ desktop.ini
 # Data files (too large for git)
 backend/app/data/jmdict/
 backend/app/data/frequency/
+backend/app/data/uploads/
+backend/app/data/models/
 ml/data/
 
 # Firebase

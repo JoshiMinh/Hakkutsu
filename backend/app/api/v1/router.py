@@ -4,7 +4,7 @@ API v1 router — aggregates all endpoint routers.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import analyze, health, subtitles, ocr, srs
+from app.api.v1.endpoints import analyze, health, subtitles, ocr, srs, manga_studio
 
 api_v1_router = APIRouter()
 
@@ -36,4 +36,10 @@ api_v1_router.include_router(
     srs.router,
     prefix="/srs",
     tags=["srs"],
+)
+
+api_v1_router.include_router(
+    manga_studio.router,
+    prefix="/mangas",
+    tags=["mangas"],
 )
