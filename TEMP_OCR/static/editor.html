@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Editor · Manga Translator Studio</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/editor.css?v=20">
+</head>
+<body class="editor-page">
+    <a class="mode-switch" href="/study" data-dev-only>Study ↗</a>
+    <header class="topbar editor-header">
+        <div class="editor-identity">
+            <a href="/" class="btn btn-quiet">← Thư viện</a>
+            <div><div id="editor-title" class="brand">Đang tải…</div><div id="editor-subtitle" class="subtitle"></div></div>
+        </div>
+        <div class="editor-actions">
+            <span id="autosave-state" class="autosave-state">Đang tải…</span>
+            <div class="page-nav">
+                <button id="previous-page" class="btn" title="Trang trước">‹</button>
+                <span id="page-position" class="badge">- / -</span>
+                <button id="next-page" class="btn" title="Trang sau">›</button>
+            </div>
+            <a id="export-page" class="btn" href="#">Xuất PNG</a>
+            <div class="tools-menu-wrap">
+                <button id="tools-toggle" class="btn" aria-expanded="false" aria-haspopup="menu">☰ Công cụ</button>
+                <div id="tools-menu" class="tools-menu hidden" role="menu">
+                    <div class="tools-heading">Toàn bộ trang</div>
+                    <button id="retry-current-page" role="menuitem">↻ Chạy lại toàn bộ trang này</button>
+                    <div class="tools-divider"></div>
+                    <div class="tools-heading">Xử lý lại</div>
+                    <button id="run-ocr" role="menuitem">Chạy lại OCR</button>
+                    <button id="run-bubble-analysis" role="menuitem">Phân tích lại bóng thoại</button>
+                    <button id="run-translation" role="menuitem">Dịch lại trang</button>
+                    <button id="run-inpainting" role="menuitem">Tạo lại ảnh sạch</button>
+                    <button id="auto-typeset" role="menuitem">Tự căn chữ</button>
+                    <div class="tools-divider"></div>
+                    <button id="toggle-mask" role="menuitem" disabled>Xem mask</button>
+                    <button id="toggle-bubbles" role="menuitem" disabled>Xem phân tích bóng thoại</button>
+                </div>
+            </div>
+            <button id="run-full-pipeline" class="btn btn-primary">▶ Xử lý chapter</button>
+        </div>
+    </header>
+
+    <main class="editor-shell">
+        <aside class="slides-pane panel">
+            <div class="slides-header">
+                <div><span class="eyebrow">TRANG</span><strong id="chapter-label">Chapter</strong></div>
+                <div class="toolbar compact">
+                    <button id="open-history" class="icon-btn" title="Lịch sử 7 ngày">◷</button>
+                    <label class="icon-btn" title="Thêm ảnh vào chapter">＋<input id="slides-add-pages" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden></label>
+                    <button id="delete-chapter" class="icon-btn danger-icon" title="Xóa chapter">×</button>
+                </div>
+            </div>
+            <div class="slides-help">Kéo thumbnail để đổi thứ tự. Mọi chỉnh sửa được tự lưu trước khi chuyển trang.</div>
+            <div id="slides-list" class="slides-list"></div>
+        </aside>
+
+        <section class="visual-workspace">
+            <section class="panel visual-panel">
+                <div class="panel-title"><span>Gốc</span><span class="badge">Chỉ đọc</span></div>
+                <div class="canvas-scroll"><div id="original-stage" class="image-stage"><img id="original-image" alt="Ảnh gốc"></div></div>
+            </section>
+            <section class="panel visual-panel">
+                <div class="panel-title"><span>Đã chỉnh</span><div class="toolbar compact"><button id="add-block" class="btn btn-small">+ TextBlock</button><span class="live-badge">Live</span></div></div>
+                <div class="canvas-scroll"><div id="preview-stage" class="image-stage"><img id="preview-image" alt="Bản đã chỉnh"><div id="overlay-layer"></div></div></div>
+            </section>
+        </section>
+
+        <aside class="panel inspector-panel">
+            <div class="panel-title"><span>Thuộc tính</span><span id="selected-label" class="badge">Chưa chọn</span></div>
+            <div id="block-list" class="block-list"></div>
+            <div id="empty-inspector" class="empty inspector-empty">Tạo hoặc chọn một TextBlock để chỉnh sửa.</div>
+            <div id="inspector" class="inspector hidden">
+                <div id="ocr-info" class="muted"></div>
+                <div class="field"><label>Văn bản gốc (OCR)</label><textarea id="original-text" class="input" rows="3"></textarea></div>
+                <div class="field"><label>Đề xuất của AI</label><textarea id="ai-translation" class="input" rows="3"></textarea></div>
+                <div class="toolbar"><button id="apply-ai" class="btn">Áp dụng đề xuất AI</button></div>
+                <div class="field"><label>Bản dịch cuối</label><textarea id="final-translation" class="input" rows="3"></textarea></div>
+                <div class="form-grid">
+                    <div class="field"><label>Font</label><select id="font-family" class="input"><option>Arial</option><option>Tahoma</option><option>Times New Roman</option><option>Comic Sans MS</option></select></div>
+                    <div class="field"><label>Cỡ chữ</label><input id="font-size" class="input" type="number" min="6" max="300"></div>
+                    <div class="field"><label>Màu chữ</label><input id="color" class="input" type="color"></div>
+                    <div class="field"><label>Căn chữ</label><select id="text-align" class="input"><option value="left">Trái</option><option value="center">Giữa</option><option value="right">Phải</option></select></div>
+                    <div class="field"><label>Góc xoay</label><input id="rotation" class="input" type="number" min="-360" max="360"></div>
+                    <div class="field"><label>X</label><input id="position-x" class="input" type="number" min="0"></div>
+                    <div class="field"><label>Y</label><input id="position-y" class="input" type="number" min="0"></div>
+                    <div class="field"><label>Rộng</label><input id="block-width" class="input" type="number" min="1"></div>
+                    <div class="field"><label>Cao</label><input id="block-height" class="input" type="number" min="1"></div>
+                </div>
+                <button id="delete-block" class="btn btn-danger inspector-delete">Xóa TextBlock này</button>
+            </div>
+        </aside>
+    </main>
+
+    <footer class="statusbar"><span id="status">Đang tải dữ liệu…</span><span id="image-size"></span></footer>
+    <div id="history-backdrop" class="history-backdrop hidden"></div>
+    <aside id="history-drawer" class="history-drawer" aria-hidden="true">
+        <div class="history-head"><div><span class="eyebrow">7 NGÀY GẦN NHẤT</span><h2>Lịch sử chỉnh sửa</h2></div><button id="close-history" class="icon-btn">×</button></div>
+        <div id="history-list" class="history-list"><div class="empty">Đang tải…</div></div>
+    </aside>
+    <script src="/static/dev-switch.js" defer></script>
+    <script src="/static/editor.js?v=21" defer></script>
+</body>
+</html>
