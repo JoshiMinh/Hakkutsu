@@ -84,12 +84,28 @@ class ApiClient {
     return this.request<HealthResponse>("/health");
   }
 
+  private analyzeCache: Map<string, AnalyzeResponse> = new Map();
+  private maxCacheSize = 50;
+
   /** Analyze Japanese text */
   async analyzeText(request: AnalyzeRequest): Promise<AnalyzeResponse> {
-    return this.request<AnalyzeResponse>("/analyze", {
+    const cacheKey = JSON.stringify(request);
+    if (this.analyzeCache.has(cacheKey)) {
+      return this.analyzeCache.get(cacheKey)!;
+    }
+
+    const response = await this.request<AnalyzeResponse>("/analyze", {
       method: "POST",
       body: JSON.stringify(request),
     });
+
+    if (this.analyzeCache.size >= this.maxCacheSize) {
+      const firstKey = this.analyzeCache.keys().next().value;
+      if (firstKey) this.analyzeCache.delete(firstKey);
+    }
+    this.analyzeCache.set(cacheKey, response);
+    
+    return response;
   }
 
   /** Get YouTube subtitles */

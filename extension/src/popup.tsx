@@ -5,7 +5,7 @@
  * and settings in a tabbed layout.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense, lazy } from "react";
 
 import { apiClient } from "~services/api-client";
 import { ankiClient } from "~services/anki-connect";
@@ -27,10 +27,10 @@ import { DEFAULT_SETTINGS } from "~types";
 import { JlptBadge, PosBadge } from "~components/Badges";
 import { TokenDisplay } from "~components/TokenDisplay";
 import { DefinitionCard } from "~components/DefinitionCard";
-import { SettingsView } from "~components/SettingsView";
-import { GrammarExplanations } from "~components/GrammarExplanations";
-import { KanjiBreakdown } from "~components/KanjiBreakdown";
-import { SrsReview } from "~components/SrsReview";
+const SettingsView = lazy(() => import("~components/SettingsView").then(m => ({ default: m.SettingsView })));
+const GrammarExplanations = lazy(() => import("~components/GrammarExplanations").then(m => ({ default: m.GrammarExplanations })));
+const KanjiBreakdown = lazy(() => import("~components/KanjiBreakdown").then(m => ({ default: m.KanjiBreakdown })));
+const SrsReview = lazy(() => import("~components/SrsReview").then(m => ({ default: m.SrsReview })));
 
 import "./style.css";
 
@@ -258,7 +258,9 @@ function AnalysisView({
               
               <div style={{ marginTop: 16 }}>
                 {Array.from(new Set(Array.from(selectedTokenData.dictionary_form).filter(c => /[\u4e00-\u9faf]/.test(c)))).map((kanji, i) => (
-                  <KanjiBreakdown key={`${kanji}-${i}`} kanji={kanji} />
+                  <Suspense fallback={<LoadingSpinner text={`Loading ${kanji} breakdown...`} />} key={`${kanji}-${i}`}>
+                    <KanjiBreakdown kanji={kanji} />
+                  </Suspense>
                 ))}
               </div>
             </>
@@ -266,7 +268,9 @@ function AnalysisView({
 
           {/* Grammar Patterns */}
           {result.grammar_patterns && result.grammar_patterns.length > 0 && (
-            <GrammarExplanations patterns={result.grammar_patterns} />
+            <Suspense fallback={<LoadingSpinner text="Loading grammar..." />}>
+              <GrammarExplanations patterns={result.grammar_patterns} />
+            </Suspense>
           )}
 
           {/* Prompt to select a token */}
@@ -474,6 +478,20 @@ function Popup() {
         <div className="hk-header__actions" style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"
+            onClick={() => {
+              chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                if (tabs[0]?.id) {
+                  chrome.tabs.sendMessage(tabs[0].id, { type: "START_SCREENSHOT_FLOW" });
+                  window.close();
+                }
+              });
+            }}
+            title="Extract text from screen"
+          >
+            ✂️ OCR
+          </button>
+          <button 
+            className="hk-btn hk-btn--secondary hk-btn--sm"
             onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/dashboard.html") })}
             title="Open Full Dashboard"
           >
@@ -504,32 +522,34 @@ function Popup() {
       </nav>
 
       {/* Views */}
-      {activeView === "analysis" && (
-        <AnalysisView
-          ankiConnected={ankiConnected}
-          backendConnected={backendConnected}
-        />
-      )}
-      {activeView === "subtitles" && (
-        <SubtitlesView backendConnected={backendConnected} />
-      )}
-      {activeView === "srs" && (
-        <SrsReview />
-      )}
-      {activeView === "settings" && (
-        <>
-          <SettingsView settings={settings} onUpdate={handleUpdateSettings} />
-          <div style={{ padding: "0 16px 16px" }}>
-            <button
-              className="hk-btn hk-btn--secondary"
-              style={{ width: "100%", justifyContent: "center" }}
-              onClick={() => chrome.runtime.openOptionsPage()}
-            >
-              ⚙️ Open Full Settings Page
-            </button>
-          </div>
-        </>
-      )}
+      <Suspense fallback={<LoadingSpinner text="Loading view..." />}>
+        {activeView === "analysis" && (
+          <AnalysisView
+            ankiConnected={ankiConnected}
+            backendConnected={backendConnected}
+          />
+        )}
+        {activeView === "subtitles" && (
+          <SubtitlesView backendConnected={backendConnected} />
+        )}
+        {activeView === "srs" && (
+          <SrsReview />
+        )}
+        {activeView === "settings" && (
+          <>
+            <SettingsView settings={settings} onUpdate={handleUpdateSettings} />
+            <div style={{ padding: "0 16px 16px" }}>
+              <button
+                className="hk-btn hk-btn--secondary"
+                style={{ width: "100%", justifyContent: "center" }}
+                onClick={() => chrome.runtime.openOptionsPage()}
+              >
+                ⚙️ Open Full Settings Page
+              </button>
+            </div>
+          </>
+        )}
+      </Suspense>
     </div>
   );
 }

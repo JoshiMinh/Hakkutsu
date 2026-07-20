@@ -1,0 +1,57 @@
+name: Hakkutsu CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  extension-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        working-directory: ./extension
+        run: pnpm install
+        
+      - name: Typecheck
+        working-directory: ./extension
+        run: pnpm typecheck
+        
+      - name: Build Chrome Extension
+        working-directory: ./extension
+        run: pnpm build
+
+      - name: Build Firefox Extension
+        working-directory: ./extension
+        run: pnpm build --target=firefox-mv2
+
+  backend-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        working-directory: ./backend
+        run: pip install -r requirements.txt
+        
+      - name: Run Tests
+        working-directory: ./backend
+        run: pytest

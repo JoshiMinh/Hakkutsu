@@ -8,6 +8,7 @@ returning definitions, readings, and part-of-speech information.
 import json
 import logging
 from pathlib import Path
+from functools import lru_cache
 from typing import Dict, List, Optional
 
 from app.models.analysis import DictionaryEntry
@@ -71,6 +72,7 @@ class DictionaryService:
             logger.error("Failed to load JMdict data: %s", e)
             self._loaded = True
 
+    @lru_cache(maxsize=1024)
     def lookup(self, word: str) -> List[DictionaryEntry]:
         """
         Look up a word in JMdict.

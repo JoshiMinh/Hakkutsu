@@ -152,6 +152,22 @@ async function handleMessage(message: ExtensionMessage): Promise<ExtensionMessag
       return { type: "GET_SETTINGS", payload: settings };
     }
 
+    case "CAPTURE_SCREENSHOT": {
+      return new Promise((resolve, reject) => {
+        chrome.tabs.captureVisibleTab(
+          chrome.windows.WINDOW_ID_CURRENT,
+          { format: "png" },
+          (dataUrl) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else {
+              resolve({ type: "SCREENSHOT_RESULT", payload: { dataUrl } });
+            }
+          }
+        );
+      });
+    }
+
     default:
       return { type: "ERROR", payload: { error: `Unknown message type: ${message.type}` } };
   }

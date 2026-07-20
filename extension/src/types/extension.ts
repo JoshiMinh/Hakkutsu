@@ -64,6 +64,8 @@ export type MessageType =
   | "ADD_SRS_CARD"
   | "SRS_RESULT"
   | "MINE_SENTENCE"
+  | "CAPTURE_SCREENSHOT"
+  | "SCREENSHOT_RESULT"
   | "IGNORED"
   | "ERROR";
 
