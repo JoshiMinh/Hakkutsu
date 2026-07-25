@@ -1,0 +1,283 @@
+INFO:     127.0.0.1:50113 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50113 - "GET /study/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50113 - "GET /api/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52400 - "GET /study/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52400 - "GET /static/study.css?v=2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55472 - "GET /static/styles.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:58952 - "GET /static/media.css?v=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55472 - "GET /static/dev-switch.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52400 - "GET /static/media.js?v=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58952 - "GET /api/ui-config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58952 - "GET /api/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52400 - "GET /api/vocabulary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52400 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54533 - "POST /api/media/import HTTP/1.1" 201 Created
+INFO:     127.0.0.1:54533 - "GET /api/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54533 - "GET /api/media/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58946 - "POST /api/media/segments/1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58946 - "GET /api/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58946 - "GET /api/media/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62782 - "GET /study/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62782 - "GET /static/media.css?v=1 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:62782 - "GET /static/media.js?v=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60086 - "GET /api/ui-config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62782 - "GET /api/vocabulary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60086 - "GET /api/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63116 - "GET /api/media/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53201 - "POST /api/media/segments/1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53201 - "GET /api/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53201 - "GET /api/media/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56374 - "GET /api/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61153 - "GET /api/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58955 - "DELETE /api/media/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58955 - "GET /api/media HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63533 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62690 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56783 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60554 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57563 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63193 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53597 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56372 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58212 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61789 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52572 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52572 - "GET /api/v1/srs/due?user_id=user_1&limit=50 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64415 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64415 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64415 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64415 - "GET /api/v1/srs/due?user_id=user_1&limit=50 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64415 - "GET /api/v1/srs/due?user_id=user_1&limit=50 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64415 - "GET /api/v1/srs/due?user_id=user_1&limit=50 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64415 - "GET /api/v1/srs/cards?user_id=user_1 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64415 - "GET /api/v1/srs/stats?user_id=user_1 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64415 - "GET /api/v1/srs/cards?user_id=user_1 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64415 - "GET /api/v1/srs/due?user_id=user_1&limit=50 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53780 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53780 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53780 - "POST /api/v1/srs/mine HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51086 - "POST /api/v1/subtitles/youtube HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62876 - "POST /api/v1/subtitles/youtube HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58786 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61581 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61581 - "GET /api/v1/srs/due?user_id=user_1&limit=50 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58909 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63287 - "POST /api/v1/subtitles/youtube HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64878 - "POST /api/v1/subtitles/youtube HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64878 - "POST /api/v1/analyze HTTP/1.1" 503 Service Unavailable
+INFO:     127.0.0.1:63287 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56033 - "POST /api/v1/subtitles/youtube HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56035 - "POST /api/v1/subtitles/youtube HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56717 - "POST /api/v1/subtitles/youtube HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56717 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56717 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/subtitles/youtube HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65010 - "POST /api/v1/analyze HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50866 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50866 - "GET /api/v1/srs/due?user_id=user_1&limit=50 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54895 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54895 - "GET /api/v1/srs/due?user_id=user_1&limit=50 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54895 - "GET /api/v1/srs/stats?user_id=user_1 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54895 - "GET /api/v1/srs/cards?user_id=user_1 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:62459 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62459 - "GET /static/styles.css?v=2 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:59991 - "GET /static/dev-switch.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:59991 - "GET /static/app.js?v=6 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:59991 - "GET /api/ui-config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59991 - "GET /api/library HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52843 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53713 - "GET /static/dev-switch.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52843 - "GET /static/styles.css?v=2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52843 - "GET /static/app.js?v=6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52843 - "GET /api/ui-config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53713 - "GET /api/library HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53713 - "GET /favicon.ico HTTP/1.1" 404 Not Found

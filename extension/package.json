@@ -1,0 +1,50 @@
+{
+  "name": "hakkutsu",
+  "displayName": "Hakkutsu — Japanese Immersion",
+  "version": "0.1.2",
+  "description": "AI-powered Japanese immersion browser extension. Learn Japanese while browsing the web.",
+  "author": "Hakkutsu Team",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "build:firefox": "plasmo build --target=firefox-mv2",
+    "package": "plasmo package",
+    "typecheck": "tsc --noEmit",
+    "test:smart-cue": "node scripts/test-smart-cue.cjs"
+  },
+  "dependencies": {
+    "firebase": "^12.16.0",
+    "hanzi-writer": "^3.7.3",
+    "idb": "^8.0.3",
+    "kuromoji": "^0.1.2",
+    "kuroshiro": "^1.2.0",
+    "kuroshiro-analyzer-kuromoji": "^1.1.0",
+    "plasmo": "0.90.5",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@ianvs/prettier-plugin-sort-imports": "4.1.1",
+    "@types/chrome": "0.0.258",
+    "@types/kuromoji": "^0.1.3",
+    "@types/node": "20.11.5",
+    "@types/react": "18.2.48",
+    "@types/react-dom": "18.2.18",
+    "prettier": "3.2.4",
+    "typescript": "5.3.3"
+  },
+  "manifest": {
+    "host_permissions": [
+      "https://*/*",
+      "http://localhost:8000/*",
+      "http://127.0.0.1:8000/*",
+      "http://localhost:8765/*"
+    ],
+    "permissions": [
+      "scripting",
+      "tabs",
+      "storage",
+      "activeTab"
+    ]
+  }
+}

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>JapTitle · Hakkutsu</title>
+    <link rel="stylesheet" href="/static/styles.css?v=2">
+    <link rel="stylesheet" href="/static/hub.css?v=1">
+</head>
+<body class="japtitle-page">
+    <header class="product-nav">
+        <a class="back-link" href="/">← Tất cả ứng dụng</a>
+        <div class="product-name"><span class="mini-logo">字</span> JapTitle</div>
+        <span class="app-status building">Đang phát triển</span>
+    </header>
+
+    <main class="product-shell">
+        <section class="product-hero">
+            <div>
+                <div class="eyebrow">YOUTUBE LANGUAGE COMPANION</div>
+                <h1>Hiểu câu đang xem,<br>không rời khỏi video.</h1>
+                <p>JapTitle đọc subtitle có sẵn của YouTube. Khi bạn chọn một cụm từ, video có thể tạm dừng trong lúc AI dịch và phân tích ngữ pháp.</p>
+                <div class="product-actions">
+                    <a class="btn btn-primary" href="/study/media">Mở thư viện phụ đề</a>
+                    <a class="btn" href="/docs">Xem API backend</a>
+                </div>
+            </div>
+            <div class="subtitle-demo" aria-label="Minh họa phụ đề tương tác">
+                <span class="demo-label">YOUTUBE · 02:14</span>
+                <div class="demo-screen">
+                    <span class="play-mark">▶</span>
+                    <div class="demo-caption"><span>この</span><span class="selected-word">言葉を</span><span>知っていますか？</span></div>
+                    <div class="analysis-popover">
+                        <strong>言葉を</strong>
+                        <span>“từ ngữ” + trợ từ を</span>
+                        <small>Đang phân tích ngữ pháp…</small>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="flow-section">
+            <div class="section-heading">
+                <div>
+                    <div class="eyebrow">KIẾN TRÚC MỤC TIÊU</div>
+                    <h2>Ưu tiên subtitle, không nghe audio</h2>
+                </div>
+                <p>Ngôn ngữ chỉ là cấu hình. Luồng can thiệp phụ đề phải hoạt động tổng quát trước khi tối ưu riêng cho tiếng Nhật.</p>
+            </div>
+            <div class="flow-grid">
+                <div class="flow-card"><span>01</span><strong>YouTube subtitle</strong><small>Đọc caption track có sẵn từ player</small></div>
+                <div class="flow-card"><span>02</span><strong>Interactive overlay</strong><small>Hiển thị lớp subtitle có thể hover/chọn</small></div>
+                <div class="flow-card"><span>03</span><strong>Pause & analyze</strong><small>Tạm dừng rồi gửi cụm từ cho AI nền</small></div>
+                <div class="flow-card"><span>04</span><strong>Learning result</strong><small>Dịch, ngữ pháp, từ vựng và lưu lại</small></div>
+            </div>
+        </section>
+
+        <section class="principles">
+            <h2>Ranh giới kỹ thuật</h2>
+            <div class="principle-grid">
+                <div><span class="check">✓</span><strong>Bình thường</strong><p>Lấy subtitle có sẵn của YouTube trực tiếp trong extension.</p></div>
+                <div><span class="check">✓</span><strong>Có backend</strong><p>Dùng backend để tách từ, furigana, từ điển và AI.</p></div>
+                <div><span class="later">Sau</span><strong>Không có subtitle</strong><p>Chỉ lúc đó mới cân nhắc ASR/Whisper; không nằm trong luồng mặc định.</p></div>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

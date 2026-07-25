@@ -1,0 +1,130 @@
+/**
+ * AnkiConnect client for creating flashcards.
+ *
+ * Communicates with the AnkiConnect add-on running locally
+ * on port 8765 via HTTP POST requests.
+ */
+
+import { ANKI_CONNECT_URL, ANKI_CONNECT_VERSION } from "~lib/constants";
+import type {
+  AnkiConnectRequest,
+  AnkiConnectResponse,
+  AnkiNote,
+  AnkiExportData,
+} from "~types";
+
+class AnkiConnectClient {
+  private url: string;
+
+  constructor(url: string = ANKI_CONNECT_URL) {
+    this.url = url;
+  }
+
+  /** Send a request to AnkiConnect */
+  private async invoke(
+    action: string,
+    params?: Record<string, unknown>
+  ): Promise<unknown> {
+    const request: AnkiConnectRequest = {
+      action,
+      version: ANKI_CONNECT_VERSION,
+      ...(params ? { params } : {}),
+    };
+
+    const response = await fetch(this.url, {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+
+    const data: AnkiConnectResponse = await response.json();
+
+    if (data.error) {
+      throw new Error(`AnkiConnect error: ${data.error}`);
+    }
+
+    return data.result;
+  }
+
+  /** Check if AnkiConnect is reachable */
+  async isConnected(): Promise<boolean> {
+    try {
+      await this.invoke("version");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Get AnkiConnect version */
+  async getVersion(): Promise<number> {
+    return (await this.invoke("version")) as number;
+  }
+
+  /** List all deck names */
+  async getDecks(): Promise<string[]> {
+    return (await this.invoke("deckNames")) as string[];
+  }
+
+  /** List all model (note type) names */
+  async getModels(): Promise<string[]> {
+    return (await this.invoke("modelNames")) as string[];
+  }
+
+  /** Get field names for a model */
+  async getModelFields(modelName: string): Promise<string[]> {
+    return (await this.invoke("modelFieldNames", {
+      modelName,
+    })) as string[];
+  }
+
+  /** Create a new deck if it doesn't exist */
+  async createDeck(deckName: string): Promise<number> {
+    return (await this.invoke("createDeck", { deck: deckName })) as number;
+  }
+
+  /** Add a note to Anki */
+  async addNote(note: AnkiNote): Promise<number> {
+    return (await this.invoke("addNote", { note })) as number;
+  }
+
+  /**
+   * Export a vocabulary entry to Anki using Hakkutsu's card format.
+   *
+   * Creates a note with: word, reading, meaning, sentence, JLPT level.
+   */
+  async exportVocabulary(
+    data: AnkiExportData,
+    deckName: string = "Hakkutsu",
+    modelName: string = "Basic"
+  ): Promise<number> {
+    // Build the front/back fields
+    const front = `<div class="hakkutsu-card">
+  <div class="word">${data.word}</div>
+  <div class="reading">${data.reading}</div>
+  ${data.jlptLevel ? `<div class="jlpt">${data.jlptLevel}</div>` : ""}
+</div>`;
+
+    const back = `<div class="hakkutsu-card">
+  <div class="meaning">${data.meaning}</div>
+  <div class="pos">${data.pos}</div>
+  ${data.sentence ? `<div class="sentence">${data.sentence}</div>` : ""}
+  ${data.sentenceReading ? `<div class="sentence-reading">${data.sentenceReading}</div>` : ""}
+</div>`;
+
+    const note: AnkiNote = {
+      deckName,
+      modelName,
+      fields: {
+        Front: front,
+        Back: back,
+      },
+      options: { allowDuplicate: false },
+      tags: ["hakkutsu", data.jlptLevel || "unranked"].filter(Boolean),
+    };
+
+    return this.addNote(note);
+  }
+}
+
+/** Singleton instance */
+export const ankiClient = new AnkiConnectClient();

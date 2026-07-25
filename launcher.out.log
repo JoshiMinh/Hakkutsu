@@ -1,0 +1,8 @@
+INFO:     127.0.0.1:57375 - "GET /api/ui-config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57375 - "GET /api/ui-config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50489 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50489 - "GET /static/hub.css?v=1 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54600 - "GET /static/styles.css?v=2 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54600 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61024 - "GET /japtitle HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57415 - "GET /api/v1/health HTTP/1.1" 200 OK

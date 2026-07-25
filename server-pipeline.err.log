@@ -1,0 +1,10 @@
+INFO:     Started server process [9060]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/770 [00:00<?, ?it/s]Loading weights:  75%|#######4  | 576/770 [00:00<00:00, 5732.47it/s]Loading weights: 100%|##########| 770/770 [00:00<00:00, 5913.71it/s]
+2026-07-16 21:33:13.790 | INFO     | manga_ocr.ocr:__init__:16 - Loading OCR model from kha-white/manga-ocr-base
+Loading weights:   0%|          | 0/264 [00:00<?, ?it/s]Loading weights: 100%|##########| 264/264 [00:00<00:00, 28161.15it/s]
+2026-07-16 21:33:17.513 | INFO     | manga_ocr.ocr:__init__:30 - Using CPU
+2026-07-16 21:33:18.261 | INFO     | manga_ocr.ocr:__init__:37 - OCR ready

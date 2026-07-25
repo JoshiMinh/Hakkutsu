@@ -1,0 +1,61 @@
+{
+  "project_name": "hakkutsu-javi-grammar",
+  "seed": 20260724,
+  "paths": {
+    "workspace": "data/training/javi",
+    "raw": "data/training/javi/raw",
+    "prepared": "data/training/javi/prepared",
+    "teacher": "data/training/javi/teacher",
+    "sft": "data/training/javi/sft",
+    "checkpoints": "data/training/javi/checkpoints",
+    "reports": "data/training/javi/reports",
+    "adapter": "data/models/hakkutsu-javi/adapter",
+    "merged": "data/models/hakkutsu-javi/merged",
+    "gguf": "data/models/hakkutsu-javi/gguf"
+  },
+  "data": {
+    "max_source_chars": 240,
+    "max_target_chars": 360,
+    "min_source_chars": 2,
+    "min_target_chars": 2,
+    "max_length_ratio": 4.0,
+    "validation_ratio": 0.02,
+    "test_ratio": 0.02,
+    "teacher_limit": 20000,
+    "grammar_repeat": 2
+  },
+  "teacher": {
+    "api_url": "http://127.0.0.1:11434/v1/chat/completions",
+    "model": "qwen3.5:9b",
+    "timeout_seconds": 300,
+    "max_retries": 3,
+    "workers": 1,
+    "checkpoint_every": 1
+  },
+  "training": {
+    "base_model": "Qwen/Qwen3-1.7B",
+    "max_length": 768,
+    "epochs": 2,
+    "learning_rate": 0.00015,
+    "per_device_batch_size": 1,
+    "gradient_accumulation_steps": 16,
+    "warmup_ratio": 0.03,
+    "logging_steps": 10,
+    "save_steps": 200,
+    "eval_steps": 200,
+    "save_total_limit": 3,
+    "lora_rank": 32,
+    "lora_alpha": 64,
+    "lora_dropout": 0.05
+  },
+  "deployment": {
+    "ollama_model": "hakkutsu-javi:latest",
+    "quantization": "Q4_K_M",
+    "gates": {
+      "valid_json_rate": 0.98,
+      "grammar_recall": 0.75,
+      "require_no_split_overlap": true,
+      "require_accepted_licenses": true
+    }
+  }
+}

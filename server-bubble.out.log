@@ -1,0 +1,69 @@
+INFO:     127.0.0.1:59958 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59959 - "GET /api/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59960 - "GET /api/pages/5/bubble-analysis HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64397 - "GET /editor?page=5&v=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60457 - "GET /static/styles.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:64397 - "GET /static/editor.css?v=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63894 - "GET /static/editor.js?v=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63894 - "GET /api/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63894 - "GET /uploads/chapter_1/c56e2c2a3823431c8125e5bc558d3e18.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:63894 - "GET /uploads/chapter_1/auto_clean_26c0fcd1c12f42f99c8fef2a4eb9bda1.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50448 - "GET /uploads/chapter_1/bubble_preview_ca4aa89195c247f68f5b6d01c2ee1843.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62418 - "GET /editor?page=5&v=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62418 - "GET /static/editor.css?v=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54576 - "GET /static/editor.js?v=12 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54576 - "GET /api/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62418 - "GET /uploads/chapter_1/auto_clean_26c0fcd1c12f42f99c8fef2a4eb9bda1.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54576 - "GET /uploads/chapter_1/c56e2c2a3823431c8125e5bc558d3e18.png HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:56218 - "POST /api/pages/5/typeset HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56218 - "GET /editor?page=5&v=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56218 - "GET /api/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "POST /api/pages/5/ocr HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /api/jobs/39 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /editor?page=5&v=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49188 - "GET /static/editor.js?v=12 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:49188 - "GET /api/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61421 - "POST /api/pages/5/bubble-segmentation HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:61421 - "GET /api/jobs/40 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61421 - "GET /api/jobs/40 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61421 - "GET /editor?page=5&v=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61421 - "GET /api/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61421 - "POST /api/pages/5/translate HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:61421 - "GET /api/jobs/41 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61421 - "POST /api/pages/5/translate HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:61421 - "GET /api/jobs/42 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63696 - "POST /api/pages/5/translate HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:63696 - "GET /api/jobs/43 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52028 - "POST /api/pages/5/typeset HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:52028 - "POST /api/pages/5/bubble-segmentation HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:52028 - "GET /api/jobs/44 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52028 - "GET /editor?page=5&v=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52028 - "GET /static/editor.js?v=12 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52028 - "GET /api/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52028 - "GET /editor?page=5&v=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52028 - "GET /api/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52028 - "GET /editor?page=5&v=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52028 - "GET /api/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64387 - "GET /editor?page=5&v=10 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64387 - "GET /api/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55708 - "GET /api/pages/5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55708 - "POST /api/pages/5/translate HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:55708 - "GET /api/jobs/45 HTTP/1.1" 200 OK

@@ -1,0 +1,48 @@
+{
+  "notice": "Mỗi nguồn phải được người vận hành chấp nhận giấy phép trước khi download_data.py tải về.",
+  "sources": [
+    {
+      "id": "tatoeba-ja-vi",
+      "kind": "opus",
+      "corpus": "Tatoeba",
+      "release": "latest",
+      "source_language": "ja",
+      "target_language": "vi",
+      "license": "CC BY 2.0 FR",
+      "accepted": false,
+      "enabled": true
+    },
+    {
+      "id": "ted2020-ja-vi",
+      "kind": "opus",
+      "corpus": "TED2020",
+      "release": "latest",
+      "source_language": "ja",
+      "target_language": "vi",
+      "license": "Kiểm tra metadata OPUS của release trước khi sử dụng",
+      "accepted": false,
+      "enabled": true
+    },
+    {
+      "id": "opensubtitles-ja-vi",
+      "kind": "opus",
+      "corpus": "OpenSubtitles",
+      "release": "latest",
+      "source_language": "ja",
+      "target_language": "vi",
+      "license": "Kiểm tra metadata OPUS của release trước khi sử dụng",
+      "accepted": false,
+      "enabled": true
+    },
+    {
+      "id": "local-reviewed-jsonl",
+      "kind": "local_jsonl",
+      "path": "data/training/javi/inbox/reviewed.jsonl",
+      "source_field": "ja",
+      "target_field": "vi",
+      "license": "Dữ liệu do chủ project sở hữu hoặc được phép sử dụng",
+      "accepted": true,
+      "enabled": true
+    }
+  ]
+}

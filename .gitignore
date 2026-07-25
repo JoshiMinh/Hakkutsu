@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+data/manga_translator.db
+data/uploads/
+data/models/
+data/training/
+data/tools/
+data/vendor/
+data/ocr_evaluation/
+data/*.log
+data/*.png
+.pytest_cache/
