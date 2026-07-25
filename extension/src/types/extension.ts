@@ -16,7 +16,7 @@ export interface ExtensionSettings {
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
-  backendUrl: "http://localhost:8000",
+  backendUrl: "http://127.0.0.1:8000",
   ankiEnabled: true,
   ankiDeck: "Hakkutsu",
   ankiModel: "Hakkutsu Japanese",

@@ -12,7 +12,7 @@ import type {
 } from "plasmo";
 import { useEffect, useState, useRef, useCallback } from "react";
 import type { SubtitleSegment, SubtitleFetchResult } from "~types";
-import { youtubeSubtitleCss } from "./youtube-subtitle-styles";
+import { youtubeSubtitleCss, youtubeToolbarCss } from "./youtube-subtitle-styles";
 import { SubtitleOverlay, type SubtitleSettings } from "~components/subtitle-overlay";
 import { fetchTranscriptPanelSubtitles } from "~services/youtube-transcript-dom";
 import {
@@ -118,6 +118,8 @@ function hideNativeCaptions(enabled: boolean): void {
           display: none !important;
           visibility: hidden !important;
         }
+
+        ${youtubeToolbarCss}
       `;
       (document.head || document.documentElement).appendChild(style);
     }
@@ -156,7 +158,7 @@ const YouTubeSubtitles = () => {
         if (!container) {
           container = document.createElement("div");
           container.id = "hk-toolbar-portal";
-          container.className = "ytp-button hk-toolbar-btn";
+          container.className = "ytp-button";
           // Prepend to place it on the far left of the right controls
           rightControls.prepend(container);
         }
@@ -223,7 +225,7 @@ const YouTubeSubtitles = () => {
           type: "GET_SUBTITLES",
           payload: {
             videoUrl: currentUrl,
-            language: "auto",
+            language: "ja",
             strategy: "youtube",
           },
         });

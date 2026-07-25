@@ -1,292 +1,104 @@
 # Manga Translator Studio
 
-## Mask chữ manga bằng comic-text-detector
+Đây là tài liệu mô tả kiến trúc và luồng hoạt động của **Manga Translator Studio** -- một ứng dụng dịch manga sử dụng AI, hỗ trợ tự động hóa từ quá trình crawl, OCR, dịch, xóa chữ, phục hồi nền đến chỉnh sửa và quản lý bản dịch.
 
-Cài model tạo mask nét chữ một lần:
+---
 
+## Cài đặt & Khởi chạy (Development)
+
+Dự án hiện tại bao gồm một Backend xử lý AI/OCR, và hỗ trợ hai giao diện (frontend) khác nhau: Giao diện Extension hiện đại (Plasmo) và Giao diện Static Web (Vanilla JS cũ).
+
+### 1. Khởi chạy Backend (Yêu cầu cho cả 2 giao diện)
+Backend được xây dựng bằng FastAPI, sử dụng SQLite và Pillow.
+Mở PowerShell tại thư mục gốc của dự án và chạy:
 ```powershell
-.\scripts\setup_comic_text_detector.ps1
+.\run.ps1
+```
+*Script này sẽ tự động tạo môi trường ảo `.venv`, cài đặt `requirements.txt` và khởi chạy server Uvicorn tại `http://127.0.0.1:8000`.*
+
+### 2. Chạy Frontend: Plasmo Extension (Mới / Khuyên dùng)
+Giao diện chính hiện tại đã được chuyển sang dạng Browser Extension (React/TypeScript) nằm trong thư mục `extension/`.
+- **Cài đặt thư viện:** Chạy lệnh `pnpm i` ở thư mục gốc.
+- **Khởi chạy Dev Server:** Chạy lệnh `pnpm run dev`.
+- **Cài đặt vào trình duyệt:** 
+  1. Mở `chrome://extensions/` (hoặc `edge://extensions/`).
+  2. Bật **Developer Mode**.
+  3. Bấm **Load unpacked** và chọn thư mục `extension/build/chrome-mv3-dev`.
+
+### 3. Chạy Frontend: Static Web (Cũ / Legacy)
+Đây là giao diện web 4-panel gốc sử dụng HTML/CSS/JS thuần (nằm trong thư mục `static/`).
+- Sau khi khởi chạy Backend thành công, chỉ cần mở trình duyệt và truy cập: `http://127.0.0.1:8000`
+
+---
+
+## Cấu hình AI & Models
+
+### Cài đặt Models Xóa chữ (Inpainting) & Masking
+1. **Mask chữ bằng comic-text-detector (CTD):** 
+   Cài model tạo mask nét chữ một lần bằng lệnh:
+   ```powershell
+   .\scripts\setup_comic_text_detector.ps1
+   ```
+   *Pipeline ưu tiên mask học sâu CTD, chỉ dùng mask OpenCV cho vùng CTD bỏ sót. Đặt `CTD_ENABLED=false` trong `.env` để tắt.*
+
+2. **Model xóa chữ LaMa:**
+   Tải model Big-LaMa một lần trước khi dùng chế độ xóa SFX/nền phức tạp:
+   ```powershell
+   .\scripts\download_lama_model.ps1
+   ```
+   *Pipeline dùng Telea cho bong bóng phẳng và tự chuyển sang LaMa cho SFX/nền nhiều chi tiết. Đặt `LAMA_ENABLED=false` trong `.env` để tắt.*
+
+### Cấu hình OCR
+Hệ thống dùng pipeline lai: EasyOCR tìm vùng chữ, Manga-OCR đọc lại vùng đã crop cho tiếng Nhật:
+```text
+OCR_LANGUAGES=ja,en
+OCR_GPU=auto
+OCR_RECOGNIZER=manga_ocr
+OCR_DETECTOR=comic
+OCR_DETECTION_THRESHOLD=0.35
+```
+- `OCR_GPU=auto` sẽ tự dùng GPU nếu PyTorch có hỗ trợ CUDA. Để buộc chạy CPU, hãy sửa thành `OCR_GPU=cpu`.
+- Đặt `OCR_RECOGNIZER=easyocr` để tắt Manga-OCR và quay về nhận dạng EasyOCR thuần.
+
+### Cấu hình Dịch AI (Dịch Nhật - Việt)
+Luồng dịch dùng API Chat Completions tương thích OpenAI. Đổi trong file `.env`:
+```text
+TRANSLATION_API_URL=https://api.deepseek.com/chat/completions
+TRANSLATION_MODEL=deepseek-v4-flash
+TRANSLATION_API_KEY=điền_khóa_tại_đây
+```
+*Không commit file `.env` lên git.*
+
+---
+
+## Tính năng & Luồng dữ liệu
+
+### Mục tiêu dự án
+- OCR đa ngôn ngữ.
+- Dịch bằng nhiều mô hình AI (GPT, Gemini, Claude, DeepL...).
+- Xóa text và phục hồi nền bằng AI.
+- Chèn văn bản mới và cho phép chỉnh sửa thủ công.
+- Quản lý tiến trình bằng Database SQLite.
+
+### Luồng xử lý Manga
+```text
+Website → Crawler → Metadata → Database
+   ↓
+OCR → Translation → Bubble Detection → Background Detection → Inpainting → Editor → Export
 ```
 
-Pipeline ưu tiên mask học sâu CTD, chỉ dùng mask OpenCV cho vùng CTD bỏ sót. Có thể
-đặt `CTD_ENABLED=false` trong `.env` để quay lại fallback. Mã nguồn CTD được tải
-riêng vào `data/vendor` và tuân theo giấy phép GPL-3.0 của dự án gốc.
+### Editor 4 Panel (Chế độ Static Web)
+1. **Original Image**: Ảnh gốc.
+2. **Clean Image**: Ảnh sạch đã qua inpainting (không đè text lên database, chỉ lưu PNG riêng).
+3. **Live Preview**: Xem trước bản dịch.
+4. **Translation Manager**: Quản lý chữ, kéo thả, xoay, đổi màu và font.
 
-## Model xóa chữ LaMa
+### Cơ sở dữ liệu (Database)
+- **Manga**: id, title, author, description, tags, thumbnail.
+- **Chapter**: id, manga_id, chapter_number, status.
+- **TextBlock**: page_id, x, y, w, h, original_text, ai_translation, final_translation, font, color, rotation.
 
-Tải model Big-LaMa một lần trước khi dùng chế độ xóa SFX/nền phức tạp:
-
+### Chạy kiểm thử
 ```powershell
-.\scripts\download_lama_model.ps1
+python -m unittest -v
 ```
-
-Pipeline dùng Telea cho bong bóng phẳng và tự chuyển sang LaMa cho SFX hoặc
-nền nhiều đường nét. Đặt `LAMA_ENABLED=false` trong `.env` nếu cần tắt model
-nặng và chỉ dùng Telea.
-
-## Tổng quan
-
-Đây là tài liệu mô tả kiến trúc và luồng hoạt động của **Manga
-Translator Studio** -- một ứng dụng dịch manga sử dụng AI, hỗ trợ tự
-động hóa từ quá trình crawl, OCR, dịch, xóa chữ, phục hồi nền đến chỉnh
-sửa và quản lý bản dịch.
-
-------------------------------------------------------------------------
-
-# Mục tiêu
-
--   Tự động crawl manga từ website.
--   OCR đa ngôn ngữ.
--   Dịch bằng nhiều mô hình AI (GPT, Gemini, Claude, DeepL...).
--   Xóa text và phục hồi nền bằng AI.
--   Chèn văn bản mới.
--   Cho phép chỉnh sửa thủ công.
--   Quản lý manga, chapter và tiến trình bằng Database.
-
-------------------------------------------------------------------------
-
-# Ba chức năng chính
-
-## 1. Crawl & Dịch tự động nhiều Chapter
-
-Luồng:
-
-``` text
-Nhập Link
-    ↓
-Crawler
-    ↓
-Lấy Metadata
-    ↓
-Kiểm tra Database
-    ↓
-Chọn Chapter
-    ↓
-AI tự động dịch
-```
-
-Quy trình AI:
-
-``` text
-Download ảnh
-    ↓
-OCR
-    ↓
-Dịch
-    ↓
-Xóa Text
-    ↓
-Inpainting
-    ↓
-Render Text
-    ↓
-Lưu Database
-    ↓
-Chapter tiếp theo
-```
-
-Đặc điểm:
-
--   Không cần người dùng can thiệp.
--   Lưu từng chapter ngay khi hoàn thành.
--   Có thể tiếp tục sau khi mất mạng hoặc hết API.
-
-------------------------------------------------------------------------
-
-## 2. Dịch từng Chapter
-
-Editor 4 Panel:
-
-1.  Original Image
-2.  Clean Image
-3.  Live Preview
-4.  Translation Manager
-
-Cho phép:
-
--   sửa nội dung
--   đổi font
--   đổi màu
--   xoay
--   kéo thả
--   dịch lại bằng model khác
-
-------------------------------------------------------------------------
-
-## 3. Xem bản dịch
-
-``` text
-Danh sách Manga
-      ↓
-Danh sách Chapter
-      ↓
-Mở Chapter
-      ↓
-Editor
-```
-
-Chức năng:
-
--   xem lại
--   chỉnh sửa
--   lưu lại
-
-------------------------------------------------------------------------
-
-# Luồng dữ liệu tổng thể
-
-``` text
-Website
-   ↓
-Crawler
-   ↓
-Metadata
-   ↓
-Database
-   ↓
-OCR
-   ↓
-Translation
-   ↓
-Bubble Detection
-   ↓
-Background Detection
-   ↓
-Inpainting
-   ↓
-Editor
-   ↓
-Export
-```
-
-------------------------------------------------------------------------
-
-# Chiến lược lưu dữ liệu
-
-Không lưu ảnh đã chèn chữ.
-
-Chỉ lưu:
-
--   Ảnh nền sạch
--   Bounding Box
--   Văn bản OCR
--   Văn bản AI
--   Văn bản cuối
--   Font
--   Màu
--   Rotation
-
-Mỗi lần sửa chỉ render lại lớp PNG chứa chữ và đè lên nền sạch.
-
-------------------------------------------------------------------------
-
-# Database
-
-## Manga
-
--   id
--   title
--   author
--   description
--   thumbnail
--   tags
-
-## Chapter
-
--   id
--   manga_id
--   chapter_number
--   status
-
-## Page
-
-Thông tin từng trang.
-
-## TextBlock
-
--   page_id
--   x
--   y
--   width
--   height
--   original_text
--   ai_translation
--   final_translation
--   font
--   color
--   rotation
-
-------------------------------------------------------------------------
-
-# Quy trình thêm truyện
-
-``` text
-Paste Link
-     ↓
-Crawler
-     ↓
-Auto Fill Metadata
-     ↓
-Cho phép chỉnh sửa
-     ↓
-Kiểm tra Database
-     ↓
-Nếu trùng → Cảnh báo
-     ↓
-Lưu Manga
-     ↓
-Chọn Chapter
-```
-
-------------------------------------------------------------------------
-
-# Dashboard dịch tự động
-
-Trạng thái:
-
--   Pending
--   Processing
--   Completed
--   Failed
-
-Có thể mở trực tiếp Editor từ bất kỳ Chapter nào.
-
-------------------------------------------------------------------------
-
-# Editor
-
-Panel 1: Ảnh gốc
-
-↓
-
-Panel 2: Ảnh sạch
-
-↓
-
-Panel 3: Preview
-
-↓
-
-Panel 4: Translation Manager
-
-Luồng chỉnh sửa:
-
-``` text
-Final Translation
-      ↓
-Render PNG Text
-      ↓
-Update Preview
-```
-
-------------------------------------------------------------------------
-
-# Mục tiêu cuối cùng
-
-Xây dựng một hệ thống dịch manga chuyên nghiệp:
-
--   AI tự động hóa tối đa.
--   Có Editor mạnh để hiệu chỉnh.
--   Lưu tiến trình theo Chapter.
--   Tiết kiệm dung lượng nhờ lưu dữ liệu thay vì ảnh hoàn chỉnh.
--   Một Editor dùng chung cho dịch và chỉnh sửa.

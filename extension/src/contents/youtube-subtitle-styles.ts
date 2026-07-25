@@ -145,7 +145,9 @@ export const youtubeSubtitleCss = /* css */ `
     white-space: nowrap;
   }
 
-  /* ── Native Toolbar Integration ──────────────────────────── */
+  /* ── Native Toolbar Integration ──────────────────────────── */`;
+
+export const youtubeToolbarCss = `
   .hk-toolbar-wrapper {
     display: inline-block;
     position: relative;
