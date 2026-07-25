@@ -1,3 +1,6 @@
+packages:
+  - 'extension'
+
 allowBuilds:
   '@firebase/util': true
   '@parcel/watcher': true

@@ -1,0 +1,9 @@
+{
+  "name": "hakkutsu-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -C extension dev",
+    "build": "pnpm -C extension build",
+    "package": "pnpm -C extension package"
+  }
+}
