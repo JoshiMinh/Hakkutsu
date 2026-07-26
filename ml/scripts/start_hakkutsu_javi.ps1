@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 if (-not $AcceptLicenses) {
-    throw "Read training/javi/sources.json, then run again with -AcceptLicenses."
+    throw "Read ml/javi/sources.json, then run again with -AcceptLicenses."
 }
 
 $launcher = Join-Path $PSScriptRoot "start_hakkutsu_training.ps1"
@@ -20,3 +20,4 @@ $launcher = Join-Path $PSScriptRoot "start_hakkutsu_training.ps1"
 if ($LASTEXITCODE -ne 0) {
     throw "Could not start the Hakkutsu Ja-Vi pipeline."
 }
+

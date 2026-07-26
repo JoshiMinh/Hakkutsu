@@ -9,14 +9,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$trainingRoot = Join-Path $projectRoot "training\javi"
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$trainingRoot = Join-Path $projectRoot "ml\javi"
 if (-not $Config) {
     $Config = Join-Path $trainingRoot "pipeline_config.json"
 }
 $trainingPython = Join-Path $projectRoot ".training-venv\Scripts\python.exe"
 $requirements = Join-Path $trainingRoot "requirements-training.txt"
-$runDirectory = Join-Path $projectRoot "data\training\javi\runs"
+$runDirectory = Join-Path $projectRoot "data\ml\javi\runs"
 $null = New-Item -ItemType Directory -Force -Path $runDirectory
 $runId = Get-Date -Format "yyyyMMdd-HHmmss"
 $stageLog = Join-Path $runDirectory "$runId-$Stage.transcript.log"
@@ -281,3 +281,4 @@ finally {
     if ($PreventSleep) { Disable-ProcessSleepBlock }
     Stop-Transcript | Out-Null
 }
+

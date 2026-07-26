@@ -24,7 +24,7 @@ try {
 
     if (-not (Test-MangaApp)) {
         $arguments = @(
-            "-m", "uvicorn", "app.main:app",
+            "-m", "uvicorn", "backend.main:app",
             "--host", "127.0.0.1",
             "--port", "8000"
         )

@@ -8,9 +8,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $runner = Join-Path $PSScriptRoot "train_hakkutsu_javi.ps1"
-$runDirectory = Join-Path $projectRoot "data\training\javi\runs"
+$runDirectory = Join-Path $projectRoot "data\ml\javi\runs"
 $null = New-Item -ItemType Directory -Force -Path $runDirectory
 $pidFile = Join-Path $runDirectory "active.pid.json"
 
@@ -55,3 +55,4 @@ $process = Start-Process `
 
 Write-Host "Pipeline đã chạy nền. PID=$($process.Id)"
 Write-Host "Theo dõi: powershell -File `"$PSScriptRoot\hakkutsu_training_status.ps1`""
+

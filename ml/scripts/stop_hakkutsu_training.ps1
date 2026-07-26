@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
-$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$runDirectory = Join-Path $projectRoot "data\training\javi\runs"
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$runDirectory = Join-Path $projectRoot "data\ml\javi\runs"
 $pidFile = Join-Path $runDirectory "active.pid.json"
 
 if (-not (Test-Path -LiteralPath $pidFile)) {
@@ -20,3 +20,4 @@ if ($process.CommandLine -notlike "*train_hakkutsu_javi.ps1*") {
 
 Stop-Process -Id $active.pid
 Write-Host "Đã yêu cầu dừng pipeline PID $($active.pid). Checkpoint gần nhất vẫn được giữ."
+

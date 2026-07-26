@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
-$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$runDirectory = Join-Path $projectRoot "data\training\javi\runs"
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$runDirectory = Join-Path $projectRoot "data\ml\javi\runs"
 $pidFile = Join-Path $runDirectory "active.pid.json"
 
 if (-not (Test-Path -LiteralPath $pidFile)) {
@@ -23,3 +23,4 @@ if (Test-Path -LiteralPath $active.stdout) {
     Write-Host "--- log mới nhất ---"
     Get-Content -LiteralPath $active.stdout -Tail 30 -Encoding UTF8
 }
+

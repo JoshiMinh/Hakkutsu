@@ -7,17 +7,17 @@
 
 :root {
   /* Base palette */
-  --hk-bg-primary: #0f0f1a;
-  --hk-bg-secondary: #1a1a2e;
-  --hk-bg-tertiary: #232340;
-  --hk-bg-hover: #2a2a4a;
-  --hk-bg-glass: rgba(26, 26, 46, 0.85);
+  --hk-bg-primary: #09090b;
+  --hk-bg-secondary: #18181b;
+  --hk-bg-tertiary: #27272a;
+  --hk-bg-hover: #3f3f46;
+  --hk-bg-glass: rgba(9, 9, 11, 0.85);
 
   /* Text */
-  --hk-text-primary: #e8e6f0;
-  --hk-text-secondary: #a8a4b8;
-  --hk-text-muted: #6b6880;
-  --hk-text-accent: #f0c674;
+  --hk-text-primary: #f4f4f5;
+  --hk-text-secondary: #a1a1aa;
+  --hk-text-muted: #71717a;
+  --hk-text-accent: #a855f7;
 
   /* Accent colors */
   --hk-accent-gold: #f0c674;
@@ -25,6 +25,7 @@
   --hk-accent-sakura: #f5a0c0;
   --hk-accent-teal: #5ec4b6;
   --hk-accent-indigo: #7c83ff;
+  --hk-accent-purple: #a855f7;
 
   /* JLPT level colors */
   --hk-jlpt-n5: #22c55e;
@@ -34,12 +35,12 @@
   --hk-jlpt-n1: #a855f7;
 
   /* Borders & shadows */
-  --hk-border: rgba(255, 255, 255, 0.06);
-  --hk-border-focus: rgba(240, 198, 116, 0.4);
+  --hk-border: rgba(255, 255, 255, 0.08);
+  --hk-border-focus: rgba(168, 85, 247, 0.5);
   --hk-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --hk-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --hk-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
-  --hk-shadow-glow: 0 0 20px rgba(240, 198, 116, 0.15);
+  --hk-shadow-glow: 0 0 20px rgba(168, 85, 247, 0.25);
 
   /* Spacing */
   --hk-space-xs: 4px;

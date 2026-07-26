@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $vendorPath = Join-Path $projectRoot "data\vendor\comic-text-detector"
 $modelDir = Join-Path $projectRoot "data\models\comic-text-detector"
 $modelPath = Join-Path $modelDir "comictextdetector.pt"
@@ -18,3 +18,4 @@ if (-not (Test-Path -LiteralPath $modelPath)) {
 }
 
 Write-Host "comic-text-detector đã sẵn sàng: $modelPath"
+
