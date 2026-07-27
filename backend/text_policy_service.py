@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import re
@@ -7,7 +7,7 @@ from typing import Mapping
 import cv2
 import numpy as np
 
-from app.database import db_session, utc_now
+from backend.database import db_session, utc_now
 
 
 JAPANESE = re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")

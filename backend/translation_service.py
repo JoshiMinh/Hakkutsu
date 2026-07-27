@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 import json
@@ -8,15 +8,15 @@ from typing import Protocol
 
 import httpx
 
-from app.config import (
+from backend.config import (
     TRANSLATION_API_KEY,
     TRANSLATION_API_URL,
     TRANSLATION_MODEL,
     TRANSLATION_TIMEOUT,
     UPLOAD_DIR,
 )
-from app.database import db_session, utc_now
-from app.typesetting_service import suggest_font_size
+from backend.database import db_session, utc_now
+from backend.typesetting_service import suggest_font_size
 
 
 @dataclass(frozen=True)

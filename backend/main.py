@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 
-from app.config import (
+from backend.config import (
     BASE_DIR,
     JAVI_ANALYSIS_ENABLED,
     JAVI_ANALYSIS_MODEL,
@@ -24,15 +24,15 @@ from app.config import (
     UPLOAD_DIR,
     ensure_directories,
 )
-from app.activity_service import prune_history, record_activity
-from app.quality_service import evaluate_page_quality
-from app.study_analysis_service import (
+from backend.activity_service import prune_history, record_activity
+from backend.quality_service import evaluate_page_quality
+from backend.study_analysis_service import (
     analyze_phrase_deep,
     analyze_phrase_javi,
     analyze_sentence,
     analyze_sentences,
 )
-from app.media_service import (
+from backend.media_service import (
     decode_subtitle_bytes,
     extension_analysis,
     fetch_youtube_subtitle_result,
@@ -40,11 +40,11 @@ from app.media_service import (
     parse_subtitle_text,
     subtitle_title_from_filename,
 )
-from app.database import db_session, init_database, row_to_dict, utc_now
-from app.ocr_service import recognize_japanese_crop, run_ocr_job
-from app.inpainting_service import run_inpainting_job
-from app.bubble_segmentation_service import run_bubble_segmentation_job
-from app.schemas import (
+from backend.database import db_session, init_database, row_to_dict, utc_now
+from backend.ocr_service import recognize_japanese_crop, run_ocr_job
+from backend.inpainting_service import run_inpainting_job
+from backend.bubble_segmentation_service import run_bubble_segmentation_job
+from backend.schemas import (
     ChapterCreate,
     ChapterReviewRequest,
     ChapterPipelineRequest,
@@ -66,14 +66,14 @@ from app.schemas import (
     WebTranslateRequest,
     YoutubeMediaImportRequest,
 )
-from app.translation_service import (
+from backend.translation_service import (
     TranslationBlock,
     get_translation_provider,
     run_translation_job,
     translate_blocks_resilient,
 )
-from app.visual_supervisor_service import visual_supervisor_config
-from app.typesetting_service import (
+from backend.visual_supervisor_service import visual_supervisor_config
+from backend.typesetting_service import (
     constrain_cell_to_bubble_interior,
     fit_text_layout,
     layout_at_size,
@@ -84,7 +84,7 @@ from app.typesetting_service import (
     suggest_text_color,
     text_layout_bounds,
 )
-from app.tonarinoyj_service import (
+from backend.tonarinoyj_service import (
     list_series_episodes,
     run_import_job,
     run_refresh_chapter_job,
@@ -2591,6 +2591,35 @@ def extension_health() -> dict:
             "model": JAVI_ANALYSIS_MODEL if JAVI_ANALYSIS_ENABLED else None,
         },
     }
+
+
+# --- MOCK SRS ENDPOINTS ---
+# Added to satisfy the extension's API client and prevent 404s.
+
+@app.post("/api/v1/srs/card")
+def add_srs_card(payload: dict) -> dict:
+    # payload expects: user_id, word, reading, meaning, sentence
+    return {"status": "ok", "id": "mock_card_123", **payload}
+
+@app.post("/api/v1/srs/mine")
+def mine_sentence(payload: dict) -> dict:
+    return {"status": "ok", **payload}
+
+@app.get("/api/v1/srs/due")
+def get_due_cards(user_id: str, limit: int = 50) -> list:
+    return []
+
+@app.get("/api/v1/srs/cards")
+def get_all_srs_cards(user_id: str) -> list:
+    return []
+
+@app.get("/api/v1/srs/stats")
+def get_srs_stats(user_id: str) -> dict:
+    return {"due": 0, "new": 0, "learning": 0, "graduated": 0}
+
+@app.post("/api/v1/srs/review")
+def submit_srs_review(user_id: str, payload: dict) -> dict:
+    return {"status": "ok", "card_id": payload.get("card_id"), "quality": payload.get("quality")}
 
 
 def _extension_analysis_with_srs(text: str, *, include_definitions: bool) -> dict:

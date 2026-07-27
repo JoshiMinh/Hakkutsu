@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 import json
@@ -8,7 +8,7 @@ from threading import Lock
 
 import httpx
 
-from app.config import (
+from backend.config import (
     JAMDICT_DB_PATH,
     JAVI_ANALYSIS_API_KEY,
     JAVI_ANALYSIS_API_URL,
@@ -19,7 +19,7 @@ from app.config import (
     TRANSLATION_MODEL,
     TRANSLATION_TIMEOUT,
 )
-from app.database import db_session, utc_now
+from backend.database import db_session, utc_now
 
 
 GRAMMAR_HINTS = {

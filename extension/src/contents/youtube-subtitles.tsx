@@ -106,25 +106,22 @@ function hideNativeCaptions(enabled: boolean): void {
   let style = document.getElementById(
     NATIVE_CAPTION_STYLE_ID
   ) as HTMLStyleElement | null;
-  if (enabled) {
-    if (!style) {
-      style = document.createElement("style");
-      style.id = NATIVE_CAPTION_STYLE_ID;
-      style.textContent = `
-        #movie_player.hk-subs-active .ytp-caption-window-container,
-        #movie_player.hk-subs-active .caption-window,
-        #movie_player.hk-subs-active .captions-text,
-        #movie_player.hk-subs-active .ytp-caption-segment {
-          display: none !important;
-          visibility: hidden !important;
-        }
+  
+  if (!style) {
+    style = document.createElement("style");
+    style.id = NATIVE_CAPTION_STYLE_ID;
+    style.textContent = `
+      #movie_player.hk-subs-active .ytp-caption-window-container,
+      #movie_player.hk-subs-active .caption-window,
+      #movie_player.hk-subs-active .captions-text,
+      #movie_player.hk-subs-active .ytp-caption-segment {
+        display: none !important;
+        visibility: hidden !important;
+      }
 
-        ${youtubeToolbarCss}
-      `;
-      (document.head || document.documentElement).appendChild(style);
-    }
-  } else {
-    style?.remove();
+      ${youtubeToolbarCss}
+    `;
+    (document.head || document.documentElement).appendChild(style);
   }
 }
 

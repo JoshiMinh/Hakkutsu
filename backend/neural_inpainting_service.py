@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from threading import Lock
 
@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import torch
 
-from app.config import LAMA_ENABLED, LAMA_MODEL_PATH
+from backend.config import LAMA_ENABLED, LAMA_MODEL_PATH
 
 
 _model: torch.jit.ScriptModule | None = None

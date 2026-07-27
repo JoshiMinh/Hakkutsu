@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import base64
 from io import BytesIO
@@ -10,7 +10,7 @@ import httpx
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from app.config import (
+from backend.config import (
     VISUAL_SUPERVISOR_API_KEY,
     VISUAL_SUPERVISOR_API_URL,
     VISUAL_SUPERVISOR_ENABLED,

@@ -512,7 +512,11 @@ export const SubtitleOverlay = ({
       onMouseLeave={() => setShowSettings(false)}
     >
       <button
-        className={`hk-toolbar-btn ${isEnabled ? "hk-toolbar-btn--active" : ""} ${loading ? "hk-toolbar-btn--loading" : ""}`}
+        type="button"
+        role="switch"
+        aria-checked={isEnabled}
+        disabled={loading}
+        className={`hk-icon-btn ${isEnabled ? "is-on" : ""} ${error ? "is-error" : ""}`}
         onClick={(e) => {
           e.stopPropagation();
           onToggleEnabled();
@@ -524,7 +528,13 @@ export const SubtitleOverlay = ({
             : "Hakkutsu Subtitles")
         }
       >
-        <img src={iconUrl} alt="Hakkutsu" className="hk-toolbar-icon" />
+        <div className="hk-icon-container">
+          {loading && <span className="hk-spinner" />}
+          {!loading && !error && (
+            <img src={iconUrl} alt="Hakkutsu" className="hk-logo-img" />
+          )}
+          {!loading && error && <span className="hk-error-mark">!</span>}
+        </div>
       </button>
       
       {showSettings && (

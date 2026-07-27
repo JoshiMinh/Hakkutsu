@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import html
 import re
@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from app.study_analysis_service import GRAMMAR_HINTS, _base_tokens
+from backend.study_analysis_service import GRAMMAR_HINTS, _base_tokens
 
 
 @dataclass(frozen=True)

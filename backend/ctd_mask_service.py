@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import importlib
 import sys
@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 import torch
 
-from app.config import (
+from backend.config import (
     CTD_DEVICE,
     CTD_ENABLED,
     CTD_INPUT_SIZE,

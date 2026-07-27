@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import re
@@ -7,10 +7,10 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from app.config import UPLOAD_DIR
-from app.database import db_session, utc_now
-from app.ocr_service import recognize_japanese_crop
-from app.inpainting_service import create_primary_text_mask
+from backend.config import UPLOAD_DIR
+from backend.database import db_session, utc_now
+from backend.ocr_service import recognize_japanese_crop
+from backend.inpainting_service import create_primary_text_mask
 
 
 JAPANESE = re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")

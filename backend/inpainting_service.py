@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 
@@ -6,9 +6,9 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from app.ctd_mask_service import create_ctd_text_mask, ctd_available
-from app.database import db_session, utc_now
-from app.neural_inpainting_service import lama_available, lama_inpaint
+from backend.ctd_mask_service import create_ctd_text_mask, ctd_available
+from backend.database import db_session, utc_now
+from backend.neural_inpainting_service import lama_available, lama_inpaint
 
 
 class UnsafeTextMaskError(RuntimeError):

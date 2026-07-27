@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 import html
@@ -15,7 +15,7 @@ from uuid import uuid4
 import httpx
 from PIL import Image, UnidentifiedImageError
 
-from app.database import db_session, utc_now
+from backend.database import db_session, utc_now
 
 
 BASE_URL = "https://tonarinoyj.jp"

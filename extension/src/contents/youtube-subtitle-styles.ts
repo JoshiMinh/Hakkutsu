@@ -148,64 +148,116 @@ export const youtubeSubtitleCss = /* css */ `
   /* ── Native Toolbar Integration ──────────────────────────── */`;
 
 export const youtubeToolbarCss = `
+  /* Hallmark · component: icon-switch · genre: playful · theme: custom
+   * states: default · hover · focus · active · disabled · loading · error · success
+   * contrast: pass (46–50)
+   */
   .hk-toolbar-wrapper {
-    display: inline-block;
-    position: relative;
-    vertical-align: top;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    min-width: 48px;
   }
 
-  .hk-toolbar-btn {
-    opacity: 0.9;
-    transition: opacity 0.1s;
-    font-weight: bold;
-    font-size: 13px;
-    font-family: 'Inter', 'Noto Sans JP', sans-serif;
-    color: #eee;
+  .hk-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
     background: transparent;
     border: none;
     cursor: pointer;
-    width: 100%;
-    height: 100%;
-    padding: 0 8px;
+    appearance: none;
+    font-family: inherit;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .hk-toolbar-btn:hover {
-    opacity: 1;
+  .hk-icon-btn:focus {
+    outline: none;
   }
 
-  .hk-toolbar-btn--active {
-    color: var(--hk-accent-crimson, #e85d75);
-    text-shadow: 0 0 8px rgba(232, 93, 117, 0.4);
+  .hk-icon-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .hk-toolbar-btn--loading {
-    animation: hk-pulse 1.5s infinite;
-  }
-  
-  .hk-toolbar-btn--loading .hk-toolbar-icon {
-    filter: drop-shadow(0 0 6px rgba(240, 198, 116, 0.8));
-  }
-  
-  .hk-toolbar-icon {
+  .hk-logo-img {
     width: 24px;
     height: 24px;
     object-fit: contain;
-    transition: transform 0.15s ease, filter 0.15s ease;
-    vertical-align: middle;
+    /* Default (OFF state) */
+    filter: grayscale(100%) opacity(0.5);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  
-  .hk-toolbar-btn:hover .hk-toolbar-icon {
-    transform: scale(1.1);
+
+  /* Hover */
+  @media (hover: hover) {
+    .hk-icon-btn:not(:disabled):hover .hk-logo-img {
+      filter: grayscale(80%) opacity(0.8);
+      transform: scale(1.05);
+    }
+    .hk-icon-btn.is-on:not(:disabled):hover .hk-logo-img {
+      filter: grayscale(0%) opacity(1) brightness(1.1);
+    }
   }
-  
-  .hk-toolbar-btn--active .hk-toolbar-icon {
-    filter: drop-shadow(0 0 4px rgba(232, 93, 117, 0.6));
+
+  /* Focus */
+  .hk-icon-btn:focus-visible .hk-icon-container {
+    outline: 2px solid var(--hk-accent-gold, #f0c674);
+    outline-offset: 2px;
   }
-  
-  @keyframes hk-pulse {
-    0% { opacity: 0.6; }
-    50% { opacity: 1; }
-    100% { opacity: 0.6; }
+
+  /* Active / Pressed */
+  .hk-icon-btn:not(:disabled):active .hk-logo-img {
+    transform: scale(0.9);
+  }
+
+  /* Success / ON state */
+  .hk-icon-btn.is-on .hk-logo-img {
+    filter: grayscale(0%) opacity(1);
+  }
+
+  /* Disabled */
+  .hk-icon-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  /* Error */
+  .hk-icon-btn.is-error .hk-icon-container {
+    background: rgba(248, 113, 113, 0.15);
+    color: #f87171;
+  }
+
+  /* Loading state */
+  .hk-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: hk-spin 0.6s linear infinite;
+    color: #fff;
+  }
+
+  @keyframes hk-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .hk-error-mark {
+    font-size: 18px;
+    font-weight: bold;
+    color: #f87171;
+    line-height: 1;
   }
 
   .hk-toolbar-menu {

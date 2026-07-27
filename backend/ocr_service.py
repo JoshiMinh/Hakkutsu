@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 import os
@@ -9,7 +9,7 @@ from typing import Protocol
 
 from PIL import Image
 
-from app.config import (
+from backend.config import (
     MODEL_DIR,
     OCR_DETECTION_THRESHOLD,
     OCR_DETECTOR,
@@ -20,7 +20,7 @@ from app.config import (
     OCR_LANGUAGES,
     OCR_RECOGNIZER,
 )
-from app.database import db_session, utc_now
+from backend.database import db_session, utc_now
 
 
 @dataclass(frozen=True)

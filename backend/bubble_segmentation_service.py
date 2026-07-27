@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -11,7 +11,7 @@ import numpy as np
 from huggingface_hub import hf_hub_download
 from PIL import Image, ImageDraw, ImageFont
 
-from app.config import (
+from backend.config import (
     BUBBLE_CONFIDENCE,
     BUBBLE_DEVICE,
     BUBBLE_IMAGE_SIZE,
@@ -19,15 +19,15 @@ from app.config import (
     BUBBLE_MODEL_ID,
     MODEL_DIR,
 )
-from app.database import db_session, utc_now
-from app.text_policy_service import classify_text_policies
-from app.visual_supervisor_service import (
+from backend.database import db_session, utc_now
+from backend.text_policy_service import classify_text_policies
+from backend.visual_supervisor_service import (
     VisualSupervisorUnavailable,
     analyze_page_visually,
     merge_visual_policies,
     visual_supervisor_config,
 )
-from app.ocr_service import recognize_japanese_crop
+from backend.ocr_service import recognize_japanese_crop
 
 
 _model = None

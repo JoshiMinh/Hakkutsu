@@ -245,19 +245,6 @@ async function handleMessage(
       return { type: "ANALYZE_PHRASE_RESULT", payload: result };
     }
 
-    case "TRANSLATE_PAGE": {
-      const payload = message.payload as {
-        texts: string[];
-        pageUrl: string;
-        pageTitle: string;
-      };
-      const result = await apiClient.translateWebpage(
-        payload.texts,
-        payload.pageUrl,
-        payload.pageTitle
-      );
-      return { type: "TRANSLATE_PAGE_RESULT", payload: result };
-    }
 
     case "GET_SUBTITLES": {
       const { videoUrl, language, playerResponse, strategy = "all" } = message.payload as {
@@ -391,11 +378,6 @@ async function handleMessage(
       return { type: "SRS_RESULT", payload: card };
     }
 
-    case "MINE_SENTENCE": {
-      const data = message.payload as { user_id: string; sentence: string; source_url?: string; source_title?: string; target_word?: string };
-      const result = await apiClient.mineSentence(data);
-      return { type: "SRS_RESULT", payload: result };
-    }
 
     case "CHECK_ANKI": {
       const connected = await ankiClient.isConnected();

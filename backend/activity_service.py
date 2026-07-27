@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
 
-from app.database import db_session, utc_now
+from backend.database import db_session, utc_now
 
 
 def prune_history() -> None:

@@ -1,9 +1,9 @@
-import sqlite3
+﻿import sqlite3
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Iterator
 
-from app.config import DATABASE_PATH, ensure_directories
+from backend.config import DATABASE_PATH, ensure_directories
 
 
 def utc_now() -> str:
