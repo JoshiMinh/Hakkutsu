@@ -10,7 +10,7 @@
 import type { PlasmoCSConfig, PlasmoGetOverlayAnchor, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useRef, useCallback } from "react";
 import type { SubtitleSegment } from "~types";
-import { youtubeSubtitleCss } from "./youtube-subtitle-styles"; // We can reuse the same CSS
+import { youtubeSubtitleCss, youtubeToolbarCss } from "./youtube-subtitle-styles"; // We can reuse the same CSS
 import { SubtitleOverlay, type SubtitleSettings } from "~components/subtitle-overlay";
 
 export const config: PlasmoCSConfig = {
@@ -22,10 +22,31 @@ export const getOverlayAnchor: PlasmoGetOverlayAnchor = async () =>
 
 export const getStyle: PlasmoGetStyle = () => {
   const style = document.createElement("style");
-  style.textContent = youtubeSubtitleCss + `
+  style.textContent = youtubeSubtitleCss + youtubeToolbarCss + `
     /* Extra styles for Netflix */
     .hk-subs-active .player-timedtext {
       opacity: 0 !important; /* Hide native subs visually but keep in DOM for observer */
+    }
+    
+    /* Fix alignment and clipping of our injected button in Netflix's control bar */
+    #hk-toolbar-portal {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      flex-shrink: 0;
+      margin-right: 8px;
+      overflow: visible !important;
+    }
+    
+    #hk-toolbar-portal .hk-toolbar-wrapper {
+      overflow: visible !important;
+      min-width: 48px;
+    }
+    
+    /* Override Netflix focus styles that might cause issues */
+    #hk-toolbar-portal button {
+      box-sizing: content-box;
     }
   `;
   return style;
@@ -43,8 +64,11 @@ const NetflixSubtitles = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      // Netflix bottom right controls usually have this class
-      const controls = document.querySelector(".PlayerControlsNeo__button-control-row");
+      // Try multiple selectors for resilience: Netflix bottom right controls
+      const controls = document.querySelector(".PlayerControlsNeo__button-control-row") 
+                    || document.querySelector('[data-uia="control-fullscreen"]')?.parentElement
+                    || document.querySelector('[data-uia="control-audio-subtitle"]')?.parentElement;
+                    
       if (controls) {
         let container = document.getElementById("hk-toolbar-portal");
         if (!container) {

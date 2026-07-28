@@ -516,7 +516,7 @@ export const SubtitleOverlay = ({
         role="switch"
         aria-checked={isEnabled}
         disabled={loading}
-        className={`hk-icon-btn ${isEnabled ? "is-on" : ""} ${error ? "is-error" : ""}`}
+        className={`hk-yt-switch ${isEnabled ? "is-on" : ""} ${error ? "is-error" : ""}`}
         onClick={(e) => {
           e.stopPropagation();
           onToggleEnabled();
@@ -528,12 +528,16 @@ export const SubtitleOverlay = ({
             : "Hakkutsu Subtitles")
         }
       >
-        <div className="hk-icon-container">
-          {loading && <span className="hk-spinner" />}
-          {!loading && !error && (
-            <img src={iconUrl} alt="Hakkutsu" className="hk-logo-img" />
-          )}
-          {!loading && error && <span className="hk-error-mark">!</span>}
+        <div className="hk-yt-switch-track">
+          <div className="hk-yt-switch-thumb">
+            {loading ? (
+              <span className="hk-spinner-small" />
+            ) : error ? (
+              <span className="hk-error-mark-small">!</span>
+            ) : (
+              <span className="hk-yt-switch-icon">発</span>
+            )}
+          </div>
         </div>
       </button>
       
@@ -639,7 +643,7 @@ export const SubtitleOverlay = ({
             textAlign: "center",
           }}
         >
-          <div>Hakkutsu không tải được phụ đề: {error}</div>
+          <div>{error === "Video này không có phụ đề." ? error : `Hakkutsu không tải được phụ đề: ${error}`}</div>
           {requiresPageReload && (
             <button
               type="button"

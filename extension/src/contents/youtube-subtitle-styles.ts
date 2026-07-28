@@ -148,116 +148,126 @@ export const youtubeSubtitleCss = /* css */ `
   /* ── Native Toolbar Integration ──────────────────────────── */`;
 
 export const youtubeToolbarCss = `
-  /* Hallmark · component: icon-switch · genre: playful · theme: custom
-   * states: default · hover · focus · active · disabled · loading · error · success
-   * contrast: pass (46–50)
-   */
+  /* Hallmark · component: toggle-switch · genre: elegant · theme: youtube-native */
   .hk-toolbar-wrapper {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
     height: 100%;
     min-width: 48px;
+    padding: 0 8px;
   }
 
-  .hk-icon-btn {
+  .hk-yt-switch {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    height: 100%;
     background: transparent;
     border: none;
     cursor: pointer;
-    appearance: none;
-    font-family: inherit;
     padding: 0;
     -webkit-tap-highlight-color: transparent;
+    opacity: 0.85;
+    transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .hk-icon-btn:focus {
+  .hk-yt-switch:hover {
+    opacity: 1;
+  }
+
+  .hk-yt-switch:active {
+    transform: scale(0.95);
+  }
+
+  .hk-yt-switch:focus-visible {
     outline: none;
   }
 
-  .hk-icon-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .hk-logo-img {
-    width: 24px;
-    height: 24px;
-    object-fit: contain;
-    /* Default (OFF state) */
-    filter: grayscale(100%) opacity(0.5);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  /* Hover */
-  @media (hover: hover) {
-    .hk-icon-btn:not(:disabled):hover .hk-logo-img {
-      filter: grayscale(80%) opacity(0.8);
-      transform: scale(1.05);
-    }
-    .hk-icon-btn.is-on:not(:disabled):hover .hk-logo-img {
-      filter: grayscale(0%) opacity(1) brightness(1.1);
-    }
-  }
-
-  /* Focus */
-  .hk-icon-btn:focus-visible .hk-icon-container {
-    outline: 2px solid var(--hk-accent-gold, #f0c674);
+  .hk-yt-switch:focus-visible .hk-yt-switch-track {
+    outline: 2px solid rgba(255, 255, 255, 0.8);
     outline-offset: 2px;
   }
 
-  /* Active / Pressed */
-  .hk-icon-btn:not(:disabled):active .hk-logo-img {
-    transform: scale(0.9);
+  .hk-yt-switch-track {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 12px;
+    transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
   }
 
-  /* Success / ON state */
-  .hk-icon-btn.is-on .hk-logo-img {
-    filter: grayscale(0%) opacity(1);
+  .hk-yt-switch.is-on .hk-yt-switch-track {
+    background: var(--hk-accent-crimson, #e85d75); 
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
   }
 
-  /* Disabled */
-  .hk-icon-btn:disabled {
-    opacity: 0.3;
+  .hk-yt-switch.is-error .hk-yt-switch-track {
+    background: rgba(248, 113, 113, 0.6);
+  }
+
+  .hk-yt-switch-thumb {
+    position: absolute;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hk-yt-switch.is-on .hk-yt-switch-thumb {
+    transform: translateX(18px);
+  }
+
+  .hk-yt-switch.is-error .hk-yt-switch-thumb {
+    background: #fee2e2;
+  }
+
+  .hk-yt-switch:disabled {
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
-  /* Error */
-  .hk-icon-btn.is-error .hk-icon-container {
-    background: rgba(248, 113, 113, 0.15);
-    color: #f87171;
+  .hk-yt-switch-icon {
+    font-size: 11px;
+    font-weight: 800;
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    color: rgba(0, 0, 0, 0.5);
+    line-height: 1;
+    transition: color 0.3s ease;
+    user-select: none;
+    margin-top: 1px;
   }
 
-  /* Loading state */
-  .hk-spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255,255,255,0.2);
-    border-top-color: currentColor;
+  .hk-yt-switch.is-on .hk-yt-switch-icon {
+    color: var(--hk-accent-crimson, #e85d75);
+  }
+
+  .hk-spinner-small {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-top-color: rgba(0, 0, 0, 0.5);
     border-radius: 50%;
     animation: hk-spin 0.6s linear infinite;
-    color: #fff;
+  }
+
+  .hk-error-mark-small {
+    font-size: 13px;
+    font-weight: 900;
+    color: #ef4444;
+    line-height: 1;
   }
 
   @keyframes hk-spin {
     to { transform: rotate(360deg); }
-  }
-
-  .hk-error-mark {
-    font-size: 18px;
-    font-weight: bold;
-    color: #f87171;
-    line-height: 1;
   }
 
   .hk-toolbar-menu {

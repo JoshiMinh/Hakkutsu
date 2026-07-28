@@ -295,13 +295,23 @@ const YouTubeSubtitles = () => {
       subtitleCache.set(videoId, result);
       setSubtitleData(result);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to load subtitles";
+      let message = err instanceof Error ? err.message : "Failed to load subtitles";
       if (isExtensionContextInvalidated(err)) {
         console.warn("Hakkutsu: Extension was reloaded; this YouTube tab must be refreshed.");
         setRequiresPageReload(true);
         setError("Tiện ích vừa được cập nhật nên tab YouTube này đang dùng mã cũ.");
       } else {
         console.error("Hakkutsu: Subtitle fetch failed", err);
+        
+        // Clean up common "no subtitles" error messages so they are user-friendly
+        if (
+          message.includes("No caption tracks found") || 
+          message.includes("Video không có subtitle track") ||
+          message.includes("no usable data")
+        ) {
+          message = "Video này không có phụ đề.";
+        }
+        
         setError(message);
       }
     } finally {

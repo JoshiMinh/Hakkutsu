@@ -60,6 +60,11 @@ class TextBlockBatch(BaseModel):
     blocks: list[TextBlockInput]
 
 
+class ImageOcrRequest(BaseModel):
+    image_data: str = Field(min_length=10)
+    language: str = Field(default="jpn")
+
+
 class OcrRequest(BaseModel):
     replace_existing: bool = False
 

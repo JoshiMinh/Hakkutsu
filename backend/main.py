@@ -54,6 +54,7 @@ from backend.schemas import (
     MangaCreate,
     MediaAnalyzeRequest,
     MediaImportRequest,
+    ImageOcrRequest,
     OcrRequest,
     OutsideTextPolicyRequest,
     PageEditorialDecisionRequest,
@@ -1202,6 +1203,33 @@ def set_outside_text_policy(page_id: int, payload: OutsideTextPolicyRequest) -> 
         details={"policy": policy},
     )
     return {"page_id": page_id, "outside_text_policy": policy}
+
+
+@app.post("/api/v1/ocr")
+def api_v1_image_ocr(payload: ImageOcrRequest) -> dict:
+    import base64
+    import tempfile
+    from backend.ocr_service import get_ocr_provider
+    
+    if "," in payload.image_data:
+        _, encoded = payload.image_data.split(",", 1)
+    else:
+        encoded = payload.image_data
+    
+    image_bytes = base64.b64decode(encoded)
+    
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        f.write(image_bytes)
+        temp_path = Path(f.name)
+        
+    try:
+        provider = get_ocr_provider()
+        regions = provider.recognize(temp_path)
+        regions.sort(key=lambda r: (-r.x, r.y))
+        full_text = " ".join(r.text for r in regions)
+        return {"full_text": full_text}
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 @app.post("/api/pages/{page_id}/ocr", status_code=202)
