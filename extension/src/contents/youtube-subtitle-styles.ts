@@ -159,16 +159,20 @@ export const youtubeToolbarCss = `
   }
 
   .hk-yt-switch {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 0;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    margin: 0 !important;
     -webkit-tap-highlight-color: transparent;
     opacity: 0.85;
     transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-sizing: border-box !important;
+    width: 42px !important;
+    height: 24px !important;
   }
 
   .hk-yt-switch:hover {
@@ -184,50 +188,58 @@ export const youtubeToolbarCss = `
   }
 
   .hk-yt-switch:focus-visible .hk-yt-switch-track {
-    outline: 2px solid rgba(255, 255, 255, 0.8);
-    outline-offset: 2px;
+    outline: 2px solid rgba(255, 255, 255, 0.8) !important;
+    outline-offset: 2px !important;
   }
 
   .hk-yt-switch-track {
-    position: relative;
-    width: 42px;
-    height: 24px;
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: 12px;
+    position: relative !important;
+    width: 42px !important;
+    height: 24px !important;
+    background: rgba(255, 255, 255, 0.25) !important;
+    border-radius: 12px !important;
     transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    display: flex;
-    align-items: center;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    display: block !important;
   }
 
   .hk-yt-switch.is-on .hk-yt-switch-track {
-    background: var(--hk-accent-crimson, #e85d75); 
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+    background: var(--hk-accent-crimson, #e85d75) !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2) !important;
   }
 
   .hk-yt-switch.is-error .hk-yt-switch-track {
-    background: rgba(248, 113, 113, 0.6);
+    background: rgba(248, 113, 113, 0.6) !important;
   }
 
   .hk-yt-switch-thumb {
-    position: absolute;
-    left: 2px;
-    width: 20px;
-    height: 20px;
-    background: #fff;
-    border-radius: 50%;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+    position: absolute !important;
+    left: 2px !important;
+    top: 2px !important;
+    width: 20px !important;
+    height: 20px !important;
+    background: #fff !important;
+    border-radius: 50% !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2) !important;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
   }
 
   .hk-yt-switch.is-on .hk-yt-switch-thumb {
-    transform: translateX(18px);
+    transform: translateX(18px) !important;
   }
 
   .hk-yt-switch.is-error .hk-yt-switch-thumb {
-    background: #fee2e2;
+    background: #fee2e2 !important;
   }
 
   .hk-yt-switch:disabled {
@@ -236,27 +248,28 @@ export const youtubeToolbarCss = `
   }
 
   .hk-yt-switch-icon {
-    font-size: 11px;
-    font-weight: 800;
-    font-family: 'Inter', 'Noto Sans JP', sans-serif;
-    color: rgba(0, 0, 0, 0.5);
-    line-height: 1;
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    font-family: 'Inter', 'Noto Sans JP', sans-serif !important;
+    color: rgba(0, 0, 0, 0.5) !important;
+    line-height: 1 !important;
     transition: color 0.3s ease;
-    user-select: none;
-    margin-top: 1px;
+    user-select: none !important;
+    margin-top: 1px !important;
+    display: block !important;
   }
 
   .hk-yt-switch.is-on .hk-yt-switch-icon {
-    color: var(--hk-accent-crimson, #e85d75);
+    color: var(--hk-accent-crimson, #e85d75) !important;
   }
 
   .hk-spinner-small {
-    width: 12px;
-    height: 12px;
-    border: 2px solid rgba(0, 0, 0, 0.1);
-    border-top-color: rgba(0, 0, 0, 0.5);
-    border-radius: 50%;
-    animation: hk-spin 0.6s linear infinite;
+    width: 12px !important;
+    height: 12px !important;
+    border: 2px solid rgba(0, 0, 0, 0.1) !important;
+    border-top-color: rgba(0, 0, 0, 0.5) !important;
+    border-radius: 50% !important;
+    animation: hk-spin 0.6s linear infinite !important;
   }
 
   .hk-error-mark-small {

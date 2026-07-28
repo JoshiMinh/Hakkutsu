@@ -1,16 +1,5 @@
 import { useState, useEffect } from "react";
-import { apiClient } from "~services/api-client";
-
-interface SrsCard {
-  id: string;
-  word: string;
-  reading?: string;
-  meaning?: string;
-  sentence?: string;
-  state: string;
-  interval: number;
-  next_review: string;
-}
+import { localSrs, type SrsCard } from "~services/local-srs";
 
 export function WordList({ userId = "user_1" }: { userId?: string }) {
   const [cards, setCards] = useState<SrsCard[]>([]);
@@ -25,7 +14,7 @@ export function WordList({ userId = "user_1" }: { userId?: string }) {
   const loadCards = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.getAllSrsCards(userId);
+      const data = await localSrs.getAllSrsCards();
       setCards(data);
     } catch (err: any) {
       setError(err.message || "Failed to load vocabulary");
@@ -84,10 +73,10 @@ export function WordList({ userId = "user_1" }: { userId?: string }) {
                   <td style={{ padding: "12px 16px", color: "var(--hk-text-secondary)" }}>{card.reading || "—"}</td>
                   <td style={{ padding: "12px 16px", color: "var(--hk-text-secondary)", maxWidth: "250px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={card.meaning}>{card.meaning || "—"}</td>
                   <td style={{ padding: "12px 16px" }}>
-                    <StateBadge state={card.state} />
+                    <StateBadge state={card.repetition === 0 ? "new" : (card.interval < 21 ? "learning" : "graduated")} />
                   </td>
                   <td style={{ padding: "12px 16px", fontSize: "13px", color: "var(--hk-text-muted)" }}>
-                    {new Date(card.next_review).toLocaleDateString()}
+                    {new Date(card.due_date).toLocaleDateString()}
                   </td>
                 </tr>
               ))

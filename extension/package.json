@@ -13,7 +13,6 @@
     "test:smart-cue": "node scripts/test-smart-cue.cjs"
   },
   "dependencies": {
-    "firebase": "^12.16.0",
     "hanzi-writer": "^3.7.3",
     "idb": "^8.0.3",
     "kuromoji": "^0.1.2",

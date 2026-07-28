@@ -46,7 +46,7 @@ export const getStyle: PlasmoGetStyle = () => {
     
     /* Override Netflix focus styles that might cause issues */
     #hk-toolbar-portal button {
-      box-sizing: content-box;
+      /* Removed to avoid conflicts with switch layout */
     }
   `;
   return style;

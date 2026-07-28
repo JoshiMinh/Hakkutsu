@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiClient } from "~services/api-client";
-
-interface SrsCard {
-  id: string;
-  word: string;
-  reading?: string;
-  meaning?: string;
-  sentence?: string;
-  state: string;
-}
+import { localSrs, type SrsCard } from "~services/local-srs";
 
 export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   const [cards, setCards] = useState<SrsCard[]>([]);
@@ -24,7 +15,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
     setLoading(true);
     setError(null);
     try {
-      const dueCards = await apiClient.getDueCards(userId);
+      const dueCards = await localSrs.getDueCards();
       setCards(dueCards);
     } catch (err: any) {
       setError(err.message || "Failed to load due cards");
@@ -42,7 +33,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
     setShowAnswer(false);
     
     try {
-      await apiClient.submitSrsReview(userId, currentCard.id, quality);
+      await localSrs.submitSrsReview(currentCard.id, quality);
     } catch (err) {
       console.error("Failed to submit review", err);
     }
@@ -83,7 +74,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
     <div className="hk-content hk-fade-in" style={{ padding: 16, display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, color: "var(--hk-text-muted)", fontSize: 12 }}>
         <span>Reviews due: {cards.length}</span>
-        <span>State: {card.state}</span>
+        <span>State: {card.repetition === 0 ? "new" : (card.interval < 21 ? "learning" : "graduated")}</span>
       </div>
 
       <div style={{ 

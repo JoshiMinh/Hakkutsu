@@ -7,6 +7,7 @@
 
 import { getSettings } from "~services/storage";
 import { apiClient } from "~services/api-client";
+import { localSrs } from "~services/local-srs";
 import { ankiClient } from "~services/anki-connect";
 import {
   fetchCaptionTracks,
@@ -371,10 +372,7 @@ async function handleMessage(
     case "ADD_SRS_CARD": {
       // In a real app we'd get user_id from auth, for now we hardcode "user_1"
       const data = message.payload as { word: string; reading?: string; meaning?: string; sentence?: string };
-      const card = await apiClient.addSrsCard({
-        user_id: "user_1",
-        ...data
-      });
+      const card = await localSrs.addSrsCard(data);
       return { type: "SRS_RESULT", payload: card };
     }
 

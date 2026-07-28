@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { apiClient } from "~services/api-client";
+import { localSrs } from "~services/local-srs";
 
 export function StatsOverview({ userId = "user_1" }: { userId?: string }) {
   const [stats, setStats] = useState<any>(null);
@@ -13,7 +13,7 @@ export function StatsOverview({ userId = "user_1" }: { userId?: string }) {
   const loadStats = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.getSrsStats(userId);
+      const data = await localSrs.getSrsStats();
       setStats(data);
     } catch (err: any) {
       setError(err.message || "Failed to load stats");
