@@ -9,7 +9,7 @@ export const GrammarExplanations: React.FC<GrammarExplanationsProps> = ({ patter
   if (!patterns || patterns.length === 0) {
     return (
       <div
-        className="hakkutsu-grammar-empty"
+        className="hk-grammar-empty"
         style={{ marginTop: 12, color: "#94a3b8", fontSize: 12 }}
       >
         <p>Không phát hiện mẫu ngữ pháp nổi bật trong câu này.</p>
@@ -18,18 +18,18 @@ export const GrammarExplanations: React.FC<GrammarExplanationsProps> = ({ patter
   }
 
   return (
-    <div className="hakkutsu-grammar-list" style={{ marginTop: 16 }}>
+    <div className="hk-grammar-list" style={{ marginTop: 16 }}>
       <h3
-        className="hakkutsu-grammar-title"
+        className="hk-grammar-title"
         style={{ margin: "0 0 8px", color: "#e2e8f0", fontSize: 13 }}
       >
         Giải thích ngữ pháp
       </h3>
-      <div className="hakkutsu-grammar-items" style={{ display: "grid", gap: 8 }}>
+      <div className="hk-grammar-items" style={{ display: "grid", gap: 8 }}>
         {patterns.map((pattern, index) => (
           <div
             key={`${pattern.pattern}-${index}`}
-            className="hakkutsu-grammar-item"
+            className="hk-grammar-item"
             style={{
               padding: "10px 12px",
               borderRadius: 8,
@@ -38,11 +38,11 @@ export const GrammarExplanations: React.FC<GrammarExplanationsProps> = ({ patter
             }}
           >
             <div
-              className="hakkutsu-grammar-header"
+              className="hk-grammar-header"
               style={{ display: "flex", alignItems: "center", gap: 8 }}
             >
               <span
-                className="hakkutsu-grammar-pattern"
+                className="hk-grammar-pattern"
                 style={{ color: "#fbbf24", fontSize: 15, fontWeight: 700 }}
               >
                 {pattern.pattern}
@@ -54,14 +54,14 @@ export const GrammarExplanations: React.FC<GrammarExplanationsProps> = ({ patter
               )}
             </div>
             <div
-              className="hakkutsu-grammar-meaning"
+              className="hk-grammar-meaning"
               style={{ marginTop: 5, color: "#f1f5f9", fontSize: 13 }}
             >
               {pattern.meaning}
             </div>
             {pattern.explanation !== pattern.meaning && (
               <div
-                className="hakkutsu-grammar-explanation"
+                className="hk-grammar-explanation"
                 style={{ marginTop: 4, color: "#cbd5e1", fontSize: 12, lineHeight: 1.5 }}
               >
                 {pattern.explanation}

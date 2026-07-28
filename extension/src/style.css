@@ -8,9 +8,9 @@
 :root {
   /* Base palette */
   --hk-bg-primary: #09090b;
-  --hk-bg-secondary: #18181b;
-  --hk-bg-tertiary: #27272a;
-  --hk-bg-hover: #3f3f46;
+  --hk-bg-secondary: #121214;
+  --hk-bg-tertiary: #18181b;
+  --hk-bg-hover: #27272a;
   --hk-bg-glass: rgba(9, 9, 11, 0.85);
 
   /* Text */
@@ -20,12 +20,12 @@
   --hk-text-accent: #a855f7;
 
   /* Accent colors */
-  --hk-accent-gold: #f0c674;
+  --hk-accent-purple: #a855f7;
+  --hk-accent-primary: var(--hk-accent-purple);
   --hk-accent-crimson: #e85d75;
   --hk-accent-sakura: #f5a0c0;
   --hk-accent-teal: #5ec4b6;
   --hk-accent-indigo: #7c83ff;
-  --hk-accent-purple: #a855f7;
 
   /* JLPT level colors */
   --hk-jlpt-n5: #22c55e;
@@ -139,10 +139,7 @@
 .hk-header__title {
   font-size: var(--hk-text-lg);
   font-weight: 700;
-  background: linear-gradient(135deg, var(--hk-accent-gold), var(--hk-accent-crimson));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--hk-text-primary);
   letter-spacing: 0.5px;
 }
 
@@ -189,7 +186,7 @@
 }
 
 .hk-nav__tab--active {
-  color: var(--hk-accent-gold);
+  color: var(--hk-accent-primary);
 }
 
 .hk-nav__tab--active::after {
@@ -199,7 +196,7 @@
   left: 20%;
   right: 20%;
   height: 2px;
-  background: linear-gradient(90deg, var(--hk-accent-gold), var(--hk-accent-crimson));
+  background: var(--hk-accent-primary);
   border-radius: var(--hk-radius-full);
 }
 
@@ -270,13 +267,14 @@
 }
 
 .hk-btn--primary {
-  background: linear-gradient(135deg, var(--hk-accent-gold), #d4a853);
-  color: var(--hk-bg-primary);
+  background: var(--hk-accent-primary);
+  color: #fff;
 }
 
 .hk-btn--primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(240, 198, 116, 0.3);
+  background: #9333ea;
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
 }
 
 .hk-btn--primary:active {
@@ -380,7 +378,7 @@
 
 .hk-token--selected {
   background: var(--hk-bg-hover);
-  box-shadow: inset 0 0 0 1px var(--hk-accent-gold);
+  box-shadow: inset 0 0 0 1px var(--hk-accent-primary);
 }
 
 .hk-token__reading {
@@ -469,7 +467,7 @@
 
 .hk-definition__gloss::before {
   content: "•";
-  color: var(--hk-accent-gold);
+  color: var(--hk-accent-primary);
   margin-right: var(--hk-space-sm);
   font-weight: 700;
 }
@@ -525,7 +523,7 @@
   width: 24px;
   height: 24px;
   border: 2px solid var(--hk-border);
-  border-top-color: var(--hk-accent-gold);
+  border-top-color: var(--hk-accent-primary);
   border-radius: 50%;
   animation: hk-spin 0.8s linear infinite;
 }
@@ -643,8 +641,8 @@
 }
 
 .hk-toggle input:checked + .hk-toggle__slider {
-  background: var(--hk-accent-gold);
-  border-color: var(--hk-accent-gold);
+  background: var(--hk-accent-primary);
+  border-color: var(--hk-accent-primary);
 }
 
 .hk-toggle input:checked + .hk-toggle__slider::before {
@@ -758,11 +756,11 @@
   gap: 12px;
 }
 
-.hakkutsu-grammar-item {
+.hk-grammar-item {
   background: var(--hk-bg-tertiary);
   padding: 12px;
   border-radius: 6px;
-  border-left: 3px solid var(--hk-accent-gold);
+  border-left: 3px solid var(--hk-accent-primary);
 }
 
 .hakkutsu-grammar-header {
@@ -803,7 +801,7 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.hakkutsu-kanji-loading, .hakkutsu-kanji-error {
+.hk-kanji-loading, .hk-kanji-error {
   margin-top: 12px;
   padding: 12px;
   font-size: 13px;
@@ -813,18 +811,18 @@
   text-align: center;
 }
 
-.hakkutsu-kanji-error {
+.hk-kanji-error {
   color: var(--hk-accent-crimson);
 }
 
-.hakkutsu-kanji-header {
+.hk-kanji-header {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
 }
 
-.hakkutsu-kanji-writer {
+.hk-kanji-writer {
   background: #fff;
   border-radius: 6px;
   cursor: pointer;
@@ -832,28 +830,28 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
-.hakkutsu-kanji-writer:hover {
+.hk-kanji-writer:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-.hakkutsu-kanji-writer svg {
+.hk-kanji-writer svg {
   display: block;
 }
 
-.hakkutsu-kanji-stats {
+.hk-kanji-stats {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
 }
 
-.hakkutsu-kanji-strokes {
+.hk-kanji-strokes {
   font-size: 11px;
   color: var(--hk-text-muted);
 }
 
-.hakkutsu-kanji-details {
+.hk-kanji-details {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -861,19 +859,19 @@
   justify-content: center;
 }
 
-.hakkutsu-kanji-meanings {
+.hk-kanji-meanings {
   font-size: 14px;
   color: var(--hk-text-primary);
   line-height: 1.4;
 }
 
-.hakkutsu-kanji-reading {
+.hk-kanji-reading {
   font-size: 13px;
   color: var(--hk-text-secondary);
   font-family: var(--hk-font-jp);
 }
 
-.hakkutsu-kanji-reading strong {
+.hk-kanji-reading strong {
   color: var(--hk-accent-teal);
   font-family: var(--hk-font-sans);
   margin-right: 4px;

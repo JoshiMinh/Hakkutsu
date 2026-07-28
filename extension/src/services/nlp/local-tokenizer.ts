@@ -71,8 +71,16 @@ export async function getFurigana(text: string): Promise<string> {
   if (!kuroshiroInstance) throw new Error("Kuroshiro not initialized")
 
   // Convert to HTML ruby tags or hiragana
-  return await kuroshiroInstance.convert(text, {
+  const result = await kuroshiroInstance.convert(text, {
     mode: "furigana",
     to: "hiragana"
+  })
+
+  // Strip ruby tags from words that do not contain Kanji (e.g., pure Katakana or Hiragana)
+  return result.replace(/<ruby>(.*?)<rp>\(<\/rp><rt>.*?<\/rt><rp>\)<\/rp><\/ruby>/g, (match, base) => {
+    if (!/[\u4e00-\u9faf\u3400-\u4dbf]/.test(base)) {
+      return base
+    }
+    return match
   })
 }

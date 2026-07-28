@@ -46,11 +46,11 @@ export const getStyle: PlasmoGetStyle = () => {
     }
     .hk-ocr-result {
       position: absolute;
-      background: rgba(15, 23, 42, 0.9);
-      border: 1px solid #334155;
+      background: rgba(9, 9, 11, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 8px;
       padding: 12px;
-      color: #f8fafc;
+      color: #f4f4f5;
       font-family: sans-serif;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
       z-index: 10;
@@ -63,7 +63,7 @@ export const getStyle: PlasmoGetStyle = () => {
       right: 8px;
       background: transparent;
       border: none;
-      color: #94a3b8;
+      color: #a1a1aa;
       cursor: pointer;
       font-size: 16px;
     }
@@ -88,8 +88,8 @@ export const getStyle: PlasmoGetStyle = () => {
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(15, 23, 42, 0.9);
-      color: white;
+      background: rgba(9, 9, 11, 0.95);
+      color: #f4f4f5;
       padding: 16px 24px;
       border-radius: 8px;
       font-size: 16px;

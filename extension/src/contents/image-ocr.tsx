@@ -15,9 +15,9 @@ export const getStyle: PlasmoGetStyle = () => {
       top: 8px;
       right: 8px;
       z-index: 2147483646;
-      background: rgba(15, 23, 42, 0.85);
+      background: rgba(9, 9, 11, 0.85);
       border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #fff;
+      color: #f4f4f5;
       padding: 4px 10px;
       border-radius: 6px;
       font-size: 12px;
@@ -40,7 +40,7 @@ export const getStyle: PlasmoGetStyle = () => {
     }
     
     .hk-image-analyze-btn:hover {
-      background: rgba(15, 23, 42, 0.95);
+      background: rgba(9, 9, 11, 0.95);
       border-color: rgba(255, 255, 255, 0.3);
       transform: translateY(-1px);
     }
@@ -51,11 +51,11 @@ export const getStyle: PlasmoGetStyle = () => {
     
     .hk-ocr-result-panel {
       position: absolute;
-      background: rgba(15, 23, 42, 0.95);
-      border: 1px solid #334155;
+      background: rgba(9, 9, 11, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 8px;
       padding: 12px 16px 16px;
-      color: #f8fafc;
+      color: #f4f4f5;
       font-family: 'Inter', 'Noto Sans JP', sans-serif;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
       z-index: 2147483647;
@@ -72,7 +72,7 @@ export const getStyle: PlasmoGetStyle = () => {
       margin-bottom: 8px;
       font-size: 11px;
       font-weight: 600;
-      color: #94a3b8;
+      color: #a1a1aa;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
@@ -80,7 +80,7 @@ export const getStyle: PlasmoGetStyle = () => {
     .hk-ocr-result-close {
       background: transparent;
       border: none;
-      color: #94a3b8;
+      color: #a1a1aa;
       cursor: pointer;
       font-size: 14px;
       padding: 2px 4px;
@@ -115,7 +115,7 @@ export const getStyle: PlasmoGetStyle = () => {
       align-items: center;
       gap: 8px;
       font-size: 13px;
-      color: #cbd5e1;
+      color: #a1a1aa;
     }
     
     .hk-ocr-spinner {

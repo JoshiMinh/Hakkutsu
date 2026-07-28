@@ -24,6 +24,9 @@ export interface SrsStats {
   new: number;
   learning: number;
   graduated: number;
+  total: number;
+  mined: number;
+  forecast: number[]; // counts of cards due today, tomorrow, etc. (7 days)
 }
 
 interface SrsDBSchema extends DBSchema {
@@ -134,6 +137,9 @@ class LocalSrsService {
     let newCards = 0;
     let learning = 0;
     let graduated = 0;
+    let mined = 0;
+    const forecast = Array(7).fill(0);
+    const msPerDay = 24 * 60 * 60 * 1000;
     
     for (const card of allCards) {
       if (card.due_date <= now) {
@@ -147,9 +153,24 @@ class LocalSrsService {
       } else {
         graduated++;
       }
+
+      if (card.sentence || card.source_url) {
+        mined++;
+      }
+
+      // Forecast calculation
+      if (card.due_date > now) {
+        const daysUntilDue = Math.floor((card.due_date - now) / msPerDay);
+        if (daysUntilDue >= 0 && daysUntilDue < 7) {
+          forecast[daysUntilDue]++;
+        }
+      } else {
+        // Due today/now
+        forecast[0]++;
+      }
     }
     
-    return { due, new: newCards, learning, graduated };
+    return { due, new: newCards, learning, graduated, total: allCards.length, mined, forecast };
   }
 
   async submitSrsReview(cardId: string, quality: number): Promise<SrsCard> {

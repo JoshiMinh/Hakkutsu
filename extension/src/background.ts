@@ -403,9 +403,24 @@ async function handleMessage(
       });
     }
 
+    case "OPEN_APP": {
+      chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") });
+      return { type: "OPEN_APP_RESULT", payload: {} };
+    }
+
     default:
       return { type: "ERROR", payload: { error: `Unknown message type: ${message.type}` } };
   }
 }
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "start-ocr") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: "START_SCREENSHOT_FLOW" });
+      }
+    });
+  }
+});
 
 export {};

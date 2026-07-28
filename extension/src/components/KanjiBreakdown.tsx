@@ -106,15 +106,15 @@ export const KanjiBreakdown: React.FC<KanjiBreakdownProps> = ({ kanji }) => {
     }
   }
 
-  if (loading) return <div className="hakkutsu-kanji-loading">Loading kanji info...</div>
-  if (error) return <div className="hakkutsu-kanji-error">{error}</div>
+  if (loading) return <div className="hk-kanji-loading">Loading kanji info...</div>
+  if (error) return <div className="hk-kanji-error">{error}</div>
   if (!data) return null
 
   return (
-    <div className="hakkutsu-kanji-breakdown">
-      <div className="hakkutsu-kanji-header">
+    <div className="hk-kanji-breakdown">
+      <div className="hk-kanji-header">
         <div 
-          className="hakkutsu-kanji-writer" 
+          className="hk-kanji-writer" 
           ref={writerRef} 
           onClick={handleAnimate}
           title="Click to animate stroke order"

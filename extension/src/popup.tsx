@@ -1,33 +1,40 @@
 /**
  * Hakkutsu Popup — Main Extension Interface
  *
- * Single-view design combining text analysis, subtitle extraction,
- * and settings in a tabbed layout.
+ * Single-view design combining text analysis and SRS reviews.
  */
 
 import { useCallback, useEffect, useState, Suspense, lazy } from "react";
+import { 
+  Brain, 
+  Languages, 
+  BookMarked, 
+  Scissors, 
+  ExternalLink,
+  Search,
+  Wifi,
+  WifiOff,
+  Settings as SettingsIcon,
+  RefreshCw
+} from "lucide-react";
 
 import { apiClient } from "~services/api-client";
 import { ankiClient } from "~services/anki-connect";
 import { getSettings, saveSettings } from "~services/storage";
-import { POS_LABELS } from "~lib/constants";
 import { containsJapanese } from "~lib/japanese";
+import logoUrl from "url:../assets/icon.png";
 import type {
   AnalyzeResponse,
-  TokenAnalysis,
   ExtensionSettings,
   ExtensionView,
-  SubtitleResponse,
-  SubtitleSegment,
   AnkiExportData,
 } from "~types";
 import { DEFAULT_SETTINGS } from "~types";
 
-
-import { JlptBadge, PosBadge } from "~components/Badges";
+import { JlptBadge } from "~components/Badges";
 import { TokenDisplay } from "~components/TokenDisplay";
 import { DefinitionCard } from "~components/DefinitionCard";
-const SettingsView = lazy(() => import("~components/SettingsView").then(m => ({ default: m.SettingsView })));
+
 const GrammarExplanations = lazy(() => import("~components/GrammarExplanations").then(m => ({ default: m.GrammarExplanations })));
 const KanjiBreakdown = lazy(() => import("~components/KanjiBreakdown").then(m => ({ default: m.KanjiBreakdown })));
 const SrsReview = lazy(() => import("~components/SrsReview").then(m => ({ default: m.SrsReview })));
@@ -36,28 +43,25 @@ import "./style.css";
 
 // ── Helper Components ───────────────────────────────────────────────
 
-
-
 function StatusDot({ connected }: { connected: boolean }) {
-  const cls = connected
-    ? "hk-status__dot hk-status__dot--connected"
-    : "hk-status__dot hk-status__dot--disconnected";
-  return <span className={cls} />;
+  return connected 
+    ? <Wifi size={14} className="hk-status__icon hk-status__icon--connected" style={{ color: "var(--hk-jlpt-n5)" }} /> 
+    : <WifiOff size={14} className="hk-status__icon hk-status__icon--disconnected" style={{ color: "var(--hk-text-muted)" }} />;
 }
 
 function LoadingSpinner({ text = "Analyzing..." }: { text?: string }) {
   return (
     <div className="hk-loading">
-      <div className="hk-loading__spinner" />
+      <RefreshCw size={24} className="hk-loading__spinner hk-spin" style={{ color: "var(--hk-accent-primary)" }} />
       <span>{text}</span>
     </div>
   );
 }
 
-function EmptyState({ icon, text }: { icon: string; text: string }) {
+function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
     <div className="hk-empty">
-      <div className="hk-empty__icon">{icon}</div>
+      <div className="hk-empty__icon" style={{ color: "var(--hk-text-muted)", marginBottom: 12 }}>{icon}</div>
       <p className="hk-empty__text">{text}</p>
     </div>
   );
@@ -73,7 +77,7 @@ function DifficultyMeter({ label, score }: { label: string | null; score: number
       justifyContent: "space-between",
       padding: "10px 14px",
       background: "var(--hk-bg-secondary)",
-      borderLeft: "4px solid var(--hk-accent-crimson)",
+      borderLeft: "4px solid var(--hk-accent-primary)",
       borderRadius: "6px",
       marginBottom: "16px",
     }}>
@@ -88,11 +92,9 @@ function DifficultyMeter({ label, score }: { label: string | null; score: number
   );
 }
 
+// ── Translate (Quick) View ──────────────────────────────────────────
 
-
-// ── Analysis View ───────────────────────────────────────────────────
-
-function AnalysisView({
+function TranslateQuickView({
   ankiConnected,
   backendConnected,
 }: {
@@ -101,334 +103,211 @@ function AnalysisView({
 }) {
   const [inputText, setInputText] = useState("");
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
-  const [selectedToken, setSelectedToken] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [exportStatus, setExportStatus] = useState<string | null>(null);
 
-  // Listen for text selections from content script
   useEffect(() => {
     const listener = (message: { type: string; payload: { text: string } }) => {
       if (message.type === "TEXT_SELECTED" && message.payload?.text) {
         setInputText(message.payload.text);
-        handleAnalyze(message.payload.text);
+        handleTranslate(message.payload.text);
       }
     };
-
     chrome.runtime?.onMessage?.addListener(listener);
     return () => chrome.runtime?.onMessage?.removeListener(listener);
   }, []);
 
-  const handleAnalyze = useCallback(
-    async (text?: string) => {
-      const textToAnalyze = text || inputText;
-      if (!textToAnalyze.trim()) return;
-      if (!containsJapanese(textToAnalyze)) {
-        setError("No Japanese text detected. Please enter Japanese text.");
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      setSelectedToken(null);
-
-      try {
-        const response = await apiClient.analyzeText({
-          text: textToAnalyze,
-          include_definitions: true,
-        });
-        setResult(response);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Analysis failed";
-        setError(msg);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [inputText]
-  );
-
-  const handleExport = async (data: AnkiExportData) => {
-    try {
-      setExportStatus("Exporting...");
-      await ankiClient.exportVocabulary(data);
-      setExportStatus("✓ Exported!");
-      setTimeout(() => setExportStatus(null), 2000);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Export failed";
-      setExportStatus(`✗ ${msg}`);
-      setTimeout(() => setExportStatus(null), 3000);
+  const handleTranslate = async (text?: string) => {
+    const textToAnalyze = text || inputText;
+    if (!textToAnalyze.trim()) return;
+    if (!containsJapanese(textToAnalyze)) {
+      setError("Please enter Japanese text.");
+      return;
     }
-  };
-
-  const selectedTokenData =
-    result && selectedToken !== null ? result.tokens[selectedToken] : null;
-
-  return (
-    <div className="hk-content hk-fade-in">
-      {/* Input */}
-      <div className="hk-input">
-        <textarea
-          className="hk-input__textarea"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          placeholder="日本語を入力してください…"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-              handleAnalyze();
-            }
-          }}
-        />
-        <div className="hk-input__actions">
-          {exportStatus && (
-            <span style={{ fontSize: 12, color: "var(--hk-accent-teal)", alignSelf: "center" }}>
-              {exportStatus}
-            </span>
-          )}
-          <button
-            className="hk-btn hk-btn--primary"
-            onClick={() => handleAnalyze()}
-            disabled={loading || !inputText.trim() || !backendConnected}
-          >
-            {loading ? "⏳" : "🔍"} Analyze
-          </button>
-        </div>
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div
-          style={{
-            padding: "8px 12px",
-            background: "rgba(232, 93, 117, 0.1)",
-            border: "1px solid rgba(232, 93, 117, 0.3)",
-            borderRadius: 8,
-            color: "var(--hk-accent-crimson)",
-            fontSize: 12,
-            marginBottom: 16,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Loading */}
-      {loading && <LoadingSpinner />}
-
-      {/* Results */}
-      {result && !loading && (
-        <>
-          {/* Difficulty Meter */}
-          <DifficultyMeter label={result.difficulty_label} score={result.difficulty_score} />
-
-          {/* Sentence reading */}
-          {result.sentence_reading && (
-            <div
-              style={{
-                fontSize: 12,
-                color: "var(--hk-text-muted)",
-                fontFamily: "var(--hk-font-jp)",
-                marginBottom: 12,
-                padding: "6px 12px",
-                background: "var(--hk-bg-secondary)",
-                borderRadius: 6,
-              }}
-            >
-              {result.sentence_reading}
-            </div>
-          )}
-
-          {/* Token display */}
-          <TokenDisplay
-            tokens={result.tokens}
-            selectedIndex={selectedToken}
-            onSelect={setSelectedToken}
-          />
-
-          {/* Selected token definition */}
-          {selectedTokenData && selectedTokenData.is_japanese && (
-            <>
-              <DefinitionCard
-                token={selectedTokenData}
-                onExport={handleExport}
-                ankiConnected={ankiConnected}
-                originalText={result.text}
-                sentenceReading={result.sentence_reading}
-              />
-              
-              <div style={{ marginTop: 16 }}>
-                {Array.from(new Set(Array.from(selectedTokenData.dictionary_form).filter(c => /[\u4e00-\u9faf]/.test(c)))).map((kanji, i) => (
-                  <Suspense fallback={<LoadingSpinner text={`Loading ${kanji} breakdown...`} />} key={`${kanji}-${i}`}>
-                    <KanjiBreakdown kanji={kanji} />
-                  </Suspense>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* Grammar Patterns */}
-          {result.grammar_patterns && result.grammar_patterns.length > 0 && (
-            <Suspense fallback={<LoadingSpinner text="Loading grammar..." />}>
-              <GrammarExplanations patterns={result.grammar_patterns} />
-            </Suspense>
-          )}
-
-          {/* Prompt to select a token */}
-          {selectedToken === null && (
-            <EmptyState
-              icon="👆"
-              text="Click on a token above to see its definition, JLPT level, and export to Anki."
-            />
-          )}
-        </>
-      )}
-
-      {/* Empty state */}
-      {!result && !loading && !error && (
-        <EmptyState
-          icon="🔍"
-          text="Enter Japanese text above or select text on any webpage to start analyzing."
-        />
-      )}
-    </div>
-  );
-}
-
-// ── Subtitles View ──────────────────────────────────────────────────
-
-function SubtitlesView({ backendConnected }: { backendConnected: boolean }) {
-  const [url, setUrl] = useState("");
-  const [result, setResult] = useState<SubtitleResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleFetch = async () => {
-    if (!url.trim()) return;
 
     setLoading(true);
     setError(null);
+    setResult(null);
 
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: "GET_SUBTITLES",
-        payload: { videoUrl: url, language: "auto" },
+      const response = await apiClient.analyzeText({
+        text: textToAnalyze,
+        include_definitions: true,
       });
-
-      if (response?.type === "ERROR") {
-        throw new Error(response.payload?.error || "Failed to fetch subtitles");
-      }
-
-      if (response?.type === "SUBTITLES_RESULT") {
-        const data = response.payload;
-        setResult({
-          video_id: data.videoId,
-          language: data.language,
-          segments: data.segments,
-          full_text: data.fullText,
-        });
-      }
+      setResult(response);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to fetch subtitles";
-      setError(msg);
+      setError(e instanceof Error ? e.message : "Translation failed");
     } finally {
       setLoading(false);
     }
   };
 
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
   return (
-    <div className="hk-content hk-fade-in">
-      <div className="hk-subtitle__input-group">
-        <input
-          className="hk-subtitle__url-input"
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="YouTube URL..."
+    <div className="hk-content hk-fade-in" style={{ padding: "16px" }}>
+      <div className="hk-input" style={{ marginBottom: "16px" }}>
+        <textarea
+          className="hk-input__textarea"
+          style={{ minHeight: "60px", fontSize: "14px", padding: "10px" }}
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="Enter Japanese to translate..."
           onKeyDown={(e) => {
-            if (e.key === "Enter") handleFetch();
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+              handleTranslate();
+            }
           }}
         />
-        <button
-          className="hk-btn hk-btn--primary"
-          onClick={handleFetch}
-          disabled={loading || !url.trim()}
-        >
-          {loading ? "⏳" : "📺"} Fetch
-        </button>
+        <div className="hk-input__actions" style={{ marginTop: "8px" }}>
+          <button
+            className="hk-btn hk-btn--primary hk-btn--sm"
+            onClick={() => handleTranslate()}
+            disabled={loading || !inputText.trim() || !backendConnected}
+            style={{ borderRadius: "4px" }}
+          >
+            {loading ? <RefreshCw size={14} className="hk-spin" /> : <Languages size={14} />} 
+            Translate
+          </button>
+        </div>
       </div>
 
       {error && (
-        <div
-          style={{
-            padding: "8px 12px",
-            background: "rgba(232, 93, 117, 0.1)",
-            border: "1px solid rgba(232, 93, 117, 0.3)",
-            borderRadius: 8,
-            color: "var(--hk-accent-crimson)",
-            fontSize: 12,
-            marginBottom: 16,
-          }}
-        >
+        <div style={{ padding: "8px 12px", background: "var(--hk-bg-tertiary)", borderLeft: "3px solid var(--hk-accent-crimson)", color: "var(--hk-text-primary)", fontSize: 13, borderRadius: "4px" }}>
           {error}
         </div>
       )}
 
-      {loading && <LoadingSpinner text="Fetching subtitles..." />}
+      {loading && (
+        <div style={{ textAlign: "center", padding: "24px", color: "var(--hk-text-muted)" }}>
+          <RefreshCw size={20} className="hk-spin" style={{ color: "var(--hk-accent-primary)", marginBottom: "8px" }} />
+          <div style={{ fontSize: "13px" }}>Translating...</div>
+        </div>
+      )}
 
       {result && !loading && (
-        <>
-          {result.segments.length === 0 ? (
-            <EmptyState icon="📺" text="Video này không có subtitle có thể đọc." />
-          ) : (
-            <div>
-              <div style={{ fontSize: 12, color: "var(--hk-text-muted)", marginBottom: 12 }}>
-                {result.segments.length} segments · {result.language}
-              </div>
-              {result.segments.map((seg: SubtitleSegment, i: number) => (
-                <div key={i} className="hk-subtitle__segment">
-                  <div className="hk-subtitle__time">{formatTime(seg.start)}</div>
-                  <div className="hk-subtitle__text">{seg.text}</div>
-                </div>
-              ))}
+        <div style={{ background: "var(--hk-bg-secondary)", border: "1px solid var(--hk-border)", borderRadius: "6px", padding: "12px" }}>
+          {result.sentence_reading && (
+            <div style={{ fontSize: "12px", color: "var(--hk-accent-primary)", marginBottom: "8px", fontFamily: "var(--hk-font-jp)" }}>
+              {result.sentence_reading}
             </div>
           )}
-        </>
+          
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "16px" }}>
+            {result.tokens.filter(t => t.is_japanese && t.dictionary_form).map((token, idx) => (
+              <div key={idx} style={{ padding: "4px 8px", background: "var(--hk-bg-tertiary)", borderRadius: "4px", fontSize: "13px" }}>
+                <span style={{ color: "var(--hk-text-primary)", fontWeight: 500, marginRight: "6px" }}>{token.surface}</span>
+                <span style={{ color: "var(--hk-text-muted)", fontSize: "11px" }}>{token.dictionary_form}</span>
+              </div>
+            ))}
+          </div>
+
+          {result.tokens.filter(t => t.definitions && t.definitions.length > 0).length > 0 && (
+            <div style={{ borderTop: "1px solid var(--hk-border)", paddingTop: "12px" }}>
+              <div style={{ fontSize: "11px", textTransform: "uppercase", color: "var(--hk-text-muted)", fontWeight: "bold", marginBottom: "8px" }}>Quick Definitions</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {result.tokens.filter(t => t.definitions && t.definitions.length > 0).slice(0, 5).map((token, idx) => (
+                  <div key={idx} style={{ fontSize: "13px" }}>
+                    <strong style={{ color: "var(--hk-text-primary)" }}>{token.dictionary_form}</strong>
+                    <span style={{ color: "var(--hk-text-muted)", margin: "0 4px" }}>—</span>
+                    <span style={{ color: "var(--hk-text-secondary)" }}>{token.definitions?.[0]?.glosses?.slice(0, 2).join(", ")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {!result && !loading && !error && (
-        <EmptyState
-          icon="📺"
-          text="Dán URL YouTube để kiểm tra và đọc subtitle có sẵn."
-        />
+        <div style={{ textAlign: "center", padding: "24px 0", color: "var(--hk-text-muted)", fontSize: "13px" }}>
+          Ready to translate.
+        </div>
       )}
     </div>
   );
 }
 
+// ── Anki View ──────────────────────────────────────────────────
 
+function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSettings, onUpdate: (patch: Partial<ExtensionSettings>) => void, ankiConnected: boolean }) {
+  return (
+    <div className="hk-content hk-fade-in">
+      <div style={{ 
+        padding: "16px", 
+        background: "var(--hk-bg-secondary)", 
+        borderRadius: "8px",
+        marginBottom: "24px",
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+        border: `1px solid ${ankiConnected ? 'var(--hk-jlpt-n5)' : 'var(--hk-border)'}`
+      }}>
+        {ankiConnected ? <Wifi size={24} color="var(--hk-jlpt-n5)" /> : <WifiOff size={24} color="var(--hk-text-muted)" />}
+        <div>
+          <div style={{ fontWeight: 500, fontSize: "14px", color: ankiConnected ? "var(--hk-jlpt-n5)" : "var(--hk-text-primary)" }}>
+            {ankiConnected ? "AnkiConnect is running" : "AnkiConnect not detected"}
+          </div>
+          <div style={{ fontSize: "12px", color: "var(--hk-text-muted)", marginTop: "4px" }}>
+            {ankiConnected ? "Ready to export flashcards." : "Please start Anki and ensure AnkiConnect is installed."}
+          </div>
+        </div>
+      </div>
+
+      <div className="hk-settings__group">
+        <label className="hk-settings__label">
+          <div>
+            <div className="hk-settings__label-text">Anki Deck Name</div>
+            <div className="hk-settings__label-desc">Default deck for exports</div>
+          </div>
+        </label>
+        <input
+          className="hk-settings__input"
+          type="text"
+          value={settings.ankiDeck}
+          onChange={(e) => onUpdate({ ankiDeck: e.target.value })}
+        />
+      </div>
+
+      <div className="hk-settings__group">
+        <label className="hk-settings__label">
+          <div>
+            <div className="hk-settings__label-text">Anki Note Type</div>
+            <div className="hk-settings__label-desc">Card model for exports</div>
+          </div>
+        </label>
+        <input
+          className="hk-settings__input"
+          type="text"
+          value={settings.ankiModel}
+          onChange={(e) => onUpdate({ ankiModel: e.target.value })}
+        />
+      </div>
+      
+      <div style={{ marginTop: 24, textAlign: 'center' }}>
+        <button
+          className="hk-btn hk-btn--secondary"
+          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") })}
+        >
+          <ExternalLink size={16} /> Open Full App
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ── Main Popup ──────────────────────────────────────────────────────
 
 function Popup() {
-  const [activeView, setActiveView] = useState<ExtensionView>("analysis");
+  const [activeView, setActiveView] = useState<ExtensionView>("translate");
   const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
   const [backendConnected, setBackendConnected] = useState(false);
   const [ankiConnected, setAnkiConnected] = useState(false);
 
-  // Load settings and check connections on mount
   useEffect(() => {
     const init = async () => {
       const stored = await getSettings();
       setSettings(stored);
       apiClient.setBaseUrl(stored.backendUrl);
 
-      // Check backend connectivity
       try {
         await apiClient.healthCheck();
         setBackendConnected(true);
@@ -436,7 +315,6 @@ function Popup() {
         setBackendConnected(false);
       }
 
-      // Check AnkiConnect
       try {
         const connected = await ankiClient.isConnected();
         setAnkiConnected(connected);
@@ -452,30 +330,25 @@ function Popup() {
     const updated = { ...settings, ...patch };
     setSettings(updated);
     saveSettings(patch);
-
     if (patch.backendUrl) {
       apiClient.setBaseUrl(patch.backendUrl);
     }
   };
 
-  const tabs: Array<{ id: ExtensionView; label: string; icon: string }> = [
-    { id: "analysis", label: "Analyze", icon: "🔍" },
-    { id: "subtitles", label: "Subtitles", icon: "📺" },
-    { id: "srs", label: "Review", icon: "🧠" },
-    { id: "settings", label: "Settings", icon: "⚙️" },
+  const tabs: Array<{ id: ExtensionView; label: string; icon: React.ReactNode }> = [
+    { id: "translate", label: "Translate", icon: <Languages size={16} /> },
+    { id: "srs", label: "Reviews", icon: <Brain size={16} /> },
+    { id: "anki", label: "Anki", icon: <BookMarked size={16} /> },
   ];
 
   return (
     <div className="hk-popup">
-      {/* Header */}
-      <header className="hk-header">
-        <div className="hk-header__logo">
-          <div>
-            <div className="hk-header__title">発掘 Hakkutsu</div>
-            <div className="hk-header__subtitle">Japanese Immersion</div>
-          </div>
+      <header className="hk-header" style={{ padding: "12px 16px" }}>
+        <div className="hk-header__logo" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <img src={logoUrl} alt="Hakkutsu Logo" style={{ width: 24, height: 24, borderRadius: 6 }} />
+          <div className="hk-header__title" style={{ fontSize: "16px" }}>Hakkutsu</div>
         </div>
-        <div className="hk-header__actions" style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+        <div className="hk-header__actions" style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"
             onClick={() => {
@@ -487,67 +360,54 @@ function Popup() {
               });
             }}
             title="Extract text from screen"
+            style={{ padding: "4px 8px" }}
           >
-            ✂️ OCR
+            <Scissors size={14} /> OCR
           </button>
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/dashboard.html") })}
-            title="Open Full Dashboard"
+            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") })}
+            title="Open App"
+            style={{ padding: "4px 8px" }}
           >
-            ↗ Dashboard
+            <ExternalLink size={14} /> App
           </button>
+          
           <div className="hk-status" title={backendConnected ? "Backend connected" : "Backend disconnected"}>
             <StatusDot connected={backendConnected} />
-            <span>API</span>
-          </div>
-          <div className="hk-status" title={ankiConnected ? "Anki connected" : "Anki disconnected"}>
-            <StatusDot connected={ankiConnected} />
-            <span>Anki</span>
           </div>
         </div>
       </header>
 
-      {/* Navigation */}
       <nav className="hk-nav">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             className={`hk-nav__tab ${activeView === tab.id ? "hk-nav__tab--active" : ""}`}
             onClick={() => setActiveView(tab.id)}
+            style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "center" }}
           >
             {tab.icon} {tab.label}
           </button>
         ))}
       </nav>
 
-      {/* Views */}
       <Suspense fallback={<LoadingSpinner text="Loading view..." />}>
-        {activeView === "analysis" && (
-          <AnalysisView
+        {activeView === "translate" && (
+          <TranslateQuickView
             ankiConnected={ankiConnected}
             backendConnected={backendConnected}
           />
         )}
-        {activeView === "subtitles" && (
-          <SubtitlesView backendConnected={backendConnected} />
-        )}
         {activeView === "srs" && (
           <SrsReview />
         )}
-        {activeView === "settings" && (
-          <>
-            <SettingsView settings={settings} onUpdate={handleUpdateSettings} />
-            <div style={{ padding: "0 16px 16px" }}>
-              <button
-                className="hk-btn hk-btn--secondary"
-                style={{ width: "100%", justifyContent: "center" }}
-                onClick={() => chrome.runtime.openOptionsPage()}
-              >
-                ⚙️ Open Full Settings Page
-              </button>
-            </div>
-          </>
+        {activeView === "anki" && (
+          <AnkiView 
+            settings={settings} 
+            onUpdate={handleUpdateSettings}
+            ankiConnected={ankiConnected}
+          />
         )}
       </Suspense>
     </div>

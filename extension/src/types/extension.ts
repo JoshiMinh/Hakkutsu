@@ -2,7 +2,7 @@
  * Extension-specific type definitions.
  */
 
-export type ExtensionView = "analysis" | "subtitles" | "srs" | "settings" | "history";
+export type ExtensionView = "translate" | "srs" | "anki";
 
 export interface ExtensionSettings {
   backendUrl: string;
@@ -68,6 +68,8 @@ export type MessageType =
   | "SRS_RESULT"
   | "CAPTURE_SCREENSHOT"
   | "SCREENSHOT_RESULT"
+  | "OPEN_APP"
+  | "OPEN_APP_RESULT"
   | "IGNORED"
   | "ERROR";
 
