@@ -1,8 +1,9 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import hashlib
 import json
 import re
+import urllib.parse
 from functools import lru_cache
 from threading import Lock
 
@@ -308,7 +309,19 @@ def analyze_phrase_deep(text: str) -> dict:
         )
         result = json.loads(fenced.group(1) if fenced else content)
     except Exception as exc:
-        raise RuntimeError(f"Model local không phân tích được câu: {exc}") from exc
+        try:
+            gt_url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=vi&dt=t&q={urllib.parse.quote(clean_text)}"
+            gt_resp = httpx.get(gt_url, timeout=5.0)
+            gt_resp.raise_for_status()
+            gt_data = gt_resp.json()
+            translation = "".join(part[0] for part in gt_data[0] if part[0])
+            return {
+                "translation": translation,
+                "meanings_vi": ["" for _ in tokens],
+                "grammar": []
+            }
+        except Exception as gt_exc:
+            raise RuntimeError(f"Model local và Google Translate đều thất bại: {exc} | {gt_exc}") from exc
     meanings = result.get("meanings_vi")
     if not isinstance(meanings, list) or len(meanings) != len(tokens):
         raise RuntimeError("Model local trả sai số lượng nghĩa token")

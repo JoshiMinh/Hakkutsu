@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { localSrs, type SrsCard } from "~services/local-srs";
 
 export function SrsReview({ userId = "user_1" }: { userId?: string }) {
@@ -24,7 +24,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
     }
   };
 
-  const handleReview = async (quality: number) => {
+  const handleReview = useCallback(async (quality: number) => {
     if (cards.length === 0) return;
     const currentCard = cards[0];
     
@@ -37,103 +37,163 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
     } catch (err) {
       console.error("Failed to submit review", err);
     }
-  };
+  }, [cards]);
+
+  // Keyboard accessibility
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      if (!showAnswer) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setShowAnswer(true);
+        }
+      } else {
+        switch (e.key) {
+          case "1":
+            e.preventDefault();
+            handleReview(1);
+            break;
+          case "2":
+            e.preventDefault();
+            handleReview(3);
+            break;
+          case "3":
+            e.preventDefault();
+            handleReview(4);
+            break;
+          case "4":
+            e.preventDefault();
+            handleReview(5);
+            break;
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showAnswer, handleReview]);
 
   if (loading) {
     return (
-      <div className="hk-content hk-fade-in" style={{ textAlign: "center", padding: 20 }}>
-        ⏳ Loading reviews...
+      <div className="hk-content hk-fade-in hk-srs-empty">
+        <div className="hk-loading__spinner" aria-label="Loading reviews"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="hk-content hk-fade-in" style={{ padding: 20, color: "var(--hk-accent-crimson)" }}>
-        {error}
+      <div className="hk-content hk-fade-in hk-srs-empty">
+        <div className="hk-srs-error" role="alert">{error}</div>
       </div>
     );
   }
 
   if (cards.length === 0) {
     return (
-      <div className="hk-content hk-fade-in" style={{ textAlign: "center", padding: 40 }}>
-        <div style={{ fontSize: 40, marginBottom: 16 }}>🎉</div>
-        <h3 style={{ color: "var(--hk-text)", margin: 0 }}>All caught up!</h3>
-        <p style={{ color: "var(--hk-text-muted)" }}>No reviews due right now.</p>
-        <button className="hk-btn hk-btn--secondary" onClick={loadDueCards} style={{ marginTop: 16 }}>
-          Refresh
+      <div className="hk-content hk-fade-in hk-srs-empty">
+        <div className="hk-srs-empty__icon">🎉</div>
+        <h3 className="hk-srs-empty__title">All caught up!</h3>
+        <p className="hk-srs-empty__desc">No reviews due right now.</p>
+        <button className="hk-btn hk-btn--secondary hk-mt-md" onClick={loadDueCards}>
+          Refresh Queue
         </button>
       </div>
     );
   }
 
   const card = cards[0];
+  const queueState = card.repetition === 0 ? "new" : (card.interval < 21 ? "learning" : "graduated");
 
   return (
-    <div className="hk-content hk-fade-in" style={{ padding: 16, display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, color: "var(--hk-text-muted)", fontSize: 12 }}>
-        <span>Reviews due: {cards.length}</span>
-        <span>State: {card.repetition === 0 ? "new" : (card.interval < 21 ? "learning" : "graduated")}</span>
+    <div className="hk-content hk-fade-in hk-srs-container">
+      <div className="hk-srs-header">
+        <span className="hk-srs-stat">Reviews due: <strong>{cards.length}</strong></span>
+        <span className="hk-srs-stat">State: <strong className={`hk-srs-state--${queueState}`}>{queueState}</strong></span>
       </div>
 
-      <div style={{ 
-        flex: 1, 
-        display: "flex", 
-        flexDirection: "column", 
-        alignItems: "center", 
-        justifyContent: "center",
-        background: "var(--hk-bg-secondary)",
-        borderRadius: 12,
-        padding: 24,
-        marginBottom: 16,
-        border: "1px solid var(--hk-border)"
-      }}>
-        <div style={{ fontSize: 48, fontWeight: "bold", fontFamily: "var(--hk-font-jp)", marginBottom: showAnswer && card.reading ? 8 : 24 }}>
+      <div className="hk-srs-card">
+        <div className="hk-srs-card__word">
           {card.word}
         </div>
         
         {showAnswer && (
-          <div className="hk-fade-in" style={{ textAlign: "center" }}>
-            {card.reading && (
-              <div style={{ fontSize: 18, color: "var(--hk-text-muted)", marginBottom: 16 }}>
-                {card.reading}
+          <div className="hk-fade-in-up hk-srs-card__answer">
+            {/* Badges Row */}
+            {(card.jlpt || card.vietnamese_sound) && (
+              <div className="hk-srs-card__badges">
+                {card.jlpt && <span className="hk-srs-card__badge hk-srs-card__badge--jlpt">{card.jlpt}</span>}
+                {card.vietnamese_sound && <span className="hk-srs-card__badge hk-srs-card__badge--vi">{card.vietnamese_sound}</span>}
               </div>
             )}
+
+            {/* Primary Reading */}
+            {(card.word_furigana || card.reading) && (
+              <div className="hk-srs-card__reading">
+                {card.word_furigana || card.reading}
+              </div>
+            )}
+
+            {/* Meaning */}
             {card.meaning && (
-              <div style={{ fontSize: 16, color: "var(--hk-text)", marginBottom: 16, borderTop: "1px solid var(--hk-border)", paddingTop: 16 }}>
+              <div className="hk-srs-card__meaning">
                 {card.meaning}
               </div>
             )}
-            {card.sentence && (
-              <div style={{ fontSize: 13, color: "var(--hk-text-secondary)", fontStyle: "italic" }}>
-                "{card.sentence}"
-              </div>
+
+            {/* Sentence Context */}
+            {(card.sentence || card.sentence_furigana) && (
+              <>
+                <hr className="hk-srs-context-divider" />
+                <div className="hk-srs-card__sentence-group">
+                  <div className="hk-srs-card__sentence">
+                    {card.sentence_furigana || card.sentence}
+                  </div>
+                  {card.sentence_meaning && (
+                    <div className="hk-srs-card__sentence-meaning">
+                      {card.sentence_meaning}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         )}
       </div>
 
-      {!showAnswer ? (
-        <button className="hk-btn hk-btn--primary" style={{ padding: 12 }} onClick={() => setShowAnswer(true)}>
-          Show Answer
-        </button>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-          <button className="hk-btn hk-btn--secondary" style={{ color: "#ef4444", padding: "8px 4px" }} onClick={() => handleReview(1)}>
-            Again (1)
+      <div className="hk-srs-actions">
+        {!showAnswer ? (
+          <button 
+            className="hk-btn hk-btn--primary hk-srs-btn--reveal" 
+            onClick={() => setShowAnswer(true)}
+          >
+            Show Answer <span className="hk-shortcut-hint">Space</span>
           </button>
-          <button className="hk-btn hk-btn--secondary" style={{ color: "#f59e0b", padding: "8px 4px" }} onClick={() => handleReview(3)}>
-            Hard (3)
-          </button>
-          <button className="hk-btn hk-btn--secondary" style={{ color: "#10b981", padding: "8px 4px" }} onClick={() => handleReview(4)}>
-            Good (4)
-          </button>
-          <button className="hk-btn hk-btn--secondary" style={{ color: "#3b82f6", padding: "8px 4px" }} onClick={() => handleReview(5)}>
-            Easy (5)
-          </button>
-        </div>
-      )}
+        ) : (
+          <div className="hk-srs-grades">
+            <button className="hk-btn hk-srs-btn--grade hk-srs-grade--1" onClick={() => handleReview(1)}>
+              <span className="hk-srs-grade__label">Again</span>
+              <span className="hk-shortcut-hint">1</span>
+            </button>
+            <button className="hk-btn hk-srs-btn--grade hk-srs-grade--3" onClick={() => handleReview(3)}>
+              <span className="hk-srs-grade__label">Hard</span>
+              <span className="hk-shortcut-hint">2</span>
+            </button>
+            <button className="hk-btn hk-srs-btn--grade hk-srs-grade--4" onClick={() => handleReview(4)}>
+              <span className="hk-srs-grade__label">Good</span>
+              <span className="hk-shortcut-hint">3</span>
+            </button>
+            <button className="hk-btn hk-srs-btn--grade hk-srs-grade--5" onClick={() => handleReview(5)}>
+              <span className="hk-srs-grade__label">Easy</span>
+              <span className="hk-shortcut-hint">4</span>
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

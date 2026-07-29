@@ -9,6 +9,12 @@ export interface SrsCard {
   source_url?: string;
   source_title?: string;
   
+  word_furigana?: string;
+  jlpt?: string;
+  vietnamese_sound?: string;
+  sentence_furigana?: string;
+  sentence_meaning?: string;
+
   // SRS data
   due_date: number; // timestamp
   interval: number; // days
@@ -66,6 +72,10 @@ class LocalSrsService {
     const db = await this.dbPromise;
     const now = Date.now();
     const word = data.target_word || data.word;
+    
+    if (word.length === 1 && /^[\u3040-\u309F\u30A0-\u30FF]$/.test(word)) {
+      throw new Error("Cannot save single katakana or hiragana characters.");
+    }
     
     const card: SrsCard = {
       id: crypto.randomUUID(),
@@ -128,6 +138,27 @@ class LocalSrsService {
     return db.getAll("cards");
   }
 
+  async updateSrsCard(id: string, patch: Partial<SrsCard>): Promise<SrsCard> {
+    const db = await this.dbPromise;
+    const tx = db.transaction("cards", "readwrite");
+    const card = await tx.store.get(id);
+    if (!card) throw new Error(`Card ${id} not found`);
+    const updated = { ...card, ...patch, updated_at: Date.now() };
+    await tx.store.put(updated);
+    await tx.done;
+    return updated;
+  }
+
+  async deleteSrsCard(id: string): Promise<void> {
+    const db = await this.dbPromise;
+    await db.delete("cards", id);
+  }
+
+  async deleteAllSrsCards(): Promise<void> {
+    const db = await this.dbPromise;
+    await db.clear("cards");
+  }
+
   async getSrsStats(): Promise<SrsStats> {
     const db = await this.dbPromise;
     const allCards = await db.getAll("cards");
@@ -181,9 +212,6 @@ class LocalSrsService {
     if (!card) {
       throw new Error(`Card with ID ${cardId} not found`);
     }
-    
-    // SuperMemo-2 Algorithm
-    // Quality: 0-5 (0 = complete blackout, 5 = perfect response)
     
     let { interval, repetition, efactor } = card;
     

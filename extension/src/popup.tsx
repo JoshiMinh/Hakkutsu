@@ -14,6 +14,7 @@ import {
   Search,
   Wifi,
   WifiOff,
+  Server,
   Settings as SettingsIcon,
   RefreshCw
 } from "lucide-react";
@@ -25,6 +26,7 @@ import { containsJapanese } from "~lib/japanese";
 import logoUrl from "url:../assets/icon.png";
 import type {
   AnalyzeResponse,
+  PhraseAnalyzeResponse,
   ExtensionSettings,
   ExtensionView,
   AnkiExportData,
@@ -42,12 +44,6 @@ const SrsReview = lazy(() => import("~components/SrsReview").then(m => ({ defaul
 import "./style.css";
 
 // ── Helper Components ───────────────────────────────────────────────
-
-function StatusDot({ connected }: { connected: boolean }) {
-  return connected 
-    ? <Wifi size={14} className="hk-status__icon hk-status__icon--connected" style={{ color: "var(--hk-jlpt-n5)" }} /> 
-    : <WifiOff size={14} className="hk-status__icon hk-status__icon--disconnected" style={{ color: "var(--hk-text-muted)" }} />;
-}
 
 function LoadingSpinner({ text = "Analyzing..." }: { text?: string }) {
   return (
@@ -102,7 +98,7 @@ function TranslateQuickView({
   backendConnected: boolean;
 }) {
   const [inputText, setInputText] = useState("");
-  const [result, setResult] = useState<AnalyzeResponse | null>(null);
+  const [result, setResult] = useState<PhraseAnalyzeResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,7 +126,7 @@ function TranslateQuickView({
     setResult(null);
 
     try {
-      const response = await apiClient.analyzeText({
+      const response = await apiClient.analyzePhrase({
         text: textToAnalyze,
         include_definitions: true,
       });
@@ -191,6 +187,12 @@ function TranslateQuickView({
             </div>
           )}
           
+          {result.translation && (
+            <div style={{ fontSize: "14px", color: "var(--hk-text-primary)", marginBottom: "12px", fontStyle: "italic" }}>
+              "{result.translation}"
+            </div>
+          )}
+          
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "16px" }}>
             {result.tokens.filter(t => t.is_japanese && t.dictionary_form).map((token, idx) => (
               <div key={idx} style={{ padding: "4px 8px", background: "var(--hk-bg-tertiary)", borderRadius: "4px", fontSize: "13px" }}>
@@ -234,57 +236,66 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
       <div style={{ 
         padding: "16px", 
         background: "var(--hk-bg-secondary)", 
-        borderRadius: "8px",
+        borderRadius: "var(--hk-radius-lg)",
         marginBottom: "24px",
         display: "flex",
         alignItems: "center",
-        gap: "12px",
-        border: `1px solid ${ankiConnected ? 'var(--hk-jlpt-n5)' : 'var(--hk-border)'}`
+        gap: "16px",
+        border: `1px solid ${ankiConnected ? 'var(--hk-jlpt-n5)' : 'var(--hk-border)'}`,
+        boxShadow: "var(--hk-shadow-sm)"
       }}>
         {ankiConnected ? <Wifi size={24} color="var(--hk-jlpt-n5)" /> : <WifiOff size={24} color="var(--hk-text-muted)" />}
         <div>
-          <div style={{ fontWeight: 500, fontSize: "14px", color: ankiConnected ? "var(--hk-jlpt-n5)" : "var(--hk-text-primary)" }}>
+          <div style={{ fontWeight: 600, fontSize: "14px", color: ankiConnected ? "var(--hk-jlpt-n5)" : "var(--hk-text-primary)" }}>
             {ankiConnected ? "AnkiConnect is running" : "AnkiConnect not detected"}
           </div>
-          <div style={{ fontSize: "12px", color: "var(--hk-text-muted)", marginTop: "4px" }}>
+          <div style={{ fontSize: "12px", color: "var(--hk-text-secondary)", marginTop: "4px" }}>
             {ankiConnected ? "Ready to export flashcards." : "Please start Anki and ensure AnkiConnect is installed."}
           </div>
         </div>
       </div>
 
-      <div className="hk-settings__group">
-        <label className="hk-settings__label">
-          <div>
-            <div className="hk-settings__label-text">Anki Deck Name</div>
-            <div className="hk-settings__label-desc">Default deck for exports</div>
+      <fieldset className="hk-settings-card">
+        <legend className="hk-settings-card__title">Export Settings</legend>
+        <div className="hk-settings-row">
+          <div className="hk-settings-row__info">
+            <label htmlFor="ankiDeck" className="hk-settings-row__label">Anki Deck Name</label>
+            <div id="ankiDeck-desc" className="hk-settings-row__desc">Default deck for exports</div>
           </div>
-        </label>
-        <input
-          className="hk-settings__input"
-          type="text"
-          value={settings.ankiDeck}
-          onChange={(e) => onUpdate({ ankiDeck: e.target.value })}
-        />
-      </div>
+          <div className="hk-settings-row__control">
+            <input
+              id="ankiDeck"
+              aria-describedby="ankiDeck-desc"
+              className="hk-settings-input hk-settings-input--text"
+              type="text"
+              value={settings.ankiDeck}
+              onChange={(e) => onUpdate({ ankiDeck: e.target.value })}
+            />
+          </div>
+        </div>
 
-      <div className="hk-settings__group">
-        <label className="hk-settings__label">
-          <div>
-            <div className="hk-settings__label-text">Anki Note Type</div>
-            <div className="hk-settings__label-desc">Card model for exports</div>
+        <div className="hk-settings-row">
+          <div className="hk-settings-row__info">
+            <label htmlFor="ankiModel" className="hk-settings-row__label">Anki Note Type</label>
+            <div id="ankiModel-desc" className="hk-settings-row__desc">Card model for exports</div>
           </div>
-        </label>
-        <input
-          className="hk-settings__input"
-          type="text"
-          value={settings.ankiModel}
-          onChange={(e) => onUpdate({ ankiModel: e.target.value })}
-        />
-      </div>
+          <div className="hk-settings-row__control">
+            <input
+              id="ankiModel"
+              aria-describedby="ankiModel-desc"
+              className="hk-settings-input hk-settings-input--text"
+              type="text"
+              value={settings.ankiModel}
+              onChange={(e) => onUpdate({ ankiModel: e.target.value })}
+            />
+          </div>
+        </div>
+      </fieldset>
       
       <div style={{ marginTop: 24, textAlign: 'center' }}>
         <button
           className="hk-btn hk-btn--secondary"
+          style={{ width: '100%', justifyContent: 'center' }}
           onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") })}
         >
           <ExternalLink size={16} /> Open Full App
@@ -373,8 +384,11 @@ function Popup() {
             <ExternalLink size={14} /> App
           </button>
           
-          <div className="hk-status" title={backendConnected ? "Backend connected" : "Backend disconnected"}>
-            <StatusDot connected={backendConnected} />
+          <div className="hk-status" title={ankiConnected ? "Anki connected" : "Anki disconnected"} style={{ display: "flex", alignItems: "center" }}>
+            <BookMarked size={14} color={ankiConnected ? "var(--hk-jlpt-n5)" : "var(--hk-text-muted)"} style={{ filter: ankiConnected ? "drop-shadow(0 0 4px var(--hk-jlpt-n5))" : "none" }} />
+          </div>
+          <div className="hk-status" title={backendConnected ? "Backend connected" : "Backend disconnected"} style={{ display: "flex", alignItems: "center" }}>
+            <Server size={14} color={backendConnected ? "var(--hk-jlpt-n5)" : "var(--hk-text-muted)"} style={{ filter: backendConnected ? "drop-shadow(0 0 4px var(--hk-jlpt-n5))" : "none" }} />
           </div>
         </div>
       </header>

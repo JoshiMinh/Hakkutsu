@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
 import { localSrs, type SrsCard } from "~services/local-srs";
-import { Search, Calendar, ListFilter } from "lucide-react";
+import { Search, ListFilter, Download, Trash2, Edit2, X } from "lucide-react";
 
 export function WordList({ userId = "user_1" }: { userId?: string }) {
   const [cards, setCards] = useState<SrsCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [displayLimit, setDisplayLimit] = useState(50);
-  const [showFilters, setShowFilters] = useState(false);
   const [filterState, setFilterState] = useState("all");
   const [sortBy, setSortBy] = useState("due_asc");
+
+  const [editingCard, setEditingCard] = useState<SrsCard | null>(null);
 
   useEffect(() => {
     setDisplayLimit(50);
@@ -32,10 +34,81 @@ export function WordList({ userId = "user_1" }: { userId?: string }) {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this word?")) return;
+    try {
+      await localSrs.deleteSrsCard(id);
+      setCards(cards.filter(c => c.id !== id));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete word.");
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!confirm("Are you sure you want to delete ALL vocabulary? This cannot be undone.")) return;
+    try {
+      await localSrs.deleteAllSrsCards();
+      setCards([]);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete all words.");
+    }
+  };
+
+  const handleExportCSV = () => {
+    const headers = [
+      "Word", "Word Reading", "Word Furigana", "Word Meaning", 
+      "JLPT", "Vietnamese Sound", "Sentence", "Sentence Furigana", "Sentence Meaning"
+    ];
+
+    const escapeCsv = (str?: string) => {
+      if (!str) return '""';
+      return `"${str.replace(/"/g, '""')}"`;
+    };
+
+    const csvContent = [
+      headers.join(","),
+      ...cards.map(c => [
+        escapeCsv(c.word),
+        escapeCsv(c.reading),
+        escapeCsv(c.word_furigana),
+        escapeCsv(c.meaning),
+        escapeCsv(c.jlpt),
+        escapeCsv(c.vietnamese_sound),
+        escapeCsv(c.sentence),
+        escapeCsv(c.sentence_furigana),
+        escapeCsv(c.sentence_meaning)
+      ].join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `hakkutsu-vocabulary-${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const saveEdit = async (updated: SrsCard) => {
+    try {
+      const saved = await localSrs.updateSrsCard(updated.id, updated);
+      setCards(cards.map(c => c.id === saved.id ? saved : c));
+      setEditingCard(null);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save changes.");
+    }
+  };
+
   const filteredCards = cards.filter(c => {
-    const matchesSearch = c.word.includes(searchTerm) || 
-      (c.reading && c.reading.includes(searchTerm)) || 
-      (c.meaning && c.meaning.toLowerCase().includes(searchTerm.toLowerCase()));
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = c.word.toLowerCase().includes(term) || 
+      (c.reading && c.reading.toLowerCase().includes(term)) || 
+      (c.meaning && c.meaning.toLowerCase().includes(term));
     
     if (!matchesSearch) return false;
 
@@ -55,204 +128,165 @@ export function WordList({ userId = "user_1" }: { userId?: string }) {
 
   const displayedCards = filteredCards.slice(0, displayLimit);
 
-  if (loading) return <div style={{ padding: "40px", textAlign: "center" }}>⏳ Loading vocabulary...</div>;
-  if (error) return <div style={{ padding: "40px", color: "var(--hk-accent-crimson)", textAlign: "center" }}>{error}</div>;
+  if (loading) return <div className="hk-content hk-fade-in"><div className="hk-loading__spinner"></div></div>;
+  if (error) return <div className="hk-content hk-fade-in"><div className="hk-srs-error">{error}</div></div>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {/* Search Header */}
+      {/* Header & Actions */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "24px", marginBottom: "8px" }}>
-        
-        {/* Title and Chip */}
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <h2 style={{ margin: 0, color: "var(--hk-text-primary)", fontWeight: "bold", whiteSpace: "nowrap" }}>Your Vocabulary</h2>
-          <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--hk-text-secondary)", backgroundColor: "var(--hk-bg-secondary)", padding: "4px 10px", borderRadius: "16px", border: "1px solid var(--hk-border)" }}>
+          <h2 style={{ margin: 0, color: "var(--hk-text-primary)", fontWeight: "bold" }}>Vocabulary List</h2>
+          <div className="hk-badge hk-badge--pos">
             {filteredCards.length}
           </div>
         </div>
         
-        {/* Search & Filter */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, maxWidth: "500px" }}>
-          <div style={{ position: "relative", flex: 1 }}>
-            <Search size={18} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--hk-text-muted)" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ position: "relative", width: "240px" }}>
+            <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--hk-text-muted)" }} />
             <input 
               type="text" 
-              placeholder="Search words, readings, meanings..."
+              placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="hk-input__textarea"
-              style={{ width: "100%", paddingLeft: "40px", minHeight: "auto", height: "44px", borderRadius: "8px", border: "1px solid var(--hk-border)", backgroundColor: "var(--hk-bg-primary)" }}
+              className="hk-settings-input"
+              style={{ width: "100%", paddingLeft: "36px" }}
             />
           </div>
-          <div style={{ position: "relative" }}>
-            <button 
-              onClick={() => setShowFilters(!showFilters)}
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "44px", height: "44px", borderRadius: "8px", border: "1px solid var(--hk-border)", backgroundColor: showFilters ? "var(--hk-bg)" : "var(--hk-bg-secondary)", color: showFilters ? "var(--hk-accent-primary)" : "var(--hk-text-primary)", cursor: "pointer", transition: "all 0.2s" }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = "var(--hk-bg)"}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = showFilters ? "var(--hk-bg)" : "var(--hk-bg-secondary)"}
-              title="Filter / Sort"
-            >
-              <ListFilter size={18} />
-            </button>
-            
-            {showFilters && (
-              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: "8px", backgroundColor: "var(--hk-bg-primary)", border: "1px solid var(--hk-border)", borderRadius: "12px", padding: "16px", zIndex: 10, width: "240px", boxShadow: "0 10px 30px rgba(0,0,0,0.3)" }}>
-                <h4 style={{ margin: "0 0 12px 0", color: "var(--hk-text-primary)" }}>Sort By</h4>
-                <select 
-                  value={sortBy} 
-                  onChange={(e) => setSortBy(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid var(--hk-border)", backgroundColor: "var(--hk-bg-secondary)", color: "var(--hk-text-primary)", marginBottom: "16px" }}
-                >
-                  <option value="due_asc">Next Review (Soonest)</option>
-                  <option value="due_desc">Next Review (Latest)</option>
-                  <option value="created_desc">Recently Added</option>
-                  <option value="word_asc">Word (A-Z)</option>
-                </select>
-
-                <h4 style={{ margin: "0 0 12px 0", color: "var(--hk-text-primary)" }}>Filter State</h4>
-                <select 
-                  value={filterState} 
-                  onChange={(e) => setFilterState(e.target.value)}
-                  style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid var(--hk-border)", backgroundColor: "var(--hk-bg-secondary)", color: "var(--hk-text-primary)" }}
-                >
-                  <option value="all">All Words</option>
-                  <option value="new">New</option>
-                  <option value="learning">Learning</option>
-                  <option value="graduated">Graduated</option>
-                </select>
-              </div>
-            )}
-          </div>
+          
+          <button className="hk-btn hk-btn--secondary" onClick={handleExportCSV} title="Export to CSV">
+            <Download size={16} /> Export
+          </button>
+          
+          <button className="hk-btn hk-btn--secondary" style={{ color: "var(--hk-accent-crimson)", borderColor: "rgba(232, 93, 117, 0.3)" }} onClick={handleDeleteAll} title="Delete All">
+            <Trash2 size={16} /> Delete All
+          </button>
         </div>
       </div>
       
-      {/* List Container */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      {/* Data Table */}
+      <div className="hk-table-container">
         {filteredCards.length === 0 ? (
-          <div style={{ padding: "60px", textAlign: "center", color: "var(--hk-text-muted)", backgroundColor: "var(--hk-bg-secondary)", borderRadius: "12px", border: "1px dashed var(--hk-border)" }}>
-            No vocabulary found matching your search.
+          <div className="hk-empty">
+            <div className="hk-empty__text">No vocabulary found.</div>
           </div>
         ) : (
-          displayedCards.map(card => (
-            <div 
-              key={card.id} 
-              style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "space-between",
-                padding: "20px 24px",
-                backgroundColor: "var(--hk-bg-secondary)",
-                borderRadius: "12px",
-                border: "1px solid var(--hk-border)",
-                transition: "all 0.2s ease",
-                cursor: "pointer"
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
-                e.currentTarget.style.borderColor = "var(--hk-accent-secondary)";
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "none";
-                e.currentTarget.style.borderColor = "var(--hk-border)";
-              }}
-            >
-              {/* Left: Word & Reading */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: "150px" }}>
-                <span style={{ fontSize: "22px", fontWeight: "bold", fontFamily: "var(--hk-font-jp)", color: "var(--hk-text-primary)" }}>
-                  {card.word}
-                </span>
-                <span style={{ fontSize: "13px", color: "var(--hk-text-muted)", letterSpacing: "1px" }}>
-                  {card.reading || "—"}
-                </span>
-              </div>
-              
-              {/* Middle: Meaning */}
-              <div style={{ flex: 1, padding: "0 24px", color: "var(--hk-text-secondary)", fontSize: "15px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                {card.meaning || "—"}
-              </div>
-              
-              {/* Right: State & Date */}
-              <div style={{ display: "flex", alignItems: "center", gap: "24px", minWidth: "200px", justifyContent: "flex-end" }}>
-                <StateBadge state={card.repetition === 0 ? "new" : (card.interval < 21 ? "learning" : "graduated")} />
-                
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--hk-text-muted)", fontSize: "13px" }}>
-                  <Calendar size={14} />
-                  <span>{new Date(card.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-                </div>
-              </div>
-            </div>
-          ))
+          <table className="hk-table">
+            <thead>
+              <tr>
+                <th>Word</th>
+                <th>Word Reading</th>
+                <th>Word Furigana</th>
+                <th>Word Meaning</th>
+                <th>JLPT</th>
+                <th>Vietnamese Sound</th>
+                <th>Sentence</th>
+                <th>Sentence Furigana</th>
+                <th>Sentence Meaning</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayedCards.map(card => (
+                <tr key={card.id}>
+                  <td className="hk-table-cell--bold">{card.word}</td>
+                  <td>{card.reading || "—"}</td>
+                  <td>{card.word_furigana || "—"}</td>
+                  <td>{card.meaning || "—"}</td>
+                  <td>{card.jlpt || "—"}</td>
+                  <td>{card.vietnamese_sound || "—"}</td>
+                  <td className="hk-table-cell--truncate" title={card.sentence}>{card.sentence || "—"}</td>
+                  <td className="hk-table-cell--truncate" title={card.sentence_furigana}>{card.sentence_furigana || "—"}</td>
+                  <td className="hk-table-cell--truncate" title={card.sentence_meaning}>{card.sentence_meaning || "—"}</td>
+                  <td>
+                    <div style={{ display: "flex", gap: "4px" }}>
+                      <button className="hk-btn hk-btn--ghost hk-btn--icon" onClick={() => setEditingCard(card)} title="Edit">
+                        <Edit2 size={14} />
+                      </button>
+                      <button className="hk-btn hk-btn--ghost hk-btn--icon" style={{ color: "var(--hk-accent-crimson)" }} onClick={() => handleDelete(card.id)} title="Delete">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
+      </div>
 
-        {displayLimit < filteredCards.length && (
-          <button
-            onClick={() => setDisplayLimit(prev => prev + 50)}
-            style={{
-              marginTop: "8px",
-              padding: "12px",
-              backgroundColor: "transparent",
-              border: "1px solid var(--hk-border)",
-              borderRadius: "8px",
-              color: "var(--hk-text-secondary)",
-              fontWeight: "600",
-              cursor: "pointer",
-              transition: "all 0.2s"
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hk-bg-secondary)";
-              e.currentTarget.style.color = "var(--hk-text-primary)";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--hk-text-secondary)";
-            }}
-          >
-            Load More ({filteredCards.length - displayLimit} remaining)
+      {displayLimit < filteredCards.length && (
+        <button
+          onClick={() => setDisplayLimit(prev => prev + 50)}
+          className="hk-btn hk-btn--secondary"
+          style={{ alignSelf: "center", width: "100%", maxWidth: "300px" }}
+        >
+          Load More ({filteredCards.length - displayLimit} remaining)
+        </button>
+      )}
+
+      {/* Edit Modal */}
+      {editingCard && (
+        <EditCardModal 
+          card={editingCard} 
+          onClose={() => setEditingCard(null)} 
+          onSave={saveEdit} 
+        />
+      )}
+    </div>
+  );
+}
+
+function EditCardModal({ card, onClose, onSave }: { card: SrsCard, onClose: () => void, onSave: (c: SrsCard) => void }) {
+  const [draft, setDraft] = useState<SrsCard>(card);
+
+  const handleChange = (field: keyof SrsCard, value: string) => {
+    setDraft(prev => ({ ...prev, [field]: value }));
+  };
+
+  return (
+    <div className="hk-modal-overlay">
+      <div className="hk-modal hk-fade-in">
+        <div className="hk-modal__header">
+          <h3 className="hk-modal__title">Edit Word</h3>
+          <button className="hk-btn hk-btn--ghost hk-btn--icon" onClick={onClose}>
+            <X size={16} />
           </button>
-        )}
+        </div>
+        <div className="hk-modal__body">
+          <form className="hk-form-grid" onSubmit={(e) => { e.preventDefault(); onSave(draft); }}>
+            <FormGroup label="Word" value={draft.word} onChange={(v) => handleChange("word", v)} required />
+            <FormGroup label="Word Reading" value={draft.reading} onChange={(v) => handleChange("reading", v)} />
+            <FormGroup label="Word Furigana" value={draft.word_furigana} onChange={(v) => handleChange("word_furigana", v)} />
+            <FormGroup label="Word Meaning" value={draft.meaning} onChange={(v) => handleChange("meaning", v)} />
+            <FormGroup label="JLPT" value={draft.jlpt} onChange={(v) => handleChange("jlpt", v)} />
+            <FormGroup label="Vietnamese Sound" value={draft.vietnamese_sound} onChange={(v) => handleChange("vietnamese_sound", v)} />
+            <FormGroup label="Sentence" value={draft.sentence} onChange={(v) => handleChange("sentence", v)} fullWidth />
+            <FormGroup label="Sentence Furigana" value={draft.sentence_furigana} onChange={(v) => handleChange("sentence_furigana", v)} fullWidth />
+            <FormGroup label="Sentence Meaning" value={draft.sentence_meaning} onChange={(v) => handleChange("sentence_meaning", v)} fullWidth />
+          </form>
+        </div>
+        <div className="hk-modal__footer">
+          <button className="hk-btn hk-btn--secondary" onClick={onClose}>Cancel</button>
+          <button className="hk-btn hk-btn--primary" onClick={() => onSave(draft)}>Save Changes</button>
+        </div>
       </div>
     </div>
   );
 }
 
-function StateBadge({ state }: { state: string }) {
-  let bg = "transparent";
-  let color = "var(--hk-text-muted)";
-  let border = "1px solid var(--hk-border)";
-  
-  if (state === "new") {
-    bg = "rgba(239, 68, 68, 0.1)";
-    color = "#ef4444";
-    border = "1px solid rgba(239, 68, 68, 0.2)";
-  } else if (state === "learning") {
-    bg = "rgba(245, 158, 11, 0.1)";
-    color = "#f59e0b";
-    border = "1px solid rgba(245, 158, 11, 0.2)";
-  } else if (state === "review") {
-    bg = "rgba(59, 130, 246, 0.1)";
-    color = "#3b82f6";
-    border = "1px solid rgba(59, 130, 246, 0.2)";
-  } else if (state === "graduated") {
-    bg = "rgba(16, 185, 129, 0.1)";
-    color = "#10b981";
-    border = "1px solid rgba(16, 185, 129, 0.2)";
-  }
-
+function FormGroup({ label, value = "", onChange, required = false, fullWidth = false }: { label: string, value?: string, onChange: (v: string) => void, required?: boolean, fullWidth?: boolean }) {
   return (
-    <span style={{
-      display: "inline-block",
-      padding: "2px 8px",
-      borderRadius: "12px",
-      fontSize: "12px",
-      fontWeight: "600",
-      backgroundColor: bg,
-      color: color,
-      border: border,
-      textTransform: "capitalize"
-    }}>
-      {state}
-    </span>
+    <div className="hk-form-group" style={{ gridColumn: fullWidth ? "1 / -1" : "auto" }}>
+      <label className="hk-form-label">{label}</label>
+      <input 
+        className="hk-settings-input" 
+        style={{ width: "100%" }}
+        value={value} 
+        onChange={(e) => onChange(e.target.value)} 
+        required={required}
+      />
+    </div>
   );
 }

@@ -40,25 +40,28 @@ export function TokenDisplay({
             alignItems: "center",
             flex: "0 0 auto",
             minWidth: "fit-content",
-            padding: "4px 6px",
+            padding: "4px 8px",
             borderRadius: "6px",
             cursor: "pointer",
             background:
-              selectedIndex === i ? "rgba(245, 158, 11, 0.18)" : "transparent",
+              selectedIndex === i ? "rgba(168, 85, 247, 0.12)" : "transparent",
             boxShadow:
               selectedIndex === i
-                ? "inset 0 0 0 1px rgba(245, 158, 11, 0.8)"
-                : "none",
+                ? "inset 0 0 0 1px rgba(168, 85, 247, 0.5), 0 0 10px rgba(168, 85, 247, 0.15)"
+                : "inset 0 0 0 1px transparent",
+            transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
           <span
             className="hk-token__reading"
             style={{
-              minHeight: "13px",
-              color: "#f9a8d4",
-              fontSize: "10px",
-              lineHeight: 1.1,
+              minHeight: "14px",
+              color: selectedIndex === i ? "var(--hk-accent-primary)" : "var(--hk-text-muted)",
+              fontSize: "11px",
+              lineHeight: 1.2,
               whiteSpace: "nowrap",
+              fontWeight: selectedIndex === i ? 600 : 500,
+              transition: "color 0.2s ease",
             }}
           >
             {token.is_japanese && token.reading.hiragana !== token.surface
@@ -68,10 +71,12 @@ export function TokenDisplay({
           <span
             className="hk-token__surface"
             style={{
-              color: token.is_japanese ? "#f8fafc" : "#94a3b8",
+              color: token.is_japanese ? (selectedIndex === i ? "var(--hk-text-primary)" : "var(--hk-text-secondary)") : "var(--hk-text-muted)",
               fontSize: token.is_japanese ? "17px" : "14px",
-              lineHeight: 1.35,
+              lineHeight: 1.4,
               whiteSpace: "nowrap",
+              fontWeight: selectedIndex === i ? 600 : 400,
+              transition: "all 0.2s ease",
             }}
           >
             {token.surface}
