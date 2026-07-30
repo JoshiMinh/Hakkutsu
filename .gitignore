@@ -20,6 +20,7 @@ data/training/
 data/tools/
 data/vendor/
 data/ocr_evaluation/
+data/docdeco/
 data/*.log
 data/*.png
 
@@ -42,3 +43,5 @@ pnpm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+apps/doc-deco/.runtime/
+apps/doc-deco/.venv-ml/

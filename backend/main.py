@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 
@@ -314,6 +314,11 @@ def dashboard() -> FileResponse:
 @app.get("/japtitle", include_in_schema=False)
 def japtitle_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "japtitle.html")
+
+
+@app.get("/docdeco", include_in_schema=False)
+def docdeco_page() -> RedirectResponse:
+    return RedirectResponse("https://localhost:3000")
 
 
 @app.get("/editor", include_in_schema=False)

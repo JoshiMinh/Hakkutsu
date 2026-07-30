@@ -1,0 +1,23 @@
+[
+  {
+    "name": "DocLayNet",
+    "url": "https://huggingface.co/datasets/docling-project/DocLayNet",
+    "use": "Optional visual-layout pretraining and evaluation"
+  },
+  {
+    "name": "DocBank",
+    "url": "https://doc-analysis.github.io/docbank-page/",
+    "use": "Optional token-level title/section/list/caption pretraining"
+  },
+  {
+    "name": "PubLayNet",
+    "url": "https://github.com/ibm-aur-nlp/PubLayNet",
+    "use": "Optional scientific-page layout detection"
+  },
+  {
+    "name": "GROBID",
+    "url": "https://github.com/grobidOrg/grobid",
+    "use": "Reference implementation for cascaded document sequence labeling"
+  }
+]
+
