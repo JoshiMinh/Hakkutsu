@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { localSrs, type SrsCard } from "~services/local-srs";
+import { PartyPopper } from "lucide-react";
 
 export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   const [cards, setCards] = useState<SrsCard[]>([]);
@@ -96,7 +97,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   if (cards.length === 0) {
     return (
       <div className="hk-content hk-fade-in hk-srs-empty">
-        <div className="hk-srs-empty__icon">🎉</div>
+        <div className="hk-srs-empty__icon"><PartyPopper size={48} style={{ color: "var(--hk-accent-primary)" }} /></div>
         <h3 className="hk-srs-empty__title">All caught up!</h3>
         <p className="hk-srs-empty__desc">No reviews due right now.</p>
         <button className="hk-btn hk-btn--secondary hk-mt-md" onClick={loadDueCards}>

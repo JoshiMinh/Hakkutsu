@@ -113,14 +113,8 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Manga Translator Studio API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "https://www.youtube.com",
-        "https://www.netflix.com",
-    ],
-    allow_origin_regex=r"^(chrome-extension|moz-extension)://.+$",
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_origins=["*"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

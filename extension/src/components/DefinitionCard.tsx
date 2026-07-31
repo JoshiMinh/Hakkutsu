@@ -48,22 +48,22 @@ export function DefinitionCard({
       {token.grammar_note_vi && (
         <div
           style={{
-            marginTop: 10,
+            marginTop: "10px",
             padding: "10px 12px",
-            borderRadius: 8,
-            border: "1px solid rgba(251, 191, 36, 0.28)",
-            background: "rgba(251, 191, 36, 0.09)",
-            color: "#fde68a",
-            fontSize: 13,
+            borderRadius: "var(--hk-radius-md)",
+            border: "1px solid var(--hk-jlpt-n3)",
+            background: "var(--hk-bg-tertiary)",
+            color: "var(--hk-jlpt-n3)",
+            fontSize: "13px",
             lineHeight: 1.55,
           }}
         >
-          <div style={{ fontSize: 10, fontWeight: 800, marginBottom: 4 }}>
+          <div style={{ fontSize: "10px", fontWeight: 800, marginBottom: "4px" }}>
             BIẾN ĐỔI NGỮ PHÁP
           </div>
-          {token.grammar_note_vi}
+          <div style={{ color: "var(--hk-text-primary)" }}>{token.grammar_note_vi}</div>
           {token.components && token.components.length > 1 && (
-            <div style={{ marginTop: 6, color: "#d1d5db", fontSize: 12 }}>
+            <div style={{ marginTop: "6px", color: "var(--hk-text-secondary)", fontSize: "12px" }}>
               {token.components
                 .map((part) => `${part.surface} (${part.lemma})`)
                 .join(" + ")}
@@ -76,10 +76,11 @@ export function DefinitionCard({
         <>
           <div
             style={{
-              marginTop: 10,
-              color: "#94a3b8",
-              fontSize: 10,
+              marginTop: "16px",
+              color: "var(--hk-text-muted)",
+              fontSize: "11px",
               fontWeight: 800,
+              marginBottom: "8px"
             }}
           >
             {token.definitions[0]?.dictionary?.startsWith("Hakkutsu")

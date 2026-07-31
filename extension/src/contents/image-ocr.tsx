@@ -1,6 +1,8 @@
 import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useCallback } from "react";
+import { Scan, X } from "lucide-react";
 import type { TokenAnalysis } from "~types";
+import cssText from "data-text:~style.css";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
@@ -9,24 +11,24 @@ export const config: PlasmoCSConfig = {
 
 export const getStyle: PlasmoGetStyle = () => {
   const style = document.createElement("style");
-  style.textContent = `
+  style.textContent = cssText + `
     .hk-image-analyze-btn {
       position: absolute;
       top: 8px;
       right: 8px;
       z-index: 2147483646;
-      background: rgba(9, 9, 11, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #f4f4f5;
+      background: var(--hk-bg-glass);
+      border: 1px solid var(--hk-border);
+      color: var(--hk-text-primary);
       padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 12px;
+      border-radius: var(--hk-radius-sm);
+      font-size: var(--hk-text-sm);
       font-weight: 600;
-      font-family: 'Inter', sans-serif;
+      font-family: var(--hk-font-sans);
       cursor: pointer;
       backdrop-filter: blur(4px);
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      transition: all 0.2s ease;
+      box-shadow: var(--hk-shadow-sm);
+      transition: all var(--hk-transition-fast);
       opacity: 0;
       pointer-events: none;
       display: flex;
@@ -40,8 +42,8 @@ export const getStyle: PlasmoGetStyle = () => {
     }
     
     .hk-image-analyze-btn:hover {
-      background: rgba(9, 9, 11, 0.95);
-      border-color: rgba(255, 255, 255, 0.3);
+      background: var(--hk-bg-hover);
+      border-color: var(--hk-border-focus);
       transform: translateY(-1px);
     }
     
@@ -51,18 +53,17 @@ export const getStyle: PlasmoGetStyle = () => {
     
     .hk-ocr-result-panel {
       position: absolute;
-      background: rgba(9, 9, 11, 0.95);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
+      background: var(--hk-bg-primary);
+      border: 1px solid var(--hk-border);
+      border-radius: var(--hk-radius-md);
       padding: 12px 16px 16px;
-      color: #f4f4f5;
-      font-family: 'Inter', 'Noto Sans JP', sans-serif;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      color: var(--hk-text-primary);
+      font-family: var(--hk-font-jp);
+      box-shadow: var(--hk-shadow-lg);
       z-index: 2147483647;
       min-width: 200px;
       max-width: 320px;
       cursor: default;
-      backdrop-filter: blur(8px);
     }
     
     .hk-ocr-result-header {
@@ -70,9 +71,9 @@ export const getStyle: PlasmoGetStyle = () => {
       justify-content: space-between;
       align-items: center;
       margin-bottom: 8px;
-      font-size: 11px;
+      font-size: var(--hk-text-xs);
       font-weight: 600;
-      color: #a1a1aa;
+      color: var(--hk-text-muted);
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
@@ -80,21 +81,21 @@ export const getStyle: PlasmoGetStyle = () => {
     .hk-ocr-result-close {
       background: transparent;
       border: none;
-      color: #a1a1aa;
+      color: var(--hk-text-muted);
       cursor: pointer;
-      font-size: 14px;
+      font-size: var(--hk-text-base);
       padding: 2px 4px;
       border-radius: 4px;
       line-height: 1;
     }
     
     .hk-ocr-result-close:hover {
-      color: white;
-      background: rgba(255, 255, 255, 0.1);
+      color: var(--hk-text-primary);
+      background: var(--hk-bg-hover);
     }
     
     .hk-ocr-text {
-      font-size: 16px;
+      font-size: var(--hk-text-lg);
       line-height: 1.6;
     }
     
@@ -305,7 +306,7 @@ const ImageOcr = () => {
               onClick={(e) => handleAnalyze(img, e)}
               title="Quét chữ trong ảnh"
             >
-              <span>🔍</span> Analyze
+              <Scan size={14} style={{ marginRight: 6 }} /> Analyze
             </button>
           </div>
         );
@@ -331,7 +332,7 @@ const ImageOcr = () => {
                 setActiveImage(null);
               }}
             >
-              ✕
+              <X size={16} />
             </button>
           </div>
           

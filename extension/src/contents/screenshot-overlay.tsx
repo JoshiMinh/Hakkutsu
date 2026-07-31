@@ -1,7 +1,9 @@
 import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useRef, useCallback } from "react";
+import { X } from "lucide-react";
 import { apiClient } from "~services/api-client";
 import type { OcrRegion, AnalyzeResponse, TokenAnalysis } from "~types";
+import cssText from "data-text:~style.css";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
@@ -9,7 +11,7 @@ export const config: PlasmoCSConfig = {
 
 export const getStyle: PlasmoGetStyle = () => {
   const style = document.createElement("style");
-  style.textContent = `
+  style.textContent = cssText + `
     #hk-screenshot-overlay {
       position: fixed;
       top: 0;
@@ -39,20 +41,20 @@ export const getStyle: PlasmoGetStyle = () => {
     }
     .hk-screenshot-selection {
       position: absolute;
-      border: 2px solid #3b82f6;
-      background: rgba(59, 130, 246, 0.2);
+      border: 2px solid var(--hk-accent-primary);
+      background: rgba(168, 85, 247, 0.2);
       box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
       clip-path: inset(-9999px);
     }
     .hk-ocr-result {
       position: absolute;
-      background: rgba(9, 9, 11, 0.95);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 8px;
+      background: var(--hk-bg-primary);
+      border: 1px solid var(--hk-border);
+      border-radius: var(--hk-radius-md);
       padding: 12px;
-      color: #f4f4f5;
-      font-family: sans-serif;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      color: var(--hk-text-primary);
+      font-family: var(--hk-font-sans);
+      box-shadow: var(--hk-shadow-md);
       z-index: 10;
       max-width: 400px;
       cursor: default;
@@ -63,16 +65,16 @@ export const getStyle: PlasmoGetStyle = () => {
       right: 8px;
       background: transparent;
       border: none;
-      color: #a1a1aa;
+      color: var(--hk-text-muted);
       cursor: pointer;
-      font-size: 16px;
+      font-size: var(--hk-text-lg);
     }
     .hk-ocr-result-close:hover {
-      color: white;
+      color: var(--hk-text-primary);
     }
     .hk-ocr-text {
       margin-top: 8px;
-      font-size: 18px;
+      font-size: var(--hk-text-lg);
       line-height: 1.5;
     }
     .hk-ocr-token {
@@ -80,19 +82,19 @@ export const getStyle: PlasmoGetStyle = () => {
       display: inline-block;
     }
     .hk-ocr-token:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
+      background: var(--hk-bg-hover);
+      border-radius: var(--hk-radius-sm);
     }
     .hk-ocr-loading {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(9, 9, 11, 0.95);
-      color: #f4f4f5;
+      background: var(--hk-bg-primary);
+      color: var(--hk-text-primary);
       padding: 16px 24px;
-      border-radius: 8px;
-      font-size: 16px;
+      border-radius: var(--hk-radius-md);
+      font-size: var(--hk-text-lg);
     }
   `;
   return style;
@@ -330,7 +332,7 @@ const ScreenshotOverlay = () => {
             className="hk-ocr-result-close"
             onClick={() => setIsActive(false)}
           >
-            ✕
+            <X size={16} />
           </button>
           <div className="hk-ocr-text">
             {ocrResult.tokens ? (

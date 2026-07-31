@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { localSrs } from "~services/local-srs";
-import { Library, Pickaxe, Sprout, BookOpen, RefreshCw, GraduationCap } from "lucide-react";
+import { Library, Pickaxe, Sprout, BookOpen, RefreshCw, GraduationCap, Loader2 } from "lucide-react";
 
 export function StatsOverview({ userId = "user_1" }: { userId?: string }) {
   const [stats, setStats] = useState<any>(null);
@@ -23,7 +23,7 @@ export function StatsOverview({ userId = "user_1" }: { userId?: string }) {
     }
   };
 
-  if (loading) return <div style={{ padding: "40px", textAlign: "center" }}>⏳ Loading statistics...</div>;
+  if (loading) return <div style={{ padding: "40px", textAlign: "center" }}><Loader2 className="hk-spin" size={16} style={{ display: "inline-block", marginRight: "8px", verticalAlign: "text-bottom" }} /> Loading statistics...</div>;
   if (error) return <div style={{ padding: "40px", color: "var(--hk-accent-crimson)", textAlign: "center" }}>{error}</div>;
   if (!stats) return null;
 

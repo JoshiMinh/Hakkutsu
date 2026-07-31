@@ -5,7 +5,7 @@
 
 /* ── Design Tokens ─────────────────────────────────────────────── */
 
-:root {
+:root, :host {
   /* Base palette */
   --hk-bg-primary: #09090b;
   --hk-bg-secondary: #121214;

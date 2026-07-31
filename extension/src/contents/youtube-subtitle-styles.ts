@@ -67,14 +67,14 @@ export const youtubeSubtitleCss = /* css */ `
     justify-content: center;
     align-items: flex-end;
     gap: 1px;
-    background: rgba(10, 10, 20, 0.82);
+    background: var(--hk-bg-glass);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--hk-border);
     padding: 10px 20px 12px;
-    border-radius: 12px;
+    border-radius: var(--hk-radius-lg);
     box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.5),
+      var(--hk-shadow-lg),
       inset 0 1px 0 rgba(255, 255, 255, 0.05);
     cursor: text;
     line-height: 1.8;
@@ -85,7 +85,7 @@ export const youtubeSubtitleCss = /* css */ `
   }
 
   .hk-sub__bar:hover {
-    background: rgba(10, 10, 20, 0.92);
+    background: var(--hk-bg-primary);
   }
 
   /* ── Individual Token ────────────────────────────────────── */
@@ -96,9 +96,8 @@ export const youtubeSubtitleCss = /* css */ `
     position: relative;
     padding: 0 1px;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--hk-radius-sm);
     transition: background 0.15s ease, transform 0.15s ease;
-    color: #f0eff4;
   }
 
   .hk-sub__token:hover {

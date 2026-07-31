@@ -1,5 +1,6 @@
 import type { PlasmoCSConfig } from "plasmo";
 import { useEffect, useState, useRef } from "react";
+import { X, Loader2 } from "lucide-react";
 import { containsJapanese } from "~lib/japanese";
 import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis, AnkiExportData } from "~types";
 import { DefinitionCard } from "~components/DefinitionCard";
@@ -314,197 +315,155 @@ const InlineDictionary = () => {
   return (
     <div
       ref={containerRef}
+      className="hk-popup hk-fade-in-up"
       style={{
         position: "fixed",
         left: panelLeft,
         top: panelTop,
         zIndex: 2147483647,
-        background: "var(--hk-bg, #1a1a2e)",
-        color: "var(--hk-text, #f3f4f6)",
-        borderRadius: "12px",
-        boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
-        border: "1px solid var(--hk-border, #2a2a40)",
-        padding: "16px",
         width: usePlayerOverlay ? playerPanelWidth : panelWidth,
         maxWidth: "calc(100vw - 24px)",
         maxHeight: panelMaxHeight,
-        overflowY: "auto",
-        boxSizing: "border-box",
-        fontFamily: "var(--hk-font-jp, sans-serif)",
+        minHeight: "auto",
         pointerEvents: "auto",
+        boxShadow: "var(--hk-shadow-lg)",
+        borderRadius: "var(--hk-radius-lg)",
       }}
       onMouseUp={(e) => e.stopPropagation()} // Prevent selection within closing it immediately
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-        <h3 style={{ margin: 0, fontSize: "14px", color: "var(--hk-text-muted, #9ca3af)" }}>
-          {sentenceMode
-            ? phraseMode
-              ? "Hakkutsu · Phân tích sâu"
-              : "Hakkutsu · Phân tích nhanh"
-            : "Hakkutsu · Từ điển"}
-          {transientMode ? " · giữ Ctrl" : ""}
-        </h3>
-        <button 
-          onClick={() => {
-            analysisRequestRef.current += 1;
-            setPosition(null);
-            setTransientMode(false);
-            window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
-          }}
-          style={{ background: "none", border: "none", color: "var(--hk-text-muted)", cursor: "pointer" }}
-        >
-          ✕
-        </button>
-      </div>
-
-      {loading && (
-        <div style={{ textAlign: "center", padding: "20px" }}>
-          {phraseMode
-            ? "⏳ Qwen đang phân tích sâu, vui lòng chờ..."
-            : "⏳ Đang phân tích local..."}
+      <div className="hk-header" style={{ padding: "12px 16px" }}>
+        <div className="hk-header__logo">
+          <h1 className="hk-header__title" style={{ fontSize: "14px" }}>
+            {sentenceMode
+              ? phraseMode
+                ? "Hakkutsu · Phân tích sâu"
+                : "Hakkutsu · Phân tích nhanh"
+              : "Hakkutsu · Từ điển"}
+            {transientMode && (
+              <span className="hk-header__subtitle" style={{ marginLeft: 8 }}>
+                giữ Ctrl
+              </span>
+            )}
+          </h1>
         </div>
-      )}
-      {error && <div style={{ color: "#ef4444", fontSize: "12px" }}>{error}</div>}
-      
-      {result && !loading && (
-        <>
-          <div
-            style={{
-              marginBottom: "10px",
-              padding: "10px 12px",
-              borderRadius: "8px",
-              background: "rgba(255, 255, 255, 0.06)",
-              color: "#f8fafc",
-              fontSize: "17px",
-              lineHeight: 1.65,
-              overflowWrap: "anywhere",
+        <div className="hk-header__actions">
+          <button 
+            className="hk-btn hk-btn--ghost hk-btn--icon"
+            onClick={() => {
+              analysisRequestRef.current += 1;
+              setPosition(null);
+              setTransientMode(false);
+              window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
             }}
           >
-            <div style={{ marginBottom: 4, color: "#94a3b8", fontSize: 11, fontWeight: 700 }}>
-              CÂU GỐC
-            </div>
-            {result.text}
-          </div>
-          {phraseTranslation && (
-            <div
-              style={{
-                marginBottom: "12px",
-                padding: "10px 12px",
-                borderRadius: "8px",
-                background: "rgba(45, 212, 191, 0.1)",
-                border: "1px solid rgba(45, 212, 191, 0.25)",
-                color: "#a7f3d0",
-                fontSize: "13px",
-                lineHeight: 1.5,
-              }}
-            >
-              <div style={{ marginBottom: 4, color: "#5eead4", fontSize: 11, fontWeight: 700 }}>
-                BẢN DỊCH
-              </div>
-              {phraseTranslation}
-            </div>
-          )}
-          {sentenceMode && !phraseMode && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-                marginBottom: 10,
-                padding: "8px 10px",
-                borderRadius: 8,
-                background: "rgba(59, 130, 246, 0.08)",
-                border: "1px solid rgba(96, 165, 250, 0.2)",
-                color: "#bfdbfe",
-                fontSize: 12,
-              }}
-            >
-              <span>
-                ⚡ Sudachi local ·{" "}
-                {transientMode ? "thả Ctrl để đóng" : "chưa gọi Qwen"}
-              </span>
-              {!transientMode && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPhraseMode(true);
-                    analyzeText(inputText, true, true);
-                  }}
-                  style={{
-                    flex: "0 0 auto",
-                    padding: "6px 9px",
-                    border: "1px solid rgba(192, 132, 252, 0.45)",
-                    borderRadius: 6,
-                    background: "rgba(126, 34, 206, 0.22)",
-                    color: "#e9d5ff",
-                    cursor: "pointer",
-                    fontSize: 11,
-                    fontWeight: 700,
-                  }}
-                >
-                  AI phân tích sâu
-                </button>
-              )}
-            </div>
-          )}
-          <TokenDisplay
-            tokens={result.tokens}
-            selectedIndex={selectedToken}
-            onSelect={handleTokenSelect}
-          />
+            <X size={16} />
+          </button>
+        </div>
+      </div>
 
-          {sentenceMode &&
-            result.tokens.some((token) => token.grammar_note_vi) && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: "10px 12px",
-                  borderRadius: 8,
-                  border: "1px solid rgba(251, 191, 36, 0.24)",
-                  background: "rgba(251, 191, 36, 0.08)",
-                  color: "#fde68a",
-                  fontSize: 12,
-                  lineHeight: 1.55,
-                }}
-              >
-                <div style={{ fontSize: 10, fontWeight: 800, marginBottom: 4 }}>
+      <div className="hk-content" style={{ padding: "16px" }}>
+        {loading && (
+          <div className="hk-loading" style={{ textAlign: "center", padding: "24px 0" }}>
+            <Loader2 className="hk-spin" size={16} style={{ display: "inline-block", marginRight: "8px", color: "var(--hk-accent-primary)" }} />
+            <span style={{ color: "var(--hk-text-muted)", fontSize: "13px" }}>
+              {phraseMode
+                ? "Qwen đang phân tích sâu..."
+                : "Đang phân tích local..."}
+            </span>
+          </div>
+        )}
+        
+        {error && (
+          <div style={{ padding: "8px 12px", background: "var(--hk-bg-tertiary)", borderLeft: "3px solid var(--hk-accent-crimson)", color: "var(--hk-text-primary)", fontSize: "13px", borderRadius: "4px", marginBottom: "16px" }}>
+            {error}
+          </div>
+        )}
+        
+        {result && !loading && (
+          <>
+            <div style={{ background: "var(--hk-bg-secondary)", border: "1px solid var(--hk-border)", borderRadius: "6px", padding: "12px", marginBottom: "12px" }}>
+              <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", fontWeight: "bold", marginBottom: "4px" }}>
+                CÂU GỐC
+              </div>
+              <div style={{ fontSize: "16px", color: "var(--hk-text-primary)", lineHeight: 1.6, wordBreak: "break-word" }}>
+                {result.text}
+              </div>
+            </div>
+
+            {phraseTranslation && (
+              <div style={{ background: "var(--hk-bg-tertiary)", borderLeft: "3px solid var(--hk-accent-teal)", borderRadius: "4px", padding: "10px 12px", marginBottom: "12px" }}>
+                <div style={{ fontSize: "11px", color: "var(--hk-accent-teal)", fontWeight: "bold", marginBottom: "4px" }}>
+                  BẢN DỊCH
+                </div>
+                <div style={{ fontSize: "14px", color: "var(--hk-text-primary)", lineHeight: 1.5 }}>
+                  {phraseTranslation}
+                </div>
+              </div>
+            )}
+
+            {sentenceMode && !phraseMode && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--hk-bg-secondary)", padding: "10px 12px", borderRadius: "6px", marginBottom: "16px", border: "1px solid var(--hk-border)" }}>
+                <span style={{ fontSize: "12px", color: "var(--hk-text-muted)" }}>
+                  ⚡ Sudachi local · {transientMode ? "thả Ctrl để đóng" : "chưa gọi Qwen"}
+                </span>
+                {!transientMode && (
+                  <button
+                    className="hk-btn hk-btn--primary hk-btn--sm"
+                    onClick={() => {
+                      setPhraseMode(true);
+                      analyzeText(inputText, true, true);
+                    }}
+                  >
+                    AI phân tích sâu
+                  </button>
+                )}
+              </div>
+            )}
+
+            <TokenDisplay
+              tokens={result.tokens}
+              selectedIndex={selectedToken}
+              onSelect={handleTokenSelect}
+            />
+
+            {sentenceMode && result.tokens.some((token) => token.grammar_note_vi) && (
+              <div style={{ background: "var(--hk-bg-tertiary)", borderLeft: "3px solid var(--hk-jlpt-n3)", padding: "10px 12px", borderRadius: "4px", marginTop: "16px", marginBottom: "16px" }}>
+                <div style={{ fontSize: "11px", color: "var(--hk-jlpt-n3)", fontWeight: "bold", marginBottom: "4px" }}>
                   BIẾN ĐỔI TRONG CÂU
                 </div>
-                {result.tokens
-                  .filter((token) => token.grammar_note_vi)
-                  .map((token, index) => (
-                    <div key={`${token.surface}-${index}`}>
-                      {token.grammar_note_vi}
-                    </div>
-                  ))}
+                {result.tokens.filter((token) => token.grammar_note_vi).map((token, index) => (
+                  <div key={`${token.surface}-${index}`} style={{ fontSize: "13px", color: "var(--hk-text-primary)", marginBottom: "4px" }}>
+                    {token.grammar_note_vi}
+                  </div>
+                ))}
               </div>
             )}
 
-          <div style={{ marginTop: "16px" }}>
-            {selectedTokenData && selectedTokenData.is_japanese ? (
-              <DefinitionCard
-                token={selectedTokenData}
-                onExport={transientMode ? undefined : handleExport}
-                ankiConnected={ankiConnected}
-                originalText={result.text}
-                sentenceReading={result.sentence_reading}
-                onSrsAdd={transientMode ? undefined : handleSrsAdd}
-              />
-            ) : (
-              <div style={{ fontSize: "12px", color: "var(--hk-text-muted)", textAlign: "center", padding: "10px" }}>
-                {transientMode
-                  ? "Rê chuột qua một từ trong phụ đề để xem chi tiết."
-                  : "Chọn một từ tiếng Nhật để xem nghĩa."}
-              </div>
-            )}
-          </div>
+            <div style={{ marginTop: "16px" }}>
+              {selectedTokenData && selectedTokenData.is_japanese ? (
+                <DefinitionCard
+                  token={selectedTokenData}
+                  onExport={transientMode ? undefined : handleExport}
+                  ankiConnected={ankiConnected}
+                  originalText={result.text}
+                  sentenceReading={result.sentence_reading}
+                  onSrsAdd={transientMode ? undefined : handleSrsAdd}
+                />
+              ) : (
+                <div className="hk-empty">
+                  <p className="hk-empty__text">
+                    {transientMode ? "Rê chuột qua một từ trong phụ đề để xem chi tiết." : "Chọn một từ tiếng Nhật để xem nghĩa."}
+                  </p>
+                </div>
+              )}
+            </div>
 
-          {sentenceMode && result.grammar_patterns && (
-            <GrammarExplanations patterns={result.grammar_patterns} />
-          )}
-        </>
-      )}
+            {sentenceMode && result.grammar_patterns && (
+              <GrammarExplanations patterns={result.grammar_patterns} />
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };

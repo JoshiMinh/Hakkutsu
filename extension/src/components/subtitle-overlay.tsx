@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { Copy, RotateCcw, Brain, Download } from "lucide-react";
 import iconUrl from "url:~assets/icon.png";
 import type { SubtitleSegment, SubtitleFetchResult, AnalyzeResponse, TokenAnalysis } from "~types";
 
@@ -682,13 +683,13 @@ export const SubtitleOverlay = ({
                   onClick={analyzeWholeSentence}
                   title="Tạm dừng và gọi Qwen phân tích sâu toàn bộ câu"
                 >
-                  Qwen phân tích sâu
+                  <Brain size={16} style={{ marginRight: 6 }} /> Qwen phân tích sâu
                 </button>
                 <button className="hk-sub__action-btn" onClick={handleCopySubtitle} title="Copy to clipboard">
-                  📋
+                  <Copy size={16} />
                 </button>
                 <button className="hk-sub__action-btn" onClick={handleExportAnki} title="Export sentence to Anki">
-                  A
+                  <Download size={16} />
                 </button>
                 <button className="hk-sub__action-btn" onClick={(e) => {
                   e.stopPropagation();
@@ -697,7 +698,7 @@ export const SubtitleOverlay = ({
                     videoRef.current.play();
                   }
                 }} title="Replay (Up Arrow)">
-                  ↺
+                  <RotateCcw size={16} />
                 </button>
               </div>
               <div className="hk-sub__bar" key={currentSegment.start}>

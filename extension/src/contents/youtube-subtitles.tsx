@@ -70,9 +70,11 @@ export const mountShadowHost: PlasmoMountShadowHost = async ({
   }
 };
 
+import cssText from "data-text:~style.css";
+
 export const getStyle: PlasmoGetStyle = () => {
   const style = document.createElement("style");
-  style.textContent = youtubeSubtitleCss;
+  style.textContent = cssText + youtubeSubtitleCss;
   return style;
 };
 

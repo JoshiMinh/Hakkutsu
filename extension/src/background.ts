@@ -22,7 +22,11 @@ import type {
   AnkiExportData,
   AnalyzeResponse,
   SubtitleResponse,
+  TokenAnalysis,
+  DictionaryEntry
 } from "~types";
+import { tokenize } from "~services/nlp/local-tokenizer";
+import { searchDictionary } from "~services/dictionary/local-lookup";
 
 async function fetchSubtitlesFromLocalBackend(
   videoUrl: string,
@@ -104,6 +108,55 @@ async function fetchFromJisho(text: string): Promise<AnalyzeResponse> {
         }))
       }
     ]
+  };
+}
+
+async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
+  const tokens = await tokenize(text);
+  
+  const tokenAnalyses: TokenAnalysis[] = await Promise.all(tokens.map(async (t) => {
+    const is_japanese = /[ぁ-んァ-ン一-龯]/.test(t.surface_form);
+    let definitions: DictionaryEntry[] = [];
+    let jlpt_level: string | null = null;
+    
+    if (is_japanese && t.base_form) {
+      const dictEntries = await searchDictionary(t.base_form);
+      if (dictEntries && dictEntries.length > 0) {
+        const mainEntry = dictEntries[0];
+        jlpt_level = mainEntry.jlpt || null;
+        definitions = mainEntry.senses.map(s => ({
+          dictionary: "JMdict",
+          glosses: s.glosses,
+          pos: s.partOfSpeech,
+          field: null,
+          misc: []
+        }));
+      }
+    }
+    
+    return {
+      surface: t.surface_form,
+      dictionary_form: t.base_form,
+      pos: t.pos,
+      pos_detail: [],
+      reading: {
+        hiragana: t.reading || "",
+        romaji: ""
+      },
+      is_japanese,
+      jlpt_level,
+      frequency_rank: null,
+      definitions
+    };
+  }));
+
+  return {
+    text,
+    tokens: tokenAnalyses,
+    sentence_reading: "",
+    token_count: tokens.length,
+    difficulty_score: null,
+    difficulty_label: null
   };
 }
 
@@ -213,18 +266,17 @@ async function handleMessage(
     case "ANALYZE_TEXT": {
       const request = message.payload as AnalyzeRequest;
       try {
-        const result = await apiClient.analyzeText(request);
+        const result = await analyzeLocal(request.text);
         return { type: "ANALYZE_RESULT", payload: result };
       } catch (err) {
-        console.warn("Backend failed, falling back to Jisho API for", request.text);
+        console.warn("Local analysis failed, falling back to backend API", err);
         try {
-          // If the text is long (like a subtitle sentence), Jisho might fail or return junk.
-          // But for a double-clicked single word, Jisho works perfectly.
+          const result = await apiClient.analyzeText(request);
+          return { type: "ANALYZE_RESULT", payload: result };
+        } catch (backendErr) {
+          console.warn("Backend failed, falling back to Jisho API for", request.text);
           const fallbackResult = await fetchFromJisho(request.text);
           return { type: "ANALYZE_RESULT", payload: fallbackResult };
-        } catch (fallbackErr) {
-          // If fallback fails, throw the original backend error
-          throw err;
         }
       }
     }

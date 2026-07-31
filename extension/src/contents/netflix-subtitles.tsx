@@ -20,9 +20,11 @@ export const config: PlasmoCSConfig = {
 export const getOverlayAnchor: PlasmoGetOverlayAnchor = async () =>
   document.querySelector(".watch-video");
 
+import cssText from "data-text:~style.css";
+
 export const getStyle: PlasmoGetStyle = () => {
   const style = document.createElement("style");
-  style.textContent = youtubeSubtitleCss + youtubeToolbarCss + `
+  style.textContent = cssText + youtubeSubtitleCss + youtubeToolbarCss + `
     /* Extra styles for Netflix */
     .hk-subs-active .player-timedtext {
       opacity: 0 !important; /* Hide native subs visually but keep in DOM for observer */
