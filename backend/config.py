@@ -26,6 +26,9 @@ UPLOAD_DIR = DATA_DIR / "uploads"
 DATABASE_PATH = DATA_DIR / "manga_translator.db"
 STATIC_DIR = BASE_DIR / "static"
 MODEL_DIR = DATA_DIR / "models"
+STUDY_ASSET_DIR = DATA_DIR / "study"
+ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+MAX_UPLOAD_SIZE = 20 * 1024 * 1024
 LAMA_MODEL_PATH = Path(
     os.getenv("LAMA_MODEL_PATH", str(MODEL_DIR / "lama" / "big-lama.pt"))
 )

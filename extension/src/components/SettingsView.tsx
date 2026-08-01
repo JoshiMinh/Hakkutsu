@@ -32,6 +32,48 @@ export function SettingsView({
         </fieldset>
 
         <fieldset className="hk-settings-card">
+          <legend className="hk-settings-card__title">Translation LLM</legend>
+          <div className="hk-settings-row">
+            <div className="hk-settings-row__info">
+              <label htmlFor="llmProvider" className="hk-settings-row__label">LLM Provider</label>
+              <div id="llmProvider-desc" className="hk-settings-row__desc">Service used for translations</div>
+            </div>
+            <div className="hk-settings-row__control">
+              <select
+                id="llmProvider"
+                className="hk-settings-input hk-settings-input--text"
+                value={settings.llmProvider}
+                onChange={(e) => onUpdate({ llmProvider: e.target.value as any })}
+              >
+                <option value="none">Backend Default</option>
+                <option value="openai">OpenAI</option>
+                <option value="deepseek">DeepSeek</option>
+              </select>
+            </div>
+          </div>
+
+          {settings.llmProvider !== "none" && (
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="llmApiKey" className="hk-settings-row__label">API Key</label>
+                <div id="llmApiKey-desc" className="hk-settings-row__desc">Your provider API key (saved locally)</div>
+              </div>
+              <div className="hk-settings-row__control">
+                <input
+                  id="llmApiKey"
+                  aria-describedby="llmApiKey-desc"
+                  className="hk-settings-input hk-settings-input--text"
+                  type="password"
+                  placeholder="sk-..."
+                  value={settings.llmApiKey}
+                  onChange={(e) => onUpdate({ llmApiKey: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+        </fieldset>
+
+        <fieldset className="hk-settings-card">
           <legend className="hk-settings-card__title">Study Preferences</legend>
           <div className="hk-settings-row">
             <div className="hk-settings-row__info">

@@ -4,7 +4,7 @@ import { SrsReview } from "~components/SrsReview";
 import { WordList } from "~components/WordList";
 import { StatsOverview } from "~components/StatsOverview";
 import { SettingsView } from "~components/SettingsView";
-import { getSettings, saveSettings } from "~services/storage";
+import { useSettingsStore } from "~store/settings";
 import { apiClient } from "~services/api-client";
 import type { ExtensionSettings } from "~types";
 import { DEFAULT_SETTINGS } from "~types";
@@ -15,24 +15,20 @@ export default function AppDashboard() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "review" | "vocabulary" | "settings">(() => {
     return (localStorage.getItem("hk_active_tab") as any) || "dashboard";
   });
-  const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
+  const { settings, updateSettings } = useSettingsStore();
 
   useEffect(() => {
     localStorage.setItem("hk_active_tab", activeTab);
   }, [activeTab]);
 
   useEffect(() => {
-    // Initialize API client from settings on mount
-    getSettings().then((stored) => {
-      setSettings(stored);
-      apiClient.setBaseUrl(stored.backendUrl);
-    });
-  }, []);
+    if (settings.backendUrl) {
+      apiClient.setBaseUrl(settings.backendUrl);
+    }
+  }, [settings.backendUrl]);
 
   const handleUpdateSettings = (patch: Partial<ExtensionSettings>) => {
-    const updated = { ...settings, ...patch };
-    setSettings(updated);
-    saveSettings(patch);
+    updateSettings(patch);
     if (patch.backendUrl) {
       apiClient.setBaseUrl(patch.backendUrl);
     }

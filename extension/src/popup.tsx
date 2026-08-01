@@ -21,7 +21,7 @@ import {
 
 import { apiClient } from "~services/api-client";
 import { ankiClient } from "~services/anki-connect";
-import { getSettings, saveSettings } from "~services/storage";
+import { useSettingsStore } from "~store/settings";
 import { containsJapanese } from "~lib/japanese";
 import logoUrl from "url:../assets/icon.png";
 import type {
@@ -309,15 +309,15 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
 
 function Popup() {
   const [activeView, setActiveView] = useState<ExtensionView>("translate");
-  const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
+  const { settings, updateSettings } = useSettingsStore();
   const [backendConnected, setBackendConnected] = useState(false);
   const [ankiConnected, setAnkiConnected] = useState(false);
 
   useEffect(() => {
     const init = async () => {
-      const stored = await getSettings();
-      setSettings(stored);
-      apiClient.setBaseUrl(stored.backendUrl);
+      if (settings.backendUrl) {
+        apiClient.setBaseUrl(settings.backendUrl);
+      }
 
       try {
         await apiClient.healthCheck();
@@ -335,12 +335,10 @@ function Popup() {
     };
 
     init();
-  }, []);
+  }, [settings.backendUrl]);
 
   const handleUpdateSettings = (patch: Partial<ExtensionSettings>) => {
-    const updated = { ...settings, ...patch };
-    setSettings(updated);
-    saveSettings(patch);
+    updateSettings(patch);
     if (patch.backendUrl) {
       apiClient.setBaseUrl(patch.backendUrl);
     }

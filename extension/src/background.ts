@@ -269,15 +269,9 @@ async function handleMessage(
         const result = await analyzeLocal(request.text);
         return { type: "ANALYZE_RESULT", payload: result };
       } catch (err) {
-        console.warn("Local analysis failed, falling back to backend API", err);
-        try {
-          const result = await apiClient.analyzeText(request);
-          return { type: "ANALYZE_RESULT", payload: result };
-        } catch (backendErr) {
-          console.warn("Backend failed, falling back to Jisho API for", request.text);
-          const fallbackResult = await fetchFromJisho(request.text);
-          return { type: "ANALYZE_RESULT", payload: fallbackResult };
-        }
+        console.warn("Local analysis failed, falling back to Jisho API for", request.text, err);
+        const fallbackResult = await fetchFromJisho(request.text);
+        return { type: "ANALYZE_RESULT", payload: fallbackResult };
       }
     }
 

@@ -1,22 +1,16 @@
 import { useEffect, useState } from "react";
 import { SettingsView } from "~components/SettingsView";
-import { getSettings, saveSettings } from "~services/storage";
+import { useSettingsStore } from "~store/settings";
 import type { ExtensionSettings } from "~types";
 import { DEFAULT_SETTINGS } from "~types";
 
 import "./style.css";
 
 function OptionsPage() {
-  const [settings, setSettings] = useState<ExtensionSettings>(DEFAULT_SETTINGS);
-
-  useEffect(() => {
-    getSettings().then(setSettings);
-  }, []);
+  const { settings, updateSettings } = useSettingsStore();
 
   const handleUpdateSettings = (patch: Partial<ExtensionSettings>) => {
-    const updated = { ...settings, ...patch };
-    setSettings(updated);
-    saveSettings(patch);
+    updateSettings(patch);
   };
 
   return (
