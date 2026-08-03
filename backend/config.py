@@ -105,6 +105,7 @@ def ensure_directories() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    STATIC_DIR.mkdir(parents=True, exist_ok=True)
     LAMA_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
     CTD_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
     CTD_VENDOR_PATH.parent.mkdir(parents=True, exist_ok=True)
