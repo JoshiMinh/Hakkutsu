@@ -201,13 +201,25 @@ const ImageOcr = () => {
     });
 
     try {
-      // Create a canvas to extract image data safely
-      const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth || img.width;
-      canvas.height = img.naturalHeight || img.height;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0);
-      const dataUrl = canvas.toDataURL("image/png");
+      let dataUrl: string;
+      try {
+        // Create a canvas to extract image data safely
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0);
+        dataUrl = canvas.toDataURL("image/png");
+      } catch (e) {
+        // Fallback for tainted canvas (cross-origin images)
+        const fetchResult = await new Promise<any>((resolve, reject) => {
+          chrome.runtime.sendMessage({ type: "FETCH_IMAGE", payload: { url: img.src } }, (res) => {
+            if (res.type === "ERROR") reject(new Error(res.payload.error));
+            else resolve(res.payload);
+          });
+        });
+        dataUrl = fetchResult.dataUrl;
+      }
 
       const settingsResult = await new Promise<any>(resolve => {
         chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => resolve(res.payload));

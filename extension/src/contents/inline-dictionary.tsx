@@ -326,12 +326,19 @@ const InlineDictionary = () => {
         maxHeight: panelMaxHeight,
         minHeight: "auto",
         pointerEvents: "auto",
-        boxShadow: "var(--hk-shadow-lg)",
-        borderRadius: "var(--hk-radius-lg)",
+        background: "#09090b",
+        color: "#f4f4f5",
+        fontFamily: '"Inter", "Segoe UI", system-ui, -apple-system, sans-serif',
+        fontSize: "14px",
+        lineHeight: 1.5,
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08)",
+        borderRadius: "12px",
+        overflowY: "auto",
+        border: "1px solid rgba(255, 255, 255, 0.08)",
       }}
       onMouseUp={(e) => e.stopPropagation()} // Prevent selection within closing it immediately
     >
-      <div className="hk-header" style={{ padding: "12px 16px" }}>
+      <div className="hk-header" style={{ padding: "12px 16px", background: "linear-gradient(135deg, #121214, #18181b)", borderBottom: "1px solid rgba(255,255,255,0.08)", position: "sticky", top: 0, zIndex: 10 }}>
         <div className="hk-header__logo">
           <h1 className="hk-header__title" style={{ fontSize: "14px" }}>
             {sentenceMode
@@ -361,7 +368,7 @@ const InlineDictionary = () => {
         </div>
       </div>
 
-      <div className="hk-content" style={{ padding: "16px" }}>
+      <div className="hk-content" style={{ padding: "16px", background: "#09090b" }}>
         {loading && (
           <div className="hk-loading" style={{ textAlign: "center", padding: "24px 0" }}>
             <Loader2 className="hk-spin" size={16} style={{ display: "inline-block", marginRight: "8px", color: "var(--hk-accent-primary)" }} />
@@ -381,28 +388,28 @@ const InlineDictionary = () => {
         
         {result && !loading && (
           <>
-            <div style={{ background: "var(--hk-bg-secondary)", border: "1px solid var(--hk-border)", borderRadius: "6px", padding: "12px", marginBottom: "12px" }}>
-              <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", fontWeight: "bold", marginBottom: "4px" }}>
+            <div className="hk-dict-section">
+              <div className="hk-dict-label">
                 CÂU GỐC
               </div>
-              <div style={{ fontSize: "16px", color: "var(--hk-text-primary)", lineHeight: 1.6, wordBreak: "break-word" }}>
+              <div className="hk-original-text">
                 {result.text}
               </div>
             </div>
 
             {phraseTranslation && (
-              <div style={{ background: "var(--hk-bg-tertiary)", borderLeft: "3px solid var(--hk-accent-teal)", borderRadius: "4px", padding: "10px 12px", marginBottom: "12px" }}>
-                <div style={{ fontSize: "11px", color: "var(--hk-accent-teal)", fontWeight: "bold", marginBottom: "4px" }}>
+              <div className="hk-dict-section hk-dict-section--highlight">
+                <div className="hk-dict-label" style={{ color: "var(--hk-accent-teal)" }}>
                   BẢN DỊCH
                 </div>
-                <div style={{ fontSize: "14px", color: "var(--hk-text-primary)", lineHeight: 1.5 }}>
+                <div className="hk-translation-text">
                   {phraseTranslation}
                 </div>
               </div>
             )}
 
             {sentenceMode && !phraseMode && (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--hk-bg-secondary)", padding: "10px 12px", borderRadius: "6px", marginBottom: "16px", border: "1px solid var(--hk-border)" }}>
+              <div className="hk-dict-footer">
                 <span style={{ fontSize: "12px", color: "var(--hk-text-muted)" }}>
                   ⚡ Sudachi local · {transientMode ? "thả Ctrl để đóng" : "chưa gọi Qwen"}
                 </span>
@@ -427,8 +434,8 @@ const InlineDictionary = () => {
             />
 
             {sentenceMode && result.tokens.some((token) => token.grammar_note_vi) && (
-              <div style={{ background: "var(--hk-bg-tertiary)", borderLeft: "3px solid var(--hk-jlpt-n3)", padding: "10px 12px", borderRadius: "4px", marginTop: "16px", marginBottom: "16px" }}>
-                <div style={{ fontSize: "11px", color: "var(--hk-jlpt-n3)", fontWeight: "bold", marginBottom: "4px" }}>
+              <div className="hk-dict-section" style={{ borderLeft: "3px solid var(--hk-jlpt-n3)" }}>
+                <div className="hk-dict-label" style={{ color: "var(--hk-jlpt-n3)" }}>
                   BIẾN ĐỔI TRONG CÂU
                 </div>
                 {result.tokens.filter((token) => token.grammar_note_vi).map((token, index) => (

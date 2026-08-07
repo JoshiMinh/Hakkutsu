@@ -22,7 +22,11 @@ import {
 } from "~services/smart-cue";
 
 export const config: PlasmoCSConfig = {
-  matches: ["https://www.youtube.com/watch*"],
+  matches: [
+    "https://www.youtube.com/watch*",
+    "https://www.youtube.com/shorts/*",
+    "https://www.youtube.com/live/*",
+  ],
 };
 
 export const getOverlayAnchor: PlasmoGetOverlayAnchor = async () =>
@@ -258,7 +262,7 @@ const YouTubeSubtitles = () => {
             type: "GET_SUBTITLES",
             payload: {
               videoUrl: currentUrl,
-              language: "auto",
+              language: "ja",
               strategy: "backend",
             },
           });

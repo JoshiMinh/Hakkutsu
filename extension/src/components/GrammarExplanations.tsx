@@ -19,32 +19,20 @@ export const GrammarExplanations: React.FC<GrammarExplanationsProps> = ({ patter
 
   return (
     <div className="hk-grammar-list" style={{ marginTop: 16 }}>
-      <h3
-        className="hk-grammar-title"
-        style={{ margin: "0 0 8px", color: "#e2e8f0", fontSize: 13 }}
-      >
+      <div className="hk-dict-label">
         Giải thích ngữ pháp
-      </h3>
+      </div>
       <div className="hk-grammar-items" style={{ display: "grid", gap: 8 }}>
         {patterns.map((pattern, index) => (
           <div
             key={`${pattern.pattern}-${index}`}
-            className="hk-grammar-item"
-            style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              background: "rgba(255,255,255,0.045)",
-              border: "1px solid rgba(148,163,184,0.18)",
-            }}
+            className="hk-grammar-item-card"
           >
             <div
               className="hk-grammar-header"
               style={{ display: "flex", alignItems: "center", gap: 8 }}
             >
-              <span
-                className="hk-grammar-pattern"
-                style={{ color: "#fbbf24", fontSize: 15, fontWeight: 700 }}
-              >
+              <span className="hk-grammar-pattern-text">
                 {pattern.pattern}
               </span>
               {pattern.jlpt_level && (
@@ -55,14 +43,14 @@ export const GrammarExplanations: React.FC<GrammarExplanationsProps> = ({ patter
             </div>
             <div
               className="hk-grammar-meaning"
-              style={{ marginTop: 5, color: "#f1f5f9", fontSize: 13 }}
+              style={{ marginTop: 5, color: "var(--hk-text-primary)", fontSize: 13 }}
             >
               {pattern.meaning}
             </div>
             {pattern.explanation !== pattern.meaning && (
               <div
                 className="hk-grammar-explanation"
-                style={{ marginTop: 4, color: "#cbd5e1", fontSize: 12, lineHeight: 1.5 }}
+                style={{ marginTop: 4, color: "var(--hk-text-secondary)", fontSize: 12, lineHeight: 1.5 }}
               >
                 {pattern.explanation}
               </div>

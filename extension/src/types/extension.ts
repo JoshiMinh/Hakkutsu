@@ -72,6 +72,8 @@ export type MessageType =
   | "SRS_RESULT"
   | "CAPTURE_SCREENSHOT"
   | "SCREENSHOT_RESULT"
+  | "FETCH_IMAGE"
+  | "FETCH_IMAGE_RESULT"
   | "OPEN_APP"
   | "OPEN_APP_RESULT"
   | "IGNORED"

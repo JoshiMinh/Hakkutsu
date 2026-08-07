@@ -192,7 +192,9 @@ async function playerResponseFromTab(
     target: { tabId },
     world: "MAIN",
     func: () => {
-      const currentVideoId = new URL(window.location.href).searchParams.get("v");
+      const url = window.location.href;
+      const vMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/) || url.match(/(?:embed|shorts|live|v)\/([a-zA-Z0-9_-]{11})/);
+      const currentVideoId = vMatch ? vMatch[1] : null;
       if (!currentVideoId) return null;
 
       const candidates: any[] = [];
@@ -216,13 +218,28 @@ async function playerResponseFromTab(
 
       const response = candidates.find(
         (candidate) => candidate?.videoDetails?.videoId === currentVideoId
-      );
+      ) || candidates[0];
       if (!response) return null;
 
-      // The initialized player may expose runtime-only caption parameters
-      // (notably `pot`) that are absent from ytInitialPlayerResponse.
       let runtimeTracks: any[] = [];
-      if (typeof moviePlayer?.getAudioTrack === "function") {
+      if (typeof moviePlayer?.getOption === "function") {
+        try {
+          const list = moviePlayer.getOption("captions", "tracklist");
+          if (Array.isArray(list) && list.length > 0) {
+            runtimeTracks = list.map((track: any) => ({
+              baseUrl: track.baseUrl || track.url || "",
+              languageCode: track.languageCode || (typeof track.vssId === "string" ? track.vssId.replace(/^[a-z]\./, "") : "") || "",
+              name: track.name || track.displayName || track.languageName || track.languageCode || "",
+              kind: track.kind || "",
+              vssId: track.vssId || "",
+            }));
+          }
+        } catch {
+          // Ignore
+        }
+      }
+
+      if (runtimeTracks.length === 0 && typeof moviePlayer?.getAudioTrack === "function") {
         try {
           const tracks = moviePlayer.getAudioTrack()?.captionTracks;
           if (Array.isArray(tracks)) {
@@ -235,9 +252,10 @@ async function playerResponseFromTab(
             }));
           }
         } catch {
-          // Player can still be initializing the audio track.
+          // Ignore
         }
       }
+
       const captions = runtimeTracks.length
         ? {
             playerCaptionsTracklistRenderer: {
@@ -246,8 +264,9 @@ async function playerResponseFromTab(
             },
           }
         : response.captions;
+
       return {
-        videoDetails: response.videoDetails,
+        videoDetails: response.videoDetails || { videoId: currentVideoId },
         captions,
       };
     },
@@ -300,7 +319,7 @@ async function handleMessage(
         playerResponse?: Record<string, unknown> | null;
         strategy?: "youtube" | "backend" | "all";
       };
-      const targetLanguage = language || "auto";
+      const targetLanguage = language || "ja";
       const youtubeFailures: string[] = [];
       let currentPlayerResponse = playerResponse;
       let sourceTabId = sender?.tab?.id;
@@ -447,6 +466,23 @@ async function handleMessage(
           }
         );
       });
+    }
+
+    case "FETCH_IMAGE": {
+      const { url } = message.payload as { url: string };
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const reader = new FileReader();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        return { type: "FETCH_IMAGE_RESULT", payload: { dataUrl } };
+      } catch (err: any) {
+        throw new Error(`Failed to fetch image: ${err.message || err}`);
+      }
     }
 
     case "OPEN_APP": {

@@ -19,7 +19,7 @@ from backend.typesetting_service import render_translated_page
 from backend.utils import _json_list, get_or_404
 from backend.quality_service import evaluate_page_quality
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 
 def _build_study_snapshot(chapter_id: int, progress_callback=None) -> tuple[dict, Path]:

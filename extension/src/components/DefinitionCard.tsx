@@ -46,24 +46,13 @@ export function DefinitionCard({
       </div>
 
       {token.grammar_note_vi && (
-        <div
-          style={{
-            marginTop: "10px",
-            padding: "10px 12px",
-            borderRadius: "var(--hk-radius-md)",
-            border: "1px solid var(--hk-jlpt-n3)",
-            background: "var(--hk-bg-tertiary)",
-            color: "var(--hk-jlpt-n3)",
-            fontSize: "13px",
-            lineHeight: 1.55,
-          }}
-        >
-          <div style={{ fontSize: "10px", fontWeight: 800, marginBottom: "4px" }}>
+        <div className="hk-dict-note">
+          <div className="hk-dict-note__title">
             BIẾN ĐỔI NGỮ PHÁP
           </div>
-          <div style={{ color: "var(--hk-text-primary)" }}>{token.grammar_note_vi}</div>
+          <div className="hk-dict-note__content">{token.grammar_note_vi}</div>
           {token.components && token.components.length > 1 && (
-            <div style={{ marginTop: "6px", color: "var(--hk-text-secondary)", fontSize: "12px" }}>
+            <div className="hk-dict-note__sub">
               {token.components
                 .map((part) => `${part.surface} (${part.lemma})`)
                 .join(" + ")}
@@ -74,15 +63,7 @@ export function DefinitionCard({
 
       {token.definitions.length > 0 ? (
         <>
-          <div
-            style={{
-              marginTop: "16px",
-              color: "var(--hk-text-muted)",
-              fontSize: "11px",
-              fontWeight: 800,
-              marginBottom: "8px"
-            }}
-          >
+          <div className="hk-dict-label" style={{ marginTop: "16px" }}>
             {token.definitions[0]?.dictionary?.startsWith("Hakkutsu")
               ? "NGHĨA TIẾNG VIỆT"
               : "NGHĨA JMDICT · TIẾNG ANH"}

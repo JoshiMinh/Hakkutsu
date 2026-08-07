@@ -14,7 +14,7 @@ from backend.utils import _json_list, _page_workflow_state, _chapter_summaries, 
 from backend.quality_service import evaluate_page_quality
 from backend.typesetting_service import fit_text_layout, layout_at_size
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 MAX_UPLOAD_SIZE = 20 * 1024 * 1024

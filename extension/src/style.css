@@ -5,7 +5,7 @@
 
 /* ── Design Tokens ─────────────────────────────────────────────── */
 
-:root, :host {
+:root, :host, #hakkutsu-inline-dictionary, .hk-popup {
   /* Base palette */
   --hk-bg-primary: #09090b;
   --hk-bg-secondary: #121214;
@@ -97,6 +97,107 @@
   font-size: var(--hk-text-base);
   line-height: 1.5;
 }
+
+/* ── Inline Dictionary Specific ───────────────────────────────────── */
+
+.hk-dict-section {
+  background: var(--hk-bg-primary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-lg);
+  padding: var(--hk-space-lg);
+  margin-bottom: var(--hk-space-md);
+  box-shadow: var(--hk-shadow-sm);
+  transition: border-color var(--hk-transition-fast);
+}
+
+.hk-dict-section--highlight {
+  border-left: 3px solid var(--hk-accent-teal);
+  background: var(--hk-bg-secondary);
+}
+
+.hk-dict-label {
+  font-size: var(--hk-text-xs);
+  color: var(--hk-text-muted);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: var(--hk-space-sm);
+}
+
+.hk-original-text {
+  font-size: var(--hk-text-lg);
+  color: var(--hk-text-primary);
+  line-height: 1.6;
+  word-break: break-word;
+  font-family: var(--hk-font-jp);
+}
+
+.hk-translation-text {
+  font-size: var(--hk-text-base);
+  color: var(--hk-text-primary);
+  line-height: 1.5;
+  font-style: normal;
+}
+
+.hk-dict-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--hk-bg-secondary);
+  padding: var(--hk-space-sm) var(--hk-space-md);
+  border-radius: var(--hk-radius-md);
+  margin-bottom: var(--hk-space-lg);
+  border: 1px solid var(--hk-border);
+}
+
+.hk-dict-note {
+  margin-top: var(--hk-space-sm);
+  padding: var(--hk-space-md);
+  border-radius: var(--hk-radius-md);
+  border: 1px solid var(--hk-jlpt-n3);
+  background: var(--hk-bg-tertiary);
+  color: var(--hk-jlpt-n3);
+  font-size: var(--hk-text-sm);
+  line-height: 1.55;
+}
+
+.hk-dict-note__title {
+  font-size: 10px;
+  font-weight: 800;
+  margin-bottom: var(--hk-space-xs);
+  text-transform: uppercase;
+}
+
+.hk-dict-note__content {
+  color: var(--hk-text-primary);
+}
+
+.hk-dict-note__sub {
+  margin-top: 6px;
+  color: var(--hk-text-secondary);
+  font-size: var(--hk-text-xs);
+}
+
+.hk-grammar-item-card {
+  padding: var(--hk-space-md);
+  border-radius: var(--hk-radius-md);
+  background: var(--hk-bg-tertiary);
+  border: 1px solid var(--hk-border);
+  transition: all var(--hk-transition-fast);
+}
+
+.hk-grammar-item-card:hover {
+  background: var(--hk-bg-hover);
+  border-color: var(--hk-border-focus);
+}
+
+.hk-grammar-pattern-text {
+  color: var(--hk-jlpt-n3);
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--hk-font-jp);
+}
+
 
 .hk-popup::-webkit-scrollbar {
   width: 6px;

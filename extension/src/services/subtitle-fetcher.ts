@@ -9,7 +9,7 @@
  * 1. Fetch the YouTube watch page HTML
  * 2. Extract `ytInitialPlayerResponse` from the page source
  * 3. Parse caption tracks from the player response
- * 4. Fetch the selected track's subtitle data in JSON3 format
+ * 4. Fetch the selected track's subtitle data in JSON3, VTT, or XML format
  * 5. Parse into our SubtitleSegment[] format
  */
 
@@ -19,58 +19,80 @@ import type {
   SubtitleFetchResult,
 } from "~types";
 
-/** Extract video ID from various YouTube URL formats */
+/** Extract video ID from various YouTube URL formats or raw ID */
 function extractVideoId(url: string): string | null {
+  const cleaned = url.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(cleaned)) {
+    return cleaned;
+  }
+
   const patterns = [
     /[?&]v=([a-zA-Z0-9_-]{11})/,
     /youtu\.be\/([a-zA-Z0-9_-]{11})/,
-    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/(?:embed|shorts|live|v)\/([a-zA-Z0-9_-]{11})/,
+    /\/watch\/(?:[a-zA-Z0-9_-]{11})/,
   ];
 
   for (const pattern of patterns) {
-    const match = url.match(pattern);
+    const match = cleaned.match(pattern);
     if (match) return match[1];
+  }
+
+  // Fallback search anywhere in string
+  const generalMatch = cleaned.match(/(?:v=|\/embed\/|\/shorts\/|\/live\/|youtu\.be\/|\/v\/)([a-zA-Z0-9_-]{11})/);
+  if (generalMatch) {
+    return generalMatch[1];
   }
 
   return null;
 }
 
-/** Parse ytInitialPlayerResponse from YouTube page HTML */
-function parsePlayerResponse(html: string): Record<string, unknown> | null {
-  // YouTube embeds player data in a script tag as:
-  //   var ytInitialPlayerResponse = {...};
-  // We use a regex that matches until the next variable declaration or end of script
-  const patterns = [
-    /ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;\s*(?:var\s|<\/script>)/s,
-    /\["ytInitialPlayerResponse"\]\s*=\s*(\{.+?\})\s*;\s*(?:var\s|<\/script>)/s
-  ];
+/** Extract a balanced JSON object starting at `{` from text */
+function extractBalancedJson(text: string, startIndex: number): Record<string, unknown> | null {
+  let openBraces = 0;
+  let inString = false;
+  let escape = false;
+  let jsonStart = -1;
 
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-    if (match) {
-      try {
-        return JSON.parse(match[1]);
-      } catch (e) {
-        console.warn("Hakkutsu: Failed to parse ytInitialPlayerResponse regex match", e);
+  for (let i = startIndex; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (jsonStart === -1) {
+      if (char === "{") {
+        jsonStart = i;
+        openBraces = 1;
       }
+      continue;
     }
-  }
 
-  // Fallback: manual string extraction
-  const marker = "ytInitialPlayerResponse = ";
-  const startIdx = html.indexOf(marker);
-  if (startIdx !== -1) {
-    const jsonStart = startIdx + marker.length;
-    const scriptEnd = html.indexOf("</script>", jsonStart);
-    if (scriptEnd !== -1) {
-      let candidate = html.substring(jsonStart, scriptEnd).trim();
-      const lastBrace = candidate.lastIndexOf("};");
-      if (lastBrace !== -1) {
-        candidate = candidate.substring(0, lastBrace + 1);
-        try {
-          return JSON.parse(candidate);
-        } catch (e) {
-          console.warn("Hakkutsu: Failed to parse ytInitialPlayerResponse fallback match", e);
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escape = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (!inString) {
+      if (char === "{") {
+        openBraces += 1;
+      } else if (char === "}") {
+        openBraces -= 1;
+        if (openBraces === 0) {
+          const candidate = text.substring(jsonStart, i + 1);
+          try {
+            return JSON.parse(candidate);
+          } catch (e) {
+            console.warn("Hakkutsu: Failed to parse balanced JSON candidate", e);
+            return null;
+          }
         }
       }
     }
@@ -79,31 +101,60 @@ function parsePlayerResponse(html: string): Record<string, unknown> | null {
   return null;
 }
 
-/** Extract caption tracks from the player response */
-function extractCaptionTracks(
-  playerResponse: Record<string, unknown>
-): CaptionTrack[] {
-  const captions = (playerResponse as Record<string, Record<string, unknown>>)
-    ?.captions;
-  if (!captions) return [];
+/** Parse ytInitialPlayerResponse from YouTube page HTML */
+function parsePlayerResponse(html: string): Record<string, unknown> | null {
+  const markers = [
+    "ytInitialPlayerResponse = ",
+    'window["ytInitialPlayerResponse"] = ',
+    "var ytInitialPlayerResponse = ",
+    "ytInitialPlayerResponse=",
+    '{"playerResponse":',
+  ];
 
-  const renderer = (
-    captions as Record<string, Record<string, unknown>>
-  )?.playerCaptionsTracklistRenderer;
-  if (!renderer) return [];
+  for (const marker of markers) {
+    const startIdx = html.indexOf(marker);
+    if (startIdx !== -1) {
+      const parsed = extractBalancedJson(html, startIdx + marker.length - 1);
+      if (parsed) {
+        if ("playerResponse" in parsed && typeof parsed.playerResponse === "object" && parsed.playerResponse !== null) {
+          return parsed.playerResponse as Record<string, unknown>;
+        }
+        return parsed;
+      }
+    }
+  }
 
-  const captionTracks = (renderer as Record<string, unknown[]>)?.captionTracks;
-  if (!Array.isArray(captionTracks)) return [];
+  // Fallback: search for captionTracks JSON array directly if full playerResponse wasn't found
+  const captionMatch = html.match(/"captionTracks":\s*(\[[\s\S]*?\])\s*,\s*"/);
+  if (captionMatch) {
+    try {
+      const tracks = JSON.parse(captionMatch[1]);
+      return {
+        captions: {
+          playerCaptionsTracklistRenderer: {
+            captionTracks: tracks,
+          },
+        },
+      };
+    } catch {
+      // Ignore
+    }
+  }
 
-  return captionTracks.map(
-    (track: Record<string, unknown>): CaptionTrack => ({
-      baseUrl: (track.baseUrl as string) || (track.url as string) || "",
-      languageCode: (track.languageCode as string) || "",
-      name: captionTrackName(track.name || track.displayName || track.languageName),
-      kind: (track.kind as string) || "",
-      isAutoGenerated: (track.kind as string) === "asr" || typeof track.vssId === "string" && track.vssId.startsWith("a."),
-    })
-  );
+  return null;
+}
+
+/** Normalize baseUrl so it's always an absolute HTTPS URL */
+function normalizeTrackBaseUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("//")) {
+    return `https:${trimmed}`;
+  }
+  if (!trimmed.startsWith("http")) {
+    return `https://www.youtube.com${trimmed}`;
+  }
+  return trimmed;
 }
 
 function captionTrackName(value: unknown): string {
@@ -114,6 +165,154 @@ function captionTrackName(value: unknown): string {
     runs?: Array<{ text?: string }>;
   };
   return text.simpleText || text.runs?.map((run) => run.text || "").join("") || "";
+}
+
+/** Extract caption tracks from the player response */
+function extractCaptionTracks(
+  playerResponse: Record<string, unknown>
+): CaptionTrack[] {
+  const rawCaptions = (playerResponse as Record<string, any>)?.captions;
+  const renderer =
+    rawCaptions?.playerCaptionsTracklistRenderer ||
+    rawCaptions?.playerCaptionsRenderer ||
+    (playerResponse as Record<string, any>)?.playerCaptionsTracklistRenderer;
+
+  let captionTracks: any[] = [];
+  if (Array.isArray(renderer?.captionTracks)) {
+    captionTracks = renderer.captionTracks;
+  } else if (Array.isArray(rawCaptions?.captionTracks)) {
+    captionTracks = rawCaptions.captionTracks;
+  } else if (Array.isArray((playerResponse as any)?.captionTracks)) {
+    captionTracks = (playerResponse as any).captionTracks;
+  }
+
+  return captionTracks.map(
+    (track: Record<string, unknown>): CaptionTrack => {
+      const baseUrl = normalizeTrackBaseUrl(
+        (track.baseUrl as string) || (track.url as string) || ""
+      );
+      const vssId = String(track.vssId || "");
+      const kind = String(track.kind || "");
+      const isAuto = kind === "asr" || vssId.startsWith("a.");
+
+      return {
+        baseUrl,
+        languageCode: (track.languageCode as string) || "",
+        name: captionTrackName(track.name || track.displayName || track.languageName || track.languageCode),
+        kind,
+        isAutoGenerated: isAuto,
+      };
+    }
+  );
+}
+
+/** Check if track is a Japanese caption track */
+function isJapaneseTrack(track: CaptionTrack): boolean {
+  const code = track.languageCode.toLowerCase();
+  const name = track.name.toLowerCase();
+  return (
+    code === "ja" ||
+    code.startsWith("ja-") ||
+    code.startsWith("ja_") ||
+    name.includes("japanese") ||
+    name.includes("japan") ||
+    name.includes("日本語")
+  );
+}
+
+/**
+ * Find the best caption track from available tracks.
+ * Prioritizes native Japanese tracks (manual then auto), then auto-translation to Japanese.
+ */
+function findCaptionTrack(
+  tracks: CaptionTrack[],
+  language: string = "ja"
+): CaptionTrack | null {
+  if (tracks.length === 0) return null;
+
+  const normalizedLanguage = language.trim().toLowerCase();
+  const wantsJapanese = normalizedLanguage === "ja" || normalizedLanguage === "auto" || normalizedLanguage === "*";
+
+  if (wantsJapanese) {
+    // 1. Manual Japanese track
+    const jaManual = tracks.find((t) => isJapaneseTrack(t) && !t.isAutoGenerated);
+    if (jaManual) return jaManual;
+
+    // 2. Auto-generated Japanese track
+    const jaAuto = tracks.find((t) => isJapaneseTrack(t) && t.isAutoGenerated);
+    if (jaAuto) return jaAuto;
+
+    // 3. Fallback: synthesize auto-translated Japanese track from an available track
+    const baseTrack = tracks.find((t) => !t.isAutoGenerated) || tracks[0];
+    if (baseTrack && baseTrack.baseUrl) {
+      const sep = baseTrack.baseUrl.includes("?") ? "&" : "?";
+      return {
+        baseUrl: `${baseTrack.baseUrl}${sep}tlang=ja`,
+        languageCode: "ja",
+        name: `${baseTrack.name || "Auto"} (Auto-translated to Japanese)`,
+        kind: "asr",
+        isAutoGenerated: true,
+      };
+    }
+  } else {
+    // Explicit other language requested
+    const matchesLanguage = (track: CaptionTrack, lang: string) => {
+      const code = track.languageCode.toLowerCase();
+      return code === lang || code.startsWith(`${lang}-`) || code.startsWith(`${lang}_`);
+    };
+
+    const manual = tracks.find((t) => matchesLanguage(t, normalizedLanguage) && !t.isAutoGenerated);
+    if (manual) return manual;
+
+    const auto = tracks.find((t) => matchesLanguage(t, normalizedLanguage) && t.isAutoGenerated);
+    if (auto) return auto;
+
+    // Synthesize auto-translation to requested language
+    const baseTrack = tracks.find((t) => !t.isAutoGenerated) || tracks[0];
+    if (baseTrack && baseTrack.baseUrl) {
+      const sep = baseTrack.baseUrl.includes("?") ? "&" : "?";
+      return {
+        baseUrl: `${baseTrack.baseUrl}${sep}tlang=${normalizedLanguage}`,
+        languageCode: normalizedLanguage,
+        name: `${baseTrack.name || "Auto"} (Auto-translated)`,
+        kind: "asr",
+        isAutoGenerated: true,
+      };
+    }
+  }
+
+  return tracks.find((track) => !track.isAutoGenerated) ?? tracks[0] ?? null;
+}
+
+function playerResponseVideoId(
+  playerResponse: Record<string, unknown>
+): string | null {
+  const videoDetails = playerResponse.videoDetails as
+    | { videoId?: unknown }
+    | undefined;
+  return typeof videoDetails?.videoId === "string"
+    ? videoDetails.videoId
+    : null;
+}
+
+function decodeCaptionText(value: string): string {
+  const entities: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    quot: '"',
+    nbsp: " ",
+  };
+  return value
+    .replace(/<[^>]+>/g, "")
+    .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code) =>
+      String.fromCodePoint(Number.parseInt(code, 16))
+    )
+    .replace(/&([a-z]+);/gi, (match, name) => entities[name] ?? match)
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Represents a single event in YouTube's JSON3 subtitle format */
@@ -136,7 +335,6 @@ function parseJson3Subtitles(json3Data: Record<string, unknown>): SubtitleSegmen
   const segments: SubtitleSegment[] = [];
 
   for (const event of events) {
-    // Skip events without segments (e.g. format/style events)
     if (!event.segs || event.tStartMs == null) continue;
 
     const text = event.segs
@@ -178,71 +376,31 @@ function parseJson3Subtitles(json3Data: Record<string, unknown>): SubtitleSegmen
   return segments;
 }
 
-/**
- * Find the best caption track from available tracks.
- * `auto` keeps subtitle interception language-agnostic; an explicit language
- * still prefers a manually-created track over an auto-generated one.
- */
-function findCaptionTrack(
-  tracks: CaptionTrack[],
-  language: string = "auto"
-): CaptionTrack | null {
-  const normalizedLanguage = language.trim().toLowerCase();
-  if (!normalizedLanguage || normalizedLanguage === "auto" || normalizedLanguage === "*") {
-    return tracks.find((track) => !track.isAutoGenerated) ?? tracks[0] ?? null;
-  }
-
-  const matchesLanguage = (track: CaptionTrack) =>
-    track.languageCode.toLowerCase() === normalizedLanguage ||
-    track.languageCode.toLowerCase().startsWith(`${normalizedLanguage}-`);
-
-  // Prefer manual subtitles
-  const manual = tracks.find(
-    (t) => matchesLanguage(t) && !t.isAutoGenerated
-  );
-  if (manual) return manual;
-
-  // Fall back to auto-generated
-  const auto = tracks.find(
-    (t) => matchesLanguage(t) && t.isAutoGenerated
-  );
-  if (auto) return auto;
-
-  return null;
-}
-
-function playerResponseVideoId(
-  playerResponse: Record<string, unknown>
-): string | null {
-  const videoDetails = playerResponse.videoDetails as
-    | { videoId?: unknown }
-    | undefined;
-  return typeof videoDetails?.videoId === "string"
-    ? videoDetails.videoId
-    : null;
-}
-
-function decodeCaptionText(value: string): string {
-  const entities: Record<string, string> = {
-    amp: "&",
-    apos: "'",
-    gt: ">",
-    lt: "<",
-    quot: "\"",
-  };
-  return value
-    .replace(/<[^>]+>/g, "")
-    .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_match, code) =>
-      String.fromCodePoint(Number.parseInt(code, 16))
-    )
-    .replace(/&([a-z]+);/gi, (match, name) => entities[name] ?? match)
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
+/** Parse both YouTube XML format 1 (<text start dur>) and format 3 / srv3 (<p t d>) */
 function parseXmlSubtitles(text: string): SubtitleSegment[] {
   const segments: SubtitleSegment[] = [];
+
+  // Format 3 / srv3: <p t="milliseconds" d="milliseconds"><s>text</s></p>
+  const pPattern = /<p\b([^>]*)>([\s\S]*?)<\/p>/gi;
+  let pMatch: RegExpExecArray | null;
+  while ((pMatch = pPattern.exec(text))) {
+    const attrs = pMatch[1];
+    const tMatch = attrs.match(/\bt="(\d+)"/i);
+    const dMatch = attrs.match(/\bd="(\d+)"/i);
+    if (!tMatch) continue;
+
+    const cueText = decodeCaptionText(pMatch[2]);
+    if (!cueText) continue;
+
+    segments.push({
+      text: cueText,
+      start: Number(tMatch[1]) / 1000.0,
+      duration: dMatch ? Number(dMatch[1]) / 1000.0 : 0,
+    });
+  }
+  if (segments.length > 0) return segments;
+
+  // Format 1: <text start="seconds" dur="seconds">text</text>
   const cuePattern = /<text\b([^>]*)>([\s\S]*?)<\/text>/gi;
   let match: RegExpExecArray | null;
   while ((match = cuePattern.exec(text))) {
@@ -262,13 +420,13 @@ function parseXmlSubtitles(text: string): SubtitleSegment[] {
 }
 
 function parseVttTimestamp(value: string): number | null {
-  const parts = value.trim().split(":").map(Number);
-  if (parts.some(Number.isNaN) || (parts.length !== 2 && parts.length !== 3)) {
-    return null;
-  }
-  const seconds = parts.pop()!;
-  const minutes = parts.pop()!;
-  const hours = parts.pop() || 0;
+  const clean = value.trim();
+  const match = clean.match(/(?:(\d{1,2}):)?(\d{2}):(\d{2}(?:\.\d{1,3})?)/);
+  if (!match) return null;
+
+  const hours = match[1] ? Number(match[1]) : 0;
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
   return hours * 3600 + minutes * 60 + seconds;
 }
 
@@ -276,13 +434,18 @@ function parseVttSubtitles(text: string): SubtitleSegment[] {
   const normalized = text.replace(/\r\n?/g, "\n");
   const blocks = normalized.split(/\n\s*\n/);
   const segments: SubtitleSegment[] = [];
+
   for (const block of blocks) {
     const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
     const timingIndex = lines.findIndex((line) => line.includes("-->"));
     if (timingIndex < 0) continue;
-    const [rawStart, rawEnd] = lines[timingIndex].split("-->", 2);
+
+    const [rawStart, rawEndPart] = lines[timingIndex].split("-->", 2);
     const start = parseVttTimestamp(rawStart);
-    const end = parseVttTimestamp(rawEnd.split(/\s+/, 1)[0]);
+    // End timestamp is before any WebVTT settings (e.g. align:start)
+    const endMatch = rawEndPart.trim().match(/^\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?/);
+    const end = endMatch ? parseVttTimestamp(endMatch[0]) : null;
+
     const cueText = decodeCaptionText(lines.slice(timingIndex + 1).join(" "));
     if (start == null || end == null || !cueText) continue;
     segments.push({ text: cueText, start, duration: Math.max(0, end - start) });
@@ -310,20 +473,21 @@ async function fetchTrackSegments(
     format: "json3" | "xml" | "vtt";
     url: URL;
   }> = [];
+
   const json3Url = new URL(baseUrl);
   json3Url.searchParams.set("fmt", "json3");
   json3Url.searchParams.delete("callback");
   attempts.push({ format: "json3", url: json3Url });
 
-  const xmlUrl = new URL(baseUrl);
-  xmlUrl.searchParams.delete("fmt");
-  xmlUrl.searchParams.delete("callback");
-  attempts.push({ format: "xml", url: xmlUrl });
-
   const vttUrl = new URL(baseUrl);
   vttUrl.searchParams.set("fmt", "vtt");
   vttUrl.searchParams.delete("callback");
   attempts.push({ format: "vtt", url: vttUrl });
+
+  const xmlUrl = new URL(baseUrl);
+  xmlUrl.searchParams.delete("fmt");
+  xmlUrl.searchParams.delete("callback");
+  attempts.push({ format: "xml", url: xmlUrl });
 
   const failures: string[] = [];
   for (const attempt of attempts) {
@@ -344,9 +508,9 @@ async function fetchTrackSegments(
       const segments =
         attempt.format === "json3"
           ? parseJson3Subtitles(JSON.parse(text) as Record<string, unknown>)
-          : attempt.format === "xml"
-            ? parseXmlSubtitles(text)
-            : parseVttSubtitles(text);
+          : attempt.format === "vtt"
+            ? parseVttSubtitles(text)
+            : parseXmlSubtitles(text);
       if (segments.length > 0) return segments;
       failures.push(`${attempt.format}: no cues`);
     } catch (error) {
@@ -376,13 +540,11 @@ export async function fetchSubtitlesFromPlayerResponse(
     );
   }
 
-  // Step 3: Get caption tracks
   const tracks = extractCaptionTracks(playerResponse);
   if (tracks.length === 0) {
     throw new Error("No caption tracks found for this video.");
   }
 
-  // Step 4: Find the target language track
   const track = findCaptionTrack(tracks, language);
   if (!track) {
     const availableLanguages = tracks
@@ -394,9 +556,6 @@ export async function fetchSubtitlesFromPlayerResponse(
     );
   }
 
-  // Fetching happens in the extension background worker. This preserves the
-  // exact signed URL from the current player while avoiding content-script
-  // CORS restrictions.
   const segments = await fetchTrackSegments(track, videoId);
   const fullText = segments.map((s) => s.text).join(" ");
 
@@ -426,11 +585,9 @@ export async function fetchSubtitles(
     throw new Error(`Could not extract video ID from URL: ${videoUrl}`);
   }
 
-  // Step 1: Fetch the YouTube watch page
   const pageUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const pageResponse = await fetch(pageUrl, {
     headers: {
-      // Pretend to be a normal browser to avoid bot detection
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
@@ -444,8 +601,6 @@ export async function fetchSubtitles(
   }
 
   const html = await pageResponse.text();
-
-  // Step 2: Extract the player response
   const playerResponse = parsePlayerResponse(html);
   if (!playerResponse) {
     throw new Error(
@@ -488,8 +643,11 @@ export {
   extractCaptionTracks,
   extractVideoId,
   findCaptionTrack,
+  isJapaneseTrack,
   parseJson3Subtitles,
+  parsePlayerResponse,
   parseVttSubtitles,
+  parseVttTimestamp,
   parseXmlSubtitles,
   playerResponseVideoId,
 };

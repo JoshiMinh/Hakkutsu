@@ -22,7 +22,7 @@ from backend.utils import get_or_404
 from backend.quality_service import evaluate_page_quality
 from backend.quality_service import evaluate_page_quality
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 
 @router.post("/api/v1/ocr")
