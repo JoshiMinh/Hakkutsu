@@ -13,6 +13,7 @@
     "test:smart-cue": "node scripts/test-smart-cue.cjs"
   },
   "dependencies": {
+    "@xenova/transformers": "^2.17.2",
     "hanzi-writer": "^3.7.3",
     "idb": "^8.0.3",
     "kuromoji": "^0.1.2",
