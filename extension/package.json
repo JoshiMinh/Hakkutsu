@@ -4,6 +4,8 @@
   "version": "0.1.2",
   "description": "AI-powered Japanese immersion browser extension. Learn Japanese while browsing the web.",
   "author": "Hakkutsu Team",
+  "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",

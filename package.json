@@ -1,6 +1,7 @@
 {
   "name": "hakkutsu-workspace",
   "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "pnpm -C extension dev",
     "build": "pnpm -C extension build",
