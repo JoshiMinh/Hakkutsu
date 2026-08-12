@@ -8,8 +8,13 @@ from functools import lru_cache
 from threading import Lock
 
 import httpx
+from backend.jlpt_classifier_service import predict_jlpt
 
 from backend.config import (
+    GEMINI_API_KEY,
+    GEMINI_API_URL,
+    GEMINI_MODEL,
+    GEMINI_TIMEOUT,
     JAMDICT_DB_PATH,
     JAVI_ANALYSIS_API_KEY,
     JAVI_ANALYSIS_API_URL,
@@ -19,6 +24,7 @@ from backend.config import (
     TRANSLATION_API_URL,
     TRANSLATION_MODEL,
     TRANSLATION_TIMEOUT,
+    is_gemini_configured,
 )
 from backend.database import db_session, utc_now
 
@@ -98,6 +104,32 @@ def _resources():
     return _tokenizer_resource, _jamdict_resource
 
 
+def _jlpt_from_jamdict(jam, lemma: str) -> str | None:
+    """Look up the JLPT level for *lemma* in Jamdict, returning e.g. 'N3' or None."""
+    try:
+        if jam is None:
+            return None
+        result = jam.lookup(lemma)
+        if not result or not result.entries:
+            return None
+        # jamdict stores JLPT tags as strings like 'jlpt-n3' or 'P' (common) in
+        # entry.info or kana/kanji elements.  We scan all tag fields we know of.
+        for entry in result.entries:
+            for kele in getattr(entry, "kanji_forms", []):
+                for tag in getattr(kele, "ke_inf", []) or []:
+                    t = str(tag).lower()
+                    if t.startswith("jlpt-n") or (len(t) == 2 and t[0] == "n" and t[1].isdigit()):
+                        return t.replace("jlpt-", "").upper()
+            for rele in getattr(entry, "kana_forms", []):
+                for tag in getattr(rele, "re_inf", []) or []:
+                    t = str(tag).lower()
+                    if t.startswith("jlpt-n") or (len(t) == 2 and t[0] == "n" and t[1].isdigit()):
+                        return t.replace("jlpt-", "").upper()
+        return None
+    except Exception:
+        return None
+
+
 def _base_tokens(text: str, *, include_dictionary: bool = True) -> list[dict]:
     from sudachipy import tokenizer
     tokenizer_obj, jam = _resources()
@@ -108,6 +140,7 @@ def _base_tokens(text: str, *, include_dictionary: bool = True) -> list[dict]:
             continue
         lemma = morpheme.dictionary_form() or surface
         meaning_en = ""
+        jlpt_level: str | None = None
         if include_dictionary:
             try:
                 lookup = jam.lookup(lemma) if jam is not None else None
@@ -116,6 +149,8 @@ def _base_tokens(text: str, *, include_dictionary: bool = True) -> list[dict]:
                     meaning_en = "; ".join(str(item.text) for item in glosses[:3])
             except Exception:
                 meaning_en = ""
+            # JLPT: dictionary first, classifier as fallback
+            jlpt_level = _jlpt_from_jamdict(jam, lemma) or predict_jlpt(lemma)
         tokens.append({
             "surface": surface,
             "lemma": lemma,
@@ -123,143 +158,122 @@ def _base_tokens(text: str, *, include_dictionary: bool = True) -> list[dict]:
             "part_of_speech": morpheme.part_of_speech()[0],
             "meaning_vi": "",
             "dictionary_gloss": meaning_en,
+            "jlpt_level": jlpt_level,
         })
     return tokens
 
 
 def _ai_enrich(text: str, translation: str, tokens: list[dict]) -> dict:
-    if not TRANSLATION_API_URL:
-        raise RuntimeError("Chưa cấu hình model local để phân tích Study")
-    headers = {"Content-Type": "application/json"}
-    if TRANSLATION_API_KEY:
-        headers["Authorization"] = f"Bearer {TRANSLATION_API_KEY}"
-    prompt = {
-        "japanese": text,
-        "vietnamese_translation": translation,
-        "tokens": tokens,
-        "task": "Trả meanings_vi theo đúng thứ tự và đúng số lượng token, kèm giải thích ngữ pháp tiếng Việt.",
-    }
-    response_format = {"type": "json_object"}
-    if TRANSLATION_API_URL.startswith(("http://127.0.0.1", "http://localhost")):
-        response_format = {"type": "json_schema", "json_schema": {
-            "name": "study_sentence_analysis", "strict": True,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "meanings_vi": {
-                        "type": "array", "items": {"type": "string"},
-                        "minItems": len(tokens), "maxItems": len(tokens),
-                    },
-                    "grammar": {
-                        "type": "array", "items": {
-                            "type": "object",
-                            "properties": {
-                                "pattern": {"type": "string"},
-                                "explanation_vi": {"type": "string"},
+    # 1. Try Primary Translation model if configured
+    if TRANSLATION_API_URL and (TRANSLATION_API_KEY or TRANSLATION_API_URL.startswith(("http://127.0.0.1", "http://localhost"))):
+        try:
+            headers = {"Content-Type": "application/json"}
+            if TRANSLATION_API_KEY:
+                headers["Authorization"] = f"Bearer {TRANSLATION_API_KEY}"
+            prompt = {
+                "japanese": text,
+                "vietnamese_translation": translation,
+                "tokens": tokens,
+                "task": "Trả meanings_vi theo đúng thứ tự và đúng số lượng token, kèm giải thích ngữ pháp tiếng Việt.",
+            }
+            response_format = {"type": "json_object"}
+            if TRANSLATION_API_URL.startswith(("http://127.0.0.1", "http://localhost")):
+                response_format = {"type": "json_schema", "json_schema": {
+                    "name": "study_sentence_analysis", "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "meanings_vi": {
+                                "type": "array", "items": {"type": "string"},
+                                "minItems": len(tokens), "maxItems": len(tokens),
                             },
-                            "required": ["pattern", "explanation_vi"],
-                            "additionalProperties": False,
+                            "grammar": {
+                                "type": "array", "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "pattern": {"type": "string"},
+                                        "explanation_vi": {"type": "string"},
+                                    },
+                                    "required": ["pattern", "explanation_vi"],
+                                    "additionalProperties": False,
+                                },
+                            },
                         },
+                        "required": ["meanings_vi", "grammar"],
+                        "additionalProperties": False,
                     },
-                },
-                "required": ["meanings_vi", "grammar"],
-                "additionalProperties": False,
-            },
-        }}
-    payload = {
-        "model": TRANSLATION_MODEL,
-        "messages": [
-            {"role": "system", "content": "Bạn là giáo viên tiếng Nhật. Chỉ trả JSON gồm meanings_vi và grammar. meanings_vi phải đúng thứ tự, đúng số phần tử token đầu vào. Không lặp lại metadata token."},
-            {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
-        ],
-        "response_format": response_format,
-        "temperature": 0,
-        "max_tokens": min(3000, 900 + len(tokens) * 120),
+                }}
+            payload = {
+                "model": TRANSLATION_MODEL,
+                "messages": [
+                    {"role": "system", "content": "Bạn là giáo viên tiếng Nhật. Chỉ trả JSON gồm meanings_vi và grammar. meanings_vi phải đúng thứ tự, đúng số phần tử token đầu vào. Không lặp lại metadata token."},
+                    {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
+                ],
+                "response_format": response_format,
+                "temperature": 0,
+                "max_tokens": min(3000, 900 + len(tokens) * 120),
+            }
+            if TRANSLATION_API_URL.startswith(("http://127.0.0.1", "http://localhost")):
+                payload["reasoning_effort"] = "none"
+            response = httpx.post(TRANSLATION_API_URL, headers=headers, json=payload, timeout=TRANSLATION_TIMEOUT)
+            response.raise_for_status()
+            content = str(response.json()["choices"][0]["message"]["content"]).strip()
+            fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", content, flags=re.DOTALL | re.IGNORECASE)
+            enriched = json.loads(fenced.group(1) if fenced else content)
+            meanings = enriched.get("meanings_vi")
+            if meanings is None and isinstance(enriched.get("tokens"), list):
+                meanings = [
+                    item.get("meaning_vi", "") if isinstance(item, dict) else ""
+                    for item in enriched["tokens"]
+                ]
+            if isinstance(meanings, list) and isinstance(enriched.get("grammar"), list):
+                safe_tokens = []
+                for base, meaning in zip(tokens, meanings):
+                    safe = dict(base)
+                    safe["meaning_vi"] = str(meaning or "").strip()
+                    safe_tokens.append(safe)
+                grammar = [
+                    {"pattern": str(item.get("pattern") or "").strip(),
+                     "explanation_vi": str(item.get("explanation_vi") or "").strip()}
+                    for item in enriched["grammar"] if isinstance(item, dict) and item.get("explanation_vi")
+                ]
+                return {"tokens": safe_tokens, "grammar": grammar}
+        except Exception:
+            pass
+
+    # 2. Fallback to Gemini if configured
+    if is_gemini_configured():
+        try:
+            gemini_res = analyze_phrase_gemini(text)
+            gemini_meanings = gemini_res.get("meanings_vi", [])
+            safe_tokens = []
+            for idx, base in enumerate(tokens):
+                safe = dict(base)
+                safe["meaning_vi"] = str(gemini_meanings[idx] if idx < len(gemini_meanings) else "").strip()
+                safe_tokens.append(safe)
+            return {"tokens": safe_tokens, "grammar": gemini_res.get("grammar", [])}
+        except Exception:
+            pass
+
+    # Safe deterministic fallback without breaking
+    return {
+        "tokens": [dict(t) for t in tokens],
+        "grammar": [],
     }
-    if TRANSLATION_API_URL.startswith(("http://127.0.0.1", "http://localhost")):
-        payload["reasoning_effort"] = "none"
-    try:
-        response = httpx.post(TRANSLATION_API_URL, headers=headers, json=payload, timeout=TRANSLATION_TIMEOUT)
-        response.raise_for_status()
-        content = str(response.json()["choices"][0]["message"]["content"]).strip()
-        fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", content, flags=re.DOTALL | re.IGNORECASE)
-        enriched = json.loads(fenced.group(1) if fenced else content)
-    except Exception as exc:
-        raise RuntimeError(f"Model local không tạo được phân tích Study: {exc}") from exc
-    if not isinstance(enriched.get("grammar"), list):
-        raise RuntimeError("Model local trả dữ liệu phân tích Study không đúng định dạng")
-    meanings = enriched.get("meanings_vi")
-    # Backward compatibility for OpenAI-compatible providers that still obey
-    # the older token-object prompt shape.
-    if meanings is None and isinstance(enriched.get("tokens"), list):
-        meanings = [
-            item.get("meaning_vi", "") if isinstance(item, dict) else ""
-            for item in enriched["tokens"]
-        ]
-    if not isinstance(meanings, list) or len(meanings) != len(tokens):
-        raise RuntimeError("Model local trả thiếu từ vựng trong phân tích Study")
-    safe_tokens = []
-    for base, meaning in zip(tokens, meanings):
-        safe = dict(base)
-        safe["meaning_vi"] = str(meaning or "").strip()
-        safe_tokens.append(safe)
-    grammar = [
-        {"pattern": str(item.get("pattern") or "").strip(),
-         "explanation_vi": str(item.get("explanation_vi") or "").strip()}
-        for item in enriched["grammar"] if isinstance(item, dict) and item.get("explanation_vi")
-    ]
-    return {"tokens": safe_tokens, "grammar": grammar}
 
 
-@lru_cache(maxsize=512)
-def analyze_phrase_deep(text: str) -> dict:
-    """Translate and analyze one subtitle with a single cached model call."""
+@lru_cache(maxsize=1024)
+def analyze_phrase_gemini(text: str) -> dict:
+    """Analyze and translate a Japanese sentence using Google Gemini API."""
     clean_text = text.strip()
     tokens = _base_tokens(clean_text, include_dictionary=False)
-    if not TRANSLATION_API_URL:
-        raise RuntimeError("Chưa cấu hình model local để phân tích câu")
-    headers = {"Content-Type": "application/json"}
-    if TRANSLATION_API_KEY:
-        headers["Authorization"] = f"Bearer {TRANSLATION_API_KEY}"
-    schema = {
-        "type": "object",
-        "properties": {
-            "translation": {"type": "string"},
-            "meanings_vi": {
-                "type": "array",
-                "items": {"type": "string"},
-                "minItems": len(tokens),
-                "maxItems": len(tokens),
-            },
-            "grammar": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "pattern": {"type": "string"},
-                        "explanation_vi": {"type": "string"},
-                    },
-                    "required": ["pattern", "explanation_vi"],
-                    "additionalProperties": False,
-                },
-            },
-        },
-        "required": ["translation", "meanings_vi", "grammar"],
-        "additionalProperties": False,
+    if not GEMINI_API_KEY:
+        raise RuntimeError("Chưa cấu hình GEMINI_API_KEY")
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GEMINI_API_KEY}",
     }
-    response_format: dict = {"type": "json_object"}
-    is_local = TRANSLATION_API_URL.startswith(
-        ("http://127.0.0.1", "http://localhost")
-    )
-    if is_local:
-        response_format = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "subtitle_sentence_analysis",
-                "strict": True,
-                "schema": schema,
-            },
-        }
     prompt_tokens = [
         {
             "surface": token["surface"],
@@ -269,14 +283,17 @@ def analyze_phrase_deep(text: str) -> dict:
         for token in tokens
     ]
     payload = {
-        "model": TRANSLATION_MODEL,
+        "model": GEMINI_MODEL,
         "messages": [
             {
                 "role": "system",
                 "content": (
-                    "Bạn là giáo viên tiếng Nhật cho người Việt. Dịch tự nhiên sang "
-                    "tiếng Việt, giải nghĩa từng token đúng thứ tự và giải thích các "
-                    "mẫu ngữ pháp theo ngữ cảnh. Chỉ trả JSON đúng schema."
+                    "Bạn là giáo viên tiếng Nhật cho người Việt. Dịch tự nhiên sang tiếng Việt, "
+                    "giải nghĩa từng token đúng thứ tự đầu vào và giải thích các mẫu ngữ pháp trong câu theo ngữ cảnh. "
+                    "Chỉ trả về duy nhất 1 JSON object hợp lệ theo schema sau: "
+                    '{"translation": "bản dịch tiếng Việt", '
+                    '"meanings_vi": ["nghĩa token 1", "nghĩa token 2", ...], '
+                    '"grammar": [{"pattern": "mẫu ngữ pháp", "explanation_vi": "giải thích chi tiết"}]}'
                 ),
             },
             {
@@ -287,18 +304,15 @@ def analyze_phrase_deep(text: str) -> dict:
                 ),
             },
         ],
-        "response_format": response_format,
+        "response_format": {"type": "json_object"},
         "temperature": 0,
-        "max_tokens": min(1400, 320 + len(tokens) * 70),
     }
-    if is_local:
-        payload["reasoning_effort"] = "none"
     try:
         response = httpx.post(
-            TRANSLATION_API_URL,
+            GEMINI_API_URL,
             headers=headers,
             json=payload,
-            timeout=TRANSLATION_TIMEOUT,
+            timeout=GEMINI_TIMEOUT,
         )
         response.raise_for_status()
         content = str(response.json()["choices"][0]["message"]["content"]).strip()
@@ -309,30 +323,162 @@ def analyze_phrase_deep(text: str) -> dict:
         )
         result = json.loads(fenced.group(1) if fenced else content)
     except Exception as exc:
-        try:
-            gt_url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=vi&dt=t&q={urllib.parse.quote(clean_text)}"
-            gt_resp = httpx.get(gt_url, timeout=5.0)
-            gt_resp.raise_for_status()
-            gt_data = gt_resp.json()
-            translation = "".join(part[0] for part in gt_data[0] if part[0])
-            return {
-                "translation": translation,
-                "meanings_vi": ["" for _ in tokens],
-                "grammar": []
-            }
-        except Exception as gt_exc:
-            raise RuntimeError(f"Model local và Google Translate đều thất bại: {exc} | {gt_exc}") from exc
+        raise RuntimeError(f"Gemini API phân tích thất bại: {exc}") from exc
+
     meanings = result.get("meanings_vi")
-    if not isinstance(meanings, list) or len(meanings) != len(tokens):
-        raise RuntimeError("Model local trả sai số lượng nghĩa token")
+    if not isinstance(meanings, list):
+        meanings = ["" for _ in tokens]
+    elif len(meanings) < len(tokens):
+        meanings.extend([""] * (len(tokens) - len(meanings)))
+    elif len(meanings) > len(tokens):
+        meanings = meanings[:len(tokens)]
+
     grammar = result.get("grammar")
     if not isinstance(grammar, list):
-        raise RuntimeError("Model local trả ngữ pháp không đúng định dạng")
+        grammar = []
+
     return {
         "translation": str(result.get("translation") or "").strip(),
         "meanings_vi": [str(item or "").strip() for item in meanings],
-        "grammar": grammar,
+        "grammar": [
+            item for item in grammar
+            if isinstance(item, dict) and item.get("explanation_vi")
+        ],
     }
+
+
+@lru_cache(maxsize=512)
+def analyze_phrase_deep(text: str) -> dict:
+    """Translate and analyze one subtitle with multi-tier fallback (Primary -> Gemini -> GT)."""
+    clean_text = text.strip()
+    tokens = _base_tokens(clean_text, include_dictionary=False)
+
+    # 1. Try Primary model if configured
+    if TRANSLATION_API_URL and (TRANSLATION_API_KEY or TRANSLATION_API_URL.startswith(("http://127.0.0.1", "http://localhost"))):
+        headers = {"Content-Type": "application/json"}
+        if TRANSLATION_API_KEY:
+            headers["Authorization"] = f"Bearer {TRANSLATION_API_KEY}"
+        schema = {
+            "type": "object",
+            "properties": {
+                "translation": {"type": "string"},
+                "meanings_vi": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": len(tokens),
+                    "maxItems": len(tokens),
+                },
+                "grammar": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "pattern": {"type": "string"},
+                            "explanation_vi": {"type": "string"},
+                        },
+                        "required": ["pattern", "explanation_vi"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["translation", "meanings_vi", "grammar"],
+            "additionalProperties": False,
+        }
+        response_format: dict = {"type": "json_object"}
+        is_local = TRANSLATION_API_URL.startswith(
+            ("http://127.0.0.1", "http://localhost")
+        )
+        if is_local:
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "subtitle_sentence_analysis",
+                    "strict": True,
+                    "schema": schema,
+                },
+            }
+        prompt_tokens = [
+            {
+                "surface": token["surface"],
+                "lemma": token["lemma"],
+                "part_of_speech": token["part_of_speech"],
+            }
+            for token in tokens
+        ]
+        payload = {
+            "model": TRANSLATION_MODEL,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Bạn là giáo viên tiếng Nhật cho người Việt. Dịch tự nhiên sang "
+                        "tiếng Việt, giải nghĩa từng token đúng thứ tự và giải thích các "
+                        "mẫu ngữ pháp theo ngữ cảnh. Chỉ trả JSON đúng schema."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {"japanese": clean_text, "tokens": prompt_tokens},
+                        ensure_ascii=False,
+                    ),
+                },
+            ],
+            "response_format": response_format,
+            "temperature": 0,
+            "max_tokens": min(1400, 320 + len(tokens) * 70),
+        }
+        if is_local:
+            payload["reasoning_effort"] = "none"
+        try:
+            response = httpx.post(
+                TRANSLATION_API_URL,
+                headers=headers,
+                json=payload,
+                timeout=TRANSLATION_TIMEOUT,
+            )
+            response.raise_for_status()
+            content = str(response.json()["choices"][0]["message"]["content"]).strip()
+            fenced = re.fullmatch(
+                r"```(?:json)?\s*(.*?)\s*```",
+                content,
+                flags=re.DOTALL | re.IGNORECASE,
+            )
+            result = json.loads(fenced.group(1) if fenced else content)
+            meanings = result.get("meanings_vi")
+            grammar = result.get("grammar")
+            if isinstance(meanings, list) and isinstance(grammar, list):
+                if len(meanings) < len(tokens):
+                    meanings.extend([""] * (len(tokens) - len(meanings)))
+                return {
+                    "translation": str(result.get("translation") or "").strip(),
+                    "meanings_vi": [str(item or "").strip() for item in meanings[:len(tokens)]],
+                    "grammar": grammar,
+                }
+        except Exception:
+            pass
+
+    # 2. Try Gemini Fallback if configured
+    if is_gemini_configured():
+        try:
+            return analyze_phrase_gemini(clean_text)
+        except Exception:
+            pass
+
+    # 3. Fallback to Google Translate
+    try:
+        gt_url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=vi&dt=t&q={urllib.parse.quote(clean_text)}"
+        gt_resp = httpx.get(gt_url, timeout=5.0)
+        gt_resp.raise_for_status()
+        gt_data = gt_resp.json()
+        translation = "".join(part[0] for part in gt_data[0] if part[0])
+        return {
+            "translation": translation,
+            "meanings_vi": ["" for _ in tokens],
+            "grammar": [],
+        }
+    except Exception as gt_exc:
+        raise RuntimeError(f"Tất cả các phương thức phân tích đều thất bại: {gt_exc}") from gt_exc
 
 
 @lru_cache(maxsize=2048)
@@ -531,7 +677,7 @@ def _ai_enrich_batch(items: list[dict]) -> list[dict]:
         if meanings is None and generated and isinstance(generated.get("tokens"), list):
             meanings = [token.get("meaning_vi", "") if isinstance(token, dict) else "" for token in generated["tokens"]]
         if not isinstance(meanings, list) or len(meanings) != len(source["tokens"]):
-            # Qwen đôi lúc tự gộp token khi xử lý nhiều câu. Chỉ fallback
+            # LLM/Gemini đôi lúc tự gộp token khi xử lý nhiều câu. Chỉ fallback
             # các câu trong nhóm này, không làm hỏng toàn bộ lần xuất bản.
             return [_ai_enrich(item["text"], item["translation"], item["tokens"]) for item in items]
         safe_tokens = []

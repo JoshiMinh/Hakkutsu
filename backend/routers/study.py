@@ -9,12 +9,25 @@ from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from backend.config import STUDY_ASSET_DIR, UPLOAD_DIR, JAVI_ANALYSIS_ENABLED, JAVI_ANALYSIS_MODEL
+from backend.config import (
+    GEMINI_MODEL,
+    JAVI_ANALYSIS_ENABLED,
+    JAVI_ANALYSIS_MODEL,
+    STUDY_ASSET_DIR,
+    UPLOAD_DIR,
+    is_gemini_configured,
+)
 from backend.activity_service import record_activity
 from backend.database import db_session, row_to_dict, utc_now
 from backend.media_service import decode_subtitle_bytes, extension_analysis, fetch_youtube_subtitle_result, fetch_youtube_subtitles, parse_subtitle_text, subtitle_title_from_filename
 from backend.schemas import MediaAnalyzeRequest, MediaImportRequest, TranslationRequest, VocabularyCreate, WebTranslateRequest, YoutubeMediaImportRequest
-from backend.study_analysis_service import analyze_phrase_deep, analyze_phrase_javi, analyze_sentence, analyze_sentences
+from backend.study_analysis_service import (
+    analyze_phrase_deep,
+    analyze_phrase_gemini,
+    analyze_phrase_javi,
+    analyze_sentence,
+    analyze_sentences,
+)
 from backend.typesetting_service import render_translated_page
 from backend.utils import _json_list, get_or_404
 from backend.quality_service import evaluate_page_quality
@@ -486,7 +499,7 @@ def analyze_media_text(payload: MediaAnalyzeRequest) -> dict:
 
 # Compatibility adapter for the Hakkutsu extension from project part 3.
 # This path intentionally performs deterministic Sudachi/JMdict analysis only;
-# subtitles change every few seconds and must not invoke Qwen continuously.
+# subtitles change every few seconds and must not invoke Gemini continuously.
 @router.get("/api/v1/health")
 def extension_health() -> dict:
     return {
@@ -609,23 +622,44 @@ def _merge_model_analysis(
 
 @router.post("/api/v1/analyze/javi")
 def extension_analyze_javi(payload: MediaAnalyzeRequest) -> dict:
-    """Fast specialized model; deterministic local analysis until explicitly enabled."""
+    """Specialized analysis with multi-tier fallback: Javi (Local) -> Gemini -> Sudachi/JMdict."""
     text = payload.text.strip()
     try:
         result = _extension_analysis_with_srs(text, include_definitions=True)
-        if not JAVI_ANALYSIS_ENABLED:
-            result["analysis_engine"] = "sudachi-jmdict"
-            return result
-        enriched = analyze_phrase_javi(text)
-        result = _merge_model_analysis(
-            result,
-            enriched,
-            dictionary_name="Hakkutsu Ja–Vi",
-        )
-        result["analysis_engine"] = JAVI_ANALYSIS_MODEL
-        return result
-    except RuntimeError as exc:
+    except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    # 1. Try Javi model if enabled
+    if JAVI_ANALYSIS_ENABLED:
+        try:
+            enriched = analyze_phrase_javi(text)
+            result = _merge_model_analysis(
+                result,
+                enriched,
+                dictionary_name="Hakkutsu Ja–Vi",
+            )
+            result["analysis_engine"] = JAVI_ANALYSIS_MODEL
+            return result
+        except Exception:
+            pass
+
+    # 2. Try Gemini Fallback if configured
+    if is_gemini_configured():
+        try:
+            enriched = analyze_phrase_gemini(text)
+            result = _merge_model_analysis(
+                result,
+                enriched,
+                dictionary_name="Google Gemini",
+            )
+            result["analysis_engine"] = GEMINI_MODEL
+            return result
+        except Exception:
+            pass
+
+    # 3. Deterministic local analysis fallback (Fast & Offline)
+    result["analysis_engine"] = "sudachi-jmdict"
+    return result
 
 
 @router.post("/api/v1/analyze/phrase")
@@ -641,7 +675,7 @@ def extension_analyze_phrase(payload: MediaAnalyzeRequest) -> dict:
     return _merge_model_analysis(
         result,
         enriched,
-        dictionary_name="Hakkutsu Qwen Deep",
+        dictionary_name="Hakkutsu Gemini Deep",
     )
 
 
@@ -652,6 +686,57 @@ def extension_translate_webpage(payload: WebTranslateRequest) -> dict:
         raise HTTPException(status_code=422, detail="Đoạn văn dịch không được để trống")
     if sum(len(text) for text in texts) > 20_000:
         raise HTTPException(status_code=413, detail="Tổng nội dung trang vượt quá 20.000 ký tự")
+
+    # Fast-path for single sentence translation (OCR popup / subtitle quick translate)
+    if len(texts) == 1:
+        single_text = texts[0]
+        # 1. Try Gemini
+        if is_gemini_configured():
+            try:
+                gemini_res = analyze_phrase_gemini(single_text)
+                gemini_trans = gemini_res.get("translation", "").strip()
+                if gemini_trans:
+                    return {
+                        "source_language": "ja",
+                        "target_language": "vi",
+                        "translations": [gemini_trans],
+                        "items": [
+                            {
+                                "index": 0,
+                                "source": single_text,
+                                "translation": gemini_trans,
+                                "tokens": _extension_analysis_with_srs(
+                                    single_text, include_definitions=False
+                                )["tokens"],
+                            }
+                        ],
+                    }
+            except Exception:
+                pass
+
+        # 2. Try Free Google Translate fallback
+        try:
+            from backend.translation_service import google_translate_free
+            gt_trans = google_translate_free(single_text, "ja", "vi")
+            if gt_trans:
+                return {
+                    "source_language": "ja",
+                    "target_language": "vi",
+                    "translations": [gt_trans],
+                    "items": [
+                        {
+                            "index": 0,
+                            "source": single_text,
+                            "translation": gt_trans,
+                            "tokens": _extension_analysis_with_srs(
+                                single_text, include_definitions=False
+                            )["tokens"],
+                        }
+                    ],
+                }
+        except Exception:
+            pass
+
 
     blocks = [
         TranslationBlock(id=index, text=text, text_kind="webpage")
@@ -675,11 +760,12 @@ def extension_translate_webpage(payload: WebTranslateRequest) -> dict:
     return {
         "source_language": "ja",
         "target_language": "vi",
+        "translations": [translations.get(index, "") for index, text in enumerate(texts)],
         "items": [
             {
                 "index": index,
                 "source": text,
-                "translation": translations[index],
+                "translation": translations.get(index, ""),
                 "tokens": _extension_analysis_with_srs(
                     text, include_definitions=False
                 )["tokens"],

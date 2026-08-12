@@ -344,36 +344,8 @@ export const youtubeSubtitleCss = /* css */ `
   }
 
   /* ── Overlay Wrapper & Action Bar ────────────────────────── */
-  .hk-sub__overlay-wrapper {
-    position: relative;
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .hk-sub__brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-bottom: 6px;
-    padding: 2px 10px;
-    border-radius: 999px;
-    background: rgba(9, 9, 11, 0.75);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.45);
-    font: 600 9px/1.4 'Inter', 'Segoe UI', sans-serif;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-  }
-
-  .hk-sub__overlay-wrapper:hover .hk-sub__brand {
-    opacity: 0.3;
-  }
-
-  .hk-sub__overlay-wrapper:hover .hk-sub__action-bar {
+  .hk-sub__overlay-wrapper:hover .hk-sub__action-bar,
+  .hk-sub__action-bar:hover {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
     pointer-events: auto;
@@ -381,31 +353,39 @@ export const youtubeSubtitleCss = /* css */ `
 
   .hk-sub__action-bar {
     position: absolute;
-    bottom: 100%;
+    bottom: calc(100% + 6px);
     left: 50%;
-    transform: translateX(-50%) translateY(6px);
+    transform: translateX(-50%) translateY(4px);
     display: flex;
-    gap: 4px;
-    margin-bottom: 6px;
-    background: rgba(9, 9, 11, 0.92);
+    gap: 6px;
+    background: rgba(9, 9, 11, 0.95);
     backdrop-filter: blur(16px);
-    padding: 4px;
+    padding: 4px 6px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     opacity: 0;
     pointer-events: none;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    z-index: 10;
+    transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    z-index: 99999;
+  }
+
+  .hk-sub__action-bar::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    height: 16px;
   }
 
   .hk-sub__action-btn {
     background: transparent;
     border: 1px solid transparent;
-    color: rgba(244, 244, 245, 0.6);
+    color: rgba(244, 244, 245, 0.7);
     cursor: pointer;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 6px;
     display: flex;
     align-items: center;
@@ -415,34 +395,32 @@ export const youtubeSubtitleCss = /* css */ `
   }
 
   .hk-sub__action-btn:hover {
-    background: rgba(168, 85, 247, 0.15);
-    border-color: rgba(168, 85, 247, 0.25);
+    background: rgba(168, 85, 247, 0.2);
+    border-color: rgba(168, 85, 247, 0.35);
     color: #c084fc;
     transform: translateY(-1px);
   }
 
-  .hk-sub__action-btn:active {
-    transform: translateY(0);
-    background: rgba(168, 85, 247, 0.25);
-  }
-
   .hk-sub__action-btn--sentence {
-    width: auto;
-    min-width: 100px;
-    padding: 0 10px;
-    color: rgba(244, 244, 245, 0.8);
-    font-size: 11px;
-    font-weight: 600;
-    font-family: 'Inter', 'Segoe UI', sans-serif;
-    white-space: nowrap;
-    gap: 4px;
-    border-radius: 6px;
+    width: auto !important;
+    padding: 0 12px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    background: rgba(147, 51, 234, 0.25) !important;
+    border-color: rgba(168, 85, 247, 0.45) !important;
+    color: #e9d5ff !important;
+    display: inline-flex !important;
+    align-items: center !important;
   }
 
   .hk-sub__action-btn--sentence:hover {
-    color: #e9d5ff;
-    background: rgba(168, 85, 247, 0.2);
-    border-color: rgba(168, 85, 247, 0.3);
+    background: #9333ea !important;
+    border-color: #a855f7 !important;
+    color: #ffffff !important;
+  }
+
+  .hk-sub__action-btn:active {
+    transform: translateY(0);
   }
 
   /* ── Transcript Panel ────────────────────────────────────── */

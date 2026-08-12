@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 import json
@@ -9,11 +9,16 @@ from typing import Protocol
 import httpx
 
 from backend.config import (
+    GEMINI_API_KEY,
+    GEMINI_API_URL,
+    GEMINI_MODEL,
+    GEMINI_TIMEOUT,
     TRANSLATION_API_KEY,
     TRANSLATION_API_URL,
     TRANSLATION_MODEL,
     TRANSLATION_TIMEOUT,
     UPLOAD_DIR,
+    is_gemini_configured,
 )
 from backend.database import db_session, utc_now
 from backend.typesetting_service import suggest_font_size
@@ -44,16 +49,27 @@ class MissingTranslationsError(RuntimeError):
 class OpenAiCompatibleTranslationProvider:
     name = "openai-compatible"
 
-    def __init__(self) -> None:
-        if not TRANSLATION_API_URL:
+    def __init__(
+        self,
+        api_url: str | None = None,
+        api_key: str | None = None,
+        model: str | None = None,
+        timeout: float | None = None,
+    ) -> None:
+        self._api_url = api_url or TRANSLATION_API_URL
+        self._api_key = api_key if api_key is not None else TRANSLATION_API_KEY
+        self._model = model or TRANSLATION_MODEL
+        self._timeout = timeout if timeout is not None else TRANSLATION_TIMEOUT
+
+        if not self._api_url:
             raise RuntimeError("TRANSLATION_API_URL chưa được cấu hình")
-        is_local = TRANSLATION_API_URL.startswith(("http://127.0.0.1", "http://localhost"))
-        if not TRANSLATION_API_KEY and not is_local:
+        is_local = self._api_url.startswith(("http://127.0.0.1", "http://localhost"))
+        if not self._api_key and not is_local:
             raise RuntimeError(
-                "Chưa có khóa dịch. Hãy đặt TRANSLATION_API_KEY hoặc DEEPSEEK_API_KEY."
+                "Chưa có khóa dịch. Hãy đặt TRANSLATION_API_KEY hoặc GEMINI_API_KEY."
             )
         self._is_local = is_local
-        self.name = f"openai-compatible:{TRANSLATION_MODEL}"
+        self.name = f"openai-compatible:{self._model}"
 
     def translate(self, blocks: list[TranslationBlock], context: dict[str, object]) -> dict[int, str]:
         source = [
@@ -92,8 +108,8 @@ class OpenAiCompatibleTranslationProvider:
             "blocks": source,
         }
         headers = {"Content-Type": "application/json"}
-        if TRANSLATION_API_KEY:
-            headers["Authorization"] = f"Bearer {TRANSLATION_API_KEY}"
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
         translation_schema = {
             "type": "object",
             "properties": {
@@ -133,7 +149,7 @@ class OpenAiCompatibleTranslationProvider:
                 },
             }
         payload = {
-            "model": TRANSLATION_MODEL,
+            "model": self._model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
@@ -149,23 +165,38 @@ class OpenAiCompatibleTranslationProvider:
             payload["max_tokens"] = min(8192, max(1024, len(blocks) * 160))
         try:
             response = httpx.post(
-                TRANSLATION_API_URL,
+                self._api_url,
                 headers=headers,
                 json=payload,
-                timeout=TRANSLATION_TIMEOUT,
+                timeout=self._timeout,
             )
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             detail = exc.response.text.strip().replace("\n", " ")[:500]
-            raise RuntimeError(f"API dịch trả lỗi {exc.response.status_code}: {detail}") from exc
+            raise RuntimeError(f"API dịch ({self._model}) trả lỗi {exc.response.status_code}: {detail}") from exc
         except httpx.HTTPError as exc:
-            raise RuntimeError(f"Không kết nối được API dịch: {exc}") from exc
+            raise RuntimeError(f"Không kết nối được API dịch ({self._model}): {exc}") from exc
 
         try:
             content = response.json()["choices"][0]["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise RuntimeError("API dịch trả về cấu trúc không hợp lệ") from exc
         return parse_translation_response(str(content), {block.id for block in blocks})
+
+
+class GeminiTranslationProvider(OpenAiCompatibleTranslationProvider):
+    name = "gemini"
+
+    def __init__(self) -> None:
+        if not is_gemini_configured():
+            raise RuntimeError("GEMINI_API_KEY chưa được cấu hình")
+        super().__init__(
+            api_url=GEMINI_API_URL,
+            api_key=GEMINI_API_KEY,
+            model=GEMINI_MODEL,
+            timeout=GEMINI_TIMEOUT,
+        )
+        self.name = f"gemini:{GEMINI_MODEL}"
 
 
 def parse_translation_response(content: str, expected_ids: set[int]) -> dict[int, str]:
@@ -214,6 +245,25 @@ PUNCTUATION_ONLY = re.compile(r"^[\s\W_・ー…。、！？．·]+$", re.UNICOD
 
 def _chunks(items: list[TranslationBlock], size: int) -> list[list[TranslationBlock]]:
     return [items[index:index + size] for index in range(0, len(items), size)]
+
+
+def google_translate_free(text: str, sl: str = "ja", tl: str = "vi") -> str:
+    """Free public Google Translate fallback requiring zero API keys."""
+    cleaned = text.strip()
+    if not cleaned:
+        return ""
+    import urllib.parse
+    import urllib.request
+    try:
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={sl}&tl={tl}&dt=t&q={urllib.parse.quote(cleaned)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(req, timeout=4) as res:
+            data = json.loads(res.read().decode("utf-8"))
+            if data and isinstance(data, list) and data[0]:
+                return "".join(item[0] for item in data[0] if item and item[0]).strip()
+    except Exception:
+        pass
+    return ""
 
 
 def translate_blocks_resilient(
@@ -286,12 +336,37 @@ def translate_blocks_resilient(
                 translated[block.id] = text
                 pending.remove(block)
 
+        # Fallback to Gemini if the primary provider failed and Gemini is configured
+        if pending and is_gemini_configured() and not provider.name.startswith("gemini"):
+            try:
+                gemini_provider = GeminiTranslationProvider()
+                gemini_result = gemini_provider.translate(pending, context)
+                for block in list(pending):
+                    text = str(gemini_result.get(block.id, "")).strip()
+                    if text:
+                        translated[block.id] = text
+                        pending.remove(block)
+            except Exception as exc:
+                last_error = exc
+
+        # Fallback to Free Google Translate so translations never fail
+        if pending:
+            for block in list(pending):
+                try:
+                    gt_res = google_translate_free(block.text, "ja", "vi")
+                    if gt_res:
+                        translated[block.id] = gt_res
+                        pending.remove(block)
+                except Exception:
+                    pass
+
         if pending:
             missing = sorted(block.id for block in pending)
             detail = f": {last_error}" if last_error else ""
             raise RuntimeError(f"Không dịch được TextBlock {missing}{detail}")
 
     return translated
+
 
 
 _provider: TranslationProvider | None = None
@@ -303,7 +378,13 @@ def get_translation_provider() -> TranslationProvider:
     if _provider is None:
         with _provider_lock:
             if _provider is None:
-                _provider = OpenAiCompatibleTranslationProvider()
+                try:
+                    _provider = OpenAiCompatibleTranslationProvider()
+                except RuntimeError:
+                    if is_gemini_configured():
+                        _provider = GeminiTranslationProvider()
+                    else:
+                        raise
     return _provider
 
 

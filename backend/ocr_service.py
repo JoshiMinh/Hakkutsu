@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 import os
@@ -7,6 +7,8 @@ import re
 from threading import Lock
 from typing import Protocol
 
+import cv2
+import numpy as np
 from PIL import Image
 
 from backend.config import (
@@ -21,6 +23,79 @@ from backend.config import (
     OCR_RECOGNIZER,
 )
 from backend.database import db_session, utc_now
+
+JAPANESE_PATTERN = re.compile(r"[\u3040-\u30ff\u3400-\u9fff]")
+
+
+def clean_manga_ocr_hallucination(manga_text: str, anchor_text: str = "") -> str:
+    """Strip known autoregressive hallucinated conversational prefixes from Manga-OCR."""
+    manga_text = manga_text.strip()
+    if not manga_text:
+        return ""
+
+    # 1. Anchor alignment if anchor text is available
+    if anchor_text:
+        jp_chars = JAPANESE_PATTERN.findall(anchor_text)
+        if len(jp_chars) >= 2:
+            for n in (3, 2, 1):
+                if len(jp_chars) >= n:
+                    anchor = "".join(jp_chars[:n])
+                    pos = manga_text.find(anchor)
+                    if pos > 0:
+                        manga_text = manga_text[pos:].strip()
+                        break
+
+    # 2. Known hallucination clause connectors pattern
+    connector_match = re.search(
+        r"^(?:.{2,60}?)(?:のですが|んだけど|ことですが|と言っていたのですが|付けられなかったのですが|と思ってい|と考えてい|知っていることですが|ここではない[。、,\s]+)[、,\s]+(?=[\u3400-\u9fff\u3040-\u30ff])",
+        manga_text,
+    )
+    if connector_match:
+        manga_text = manga_text[len(connector_match.group(0)):].strip()
+
+    # 3. Clean leading punctuation noise
+    manga_text = re.sub(r"^[\s\.\,\…\—\-\:\;]+", "", manga_text).strip()
+    return manga_text
+
+
+def segment_text_lines(rgb_array: np.ndarray) -> list[tuple[int, int, int, int]]:
+    """Segment horizontal text lines using Otsu thresholding and morphological filtering."""
+    gray = cv2.cvtColor(rgb_array, cv2.COLOR_RGB2GRAY)
+    _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
+
+    # Exclude thin horizontal colored underlines
+    kernel_h = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 1))
+    lines_h = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_h)
+    clean_binary = cv2.subtract(binary, lines_h)
+
+    row_counts = np.sum(clean_binary > 0, axis=1)
+    threshold_count = max(5, int(rgb_array.shape[1] * 0.01))
+
+    in_line = False
+    start_y = 0
+    line_boxes: list[tuple[int, int, int, int]] = []
+
+    for y, count in enumerate(row_counts):
+        if count >= threshold_count and not in_line:
+            in_line = True
+            start_y = y
+        elif count < threshold_count and in_line:
+            in_line = False
+            end_y = y
+            if end_y - start_y >= 10:  # Min line height
+                line_slice = clean_binary[start_y:end_y, :]
+                cols = np.where(np.sum(line_slice > 0, axis=0) > 0)[0]
+                if len(cols) > 0:
+                    start_x = max(0, int(cols[0]) - 4)
+                    end_x = min(rgb_array.shape[1], int(cols[-1]) + 4)
+                    line_boxes.append((
+                        start_x,
+                        max(0, start_y - 4),
+                        end_x - start_x,
+                        min(rgb_array.shape[0], end_y + 4) - start_y,
+                    ))
+
+    return line_boxes
 
 
 @dataclass(frozen=True)
@@ -122,33 +197,39 @@ class EasyOcrProvider:
             self.name += "+manga-ocr"
 
     def recognize(self, image_path: Path) -> list[OcrRegion]:
-        import numpy as np
-
         with Image.open(image_path) as image:
             rgb_image = image.convert("RGB")
             image_width, image_height = rgb_image.size
             image_array = np.asarray(rgb_image)
 
-        # Manga-OCR was trained to recognize a complete text crop. Running a
-        # detector first on small crops often splits vertical Japanese into
-        # individual characters and destroys its reading order.
-        if self._manga_ocr is not None and max(image_width, image_height) <= 512:
-            text = str(self._manga_ocr(rgb_image)).strip()
-            if text:
-                return [OcrRegion(0, 0, image_width, image_height, text, None)]
-            return []
-
+        detected: list[DetectedRegion] = []
         if self._comic_detector is not None:
             detected = self._detect_with_comic_model(rgb_image)
-            # Large, stylised free text is easily lost when a complete manga
-            # page is resized for the detector. Only pay for the rescue pass
-            # when the normal pass found nothing.
             if not detected:
                 detected = self._detect_with_tiled_comic_model(rgb_image)
-            if not detected:
-                detected = self._detect_with_easyocr(rgb_image)
-        else:
-            detected = self._detect_with_easyocr(rgb_image)
+
+        # Fallback to horizontal/vertical line segmentation if detector found no comic bubbles
+        if not detected:
+            line_boxes = segment_text_lines(image_array)
+            for lx, ly, lw, lh in line_boxes:
+                detected.append(
+                    DetectedRegion(
+                        float(lx),
+                        float(ly),
+                        float(lx + lw),
+                        float(ly + lh),
+                        "",
+                        1.0,
+                    )
+                )
+
+        # If still nothing detected (e.g. single small text snippet), use image bounds
+        if not detected and self._manga_ocr is not None:
+            raw_text = str(self._manga_ocr(rgb_image)).strip()
+            cleaned = clean_manga_ocr_hallucination(raw_text)
+            if cleaned and JAPANESE_PATTERN.search(cleaned):
+                return [OcrRegion(0, 0, image_width, image_height, cleaned, 1.0)]
+            return []
 
         regions: list[OcrRegion] = []
         for detected_region in detected:
@@ -158,13 +239,12 @@ class EasyOcrProvider:
             bottom = detected_region.bottom
             width = detected_region.width
             height = detected_region.height
-            easy_text = detected_region.text
-            cleaned_text = easy_text
-            region_confidence: float | None = detected_region.confidence
+            cleaned_text = detected_region.text
+
             if self._manga_ocr is not None:
                 is_vertical = height > width * 1.25
-                padding_x = max(6, round(width * (0.22 if is_vertical else 0.08)))
-                padding_y = max(6, round(height * (0.08 if is_vertical else 0.18)))
+                padding_x = max(2, round(width * (0.1 if is_vertical else 0.04)))
+                padding_y = max(2, round(height * (0.04 if is_vertical else 0.1)))
                 crop_box = (
                     max(0, round(left) - padding_x),
                     max(0, round(top) - padding_y),
@@ -173,12 +253,12 @@ class EasyOcrProvider:
                 )
                 crop = rgb_image.crop(crop_box)
                 manga_text = str(self._manga_ocr(crop)).strip()
-                cleaned_text = choose_recognized_text(manga_text, easy_text)
-                if cleaned_text == manga_text and JAPANESE_PATTERN.search(manga_text):
-                    # Manga-OCR does not expose a calibrated confidence score.
-                    region_confidence = None
-            if not cleaned_text:
+                cleaned_text = clean_manga_ocr_hallucination(manga_text, detected_region.text)
+
+            # Skip lines with no Japanese characters (e.g. English subtitles)
+            if not cleaned_text or not JAPANESE_PATTERN.search(cleaned_text):
                 continue
+
             regions.append(
                 OcrRegion(
                     x=detected_region.layout_left if detected_region.layout_left is not None else left,
@@ -194,7 +274,7 @@ class EasyOcrProvider:
                         else height
                     ),
                     text=cleaned_text,
-                    confidence=region_confidence,
+                    confidence=detected_region.confidence,
                     source_x=left,
                     source_y=top,
                     source_width=width,

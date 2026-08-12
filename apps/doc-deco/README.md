@@ -12,7 +12,7 @@ Word task pane
   -> FastAPI local :8010
        -> cache SQLite theo document + paragraph + content hash
        -> rule classifier (mặc định, nhanh)
-       -> Ollama Qwen3 1.7B (chỉ đoạn mơ hồ, nếu bật)
+       -> Gemini / LLM (chỉ đoạn mơ hồ, nếu bật)
   -> Style Engine cố định
   -> áp dụng style trực tiếp vào paragraph trong Word
 ```
@@ -46,14 +46,14 @@ Lệnh này cài dependency còn thiếu, chạy FastAPI và Vite HTTPS rồi m�
 Nếu bản Word không có nút upload manifest, có thể sideload qua shared folder
 catalog của Office. Trang demo web vẫn dùng được để kiểm tra classifier.
 
-## Bật model local cho đoạn mơ hồ
+## Bật model cho đoạn mơ hồ
 
-Mặc định DocDeco chạy hoàn toàn bằng rule engine, không cần model. Nếu Ollama đã
-có model `qwen3:1.7b`, đặt biến môi trường trước khi chạy:
+Mặc định DocDeco chạy hoàn toàn bằng rule engine, không cần model. Nếu muốn dùng
+Gemini/LLM phân loại đoạn mơ hồ:
 
 ```powershell
 $env:DOCDECO_MODEL_ENABLED="true"
-$env:DOCDECO_MODEL="qwen3:1.7b"
+$env:DOCDECO_MODEL="gemini-2.5-flash"
 .\ml\scripts\start_docdeco.ps1
 ```
 

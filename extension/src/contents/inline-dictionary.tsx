@@ -1,6 +1,6 @@
 import type { PlasmoCSConfig } from "plasmo";
 import { useEffect, useState, useRef } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Sparkles, Languages, Zap } from "lucide-react";
 import { containsJapanese } from "~lib/japanese";
 import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis, AnkiExportData } from "~types";
 import { DefinitionCard } from "~components/DefinitionCard";
@@ -128,9 +128,6 @@ const InlineDictionary = () => {
         setSentenceMode(mode === "quick" || isDeepPhrase);
         setPhraseMode(isDeepPhrase);
         setTransientMode(Boolean(e.detail.transient));
-        // Dictionary clicks analyze the complete subtitle locally and merely
-        // select the clicked token. This preserves conjugation context and
-        // avoids invoking Qwen for every word.
         analyzeText(
           e.detail.text,
           isDeepPhrase,
@@ -261,7 +258,6 @@ const InlineDictionary = () => {
           sentence: result?.text,
         },
       });
-      // Optionally show a success toast here
     } catch (e) {
       console.error("SRS Add failed", e);
     }
@@ -272,8 +268,8 @@ const InlineDictionary = () => {
   const selectedTokenData =
     result && selectedToken !== null ? result.tokens[selectedToken] : null;
   const phraseTranslation =
-    phraseMode && result
-      ? (result as Partial<PhraseAnalyzeResponse>).translation || ""
+    result && "translation" in result
+      ? String((result as any).translation || "").trim()
       : "";
   const handleTokenSelect = (index: number) => {
     const token = result?.tokens[index];
@@ -288,7 +284,7 @@ const InlineDictionary = () => {
     }
     setSelectedToken(index);
   };
-  const panelWidth = Math.min(480, Math.max(300, window.innerWidth - 24));
+  const panelWidth = Math.min(460, Math.max(320, window.innerWidth - 24));
   const usePlayerOverlay = position.placement === "player-overlay";
   const playerRect = document
     .querySelector("#movie_player")
@@ -296,21 +292,33 @@ const InlineDictionary = () => {
   const playerPanelWidth = playerRect
     ? Math.min(panelWidth, Math.max(340, playerRect.width * 0.42))
     : panelWidth;
+
+  // Position nicely relative to the click coordinates or subtitle bar
   const panelLeft = usePlayerOverlay
     ? Math.max(
-        12,
+        16,
         Math.min(
-          (playerRect?.right ?? window.innerWidth) - playerPanelWidth - 16,
-          window.innerWidth - playerPanelWidth - 12
+          window.innerWidth - playerPanelWidth - 16,
+          position.x > window.innerWidth / 2
+            ? (playerRect?.right ?? window.innerWidth) - playerPanelWidth - 20
+            : Math.max(16, (playerRect?.left ?? 16) + 20)
         )
       )
-    : Math.max(12, Math.min(position.x, window.innerWidth - panelWidth - 12));
+    : Math.max(16, Math.min(position.x, window.innerWidth - panelWidth - 16));
+
   const panelTop = usePlayerOverlay
-    ? Math.max(12, (playerRect?.top ?? 12) + 16)
-    : Math.max(12, Math.min(position.y, Math.max(12, window.innerHeight - 620)));
-  const panelMaxHeight = usePlayerOverlay
-    ? Math.max(260, (playerRect?.height ?? window.innerHeight) - 190)
-    : window.innerHeight - 24;
+    ? Math.max(
+        16,
+        Math.min(
+          window.innerHeight - 480,
+          position.y > 480
+            ? position.y - 450
+            : (playerRect ? Math.max(16, Math.min(window.innerHeight - 480, playerRect.top + 24)) : 24)
+        )
+      )
+    : Math.max(16, Math.min(position.y, Math.max(16, window.innerHeight - 520)));
+
+  const panelMaxHeight = Math.min(window.innerHeight - 32, 540);
 
   return (
     <div
@@ -326,32 +334,30 @@ const InlineDictionary = () => {
         maxHeight: panelMaxHeight,
         minHeight: "auto",
         pointerEvents: "auto",
-        background: "#09090b",
-        color: "#f4f4f5",
-        fontFamily: '"Inter", "Segoe UI", system-ui, -apple-system, sans-serif',
-        fontSize: "14px",
-        lineHeight: 1.5,
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08)",
-        borderRadius: "12px",
-        overflowY: "auto",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
       }}
-      onMouseUp={(e) => e.stopPropagation()} // Prevent selection within closing it immediately
+      onMouseUp={(e) => e.stopPropagation()}
     >
-      <div className="hk-header" style={{ padding: "12px 16px", background: "linear-gradient(135deg, #121214, #18181b)", borderBottom: "1px solid rgba(255,255,255,0.08)", position: "sticky", top: 0, zIndex: 10 }}>
+      {/* Sleek Header */}
+      <div className="hk-header">
         <div className="hk-header__logo">
-          <h1 className="hk-header__title" style={{ fontSize: "14px" }}>
+          <Sparkles size={16} style={{ color: "#c084fc" }} />
+          <h1 className="hk-header__title">
             {sentenceMode
               ? phraseMode
-                ? "Hakkutsu · Phân tích sâu"
-                : "Hakkutsu · Phân tích nhanh"
+                ? "Hakkutsu AI"
+                : "Hakkutsu"
               : "Hakkutsu · Từ điển"}
-            {transientMode && (
-              <span className="hk-header__subtitle" style={{ marginLeft: 8 }}>
-                giữ Ctrl
-              </span>
-            )}
           </h1>
+          {phraseMode ? (
+            <span className="hk-header__badge hk-header__badge--ai">✨ Gemini</span>
+          ) : sentenceMode ? (
+            <span className="hk-header__badge hk-header__badge--fast">⚡ Sudachi</span>
+          ) : null}
+          {transientMode && (
+            <span className="hk-header__subtitle">
+              (giữ Ctrl)
+            </span>
+          )}
         </div>
         <div className="hk-header__actions">
           <button 
@@ -362,45 +368,67 @@ const InlineDictionary = () => {
               setTransientMode(false);
               window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
             }}
+            title="Đóng (Esc)"
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         </div>
       </div>
 
-      <div className="hk-content" style={{ padding: "16px", background: "#09090b" }}>
+      {/* Main Content */}
+      <div className="hk-content">
         {loading && (
-          <div className="hk-loading" style={{ textAlign: "center", padding: "24px 0" }}>
-            <Loader2 className="hk-spin" size={16} style={{ display: "inline-block", marginRight: "8px", color: "var(--hk-accent-primary)" }} />
-            <span style={{ color: "var(--hk-text-muted)", fontSize: "13px" }}>
+          <div className="hk-loading">
+            <Loader2 className="hk-spin" size={20} style={{ color: "#a855f7", margin: "0 auto 8px" }} />
+            <div style={{ color: "#a1a1aa", fontSize: "13px" }}>
               {phraseMode
-                ? "Qwen đang phân tích sâu..."
-                : "Đang phân tích local..."}
-            </span>
+                ? "Gemini đang phân tích sâu..."
+                : "Đang phân tích cú pháp..."}
+            </div>
           </div>
         )}
         
         {error && (
-          <div style={{ padding: "8px 12px", background: "var(--hk-bg-tertiary)", borderLeft: "3px solid var(--hk-accent-crimson)", color: "var(--hk-text-primary)", fontSize: "13px", borderRadius: "4px", marginBottom: "16px" }}>
+          <div className="hk-error-box">
             {error}
           </div>
         )}
         
         {result && !loading && (
           <>
-            <div className="hk-dict-section">
-              <div className="hk-dict-label">
-                CÂU GỐC
-              </div>
-              <div className="hk-original-text">
-                {result.text}
-              </div>
-            </div>
+            {/* Show sentence context when analyzing a phrase/sentence */}
+            {result.tokens.length > 1 && (
+              <div className="hk-dict-section">
+                <div className="hk-dict-label-row">
+                  <span className="hk-dict-label">CÂU GỐC (BẤM TỪ ĐỂ TRA CỤ THỂ)</span>
+                  {sentenceMode && !phraseMode && !transientMode && (
+                    <button
+                      className="hk-btn hk-btn--primary hk-btn--sm"
+                      onClick={() => {
+                        setPhraseMode(true);
+                        analyzeText(inputText, true, true);
+                      }}
+                      style={{ padding: "3px 8px", fontSize: "11px" }}
+                    >
+                      <Sparkles size={12} /> AI phân tích sâu
+                    </button>
+                  )}
+                </div>
 
+                <TokenDisplay
+                  tokens={result.tokens}
+                  selectedIndex={selectedToken}
+                  onSelect={handleTokenSelect}
+                />
+              </div>
+            )}
+
+            {/* Vietnamese sentence translation */}
             {phraseTranslation && (
               <div className="hk-dict-section hk-dict-section--highlight">
-                <div className="hk-dict-label" style={{ color: "var(--hk-accent-teal)" }}>
-                  BẢN DỊCH
+                <div className="hk-dict-label" style={{ color: "#14b8a6" }}>
+                  <Languages size={12} style={{ display: "inline-block", marginRight: "4px" }} />
+                  BẢN DỊCH TIẾNG VIỆT
                 </div>
                 <div className="hk-translation-text">
                   {phraseTranslation}
@@ -408,45 +436,8 @@ const InlineDictionary = () => {
               </div>
             )}
 
-            {sentenceMode && !phraseMode && (
-              <div className="hk-dict-footer">
-                <span style={{ fontSize: "12px", color: "var(--hk-text-muted)" }}>
-                  ⚡ Sudachi local · {transientMode ? "thả Ctrl để đóng" : "chưa gọi Qwen"}
-                </span>
-                {!transientMode && (
-                  <button
-                    className="hk-btn hk-btn--primary hk-btn--sm"
-                    onClick={() => {
-                      setPhraseMode(true);
-                      analyzeText(inputText, true, true);
-                    }}
-                  >
-                    AI phân tích sâu
-                  </button>
-                )}
-              </div>
-            )}
-
-            <TokenDisplay
-              tokens={result.tokens}
-              selectedIndex={selectedToken}
-              onSelect={handleTokenSelect}
-            />
-
-            {sentenceMode && result.tokens.some((token) => token.grammar_note_vi) && (
-              <div className="hk-dict-section" style={{ borderLeft: "3px solid var(--hk-jlpt-n3)" }}>
-                <div className="hk-dict-label" style={{ color: "var(--hk-jlpt-n3)" }}>
-                  BIẾN ĐỔI TRONG CÂU
-                </div>
-                {result.tokens.filter((token) => token.grammar_note_vi).map((token, index) => (
-                  <div key={`${token.surface}-${index}`} style={{ fontSize: "13px", color: "var(--hk-text-primary)", marginBottom: "4px" }}>
-                    {token.grammar_note_vi}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div style={{ marginTop: "16px" }}>
+            {/* Selected Token Definition Card */}
+            <div>
               {selectedTokenData && selectedTokenData.is_japanese ? (
                 <DefinitionCard
                   token={selectedTokenData}
@@ -459,13 +450,16 @@ const InlineDictionary = () => {
               ) : (
                 <div className="hk-empty">
                   <p className="hk-empty__text">
-                    {transientMode ? "Rê chuột qua một từ trong phụ đề để xem chi tiết." : "Chọn một từ tiếng Nhật để xem nghĩa."}
+                    {transientMode
+                      ? "Rê chuột qua một từ trong phụ đề để xem chi tiết."
+                      : "Chọn một từ tiếng Nhật trong câu để tra từ điển."}
                   </p>
                 </div>
               )}
             </div>
 
-            {sentenceMode && result.grammar_patterns && (
+            {/* Grammar Patterns */}
+            {result.grammar_patterns && result.grammar_patterns.length > 0 && (
               <GrammarExplanations patterns={result.grammar_patterns} />
             )}
           </>

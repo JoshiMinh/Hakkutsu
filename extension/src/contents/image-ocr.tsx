@@ -1,6 +1,6 @@
 import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useCallback } from "react";
-import { Scan, X } from "lucide-react";
+import { Scan, Paintbrush, X, Layers, Download, Copy, Check, Sparkles, RefreshCw, Languages, AlertCircle } from "lucide-react";
 import type { TokenAnalysis } from "~types";
 import cssText from "data-text:~style.css";
 
@@ -12,124 +12,108 @@ export const config: PlasmoCSConfig = {
 export const getStyle: PlasmoGetStyle = () => {
   const style = document.createElement("style");
   style.textContent = cssText + `
-    .hk-image-analyze-btn {
+    .hk-image-actions-bar {
       position: absolute;
       top: 8px;
       right: 8px;
       z-index: 2147483646;
-      background: var(--hk-bg-glass);
-      border: 1px solid var(--hk-border);
-      color: var(--hk-text-primary);
-      padding: 4px 10px;
-      border-radius: var(--hk-radius-sm);
-      font-size: var(--hk-text-sm);
-      font-weight: 600;
-      font-family: var(--hk-font-sans);
-      cursor: pointer;
-      backdrop-filter: blur(4px);
-      box-shadow: var(--hk-shadow-sm);
-      transition: all var(--hk-transition-fast);
+      display: flex;
+      gap: 6px;
       opacity: 0;
       pointer-events: none;
-      display: flex;
-      align-items: center;
-      gap: 4px;
+      transition: all 0.2s ease;
     }
     
-    .hk-image-container:hover .hk-image-analyze-btn {
+    .hk-image-container:hover .hk-image-actions-bar {
       opacity: 1;
       pointer-events: auto;
     }
     
-    .hk-image-analyze-btn:hover {
-      background: var(--hk-bg-hover);
-      border-color: var(--hk-border-focus);
+    .hk-img-btn {
+      background: rgba(18, 18, 20, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fafafa;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--hk-font-sans, system-ui, sans-serif);
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .hk-img-btn:hover {
+      background: #27272a;
+      border-color: rgba(255, 255, 255, 0.4);
       transform: translateY(-1px);
+      color: #c084fc;
     }
     
-    .hk-image-analyze-btn:active {
-      transform: translateY(0);
+    .hk-img-btn--primary {
+      background: #9333ea;
+      border-color: #a855f7;
     }
     
+    .hk-img-btn--primary:hover {
+      background: #a855f7;
+      color: #fff;
+    }
+
     .hk-ocr-result-panel {
-      position: absolute;
-      background: var(--hk-bg-primary);
-      border: 1px solid var(--hk-border);
-      border-radius: var(--hk-radius-md);
-      padding: 12px 16px 16px;
-      color: var(--hk-text-primary);
-      font-family: var(--hk-font-jp);
-      box-shadow: var(--hk-shadow-lg);
+      position: fixed;
+      background: #121214;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #f4f4f5;
+      font-family: var(--hk-font-sans, system-ui, sans-serif);
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
       z-index: 2147483647;
-      min-width: 200px;
-      max-width: 320px;
+      width: 400px;
+      max-width: calc(100vw - 32px);
       cursor: default;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
     
     .hk-ocr-result-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
-      font-size: var(--hk-text-xs);
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 13px;
       font-weight: 600;
-      color: var(--hk-text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    
-    .hk-ocr-result-close {
-      background: transparent;
-      border: none;
-      color: var(--hk-text-muted);
-      cursor: pointer;
-      font-size: var(--hk-text-base);
-      padding: 2px 4px;
-      border-radius: 4px;
-      line-height: 1;
-    }
-    
-    .hk-ocr-result-close:hover {
-      color: var(--hk-text-primary);
-      background: var(--hk-bg-hover);
     }
     
     .hk-ocr-text {
-      font-size: var(--hk-text-lg);
+      font-family: var(--hk-font-jp, "Noto Sans JP", sans-serif);
+      font-size: 15px;
       line-height: 1.6;
+      background: #18181b;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      word-break: break-word;
     }
     
     .hk-ocr-token {
       cursor: pointer;
       display: inline-block;
-      padding: 0 1px;
+      padding: 1px 2px;
       border-radius: 4px;
       transition: background 0.15s;
     }
     
     .hk-ocr-token:hover {
-      background: rgba(255, 255, 255, 0.15);
-    }
-    
-    .hk-ocr-loading {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: #a1a1aa;
-    }
-    
-    .hk-ocr-spinner {
-      width: 14px;
-      height: 14px;
-      border: 2px solid rgba(255,255,255,0.2);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: hk-ocr-spin 1s linear infinite;
-    }
-    
-    @keyframes hk-ocr-spin {
-      to { transform: rotate(360deg); }
+      background: rgba(168, 85, 247, 0.3);
+      color: #f3e8ff;
     }
   `;
   return style;
@@ -138,16 +122,28 @@ export const getStyle: PlasmoGetStyle = () => {
 const ImageOcr = () => {
   const [images, setImages] = useState<HTMLImageElement[]>([]);
   const [activeImage, setActiveImage] = useState<HTMLImageElement | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [ocrResult, setOcrResult] = useState<{ text: string; tokens: TokenAnalysis[] | null } | null>(null);
-  const [resultPosition, setResultPosition] = useState<{ x: number; y: number } | null>(null);
+  const [inpaintLoading, setInpaintLoading] = useState(false);
+  const [transLoading, setTransLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [ocrText, setOcrText] = useState<string>("");
+  const [tokens, setTokens] = useState<TokenAnalysis[] | null>(null);
+  const [translation, setTranslation] = useState<string>("");
+  const [inpaintedUrl, setInpaintedUrl] = useState<string | null>(null);
+  const [typesetUrl, setTypesetUrl] = useState<string | null>(null);
+  // 0 = typeset (translated), 1 = clean (inpainted), 2 = original
+  const [imageView, setImageView] = useState<0 | 1 | 2>(0);
+  const [resultPosition, setResultPosition] = useState<{ x: number; y: number }>({ x: 20, y: 20 });
+  const [activeTab, setActiveTab] = useState<"ocr" | "inpaint">("ocr");
+  const [copied, setCopied] = useState(false);
 
-  // 1. Detect Images
+  // Detect Images
   useEffect(() => {
     const findImages = () => {
       const imgs = Array.from(document.querySelectorAll("img")).filter(img => {
         const rect = img.getBoundingClientRect();
-        return rect.width >= 100 && rect.height >= 100;
+        return rect.width >= 80 && rect.height >= 80;
       });
       setImages(imgs);
     };
@@ -166,7 +162,6 @@ const ImageOcr = () => {
     });
     
     observer.observe(document.body, { childList: true, subtree: true });
-    
     window.addEventListener("resize", findImages);
     return () => {
       observer.disconnect();
@@ -178,7 +173,7 @@ const ImageOcr = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setOcrResult(null);
+        setIsOpen(false);
         setActiveImage(null);
       }
     };
@@ -186,80 +181,192 @@ const ImageOcr = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  const getImageDataUrl = async (img: HTMLImageElement): Promise<string> => {
+    // Strategy 1: Try local direct canvas
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      return canvas.toDataURL("image/png");
+    } catch {
+      // Canvas was tainted (cross-origin image)
+    }
+
+    // Strategy 2: Try fetching via extension background
+    try {
+      const fetchResult = await new Promise<any>((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: "FETCH_IMAGE", payload: { url: img.src || img.currentSrc } }, (res) => {
+          if (res?.type === "ERROR") reject(new Error(res.payload.error));
+          else resolve(res?.payload);
+        });
+      });
+      if (fetchResult?.dataUrl) {
+        return fetchResult.dataUrl;
+      }
+    } catch {
+      // Background fetch failed (e.g. 403 referrer protection)
+    }
+
+    // Strategy 3 (Guaranteed Fallback): Screen capture crop of visible image
+    return new Promise<string>((resolve, reject) => {
+      chrome.runtime.sendMessage({ type: "CAPTURE_SCREENSHOT" }, async (res) => {
+        if (res?.type !== "SCREENSHOT_RESULT" || !res.payload?.dataUrl) {
+          return reject(new Error("Không thể chụp ảnh màn hình"));
+        }
+        try {
+          const rect = img.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          const bgImg = new Image();
+          bgImg.src = res.payload.dataUrl;
+          await new Promise(r => bgImg.onload = r);
+
+          const canvas = document.createElement("canvas");
+          const cropX = Math.max(0, rect.left * dpr);
+          const cropY = Math.max(0, rect.top * dpr);
+          const cropW = Math.min(bgImg.width - cropX, rect.width * dpr);
+          const cropH = Math.min(bgImg.height - cropY, rect.height * dpr);
+
+          canvas.width = cropW;
+          canvas.height = cropH;
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(bgImg, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+          resolve(canvas.toDataURL("image/png"));
+        } catch (cErr) {
+          reject(cErr);
+        }
+      });
+    });
+  };
+
+  const calculateOptimalPosition = (rect: DOMRect) => {
+    const panelWidth = 400;
+    const panelHeight = 350;
+    let x = rect.right + 16;
+    let y = rect.top;
+
+    // If overflowing right edge, place on the left or top-left of image
+    if (x + panelWidth > window.innerWidth - 16) {
+      if (rect.left - panelWidth - 16 > 16) {
+        x = rect.left - panelWidth - 16;
+      } else {
+        x = Math.max(16, window.innerWidth - panelWidth - 16);
+      }
+    }
+    // Clamp Y inside viewport
+    y = Math.max(16, Math.min(window.innerHeight - panelHeight - 16, y));
+    return { x, y };
+  };
+
   const handleAnalyze = async (img: HTMLImageElement, e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     
     setActiveImage(img);
-    setOcrResult(null);
+    setIsOpen(true);
+    setOcrText("");
+    setTranslation("");
+    setTokens(null);
+    setInpaintedUrl(null);
+    setError(null);
+    setActiveTab("ocr");
     setLoading(true);
 
     const rect = img.getBoundingClientRect();
-    setResultPosition({
-      x: rect.right + 16,
-      y: rect.top
-    });
+    setResultPosition(calculateOptimalPosition(rect));
 
     try {
-      let dataUrl: string;
-      try {
-        // Create a canvas to extract image data safely
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth || img.width;
-        canvas.height = img.naturalHeight || img.height;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0);
-        dataUrl = canvas.toDataURL("image/png");
-      } catch (e) {
-        // Fallback for tainted canvas (cross-origin images)
-        const fetchResult = await new Promise<any>((resolve, reject) => {
-          chrome.runtime.sendMessage({ type: "FETCH_IMAGE", payload: { url: img.src } }, (res) => {
-            if (res.type === "ERROR") reject(new Error(res.payload.error));
-            else resolve(res.payload);
-          });
-        });
-        dataUrl = fetchResult.dataUrl;
-      }
-
+      const dataUrl = await getImageDataUrl(img);
       const settingsResult = await new Promise<any>(resolve => {
-        chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => resolve(res.payload));
+        chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => resolve(res?.payload));
       });
-      const baseUrl = settingsResult.backendUrl || "http://localhost:8000";
+      const baseUrl = settingsResult?.backendUrl || "http://localhost:8000";
       
       const res = await fetch(`${baseUrl}/api/v1/ocr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image_data: dataUrl,
-          language: "jpn"
-        })
+        body: JSON.stringify({ image_data: dataUrl, language: "jpn" })
       });
       
-      if (!res.ok) throw new Error("OCR failed");
+      if (!res.ok) throw new Error(`Lỗi máy chủ OCR (${res.status})`);
       const data = await res.json();
+      const text = data.full_text || "";
       
-      if (data.full_text) {
-        const analyzeMsg = await new Promise<any>(resolve => {
-          chrome.runtime.sendMessage({ 
-            type: "ANALYZE_TEXT", 
-            payload: { text: data.full_text, include_definitions: false } 
-          }, resolve);
-        });
-
-        let tokens = null;
-        if (analyzeMsg?.type === "ANALYZE_RESULT") {
-          tokens = analyzeMsg.payload.tokens;
-        }
-
-        setOcrResult({ text: data.full_text, tokens });
+      if (!text) {
+        setOcrText("Không tìm thấy văn bản tiếng Nhật trong ảnh này.");
       } else {
-        setOcrResult({ text: "Không tìm thấy văn bản", tokens: null });
+        setOcrText(text);
+        setTokens(data.tokens || null);
+
+        // Fetch translation
+        setTransLoading(true);
+        try {
+          const transRes = await fetch(`${baseUrl}/api/v1/translate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ texts: [text], page_url: window.location.href, page_title: document.title })
+          });
+          if (transRes.ok) {
+            const transData = await transRes.json();
+            setTranslation(transData.translations?.[0] || transData.items?.[0]?.translation || "");
+          }
+        } catch (tErr) {
+          console.error("Translation error", tErr);
+        } finally {
+          setTransLoading(false);
+        }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setOcrResult({ text: "Lỗi khi quét ảnh", tokens: null });
+      setError(err?.message || "Lỗi khi quét ảnh");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleInpaint = async (img: HTMLImageElement, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    setActiveImage(img);
+    setIsOpen(true);
+    setActiveTab("inpaint");
+    setInpaintLoading(true);
+    setInpaintedUrl(null);
+    setTranslation("");
+    setError(null);
+
+    const rect = img.getBoundingClientRect();
+    setResultPosition(calculateOptimalPosition(rect));
+
+    try {
+      const dataUrl = await getImageDataUrl(img);
+      const settingsResult = await new Promise<any>(resolve => {
+        chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => resolve(res?.payload));
+      });
+      const baseUrl = settingsResult?.backendUrl || "http://localhost:8000";
+
+      const res = await fetch(`${baseUrl}/api/v1/inpaint`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_data: dataUrl, translate: true })
+      });
+
+      if (!res.ok) throw new Error(`Lỗi máy chủ inpaint (${res.status})`);
+      const data = await res.json();
+      setInpaintedUrl(data.inpainted_image || null);
+      setTypesetUrl(data.typeset_image || data.inpainted_image || null);
+      // Default view: typeset if translation available, else clean
+      setImageView(data.typeset_image && data.translation ? 0 : 1);
+      if (data.original_text) setOcrText(data.original_text);
+      if (data.tokens) setTokens(data.tokens);
+      if (data.translation) setTranslation(data.translation);
+    } catch (err: any) {
+      console.error("Direct inpaint error:", err);
+      setError(err?.message || "Lỗi khi chạy mạng nơ-ron xóa chữ");
+    } finally {
+      setInpaintLoading(false);
     }
   };
 
@@ -276,27 +383,20 @@ const ImageOcr = () => {
         },
       })
     );
+  };
 
-    chrome.runtime.sendMessage({
-      type: "TEXT_SELECTED",
-      payload: {
-        text: token.dictionary_form || token.surface,
-        context: ocrResult?.text,
-        x: e.clientX,
-        y: e.clientY,
-        sourceUrl: window.location.href,
-      },
-    }).catch(() => {});
+  const handleCopy = () => {
+    if (!ocrText) return;
+    navigator.clipboard.writeText(ocrText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   return (
     <>
       {images.map((img, i) => {
         const rect = img.getBoundingClientRect();
-        // Ignore images that are not visible
-        if (rect.width === 0 || rect.height === 0 || rect.bottom < 0 || rect.top > window.innerHeight) {
-          return null;
-        }
+        if (rect.width < 60 || rect.height < 60) return null;
         
         return (
           <div 
@@ -308,39 +408,51 @@ const ImageOcr = () => {
               left: rect.left + window.scrollX,
               width: rect.width,
               height: rect.height,
-              pointerEvents: 'none', // Let clicks pass through to the image
+              pointerEvents: 'none',
               zIndex: 2147483645
             }}
           >
-            <button 
-              className="hk-image-analyze-btn"
-              style={{ pointerEvents: 'auto' }}
-              onClick={(e) => handleAnalyze(img, e)}
-              title="Quét chữ trong ảnh"
-            >
-              <Scan size={14} style={{ marginRight: 6 }} /> Analyze
-            </button>
+            <div className="hk-image-actions-bar">
+              <button 
+                className="hk-img-btn"
+                style={{ pointerEvents: 'auto' }}
+                onClick={(e) => handleAnalyze(img, e)}
+                title="Quét chữ & dịch nghĩa"
+              >
+                <Languages size={14} /> Dịch
+              </button>
+              <button 
+                className="hk-img-btn hk-img-btn--primary"
+                style={{ pointerEvents: 'auto' }}
+                onClick={(e) => handleInpaint(img, e)}
+                title="Xóa chữ bằng LaMa AI"
+              >
+                <Paintbrush size={14} /> Xóa chữ
+              </button>
+            </div>
           </div>
         );
       })}
 
-      {(loading || ocrResult) && activeImage && resultPosition && (
+      {isOpen && activeImage && (
         <div 
           className="hk-ocr-result-panel"
           style={{
-            // Adjust position so it doesn't overflow screen
-            left: Math.min(resultPosition.x, window.innerWidth - 340),
-            top: Math.max(16, Math.min(resultPosition.y, window.innerHeight - 200)),
-            position: 'fixed'
+            left: resultPosition.x,
+            top: resultPosition.y,
           }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="hk-ocr-result-header">
-            <span>OCR Result</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <Sparkles size={15} color="#c084fc" />
+              <span>{activeTab === "inpaint" ? "Khôi phục tranh (Inpaint)" : "Nhận diện & Dịch"}</span>
+            </div>
             <button 
-              className="hk-ocr-result-close"
+              className="hk-btn hk-btn--ghost"
+              style={{ padding: "2px 4px", border: "none", background: "transparent", color: "#a1a1aa", cursor: "pointer" }}
               onClick={() => {
-                setOcrResult(null);
+                setIsOpen(false);
                 setActiveImage(null);
               }}
             >
@@ -348,27 +460,103 @@ const ImageOcr = () => {
             </button>
           </div>
           
-          {loading ? (
-            <div className="hk-ocr-loading">
-              <div className="hk-ocr-spinner" />
-              Đang phân tích ảnh...
+          {loading || inpaintLoading ? (
+            <div style={{ textAlign: "center", padding: "28px 0", color: "#a1a1aa" }}>
+              <RefreshCw size={24} className="hk-spin" style={{ color: "#a855f7", margin: "0 auto 8px" }} />
+              <div>{inpaintLoading ? "Đang chạy mạng nơ-ron xóa chữ..." : "Đang nhận diện ký tự tiếng Nhật..."}</div>
+            </div>
+          ) : error ? (
+            <div style={{ padding: "16px 0", color: "#f87171", display: "flex", alignItems: "center", gap: "8px" }}>
+              <AlertCircle size={20} />
+              <span>{error}</span>
             </div>
           ) : (
-            <div className="hk-ocr-text">
-              {ocrResult?.tokens ? (
-                ocrResult.tokens.map((token, i) => (
-                  <span 
-                    key={i} 
-                    className="hk-ocr-token"
-                    onClick={(e) => handleTokenClick(token, e)}
-                  >
-                    {token.surface}
-                  </span>
-                ))
-              ) : (
-                ocrResult?.text
+            <>
+              {activeTab === "inpaint" && (inpaintedUrl || typesetUrl) && (
+                <div style={{ position: "relative", borderRadius: "8px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", background: "#09090b" }}>
+                  <img
+                    src={
+                      imageView === 0 ? (typesetUrl ?? inpaintedUrl ?? activeImage.src)
+                      : imageView === 1 ? (inpaintedUrl ?? activeImage.src)
+                      : activeImage.src
+                    }
+                    alt="Result"
+                    style={{ width: "100%", maxHeight: "240px", objectFit: "contain", display: "block" }}
+                  />
+                  {/* View label badge */}
+                  <div style={{ position: "absolute", top: "8px", left: "8px", background: "rgba(9,9,11,0.82)", backdropFilter: "blur(6px)", borderRadius: "6px", padding: "3px 8px", fontSize: "11px", fontWeight: 600, color: imageView === 0 ? "#14b8a6" : imageView === 1 ? "#a855f7" : "#71717a" }}>
+                    {imageView === 0 ? "🇻🇳 Bản dịch" : imageView === 1 ? "✨ Ảnh sạch" : "📷 Ảnh gốc"}
+                  </div>
+                  <div style={{ position: "absolute", bottom: "8px", right: "8px", display: "flex", gap: "6px" }}>
+                    <button
+                      className="hk-img-btn"
+                      style={{ fontSize: "11px", padding: "4px 8px" }}
+                      onClick={() => setImageView(((imageView + 1) % 3) as 0 | 1 | 2)}
+                      title="Chuyển đổi: Bản dịch → Ảnh sạch → Ảnh gốc"
+                    >
+                      <Layers size={12} />
+                      {imageView === 0 ? "Xem ảnh sạch" : imageView === 1 ? "Xem ảnh gốc" : "Xem bản dịch"}
+                    </button>
+                    <button
+                      className="hk-img-btn"
+                      style={{ fontSize: "11px", padding: "4px 8px" }}
+                      onClick={() => {
+                        const a = document.createElement("a");
+                        a.href = imageView === 0 ? (typesetUrl ?? inpaintedUrl ?? "") : (inpaintedUrl ?? "");
+                        a.download = `hakkutsu-${imageView === 0 ? "typeset" : "clean"}-${Date.now()}.png`;
+                        a.click();
+                      }}
+                    >
+                      <Download size={12} /> Tải ảnh
+                    </button>
+                  </div>
+                </div>
               )}
-            </div>
+
+              {ocrText && (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#a1a1aa", textTransform: "uppercase" }}>Văn bản gốc</span>
+                    <button 
+                      className="hk-img-btn" 
+                      style={{ padding: "2px 6px", fontSize: "11px" }}
+                      onClick={handleCopy}
+                    >
+                      {copied ? <Check size={12} color="#4ade80" /> : <Copy size={12} />}
+                      {copied ? "Đã chép" : "Chép"}
+                    </button>
+                  </div>
+                  <div className="hk-ocr-text">
+                    {tokens && tokens.length > 0 ? (
+                      tokens.map((token, i) => (
+                        <span 
+                          key={i} 
+                          className="hk-ocr-token"
+                          onClick={(e) => handleTokenClick(token, e)}
+                          title={typeof token.reading === "string" ? token.reading : (token.reading?.hiragana || token.surface)}
+                        >
+                          {token.surface}
+                        </span>
+                      ))
+                    ) : (
+                      ocrText
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {transLoading ? (
+                <div style={{ background: "rgba(20, 184, 166, 0.1)", borderLeft: "3px solid #14b8a6", padding: "8px 12px", borderRadius: "6px", fontSize: "13px", color: "#ccfbf1", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <RefreshCw size={13} className="hk-spin" />
+                  <span>Đang dịch với Gemini...</span>
+                </div>
+              ) : translation ? (
+                <div style={{ background: "rgba(20, 184, 166, 0.1)", borderLeft: "3px solid #14b8a6", padding: "8px 12px", borderRadius: "6px", fontSize: "13px", color: "#ccfbf1" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 600, color: "#14b8a6", marginBottom: "2px" }}>BẢN DỊCH</div>
+                  {translation}
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       )}

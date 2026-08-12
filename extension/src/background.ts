@@ -285,12 +285,17 @@ async function handleMessage(
     case "ANALYZE_TEXT": {
       const request = message.payload as AnalyzeRequest;
       try {
-        const result = await analyzeLocal(request.text);
+        const result = await apiClient.analyzeJavi(request);
         return { type: "ANALYZE_RESULT", payload: result };
-      } catch (err) {
-        console.warn("Local analysis failed, falling back to Jisho API for", request.text, err);
-        const fallbackResult = await fetchFromJisho(request.text);
-        return { type: "ANALYZE_RESULT", payload: fallbackResult };
+      } catch {
+        try {
+          const result = await apiClient.analyzeText(request);
+          return { type: "ANALYZE_RESULT", payload: result };
+        } catch (err) {
+          console.warn("Backend analysis failed, falling back to local for", request.text, err);
+          const fallbackResult = await analyzeLocal(request.text);
+          return { type: "ANALYZE_RESULT", payload: fallbackResult };
+        }
       }
     }
 
@@ -483,6 +488,89 @@ async function handleMessage(
       } catch (err: any) {
         throw new Error(`Failed to fetch image: ${err.message || err}`);
       }
+    }
+
+    case "TRANSLATE_TEXT": {
+      const { texts } = message.payload as { texts: string[] };
+      const settings = await getSettings();
+      const baseUrl = settings.backendUrl || "http://localhost:8000";
+
+      // 1. Try local backend first
+      try {
+        const res = await fetch(`${baseUrl}/api/v1/translate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ texts, page_url: "", page_title: "" }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return { type: "TRANSLATE_RESULT", payload: data };
+        }
+      } catch (err) {
+        console.warn("Backend translate failed, falling back to Google Translate", err);
+      }
+
+      // 2. Infallible fallback: Free Google Translate
+      const translations = await Promise.all(
+        texts.map(async (t) => {
+          try {
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=vi&dt=t&q=${encodeURIComponent(t.trim())}`;
+            const res = await fetch(url);
+            if (res.ok) {
+              const data = await res.json();
+              if (Array.isArray(data) && data[0]) {
+                return data[0].map((item: any) => item[0]).filter(Boolean).join("");
+              }
+            }
+          } catch {
+            // ignore
+          }
+          return "";
+        })
+      );
+
+      return {
+        type: "TRANSLATE_RESULT",
+        payload: {
+          source_language: "ja",
+          target_language: "vi",
+          translations,
+          items: texts.map((t, idx) => ({
+            index: idx,
+            source: t,
+            translation: translations[idx] || "",
+            tokens: [],
+          })),
+        },
+      };
+    }
+
+    case "OCR_IMAGE": {
+      const { image_data, language } = message.payload as { image_data: string; language?: string };
+      const settings = await getSettings();
+      const baseUrl = settings.backendUrl || "http://localhost:8000";
+      const res = await fetch(`${baseUrl}/api/v1/ocr`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_data, language: language || "jpn" }),
+      });
+      if (!res.ok) throw new Error(`Lỗi máy chủ OCR (${res.status})`);
+      const data = await res.json();
+      return { type: "OCR_RESULT", payload: data };
+    }
+
+    case "INPAINT_IMAGE": {
+      const { image_data, translate } = message.payload as { image_data: string; translate?: boolean };
+      const settings = await getSettings();
+      const baseUrl = settings.backendUrl || "http://localhost:8000";
+      const res = await fetch(`${baseUrl}/api/v1/inpaint`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_data, translate: translate ?? true }),
+      });
+      if (!res.ok) throw new Error(`Lỗi máy chủ inpaint (${res.status})`);
+      const data = await res.json();
+      return { type: "INPAINT_RESULT", payload: data };
     }
 
     case "OPEN_APP": {

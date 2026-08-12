@@ -65,6 +65,12 @@ class ImageOcrRequest(BaseModel):
     language: str = Field(default="jpn")
 
 
+class ImageInpaintRequest(BaseModel):
+    image_data: str = Field(min_length=10)
+    translate: bool = Field(default=True)
+    mask_data: str | None = None
+
+
 class OcrRequest(BaseModel):
     replace_existing: bool = False
 

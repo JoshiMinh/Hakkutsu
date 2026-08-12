@@ -76,6 +76,12 @@ export type MessageType =
   | "FETCH_IMAGE_RESULT"
   | "OPEN_APP"
   | "OPEN_APP_RESULT"
+  | "TRANSLATE_TEXT"
+  | "TRANSLATE_RESULT"
+  | "OCR_IMAGE"
+  | "OCR_RESULT"
+  | "INPAINT_IMAGE"
+  | "INPAINT_RESULT"
   | "IGNORED"
   | "ERROR";
 

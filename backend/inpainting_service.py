@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -472,18 +472,35 @@ def inpaint_text_regions(
 def _has_complex_background(
     rgb_image: np.ndarray,
     box: tuple[float, float, float, float],
+    mask: np.ndarray | None = None,
 ) -> bool:
     x, y, width, height = box
     image_height, image_width = rgb_image.shape[:2]
-    left = max(0, int(x))
-    top = max(0, int(y))
+    left = max(0, int(np.floor(x)))
+    top = max(0, int(np.floor(y)))
     right = min(image_width, int(np.ceil(x + width)))
     bottom = min(image_height, int(np.ceil(y + height)))
     if right <= left or bottom <= top:
         return False
-    gray = cv2.cvtColor(rgb_image[top:bottom, left:right], cv2.COLOR_RGB2GRAY)
-    edge_density = float(np.mean(cv2.Canny(gray, 70, 160) > 0))
-    return float(gray.std()) >= 38 and edge_density >= 0.075
+    crop = rgb_image[top:bottom, left:right]
+    gray = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
+
+    # Check background variance outside the text strokes
+    if mask is not None:
+        local_mask = mask[top:bottom, left:right] > 0
+        bg_pixels = gray[~local_mask]
+        if bg_pixels.size >= 16:
+            return float(bg_pixels.std()) >= 28
+
+    # If no mask or sparse background, check border ring pixels
+    border_size = max(1, min(gray.shape) // 10)
+    border_pixels = np.concatenate([
+        gray[:border_size, :].ravel(),
+        gray[-border_size:, :].ravel(),
+        gray[:, :border_size].ravel(),
+        gray[:, -border_size:].ravel(),
+    ])
+    return float(border_pixels.std()) >= 28
 
 
 def _expand_ctd_outline_mask(
@@ -552,56 +569,60 @@ def inpaint_text_regions_hybrid(
         str(meta.get("mask_strategy") or "") == "aggressive"
         for meta in block_metadata
     )
-    use_lama = lama_available() and any(
-        str(meta.get("text_kind") or "") == "sfx"
-        or float(meta.get("sfx_score") or 0) >= 0.6
-        or str(meta.get("mask_strategy") or "") in {"aggressive", "review"}
-        or _has_complex_background(rgb_image, box)
-        for box, meta in zip(boxes, block_metadata)
-    )
     mask, mask_source = create_primary_text_mask(
         rgb_image,
         boxes,
-        aggressive_fallback=use_lama,
+        aggressive_fallback=True,
     )
     if not np.any(mask):
         raise RuntimeError("Không tạo được mask nét chữ; ảnh gốc được giữ nguyên")
 
-    if not use_lama:
-        cleaned, mask = inpaint_text_regions(rgb_image, boxes, mask=mask)
-        validate_text_mask_safety(mask, boxes)
-        return cleaned, mask, f"telea_{mask_source}"
-
+    is_learned = mask_source.startswith("ctd")
     mask_was_shrunk = False
-    if mask_source.startswith("ctd"):
+    if is_learned:
         mask = _expand_ctd_outline_mask(mask, boxes, iterations=5 if aggressive_visual else 3)
-        validate_text_mask_safety(mask, boxes, learned_mask=True)
     else:
         mask, mask_was_shrunk = shrink_unsafe_text_mask(mask, boxes)
-        validate_text_mask_safety(mask, boxes)
+
+    validate_text_mask_safety(mask, boxes, learned_mask=is_learned)
+
+    use_lama = lama_available() and any(
+        str(meta.get("text_kind") or "") == "sfx"
+        or float(meta.get("sfx_score") or 0) >= 0.6
+        or str(meta.get("mask_strategy") or "") in {"aggressive", "review"}
+        or _has_complex_background(rgb_image, box, mask)
+        for box, meta in zip(boxes, block_metadata)
+    )
+
     suffix = "_mask_co" if mask_was_shrunk else ""
     visual_suffix = "_visual_aggressive" if aggressive_visual else ""
     lama_failure = ""
-    try:
-        lama_result = lama_inpaint(rgb_image, mask)
-        lama_quality = evaluate_inpainting_result(rgb_image, lama_result, mask, boxes)
-        if lama_quality["acceptable"]:
-            return lama_result, mask, f"lama_{mask_source}{visual_suffix}{suffix}_qa"
-        lama_failure = "; ".join(lama_quality["reasons"])
-    except Exception as exc:
-        lama_failure = str(exc).strip() or exc.__class__.__name__
 
-    # Keep the one-click flow alive if LaMa/CUDA or its visual result fails,
-    # but reuse the same narrow glyph mask. Never silently persist a fallback
-    # that creates the same black/white blob.
+    if use_lama:
+        try:
+            lama_result = lama_inpaint(rgb_image, mask)
+            lama_quality = evaluate_inpainting_result(rgb_image, lama_result, mask, boxes)
+            if lama_quality["acceptable"]:
+                return lama_result, mask, f"lama_{mask_source}{visual_suffix}{suffix}_qa"
+            lama_failure = "; ".join(lama_quality["reasons"])
+        except Exception as exc:
+            lama_failure = str(exc).strip() or exc.__class__.__name__
+
+    # Telea inpainting (default for flat backgrounds, or fallback when LaMa fails QA)
     telea_result, fallback_mask = inpaint_text_regions(rgb_image, boxes, mask=mask)
     telea_quality = evaluate_inpainting_result(rgb_image, telea_result, fallback_mask, boxes)
     if telea_quality["acceptable"]:
-        return telea_result, fallback_mask, f"telea_{mask_source}_quality_fallback"
+        engine_name = (
+            f"lama_{mask_source}_telea_qa_fallback"
+            if (use_lama and lama_failure)
+            else f"telea_{mask_source}"
+        )
+        return telea_result, fallback_mask, engine_name
+
     fallback_failure = "; ".join(telea_quality["reasons"])
     raise InpaintingQualityError(
         "Hậu kiểm đã từ chối kết quả xóa để tránh lưu mảng hỏng. "
-        f"LaMa: {lama_failure or 'không đạt'}; Telea: {fallback_failure or 'không đạt'}. "
+        f"LaMa: {lama_failure or 'không áp dụng'}; Telea: {fallback_failure or 'không đạt'}. "
         "Ảnh sạch cũ được giữ nguyên."
     )
 

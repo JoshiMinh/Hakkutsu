@@ -35,7 +35,7 @@ def health() -> dict:
     return {
         "status": "ok", "service": "docdeco",
         "model_enabled": os.getenv("DOCDECO_MODEL_ENABLED", "false").lower() in {"1", "true", "yes"},
-        "model": os.getenv("DOCDECO_MODEL", "qwen3:1.7b"),
+        "model": os.getenv("DOCDECO_MODEL", "gemini-2.5-flash"),
         "trained_model_enabled": os.getenv(
             "DOCDECO_TRAINED_MODEL_ENABLED", "true"
         ).lower() in {"1", "true", "yes"},

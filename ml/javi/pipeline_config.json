@@ -25,8 +25,8 @@
     "grammar_repeat": 2
   },
   "teacher": {
-    "api_url": "http://127.0.0.1:11434/v1/chat/completions",
-    "model": "qwen3.5:9b",
+    "api_url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    "model": "gemini-2.5-flash",
     "timeout_seconds": 300,
     "max_retries": 3,
     "workers": 1,

@@ -522,6 +522,9 @@ def extension_analysis(text: str, *, include_definitions: bool = True) -> dict:
                 "pos": [],
             })
         surface = str(token.get("surface") or "")
+        # jlpt_level is already populated by _base_tokens (Jamdict → classifier).
+        # For grouped inflection tokens we inherit from the first component.
+        jlpt_level: str | None = token.get("jlpt_level") or None
         tokens.append({
             "surface": surface,
             "dictionary_form": token.get("lemma") or surface,
@@ -532,7 +535,7 @@ def extension_analysis(text: str, *, include_definitions: bool = True) -> dict:
             "pos": token.get("part_of_speech") or "",
             "pos_detail": [],
             "is_japanese": bool(re.search(r"[\u3040-\u30ff\u3400-\u9fff]", surface)),
-            "jlpt_level": None,
+            "jlpt_level": jlpt_level,
             "frequency_rank": None,
             "definitions": definitions,
             "components": token.get("components", []),

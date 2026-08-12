@@ -1,5 +1,7 @@
 $ErrorActionPreference = "Stop"
-$modelDirectory = Join-Path $PSScriptRoot "..\data\models\lama"
+
+$projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$modelDirectory = Join-Path $projectRoot "data\models\lama"
 $modelPath = Join-Path $modelDirectory "big-lama.pt"
 $modelUrl = "https://github.com/enesmsahin/simple-lama-inpainting/releases/download/v0.1.0/big-lama.pt"
 

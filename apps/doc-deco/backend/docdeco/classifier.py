@@ -154,7 +154,7 @@ async def classify_with_ollama(p: ParagraphInput, fallback: Classification) -> C
     if not enabled or (fallback.confidence >= .75 and not p.force_model):
         return fallback
     base = os.getenv("DOCDECO_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
-    model = os.getenv("DOCDECO_MODEL", "qwen3:1.7b")
+    model = os.getenv("DOCDECO_MODEL", "gemini-2.5-flash")
     roles = ", ".join(role.value for role in SemanticRole)
     prompt = f"""Phân loại vai trò bố cục của đoạn tiếng Việt. Chỉ trả JSON.
 Roles: {roles}

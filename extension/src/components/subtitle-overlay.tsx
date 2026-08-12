@@ -677,27 +677,47 @@ export const SubtitleOverlay = ({
           {currentSegment && (
             <div className="hk-sub__overlay-wrapper" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
               <div className="hk-sub__brand">HAKKUTSU SUB · CTRL PHÂN TÍCH</div>
-              <div className="hk-sub__action-bar">
+              <div className="hk-sub__action-bar" onMouseDown={(e) => e.stopPropagation()}>
                 <button
+                  type="button"
                   className="hk-sub__action-btn hk-sub__action-btn--sentence"
                   onClick={analyzeWholeSentence}
-                  title="Tạm dừng và gọi Qwen phân tích sâu toàn bộ câu"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  title="Tạm dừng và gọi Gemini phân tích sâu toàn bộ câu"
                 >
-                  <Brain size={16} style={{ marginRight: 6 }} /> Qwen phân tích sâu
+                  <Brain size={16} style={{ marginRight: 6 }} /> Gemini phân tích sâu
                 </button>
-                <button className="hk-sub__action-btn" onClick={handleCopySubtitle} title="Copy to clipboard">
+                <button
+                  type="button"
+                  className="hk-sub__action-btn"
+                  onClick={handleCopySubtitle}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  title="Copy to clipboard"
+                >
                   <Copy size={16} />
                 </button>
-                <button className="hk-sub__action-btn" onClick={handleExportAnki} title="Export sentence to Anki">
+                <button
+                  type="button"
+                  className="hk-sub__action-btn"
+                  onClick={handleExportAnki}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  title="Export sentence to Anki"
+                >
                   <Download size={16} />
                 </button>
-                <button className="hk-sub__action-btn" onClick={(e) => {
-                  e.stopPropagation();
-                  if (videoRef.current) {
-                    videoRef.current.currentTime = currentSegment.start;
-                    videoRef.current.play();
-                  }
-                }} title="Replay (Up Arrow)">
+                <button
+                  type="button"
+                  className="hk-sub__action-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (videoRef.current) {
+                      videoRef.current.currentTime = currentSegment.start;
+                      videoRef.current.play();
+                    }
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  title="Replay (Up Arrow)"
+                >
                   <RotateCcw size={16} />
                 </button>
               </div>

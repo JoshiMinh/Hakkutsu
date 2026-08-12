@@ -89,16 +89,37 @@ VISUAL_SUPERVISOR_ENABLED = os.getenv("VISUAL_SUPERVISOR_ENABLED", "false").stri
     "1", "true", "yes", "on",
 }
 VISUAL_SUPERVISOR_API_URL = os.getenv(
-    "VISUAL_SUPERVISOR_API_URL", "http://127.0.0.1:11434/v1/chat/completions"
+    "VISUAL_SUPERVISOR_API_URL", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 ).strip()
-VISUAL_SUPERVISOR_API_KEY = os.getenv("VISUAL_SUPERVISOR_API_KEY", "").strip()
-VISUAL_SUPERVISOR_MODEL = os.getenv("VISUAL_SUPERVISOR_MODEL", "qwen3.5:9b").strip()
+VISUAL_SUPERVISOR_API_KEY = os.getenv("VISUAL_SUPERVISOR_API_KEY", os.getenv("GEMINI_API_KEY", "")).strip()
+VISUAL_SUPERVISOR_MODEL = os.getenv("VISUAL_SUPERVISOR_MODEL", "gemini-2.5-flash").strip()
 VISUAL_SUPERVISOR_TIMEOUT = float(os.getenv("VISUAL_SUPERVISOR_TIMEOUT", "180"))
 VISUAL_SUPERVISOR_MAX_EDGE = int(os.getenv("VISUAL_SUPERVISOR_MAX_EDGE", "1600"))
 VISUAL_SUPERVISOR_MIN_CONFIDENCE = float(
     os.getenv("VISUAL_SUPERVISOR_MIN_CONFIDENCE", "0.62")
 )
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+# Auto-detect if TRANSLATION_API_KEY looks like a Google Gemini API Key (starts with AIzaSy)
+if not GEMINI_API_KEY and TRANSLATION_API_KEY.startswith("AIzaSy"):
+    GEMINI_API_KEY = TRANSLATION_API_KEY
+
+GEMINI_API_URL = os.getenv(
+    "GEMINI_API_URL",
+    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+).strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+GEMINI_TIMEOUT = float(os.getenv("GEMINI_TIMEOUT", "45"))
+
+
+def is_gemini_configured() -> bool:
+    return bool(GEMINI_API_KEY)
 SHOW_MODE_SWITCH = os.getenv("SHOW_MODE_SWITCH", "true").strip().lower() in {"1", "true", "yes", "on"}
+JLPT_CLASSIFIER_PATH = Path(
+    os.getenv("JLPT_CLASSIFIER_PATH", str(BASE_DIR / "ml" / "models" / "jlpt_classifier"))
+)
+JLPT_CLASSIFIER_ENABLED = os.getenv("JLPT_CLASSIFIER_ENABLED", "true").strip().lower() in {
+    "1", "true", "yes", "on"
+}
 
 
 def ensure_directories() -> None:

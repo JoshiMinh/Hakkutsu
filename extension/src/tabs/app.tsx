@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Brain, BookOpen, LayoutDashboard, Settings as SettingsIcon } from "lucide-react";
+import { Brain, BookOpen, LayoutDashboard, Paintbrush, Settings as SettingsIcon } from "lucide-react";
 import { SrsReview } from "~components/SrsReview";
 import { WordList } from "~components/WordList";
 import { StatsOverview } from "~components/StatsOverview";
@@ -68,6 +68,11 @@ export default function AppDashboard() {
             active={activeTab === "vocabulary"} 
             onClick={() => setActiveTab("vocabulary")}
             icon={<BookOpen size={18} />} label="Vocabulary" 
+          />
+          <SidebarButton 
+            active={false} 
+            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/editor.html") })}
+            icon={<Paintbrush size={18} />} label="Studio / Inpaint" 
           />
           <SidebarButton 
             active={activeTab === "settings"} 

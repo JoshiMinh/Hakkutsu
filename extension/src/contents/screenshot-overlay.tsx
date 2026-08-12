@@ -1,8 +1,8 @@
 import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { X } from "lucide-react";
+import { X, Sparkles, Paintbrush, Languages, Copy, Check, Download, Layers, BookOpen, RefreshCw } from "lucide-react";
 import { apiClient } from "~services/api-client";
-import type { OcrRegion, AnalyzeResponse, TokenAnalysis } from "~types";
+import type { TokenAnalysis } from "~types";
 import cssText from "data-text:~style.css";
 
 export const config: PlasmoCSConfig = {
@@ -18,7 +18,7 @@ export const getStyle: PlasmoGetStyle = () => {
       left: 0;
       width: 100vw;
       height: 100vh;
-      z-index: 2147483647; /* Max z-index */
+      z-index: 2147483647;
       cursor: crosshair;
       user-select: none;
     }
@@ -37,64 +37,168 @@ export const getStyle: PlasmoGetStyle = () => {
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.4);
+      background: rgba(0, 0, 0, 0.5);
     }
     .hk-screenshot-selection {
       position: absolute;
       border: 2px solid var(--hk-accent-primary);
-      background: rgba(168, 85, 247, 0.2);
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+      background: rgba(168, 85, 247, 0.15);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
       clip-path: inset(-9999px);
     }
-    .hk-ocr-result {
+    .hk-modal-panel {
       position: absolute;
-      background: var(--hk-bg-primary);
-      border: 1px solid var(--hk-border);
-      border-radius: var(--hk-radius-md);
-      padding: 12px;
-      color: var(--hk-text-primary);
-      font-family: var(--hk-font-sans);
-      box-shadow: var(--hk-shadow-md);
-      z-index: 10;
-      max-width: 400px;
+      background: #121214;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      color: #f4f4f5;
+      font-family: var(--hk-font-sans, system-ui, sans-serif);
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      z-index: 2147483647;
+      width: 420px;
+      max-width: calc(100vw - 32px);
       cursor: default;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
-    .hk-ocr-result-close {
-      position: absolute;
-      top: 4px;
-      right: 8px;
-      background: transparent;
+    .hk-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #18181b;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .hk-modal-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 6px 12px;
+      background: #09090b;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .hk-modal-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 6px;
       border: none;
-      color: var(--hk-text-muted);
+      background: transparent;
+      color: #a1a1aa;
+      font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
-      font-size: var(--hk-text-lg);
+      transition: all 0.15s ease;
     }
-    .hk-ocr-result-close:hover {
-      color: var(--hk-text-primary);
+    .hk-modal-tab:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: #fafafa;
     }
-    .hk-ocr-text {
-      margin-top: 8px;
-      font-size: var(--hk-text-lg);
+    .hk-modal-tab--active {
+      background: rgba(168, 85, 247, 0.18);
+      color: #c084fc;
+      font-weight: 600;
+    }
+    .hk-modal-body {
+      padding: 14px 16px;
+      max-height: 460px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .hk-text-display {
+      font-family: var(--hk-font-jp, "Noto Sans JP", sans-serif);
+      font-size: 16px;
+      line-height: 1.6;
+      color: #fafafa;
+      word-break: break-word;
+      background: #18181b;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .hk-token-span {
+      cursor: pointer;
+      padding: 1px 2px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+    .hk-token-span:hover {
+      background: rgba(168, 85, 247, 0.3);
+      color: #f3e8ff;
+    }
+    .hk-translation-box {
+      background: rgba(20, 184, 166, 0.1);
+      border-left: 3px solid #14b8a6;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 14px;
       line-height: 1.5;
+      color: #ccfbf1;
     }
-    .hk-ocr-token {
+    .hk-inpaint-preview-wrapper {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: #09090b;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .hk-inpaint-preview-img {
+      width: 100%;
+      height: auto;
+      max-height: 260px;
+      object-fit: contain;
+      display: block;
+    }
+    .hk-modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #18181b;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      gap: 8px;
+    }
+    .hk-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
-      display: inline-block;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
     }
-    .hk-ocr-token:hover {
-      background: var(--hk-bg-hover);
-      border-radius: var(--hk-radius-sm);
+    .hk-btn--primary {
+      background: #9333ea;
+      color: #fff;
     }
-    .hk-ocr-loading {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: var(--hk-bg-primary);
-      color: var(--hk-text-primary);
-      padding: 16px 24px;
-      border-radius: var(--hk-radius-md);
-      font-size: var(--hk-text-lg);
+    .hk-btn--primary:hover {
+      background: #a855f7;
+    }
+    .hk-btn--secondary {
+      background: #27272a;
+      color: #e4e4e7;
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+    .hk-btn--secondary:hover {
+      background: #3f3f46;
+      color: #fff;
+    }
+    .hk-btn--ghost {
+      background: transparent;
+      color: #a1a1aa;
+    }
+    .hk-btn--ghost:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fafafa;
     }
   `;
   return style;
@@ -113,23 +217,38 @@ const ScreenshotOverlay = () => {
   const [selection, setSelection] = useState<Rect | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
-  const [ocrResult, setOcrResult] = useState<{ text: string; rect: Rect; tokens: TokenAnalysis[] | null } | null>(null);
+  
+  // Results & Modes
+  const [activeTab, setActiveTab] = useState<"ocr" | "inpaint" | "translate">("ocr");
   const [loading, setLoading] = useState(false);
+  const [croppedDataUrl, setCroppedDataUrl] = useState<string | null>(null);
+  const [ocrText, setOcrText] = useState<string>("");
+  const [tokens, setTokens] = useState<TokenAnalysis[] | null>(null);
+  const [translation, setTranslation] = useState<string>("");
+  const [transLoading, setTransLoading] = useState(false);
+  const [inpaintedImageUrl, setInpaintedImageUrl] = useState<string | null>(null);
+  const [showOriginal, setShowOriginal] = useState(false);
+  const [inpaintLoading, setInpaintLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [resultRect, setResultRect] = useState<Rect | null>(null);
 
   useEffect(() => {
     const handleMessage = (msg: any) => {
       if (msg.type === "START_SCREENSHOT_FLOW") {
-        setOcrResult(null);
+        setOcrText("");
+        setTokens(null);
+        setTranslation("");
+        setTransLoading(false);
+        setInpaintedImageUrl(null);
         setSelection(null);
-        setScreenshotUrl(null);
+        setResultRect(null);
+        setCroppedDataUrl(null);
+        setActiveTab("ocr");
         
-        // Request background to take screenshot
         chrome.runtime.sendMessage({ type: "CAPTURE_SCREENSHOT" }, (res) => {
           if (res?.type === "SCREENSHOT_RESULT") {
             setScreenshotUrl(res.payload.dataUrl);
             setIsActive(true);
-          } else {
-            console.error("Screenshot failed", res);
           }
         });
       }
@@ -138,22 +257,28 @@ const ScreenshotOverlay = () => {
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
   }, []);
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape" && isActive) {
-      setIsActive(false);
-      setScreenshotUrl(null);
-      setSelection(null);
-      setOcrResult(null);
-    }
-  }, [isActive]);
+  const handleClose = useCallback(() => {
+    setIsActive(false);
+    setScreenshotUrl(null);
+    setSelection(null);
+    setResultRect(null);
+    setOcrText("");
+    setCroppedDataUrl(null);
+    setInpaintedImageUrl(null);
+  }, []);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isActive) {
+        handleClose();
+      }
+    };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
+  }, [isActive, handleClose]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0 || ocrResult) return;
+    if (e.button !== 0 || resultRect) return;
     setIsDragging(true);
     setStartPos({ x: e.clientX, y: e.clientY });
     setSelection({ x: e.clientX, y: e.clientY, width: 0, height: 0 });
@@ -179,23 +304,22 @@ const ScreenshotOverlay = () => {
       return;
     }
     setIsDragging(false);
-    await processSelection(selection);
+    setResultRect(selection);
+    await processCrop(selection);
   };
 
-  const processSelection = async (rect: Rect) => {
+  const processCrop = async (rect: Rect) => {
     if (!screenshotUrl) return;
     setLoading(true);
 
     try {
-      // 1. Crop image using canvas
+      // 1. Crop canvas
       const img = new Image();
       img.src = screenshotUrl;
       await new Promise(r => img.onload = r);
 
-      const canvas = document.createElement("canvas");
-      // Handle device pixel ratio for correct cropping
       const dpr = window.devicePixelRatio || 1;
-      
+      const canvas = document.createElement("canvas");
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
       
@@ -212,51 +336,107 @@ const ScreenshotOverlay = () => {
         rect.height * dpr
       );
 
-      const croppedDataUrl = canvas.toDataURL("image/png");
+      const croppedUrl = canvas.toDataURL("image/png");
+      setCroppedDataUrl(croppedUrl);
 
-      // 2. Send to OCR API
-      // Use standard fetch directly if apiClient doesn't have an ocr method yet
+      // 2. Call OCR API (Gemini Vision / EasyOCR)
       const settingsResult = await new Promise<any>(resolve => {
         chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => resolve(res.payload));
       });
-      const baseUrl = settingsResult.backendUrl || "http://localhost:8000";
+      const baseUrl = settingsResult?.backendUrl || "http://localhost:8000";
       
       const res = await fetch(`${baseUrl}/api/v1/ocr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          image_data: croppedDataUrl,
+          image_data: croppedUrl,
           language: "jpn"
         })
       });
       
-      if (!res.ok) throw new Error("OCR failed");
-      const data = await res.json();
-      
-      if (data.full_text) {
-        // 3. Analyze text for tokens
-        const analyzeMsg = await new Promise<any>(resolve => {
-          chrome.runtime.sendMessage({ 
-            type: "ANALYZE_TEXT", 
-            payload: { text: data.full_text, include_definitions: false } 
-          }, resolve);
-        });
+      if (res.ok) {
+        const data = await res.json();
+        const fullText = data.full_text || "";
+        setOcrText(fullText);
+        setTokens(data.tokens || null);
 
-        let tokens = null;
-        if (analyzeMsg?.type === "ANALYZE_RESULT") {
-          tokens = analyzeMsg.payload.tokens;
+        // Also fetch translation
+        if (fullText) {
+          try {
+            const transRes = await fetch(`${baseUrl}/api/v1/translate`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ texts: [fullText], page_url: window.location.href, page_title: document.title })
+            });
+            if (transRes.ok) {
+              const transData = await transRes.json();
+              setTranslation(transData.translations?.[0] || "");
+            }
+          } catch (tErr) {
+            console.error("Translation error", tErr);
+          }
         }
-
-        setOcrResult({ text: data.full_text, rect, tokens });
-      } else {
-        setIsActive(false); // No text found
       }
     } catch (err) {
-      console.error(err);
-      setIsActive(false);
+      console.error("Crop processing error", err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleInpaint = async () => {
+    if (!croppedDataUrl) return;
+    setInpaintLoading(true);
+    setActiveTab("inpaint");
+
+    try {
+      const settingsResult = await new Promise<any>(resolve => {
+        chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => resolve(res.payload));
+      });
+      const baseUrl = settingsResult?.backendUrl || "http://localhost:8000";
+      
+      const res = await fetch(`${baseUrl}/api/v1/inpaint`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image_data: croppedDataUrl,
+          translate: true
+        })
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.inpainted_image) {
+          setInpaintedImageUrl(data.inpainted_image);
+        }
+        if (data.translation && !translation) {
+          setTranslation(data.translation);
+        }
+        if (data.original_text && !ocrText) {
+          setOcrText(data.original_text);
+        }
+      }
+    } catch (err) {
+      console.error("Inpaint failed", err);
+    } finally {
+      setInpaintLoading(false);
+    }
+  };
+
+  const handleCopy = () => {
+    const textToCopy = activeTab === "translate" && translation ? translation : ocrText;
+    if (!textToCopy) return;
+    navigator.clipboard.writeText(textToCopy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const handleDownloadInpaint = () => {
+    if (!inpaintedImageUrl) return;
+    const a = document.createElement("a");
+    a.href = inpaintedImageUrl;
+    a.download = `hakkutsu-inpaint-${Date.now()}.png`;
+    a.click();
   };
 
   const handleTokenClick = (token: TokenAnalysis, e: React.MouseEvent) => {
@@ -272,17 +452,6 @@ const ScreenshotOverlay = () => {
         },
       })
     );
-
-    chrome.runtime.sendMessage({
-      type: "TEXT_SELECTED",
-      payload: {
-        text: token.dictionary_form || token.surface,
-        context: ocrResult?.text,
-        x: e.clientX,
-        y: e.clientY,
-        sourceUrl: window.location.href,
-      },
-    }).catch(() => {});
   };
 
   if (!isActive) return null;
@@ -297,11 +466,11 @@ const ScreenshotOverlay = () => {
       {screenshotUrl && (
         <>
           <div className="hk-screenshot-bg" style={{ backgroundImage: `url(${screenshotUrl})` }} />
-          {!selection && !ocrResult && <div className="hk-screenshot-dim" />}
+          {!selection && !resultRect && <div className="hk-screenshot-dim" />}
         </>
       )}
 
-      {selection && !ocrResult && (
+      {selection && !resultRect && (
         <div 
           className="hk-screenshot-selection"
           style={{
@@ -313,41 +482,193 @@ const ScreenshotOverlay = () => {
         />
       )}
 
-      {loading && (
-        <div className="hk-ocr-loading">Scanning text...</div>
-      )}
-
-      {ocrResult && (
+      {/* Floating Action / Result Panel */}
+      {resultRect && (
         <div 
-          className="hk-ocr-result"
+          className="hk-modal-panel"
           style={{
-            left: ocrResult.rect.x + ocrResult.rect.width + 10 > window.innerWidth - 400 
-                  ? ocrResult.rect.x - 410 
-                  : ocrResult.rect.x + ocrResult.rect.width + 10,
-            top: ocrResult.rect.y
+            left: Math.max(16, Math.min(window.innerWidth - 440, resultRect.x + resultRect.width + 12 > window.innerWidth - 440 ? resultRect.x - 430 : resultRect.x + resultRect.width + 12)),
+            top: Math.max(16, Math.min(window.innerHeight - 480, resultRect.y))
           }}
-          onMouseDown={(e) => e.stopPropagation()} // Prevent closing/dragging when clicking result
+          onMouseDown={(e) => e.stopPropagation()}
         >
-          <button 
-            className="hk-ocr-result-close"
-            onClick={() => setIsActive(false)}
-          >
-            <X size={16} />
-          </button>
-          <div className="hk-ocr-text">
-            {ocrResult.tokens ? (
-              ocrResult.tokens.map((token, i) => (
-                <span 
-                  key={i} 
-                  className="hk-ocr-token"
-                  onClick={(e) => handleTokenClick(token, e)}
-                >
-                  {token.surface}
-                </span>
-              ))
+          {/* Header */}
+          <div className="hk-modal-header">
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, fontSize: "13px" }}>
+              <Sparkles size={16} style={{ color: "#a855f7" }} />
+              <span>Hakkutsu AI Tool</span>
+            </div>
+            <button className="hk-btn hk-btn--ghost" style={{ padding: "4px" }} onClick={handleClose}>
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Navigation Tabs */}
+          <div className="hk-modal-tabs">
+            <button 
+              className={`hk-modal-tab ${activeTab === "ocr" ? "hk-modal-tab--active" : ""}`}
+              onClick={() => setActiveTab("ocr")}
+            >
+              <BookOpen size={14} /> Nhận diện (OCR)
+            </button>
+            <button 
+              className={`hk-modal-tab ${activeTab === "inpaint" ? "hk-modal-tab--active" : ""}`}
+              onClick={() => setActiveTab("inpaint")}
+            >
+              <Paintbrush size={14} /> Xóa chữ (Inpaint)
+            </button>
+            <button 
+              className={`hk-modal-tab ${activeTab === "translate" ? "hk-modal-tab--active" : ""}`}
+              onClick={() => setActiveTab("translate")}
+            >
+              <Languages size={14} /> Dịch nghĩa
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          <div className="hk-modal-body">
+            {loading ? (
+              <div style={{ textAlign: "center", padding: "32px 0", color: "#a1a1aa" }}>
+                <RefreshCw size={24} className="hk-spin" style={{ color: "#a855f7", margin: "0 auto 10px" }} />
+                <div style={{ fontSize: "13px" }}>Đang quét chữ trong ảnh (AI Vision)...</div>
+              </div>
             ) : (
-              ocrResult.text
+              <>
+                {/* TAB 1: OCR */}
+                {activeTab === "ocr" && (
+                  <>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#a1a1aa", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      Văn bản gốc
+                    </div>
+                    <div className="hk-text-display">
+                      {tokens && tokens.length > 0 ? (
+                        tokens.map((token, idx) => (
+                          <span 
+                            key={idx} 
+                            className="hk-token-span"
+                            onClick={(e) => handleTokenClick(token, e)}
+                            title={typeof token.reading === "string" ? token.reading : (token.reading?.hiragana || token.surface)}
+                          >
+                            {token.surface}
+                          </span>
+                        ))
+                      ) : (
+                        ocrText || <span style={{ color: "#71717a" }}>Không tìm thấy chữ trong vùng chọn</span>
+                      )}
+                    </div>
+
+                    {transLoading ? (
+                      <div className="hk-translation-box" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <RefreshCw size={14} className="hk-spin" />
+                        <span>Đang tạo bản dịch Gemini...</span>
+                      </div>
+                    ) : translation ? (
+                      <div className="hk-translation-box">
+                        <div style={{ fontSize: "11px", fontWeight: 600, color: "#14b8a6", marginBottom: "4px" }}>BẢN DỊCH TIẾNG VIỆT</div>
+                        {translation}
+                      </div>
+                    ) : null}
+                  </>
+                )}
+
+                {/* TAB 2: INPAINT */}
+                {activeTab === "inpaint" && (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "11px", fontWeight: 600, color: "#a1a1aa", textTransform: "uppercase" }}>
+                        Khôi phục nền tranh (LaMa AI)
+                      </span>
+                    </div>
+
+                    <div className="hk-inpaint-preview-wrapper">
+                      {inpaintLoading ? (
+                        <div style={{ textAlign: "center", padding: "40px 0", color: "#a1a1aa" }}>
+                          <RefreshCw size={24} className="hk-spin" style={{ color: "#a855f7", margin: "0 auto 10px" }} />
+                          <div>Đang chạy mạng nơ-ron xóa chữ...</div>
+                        </div>
+                      ) : inpaintedImageUrl ? (
+                        <img 
+                          src={inpaintedImageUrl} 
+                          alt="Inpainted result" 
+                          className="hk-inpaint-preview-img"
+                        />
+                      ) : (
+                        <div style={{ textAlign: "center", padding: "30px 16px", color: "#a1a1aa" }}>
+                          <p style={{ marginBottom: "12px" }}>Chưa chạy xóa chữ cho vùng chọn này.</p>
+                          <button className="hk-btn hk-btn--primary" onClick={handleInpaint}>
+                            <Paintbrush size={14} /> Xóa chữ ngay
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {transLoading ? (
+                      <div className="hk-translation-box" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <RefreshCw size={14} className="hk-spin" />
+                        <span>Đang tạo bản dịch...</span>
+                      </div>
+                    ) : translation ? (
+                      <div className="hk-translation-box">
+                        <div style={{ fontSize: "11px", fontWeight: 600, color: "#14b8a6", marginBottom: "4px" }}>BẢN DỊCH</div>
+                        {translation}
+                      </div>
+                    ) : null}
+                  </>
+                )}
+
+                {/* TAB 3: TRANSLATE */}
+                {activeTab === "translate" && (
+                  <>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#a1a1aa", textTransform: "uppercase" }}>
+                      Bản dịch tiếng Việt
+                    </div>
+                    <div className="hk-translation-box" style={{ fontSize: "15px" }}>
+                      {transLoading ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#14b8a6" }}>
+                          <RefreshCw size={15} className="hk-spin" />
+                          <span>Đang tạo bản dịch...</span>
+                        </div>
+                      ) : (
+                        translation || <span style={{ color: "#71717a" }}>Chưa có bản dịch cho câu này.</span>
+                      )}
+                    </div>
+
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#a1a1aa", textTransform: "uppercase", marginTop: "8px" }}>
+                      Câu gốc
+                    </div>
+                    <div className="hk-text-display" style={{ fontSize: "14px" }}>
+                      {ocrText || "—"}
+                    </div>
+                  </>
+                )}
+              </>
             )}
+          </div>
+
+          {/* Footer Actions */}
+          <div className="hk-modal-footer">
+            <div style={{ display: "flex", gap: "6px" }}>
+              {activeTab !== "inpaint" && (
+                <button className="hk-btn hk-btn--primary" onClick={handleInpaint} disabled={inpaintLoading || !croppedDataUrl}>
+                  <Paintbrush size={14} /> Xóa chữ (Inpaint)
+                </button>
+              )}
+              {activeTab === "inpaint" && inpaintedImageUrl && (
+                <button className="hk-btn hk-btn--secondary" onClick={handleDownloadInpaint}>
+                  <Download size={14} /> Tải ảnh sạch
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button className="hk-btn hk-btn--secondary" onClick={handleCopy} disabled={!ocrText}>
+                {copied ? <Check size={14} color="#4ade80" /> : <Copy size={14} />}
+                {copied ? "Đã chép" : "Sao chép"}
+              </button>
+              <button className="hk-btn hk-btn--ghost" onClick={handleClose}>
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -12,10 +12,12 @@ if (-not (Test-Path -LiteralPath $vendorPath)) {
 
 if (-not (Test-Path -LiteralPath $modelPath)) {
     New-Item -ItemType Directory -Force -Path $modelDir | Out-Null
-    Invoke-WebRequest `
-        -Uri "https://github.com/zyddnys/manga-image-translator/releases/download/beta-0.2.1/comictextdetector.pt" `
-        -OutFile $modelPath
+    curl.exe -L -C - --retry 3 --retry-delay 2 -o $modelPath "https://github.com/zyddnys/manga-image-translator/releases/download/beta-0.2.1/comictextdetector.pt"
+}
+
+$file = Get-Item -LiteralPath $modelPath
+if ($file.Length -lt 10000000) {
+    throw "Model comic-text-detector tải chưa hoàn tất ($($file.Length) bytes)"
 }
 
 Write-Host "comic-text-detector đã sẵn sàng: $modelPath"
-

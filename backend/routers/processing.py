@@ -15,11 +15,34 @@ from backend.database import db_session, utc_now
 from backend.ocr_service import recognize_japanese_crop, run_ocr_job
 from backend.inpainting_service import run_inpainting_job
 from backend.bubble_segmentation_service import run_bubble_segmentation_job
-from backend.schemas import ChapterPipelineRequest, CropOcrRequest, ImageOcrRequest, OcrRequest, PipelineRequest, TranslationRequest
-from backend.translation_service import TranslationBlock, get_translation_provider, run_translation_job, translate_blocks_resilient
-from backend.typesetting_service import constrain_cell_to_bubble_interior, pack_grouped_text_fallback, partition_text_regions_by_source, place_text_in_clear_area, suggest_text_color, text_layout_bounds, fit_text_layout, render_translated_page
+from backend.schemas import (
+    ChapterPipelineRequest,
+    CropOcrRequest,
+    ImageInpaintRequest,
+    ImageOcrRequest,
+    OcrRequest,
+    PipelineRequest,
+    TranslationRequest,
+)
+from backend.translation_service import (
+    TranslationBlock,
+    get_translation_provider,
+    run_translation_job,
+    translate_blocks_resilient,
+)
+from backend.typesetting_service import (
+    constrain_cell_to_bubble_interior,
+    fit_text_layout,
+    get_font,
+    layout_at_size,
+    pack_grouped_text_fallback,
+    partition_text_regions_by_source,
+    place_text_in_clear_area,
+    render_translated_page,
+    suggest_text_color,
+    text_layout_bounds,
+)
 from backend.utils import get_or_404
-from backend.quality_service import evaluate_page_quality
 from backend.quality_service import evaluate_page_quality
 
 router = APIRouter()
@@ -30,26 +53,182 @@ def api_v1_image_ocr(payload: ImageOcrRequest) -> dict:
     import base64
     import tempfile
     from backend.ocr_service import get_ocr_provider
-    
+    from backend.routers.study import _extension_analysis_with_srs
+
     if "," in payload.image_data:
         _, encoded = payload.image_data.split(",", 1)
     else:
         encoded = payload.image_data
-    
+
     image_bytes = base64.b64decode(encoded)
-    
+    full_text = ""
+    engine = "local-ocr"
+
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
         f.write(image_bytes)
         temp_path = Path(f.name)
-        
     try:
         provider = get_ocr_provider()
         regions = provider.recognize(temp_path)
-        regions.sort(key=lambda r: (-r.x, r.y))
-        full_text = " ".join(r.text for r in regions)
-        return {"full_text": full_text}
+        regions.sort(key=lambda r: (r.y, r.x))
+        full_text = "\n".join(r.text for r in regions).strip()
+        engine = provider.name
     finally:
         temp_path.unlink(missing_ok=True)
+
+    tokens = []
+    if full_text:
+        try:
+            analysis = _extension_analysis_with_srs(full_text, include_definitions=False)
+            tokens = analysis.get("tokens", [])
+        except Exception:
+            tokens = []
+
+    return {"full_text": full_text, "tokens": tokens, "engine": engine}
+
+
+@router.post("/api/v1/inpaint")
+def api_v1_direct_inpaint(payload: ImageInpaintRequest) -> dict:
+    """Inpaint image then overlay Vietnamese translation text onto each original text region."""
+    import base64
+    import textwrap
+    import tempfile
+    import io
+    import cv2
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFont
+    from backend.ocr_service import get_ocr_provider
+    from backend.inpainting_service import inpaint_text_regions_hybrid, inpaint_text_regions
+    from backend.translation_service import get_translation_provider, TranslationBlock
+    from backend.routers.study import _extension_analysis_with_srs
+
+    if "," in payload.image_data:
+        _, encoded = payload.image_data.split(",", 1)
+    else:
+        encoded = payload.image_data
+
+    image_bytes = base64.b64decode(encoded)
+    pil_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    rgb_image = np.asarray(pil_image)
+    image_height, image_width = rgb_image.shape[:2]
+
+    boxes: list[tuple[float, float, float, float]] = []
+    block_metadata: list[dict] = []
+    full_text = ""
+    region_texts: list[str] = []
+
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        f.write(image_bytes)
+        temp_path = Path(f.name)
+    try:
+        provider = get_ocr_provider()
+        regions = provider.recognize(temp_path)
+        if regions:
+            regions_sorted = sorted(regions, key=lambda r: (r.y, r.x))
+            for r in regions_sorted:
+                region_texts.append(r.text.strip())
+                boxes.append((float(r.x), float(r.y), float(r.width), float(r.height)))
+                block_metadata.append({"text_kind": "dialogue", "sfx_score": 0.0, "mask_strategy": "auto"})
+            full_text = "\n".join(region_texts).strip()
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+    if not boxes:
+        cleaned_rgb = rgb_image
+        engine = "no_text_detected"
+    else:
+        try:
+            cleaned_rgb, mask, engine = inpaint_text_regions_hybrid(rgb_image, boxes, block_metadata)
+        except Exception:
+            try:
+                cleaned_rgb, mask = inpaint_text_regions(rgb_image, boxes)
+                engine = "telea_fallback"
+            except Exception:
+                cleaned_rgb = rgb_image
+                engine = "inpaint_error"
+
+    # Translate with Gemini LLM
+    translation = ""
+    tokens = []
+    if full_text:
+        try:
+            analysis = _extension_analysis_with_srs(full_text, include_definitions=False)
+            tokens = analysis.get("tokens", [])
+        except Exception:
+            tokens = []
+
+        if payload.translate:
+            try:
+                p = get_translation_provider()
+                res = p.translate([TranslationBlock(id=1, text=full_text)], {})
+                translation = res.get(1, "")
+            except Exception:
+                translation = ""
+
+    # Encode clean image to base64
+    cleaned_bgr = cv2.cvtColor(cleaned_rgb, cv2.COLOR_RGB2BGR)
+    _, buf = cv2.imencode(".png", cleaned_bgr)
+    inpainted_b64 = "data:image/png;base64," + base64.b64encode(buf).decode("ascii")
+
+    # ── Typeset translation onto clean image ─────────────────────────────────
+    typeset_b64 = inpainted_b64
+    if translation and boxes:
+        try:
+            canvas = Image.fromarray(cleaned_rgb).convert("RGBA")
+            draw = ImageDraw.Draw(canvas)
+
+            # Distribute translation lines proportionally across text regions
+            translation_lines = [l.strip() for l in translation.splitlines() if l.strip()]
+            n_boxes = len(boxes)
+            # If translation has ≥ n_boxes newlines use them; else split proportionally
+            if len(translation_lines) >= n_boxes:
+                region_translations = translation_lines[:n_boxes]
+            else:
+                # Split entire translation into n_boxes chunks by character count
+                total_chars = len(translation)
+                chars_per_box = max(1, total_chars // n_boxes)
+                region_translations = textwrap.wrap(translation, chars_per_box) or [translation]
+                # Pad or trim to exactly n_boxes
+                while len(region_translations) < n_boxes:
+                    region_translations.append("")
+                region_translations = region_translations[:n_boxes]
+
+            for (bx, by, bw, bh), region_trans in zip(boxes, region_translations):
+                if not region_trans:
+                    continue
+                bx, by, bw, bh = int(bx), int(by), int(bw), int(bh)
+                # Use the existing fit_text_layout to auto-size the font
+                layout = fit_text_layout(region_trans, bw, bh, font_family="Arial")
+                font = get_font("Arial", layout.font_size)
+
+                text_block = "\n".join(layout.lines)
+                bbox = draw.multiline_textbbox((0, 0), text_block, font=font, spacing=layout.spacing)
+                tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+                tx = bx + (bw - tw) // 2 - bbox[0]
+                ty = by + (bh - th) // 2 - bbox[1]
+
+                # White outline + black fill for readability over any background
+                for dx, dy in [(-1, -1), (1, -1), (-1, 1), (1, 1), (0, -1), (0, 1), (-1, 0), (1, 0)]:
+                    draw.multiline_text((tx + dx, ty + dy), text_block, font=font,
+                                       fill=(255, 255, 255, 255), spacing=layout.spacing, align="center")
+                draw.multiline_text((tx, ty), text_block, font=font,
+                                    fill=(20, 20, 20, 255), spacing=layout.spacing, align="center")
+
+            typeset_rgb = np.array(canvas.convert("RGB"))
+            typeset_bgr = cv2.cvtColor(typeset_rgb, cv2.COLOR_RGB2BGR)
+            _, tbuf = cv2.imencode(".png", typeset_bgr)
+            typeset_b64 = "data:image/png;base64," + base64.b64encode(tbuf).decode("ascii")
+        except Exception:
+            typeset_b64 = inpainted_b64
+
+    return {
+        "inpainted_image": inpainted_b64,
+        "typeset_image": typeset_b64,
+        "original_text": full_text,
+        "translation": translation,
+        "tokens": tokens,
+        "engine": engine,
+    }
 
 
 @router.post("/api/pages/{page_id}/ocr", status_code=202)

@@ -206,6 +206,29 @@ class ApiClient {
     });
   }
 
+  /** Direct inpaint and translation for any image or screenshot */
+  async directInpaint(request: { image_data: string; translate?: boolean }): Promise<{
+    inpainted_image: string;
+    original_text: string;
+    translation: string;
+    tokens: any[];
+    engine: string;
+  }> {
+    return this.request<{
+      inpainted_image: string;
+      original_text: string;
+      translation: string;
+      tokens: any[];
+      engine: string;
+    }>("/inpaint", {
+      method: "POST",
+      body: JSON.stringify({
+        image_data: request.image_data,
+        translate: request.translate ?? true,
+      }),
+    });
+  }
+
 
 }
 
