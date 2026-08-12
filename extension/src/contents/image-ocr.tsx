@@ -270,20 +270,19 @@ const ImageOcr = () => {
 
     try {
       const dataUrl = await getImageDataUrl(img);
-      const settingsResult = await new Promise<any>(resolve => {
-        chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => resolve(res?.payload));
-      });
-      const baseUrl = settingsResult?.backendUrl || "http://localhost:8000";
       
-      const res = await fetch(`${baseUrl}/api/v1/ocr`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_data: dataUrl, language: "jpn" })
+      const data = await new Promise<any>((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          { type: "OCR_IMAGE", payload: { image_data: dataUrl, language: "jpn" } },
+          (res) => {
+            if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+            if (res?.type === "ERROR") return reject(new Error(res.payload.error));
+            resolve(res?.payload);
+          }
+        );
       });
       
-      if (!res.ok) throw new Error(`Lỗi máy chủ OCR (${res.status})`);
-      const data = await res.json();
-      const text = data.full_text || "";
+      const text = data?.full_text || "";
       
       if (!text) {
         setOcrText("Không tìm thấy văn bản tiếng Nhật trong ảnh này.");
@@ -294,15 +293,17 @@ const ImageOcr = () => {
         // Fetch translation
         setTransLoading(true);
         try {
-          const transRes = await fetch(`${baseUrl}/api/v1/translate`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ texts: [text], page_url: window.location.href, page_title: document.title })
+          const transData = await new Promise<any>((resolve, reject) => {
+            chrome.runtime.sendMessage(
+              { type: "TRANSLATE_TEXT", payload: { texts: [text] } },
+              (res) => {
+                if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+                if (res?.type === "ERROR") return reject(new Error(res.payload.error));
+                resolve(res?.payload);
+              }
+            );
           });
-          if (transRes.ok) {
-            const transData = await transRes.json();
-            setTranslation(transData.translations?.[0] || transData.items?.[0]?.translation || "");
-          }
+          setTranslation(transData.translations?.[0] || transData.items?.[0]?.translation || "");
         } catch (tErr) {
           console.error("Translation error", tErr);
         } finally {

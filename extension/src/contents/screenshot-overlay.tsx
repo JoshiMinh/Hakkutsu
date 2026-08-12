@@ -219,16 +219,13 @@ const ScreenshotOverlay = () => {
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
   
   // Results & Modes
-  const [activeTab, setActiveTab] = useState<"ocr" | "inpaint" | "translate">("ocr");
+  const [activeTab, setActiveTab] = useState<"ocr" | "translate">("ocr");
   const [loading, setLoading] = useState(false);
   const [croppedDataUrl, setCroppedDataUrl] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState<string>("");
   const [tokens, setTokens] = useState<TokenAnalysis[] | null>(null);
   const [translation, setTranslation] = useState<string>("");
   const [transLoading, setTransLoading] = useState(false);
-  const [inpaintedImageUrl, setInpaintedImageUrl] = useState<string | null>(null);
-  const [showOriginal, setShowOriginal] = useState(false);
-  const [inpaintLoading, setInpaintLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [resultRect, setResultRect] = useState<Rect | null>(null);
 
@@ -239,7 +236,6 @@ const ScreenshotOverlay = () => {
         setTokens(null);
         setTranslation("");
         setTransLoading(false);
-        setInpaintedImageUrl(null);
         setSelection(null);
         setResultRect(null);
         setCroppedDataUrl(null);
@@ -264,7 +260,6 @@ const ScreenshotOverlay = () => {
     setResultRect(null);
     setOcrText("");
     setCroppedDataUrl(null);
-    setInpaintedImageUrl(null);
   }, []);
 
   useEffect(() => {
@@ -339,87 +334,44 @@ const ScreenshotOverlay = () => {
       const croppedUrl = canvas.toDataURL("image/png");
       setCroppedDataUrl(croppedUrl);
 
-      // 2. Call OCR API (Gemini Vision / EasyOCR)
-      const settingsResult = await new Promise<any>(resolve => {
-        chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => resolve(res.payload));
-      });
-      const baseUrl = settingsResult?.backendUrl || "http://localhost:8000";
-      
-      const res = await fetch(`${baseUrl}/api/v1/ocr`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image_data: croppedUrl,
-          language: "jpn"
-        })
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        const fullText = data.full_text || "";
+        // 2. Call OCR API via Background Script
+        const data = await new Promise<any>((resolve, reject) => {
+          chrome.runtime.sendMessage(
+            { type: "OCR_IMAGE", payload: { image_data: croppedUrl, language: "jpn" } },
+            (res) => {
+              if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+              if (res?.type === "ERROR") return reject(new Error(res.payload.error));
+              resolve(res?.payload);
+            }
+          );
+        });
+
+        const fullText = data?.full_text || "";
         setOcrText(fullText);
-        setTokens(data.tokens || null);
+        setTokens(data?.tokens || null);
 
         // Also fetch translation
         if (fullText) {
           try {
-            const transRes = await fetch(`${baseUrl}/api/v1/translate`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ texts: [fullText], page_url: window.location.href, page_title: document.title })
+            const transData = await new Promise<any>((resolve, reject) => {
+              chrome.runtime.sendMessage(
+                { type: "TRANSLATE_TEXT", payload: { texts: [fullText] } },
+                (res) => {
+                  if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+                  if (res?.type === "ERROR") return reject(new Error(res.payload.error));
+                  resolve(res?.payload);
+                }
+              );
             });
-            if (transRes.ok) {
-              const transData = await transRes.json();
-              setTranslation(transData.translations?.[0] || "");
-            }
+            setTranslation(transData?.translations?.[0] || "");
           } catch (tErr) {
             console.error("Translation error", tErr);
           }
         }
-      }
     } catch (err) {
       console.error("Crop processing error", err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleInpaint = async () => {
-    if (!croppedDataUrl) return;
-    setInpaintLoading(true);
-    setActiveTab("inpaint");
-
-    try {
-      const settingsResult = await new Promise<any>(resolve => {
-        chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => resolve(res.payload));
-      });
-      const baseUrl = settingsResult?.backendUrl || "http://localhost:8000";
-      
-      const res = await fetch(`${baseUrl}/api/v1/inpaint`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image_data: croppedDataUrl,
-          translate: true
-        })
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        if (data.inpainted_image) {
-          setInpaintedImageUrl(data.inpainted_image);
-        }
-        if (data.translation && !translation) {
-          setTranslation(data.translation);
-        }
-        if (data.original_text && !ocrText) {
-          setOcrText(data.original_text);
-        }
-      }
-    } catch (err) {
-      console.error("Inpaint failed", err);
-    } finally {
-      setInpaintLoading(false);
     }
   };
 
@@ -429,14 +381,6 @@ const ScreenshotOverlay = () => {
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
-  };
-
-  const handleDownloadInpaint = () => {
-    if (!inpaintedImageUrl) return;
-    const a = document.createElement("a");
-    a.href = inpaintedImageUrl;
-    a.download = `hakkutsu-inpaint-${Date.now()}.png`;
-    a.click();
   };
 
   const handleTokenClick = (token: TokenAnalysis, e: React.MouseEvent) => {
@@ -512,12 +456,6 @@ const ScreenshotOverlay = () => {
               <BookOpen size={14} /> Nhận diện (OCR)
             </button>
             <button 
-              className={`hk-modal-tab ${activeTab === "inpaint" ? "hk-modal-tab--active" : ""}`}
-              onClick={() => setActiveTab("inpaint")}
-            >
-              <Paintbrush size={14} /> Xóa chữ (Inpaint)
-            </button>
-            <button 
               className={`hk-modal-tab ${activeTab === "translate" ? "hk-modal-tab--active" : ""}`}
               onClick={() => setActiveTab("translate")}
             >
@@ -571,50 +509,6 @@ const ScreenshotOverlay = () => {
                   </>
                 )}
 
-                {/* TAB 2: INPAINT */}
-                {activeTab === "inpaint" && (
-                  <>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "11px", fontWeight: 600, color: "#a1a1aa", textTransform: "uppercase" }}>
-                        Khôi phục nền tranh (LaMa AI)
-                      </span>
-                    </div>
-
-                    <div className="hk-inpaint-preview-wrapper">
-                      {inpaintLoading ? (
-                        <div style={{ textAlign: "center", padding: "40px 0", color: "#a1a1aa" }}>
-                          <RefreshCw size={24} className="hk-spin" style={{ color: "#a855f7", margin: "0 auto 10px" }} />
-                          <div>Đang chạy mạng nơ-ron xóa chữ...</div>
-                        </div>
-                      ) : inpaintedImageUrl ? (
-                        <img 
-                          src={inpaintedImageUrl} 
-                          alt="Inpainted result" 
-                          className="hk-inpaint-preview-img"
-                        />
-                      ) : (
-                        <div style={{ textAlign: "center", padding: "30px 16px", color: "#a1a1aa" }}>
-                          <p style={{ marginBottom: "12px" }}>Chưa chạy xóa chữ cho vùng chọn này.</p>
-                          <button className="hk-btn hk-btn--primary" onClick={handleInpaint}>
-                            <Paintbrush size={14} /> Xóa chữ ngay
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {transLoading ? (
-                      <div className="hk-translation-box" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <RefreshCw size={14} className="hk-spin" />
-                        <span>Đang tạo bản dịch...</span>
-                      </div>
-                    ) : translation ? (
-                      <div className="hk-translation-box">
-                        <div style={{ fontSize: "11px", fontWeight: 600, color: "#14b8a6", marginBottom: "4px" }}>BẢN DỊCH</div>
-                        {translation}
-                      </div>
-                    ) : null}
-                  </>
-                )}
 
                 {/* TAB 3: TRANSLATE */}
                 {activeTab === "translate" && (
@@ -647,19 +541,6 @@ const ScreenshotOverlay = () => {
 
           {/* Footer Actions */}
           <div className="hk-modal-footer">
-            <div style={{ display: "flex", gap: "6px" }}>
-              {activeTab !== "inpaint" && (
-                <button className="hk-btn hk-btn--primary" onClick={handleInpaint} disabled={inpaintLoading || !croppedDataUrl}>
-                  <Paintbrush size={14} /> Xóa chữ (Inpaint)
-                </button>
-              )}
-              {activeTab === "inpaint" && inpaintedImageUrl && (
-                <button className="hk-btn hk-btn--secondary" onClick={handleDownloadInpaint}>
-                  <Download size={14} /> Tải ảnh sạch
-                </button>
-              )}
-            </div>
-
             <div style={{ display: "flex", gap: "6px" }}>
               <button className="hk-btn hk-btn--secondary" onClick={handleCopy} disabled={!ocrText}>
                 {copied ? <Check size={14} color="#4ade80" /> : <Copy size={14} />}
