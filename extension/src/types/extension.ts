@@ -5,9 +5,9 @@
 export type ExtensionView = "translate" | "srs" | "anki";
 
 export interface ExtensionSettings {
-  backendUrl: string;
-  llmProvider: "openai" | "deepseek" | "none";
+  llmProvider: "gemini" | "openai" | "custom";
   llmApiKey: string;
+  llmCustomUrl?: string;
   ankiEnabled: boolean;
   ankiDeck: string;
   ankiModel: string;
@@ -18,8 +18,7 @@ export interface ExtensionSettings {
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
-  backendUrl: "http://127.0.0.1:8000",
-  llmProvider: "none",
+  llmProvider: "gemini",
   llmApiKey: "",
   ankiEnabled: true,
   ankiDeck: "Hakkutsu",

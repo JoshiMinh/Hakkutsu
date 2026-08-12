@@ -12,26 +12,6 @@ export function SettingsView({
       <form className="hk-settings-form" onSubmit={(e) => e.preventDefault()}>
         
         <fieldset className="hk-settings-card">
-          <legend className="hk-settings-card__title">Connection</legend>
-          <div className="hk-settings-row">
-            <div className="hk-settings-row__info">
-              <label htmlFor="backendUrl" className="hk-settings-row__label">Backend URL</label>
-              <div id="backendUrl-desc" className="hk-settings-row__desc">FastAPI server address</div>
-            </div>
-            <div className="hk-settings-row__control">
-              <input
-                id="backendUrl"
-                aria-describedby="backendUrl-desc"
-                className="hk-settings-input hk-settings-input--text"
-                type="text"
-                value={settings.backendUrl}
-                onChange={(e) => onUpdate({ backendUrl: e.target.value })}
-              />
-            </div>
-          </div>
-        </fieldset>
-
-        <fieldset className="hk-settings-card">
           <legend className="hk-settings-card__title">Translation LLM</legend>
           <div className="hk-settings-row">
             <div className="hk-settings-row__info">
@@ -45,15 +25,34 @@ export function SettingsView({
                 value={settings.llmProvider}
                 onChange={(e) => onUpdate({ llmProvider: e.target.value as any })}
               >
-                <option value="none">Backend Default</option>
+                <option value="gemini">Google Gemini</option>
                 <option value="openai">OpenAI</option>
-                <option value="deepseek">DeepSeek</option>
+                <option value="custom">Custom Endpoint</option>
               </select>
             </div>
           </div>
 
-          {settings.llmProvider !== "none" && (
+          {settings.llmProvider === "custom" && (
             <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="llmCustomUrl" className="hk-settings-row__label">Custom Endpoint URL</label>
+                <div id="llmCustomUrl-desc" className="hk-settings-row__desc">E.g., OpenRouter or OpenAI-compatible endpoint</div>
+              </div>
+              <div className="hk-settings-row__control">
+                <input
+                  id="llmCustomUrl"
+                  aria-describedby="llmCustomUrl-desc"
+                  className="hk-settings-input hk-settings-input--text"
+                  type="text"
+                  placeholder="https://openrouter.ai/api/v1"
+                  value={settings.llmCustomUrl || ""}
+                  onChange={(e) => onUpdate({ llmCustomUrl: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="hk-settings-row">
               <div className="hk-settings-row__info">
                 <label htmlFor="llmApiKey" className="hk-settings-row__label">API Key</label>
                 <div id="llmApiKey-desc" className="hk-settings-row__desc">Your provider API key (saved locally)</div>
@@ -70,7 +69,6 @@ export function SettingsView({
                 />
               </div>
             </div>
-          )}
         </fieldset>
 
         <fieldset className="hk-settings-card">

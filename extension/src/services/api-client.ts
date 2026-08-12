@@ -18,6 +18,8 @@ import type {
   ApiError,
   WebTranslateResponse,
 } from "~types";
+import { llmService } from "./llm-service";
+import { predictJlpt } from "~lib/jlpt-classifier";
 
 class ApiClient {
   private baseUrl: string;
@@ -106,10 +108,22 @@ class ApiClient {
       return this.analyzeCache.get(cacheKey)!;
     }
 
-    const response = await this.request<AnalyzeResponse>("/analyze", {
-      method: "POST",
-      body: JSON.stringify(request),
-    });
+    const llmResult = await llmService.analyzeText(request.text, false);
+    
+    // Process tokens to add JLPT info
+    const tokens = llmResult.tokens?.map((t: any) => ({
+      ...t,
+      jlpt: predictJlpt(t.base_form || t.text)
+    })) || [];
+
+    const response: AnalyzeResponse = {
+      text: request.text,
+      tokens,
+      sentence_reading: llmResult.tokens?.map((t: any) => t.reading).join("") || "",
+      token_count: tokens.length,
+      difficulty_score: null,
+      difficulty_label: null
+    };
 
     if (this.analyzeCache.size >= this.maxCacheSize) {
       const firstKey = this.analyzeCache.keys().next().value;
@@ -125,24 +139,9 @@ class ApiClient {
 
   /** Analyze with the fine-tuned Ja–Vi model, or local fallback when disabled. */
   async analyzeJavi(request: AnalyzeRequest): Promise<PhraseAnalyzeResponse> {
-    const cacheKey = request.text.trim();
-    const cached = this.javiCache.get(cacheKey);
-    if (cached) return cached;
-    const response = await this.request<PhraseAnalyzeResponse>("/analyze/javi", {
-      method: "POST",
-      body: JSON.stringify({
-        text: request.text,
-        translation: "",
-        context_type: "subtitle",
-        include_definitions: true,
-      }),
-    });
-    if (this.javiCache.size >= this.maxCacheSize) {
-      const firstKey = this.javiCache.keys().next().value;
-      if (firstKey) this.javiCache.delete(firstKey);
-    }
-    this.javiCache.set(cacheKey, response);
-    return response;
+    // Just wrap to llmService
+    const res = await this.analyzePhrase(request);
+    return res;
   }
 
   /** Translate and deeply analyze a user-selected subtitle phrase. */
@@ -151,22 +150,28 @@ class ApiClient {
     const cached = this.phraseCache.get(cacheKey);
     if (cached) return cached;
 
-    const response = await this.request<PhraseAnalyzeResponse>("/analyze/phrase", {
-      method: "POST",
-      body: JSON.stringify({
-        text: request.text,
-        translation: "",
-        context_type: "subtitle",
-        include_definitions: true,
-      }),
-    });
+    const llmResult = await llmService.analyzeText(request.text, true);
+    
+    const tokens = llmResult.tokens?.map((t: any) => ({
+      ...t,
+      jlpt: predictJlpt(t.base_form || t.text)
+    })) || [];
+
+    const response: PhraseAnalyzeResponse = {
+      text: request.text,
+      translation: llmResult.translation || "",
+      tokens,
+      sentence_reading: llmResult.tokens?.map((t: any) => t.reading).join("") || "",
+      token_count: tokens.length,
+      difficulty_score: null,
+      difficulty_label: null
+    };
+
     if (this.phraseCache.size >= this.maxCacheSize) {
       const firstKey = this.phraseCache.keys().next().value;
       if (firstKey) this.phraseCache.delete(firstKey);
     }
     this.phraseCache.set(cacheKey, response);
-    // A deep sentence response is also a richer local-analysis response.
-    // Reuse its Vietnamese token meanings for later clicks on the same cue.
     this.analyzeCache.set(
       JSON.stringify({ text: request.text, include_definitions: true }),
       response
@@ -180,14 +185,7 @@ class ApiClient {
     pageUrl: string,
     pageTitle: string
   ): Promise<WebTranslateResponse> {
-    return this.request<WebTranslateResponse>("/translate", {
-      method: "POST",
-      body: JSON.stringify({
-        texts,
-        page_url: pageUrl,
-        page_title: pageTitle,
-      }),
-    });
+    return llmService.translateWebpage(texts, pageUrl, pageTitle);
   }
 
   /** Get YouTube subtitles */
