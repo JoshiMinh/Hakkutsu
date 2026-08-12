@@ -12,6 +12,7 @@ export interface ExtensionSettings {
   ankiDeck: string;
   ankiModel: string;
   autoDetect: boolean;
+  localOcrEnabled: boolean;
   showFurigana: boolean;
   theme: "dark" | "light" | "auto";
   fontSize: "small" | "medium" | "large";
@@ -24,6 +25,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   ankiDeck: "Hakkutsu",
   ankiModel: "Hakkutsu Japanese",
   autoDetect: true,
+  localOcrEnabled: false,
   showFurigana: true,
   theme: "dark",
   fontSize: "medium",

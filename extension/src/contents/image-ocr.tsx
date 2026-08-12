@@ -124,18 +124,12 @@ const ImageOcr = () => {
   const [activeImage, setActiveImage] = useState<HTMLImageElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [inpaintLoading, setInpaintLoading] = useState(false);
   const [transLoading, setTransLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState<string>("");
   const [tokens, setTokens] = useState<TokenAnalysis[] | null>(null);
   const [translation, setTranslation] = useState<string>("");
-  const [inpaintedUrl, setInpaintedUrl] = useState<string | null>(null);
-  const [typesetUrl, setTypesetUrl] = useState<string | null>(null);
-  // 0 = typeset (translated), 1 = clean (inpainted), 2 = original
-  const [imageView, setImageView] = useState<0 | 1 | 2>(0);
   const [resultPosition, setResultPosition] = useState<{ x: number; y: number }>({ x: 20, y: 20 });
-  const [activeTab, setActiveTab] = useState<"ocr" | "inpaint">("ocr");
   const [copied, setCopied] = useState(false);
 
   // Detect Images
@@ -268,9 +262,7 @@ const ImageOcr = () => {
     setOcrText("");
     setTranslation("");
     setTokens(null);
-    setInpaintedUrl(null);
     setError(null);
-    setActiveTab("ocr");
     setLoading(true);
 
     const rect = img.getBoundingClientRect();
@@ -325,50 +317,6 @@ const ImageOcr = () => {
     }
   };
 
-  const handleInpaint = async (img: HTMLImageElement, e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-
-    setActiveImage(img);
-    setIsOpen(true);
-    setActiveTab("inpaint");
-    setInpaintLoading(true);
-    setInpaintedUrl(null);
-    setTranslation("");
-    setError(null);
-
-    const rect = img.getBoundingClientRect();
-    setResultPosition(calculateOptimalPosition(rect));
-
-    try {
-      const dataUrl = await getImageDataUrl(img);
-      const settingsResult = await new Promise<any>(resolve => {
-        chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => resolve(res?.payload));
-      });
-      const baseUrl = settingsResult?.backendUrl || "http://localhost:8000";
-
-      const res = await fetch(`${baseUrl}/api/v1/inpaint`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_data: dataUrl, translate: true })
-      });
-
-      if (!res.ok) throw new Error(`Lỗi máy chủ inpaint (${res.status})`);
-      const data = await res.json();
-      setInpaintedUrl(data.inpainted_image || null);
-      setTypesetUrl(data.typeset_image || data.inpainted_image || null);
-      // Default view: typeset if translation available, else clean
-      setImageView(data.typeset_image && data.translation ? 0 : 1);
-      if (data.original_text) setOcrText(data.original_text);
-      if (data.tokens) setTokens(data.tokens);
-      if (data.translation) setTranslation(data.translation);
-    } catch (err: any) {
-      console.error("Direct inpaint error:", err);
-      setError(err?.message || "Lỗi khi chạy mạng nơ-ron xóa chữ");
-    } finally {
-      setInpaintLoading(false);
-    }
-  };
 
   const handleTokenClick = (token: TokenAnalysis, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -421,14 +369,6 @@ const ImageOcr = () => {
               >
                 <Languages size={14} /> Dịch
               </button>
-              <button 
-                className="hk-img-btn hk-img-btn--primary"
-                style={{ pointerEvents: 'auto' }}
-                onClick={(e) => handleInpaint(img, e)}
-                title="Xóa chữ bằng LaMa AI"
-              >
-                <Paintbrush size={14} /> Xóa chữ
-              </button>
             </div>
           </div>
         );
@@ -446,7 +386,7 @@ const ImageOcr = () => {
           <div className="hk-ocr-result-header">
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <Sparkles size={15} color="#c084fc" />
-              <span>{activeTab === "inpaint" ? "Khôi phục tranh (Inpaint)" : "Nhận diện & Dịch"}</span>
+              <span>Nhận diện & Dịch</span>
             </div>
             <button 
               className="hk-btn hk-btn--ghost"
@@ -460,10 +400,10 @@ const ImageOcr = () => {
             </button>
           </div>
           
-          {loading || inpaintLoading ? (
+          {loading ? (
             <div style={{ textAlign: "center", padding: "28px 0", color: "#a1a1aa" }}>
               <RefreshCw size={24} className="hk-spin" style={{ color: "#a855f7", margin: "0 auto 8px" }} />
-              <div>{inpaintLoading ? "Đang chạy mạng nơ-ron xóa chữ..." : "Đang nhận diện ký tự tiếng Nhật..."}</div>
+              <div>Đang nhận diện ký tự tiếng Nhật...</div>
             </div>
           ) : error ? (
             <div style={{ padding: "16px 0", color: "#f87171", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -472,46 +412,6 @@ const ImageOcr = () => {
             </div>
           ) : (
             <>
-              {activeTab === "inpaint" && (inpaintedUrl || typesetUrl) && (
-                <div style={{ position: "relative", borderRadius: "8px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", background: "#09090b" }}>
-                  <img
-                    src={
-                      imageView === 0 ? (typesetUrl ?? inpaintedUrl ?? activeImage.src)
-                      : imageView === 1 ? (inpaintedUrl ?? activeImage.src)
-                      : activeImage.src
-                    }
-                    alt="Result"
-                    style={{ width: "100%", maxHeight: "240px", objectFit: "contain", display: "block" }}
-                  />
-                  {/* View label badge */}
-                  <div style={{ position: "absolute", top: "8px", left: "8px", background: "rgba(9,9,11,0.82)", backdropFilter: "blur(6px)", borderRadius: "6px", padding: "3px 8px", fontSize: "11px", fontWeight: 600, color: imageView === 0 ? "#14b8a6" : imageView === 1 ? "#a855f7" : "#71717a" }}>
-                    {imageView === 0 ? "🇻🇳 Bản dịch" : imageView === 1 ? "✨ Ảnh sạch" : "📷 Ảnh gốc"}
-                  </div>
-                  <div style={{ position: "absolute", bottom: "8px", right: "8px", display: "flex", gap: "6px" }}>
-                    <button
-                      className="hk-img-btn"
-                      style={{ fontSize: "11px", padding: "4px 8px" }}
-                      onClick={() => setImageView(((imageView + 1) % 3) as 0 | 1 | 2)}
-                      title="Chuyển đổi: Bản dịch → Ảnh sạch → Ảnh gốc"
-                    >
-                      <Layers size={12} />
-                      {imageView === 0 ? "Xem ảnh sạch" : imageView === 1 ? "Xem ảnh gốc" : "Xem bản dịch"}
-                    </button>
-                    <button
-                      className="hk-img-btn"
-                      style={{ fontSize: "11px", padding: "4px 8px" }}
-                      onClick={() => {
-                        const a = document.createElement("a");
-                        a.href = imageView === 0 ? (typesetUrl ?? inpaintedUrl ?? "") : (inpaintedUrl ?? "");
-                        a.download = `hakkutsu-${imageView === 0 ? "typeset" : "clean"}-${Date.now()}.png`;
-                        a.click();
-                      }}
-                    >
-                      <Download size={12} /> Tải ảnh
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {ocrText && (
                 <div>

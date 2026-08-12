@@ -9,6 +9,7 @@ import { getSettings } from "~services/storage";
 import { apiClient } from "~services/api-client";
 import { localSrs } from "~services/local-srs";
 import { ankiClient } from "~services/anki-connect";
+import { localOcrService } from "~services/ocr-service";
 import {
   fetchCaptionTracks,
   fetchSubtitles,
@@ -34,7 +35,6 @@ async function fetchSubtitlesFromLocalBackend(
 ): Promise<SubtitleResponse> {
   const settings = await getSettings();
   const baseUrls = [
-    settings.backendUrl,
     "http://127.0.0.1:8000",
     "http://localhost:8000",
   ]
@@ -162,8 +162,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
 
 // Initialize API client with stored settings
 async function initializeApiClient(): Promise<void> {
-  const settings = await getSettings();
-  apiClient.setBaseUrl(settings.backendUrl);
+  apiClient.setBaseUrl("http://localhost:8000");
 }
 
 initializeApiClient();
@@ -492,8 +491,7 @@ async function handleMessage(
 
     case "TRANSLATE_TEXT": {
       const { texts } = message.payload as { texts: string[] };
-      const settings = await getSettings();
-      const baseUrl = settings.backendUrl || "http://localhost:8000";
+      const baseUrl = "http://localhost:8000";
 
       // 1. Try local backend first
       try {
@@ -548,7 +546,24 @@ async function handleMessage(
     case "OCR_IMAGE": {
       const { image_data, language } = message.payload as { image_data: string; language?: string };
       const settings = await getSettings();
-      const baseUrl = settings.backendUrl || "http://localhost:8000";
+      
+      if (settings.localOcrEnabled) {
+        try {
+          const text = await localOcrService.recognizeImage(image_data);
+          return {
+            type: "OCR_RESULT",
+            payload: {
+              full_text: text,
+              regions: [{ text, confidence: 1.0, bbox: null }],
+              language: language || "jpn"
+            }
+          };
+        } catch (error: any) {
+          throw new Error(`Local OCR failed: ${error.message}`);
+        }
+      }
+
+      const baseUrl = "http://localhost:8000";
       const res = await fetch(`${baseUrl}/api/v1/ocr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -557,20 +572,6 @@ async function handleMessage(
       if (!res.ok) throw new Error(`Lỗi máy chủ OCR (${res.status})`);
       const data = await res.json();
       return { type: "OCR_RESULT", payload: data };
-    }
-
-    case "INPAINT_IMAGE": {
-      const { image_data, translate } = message.payload as { image_data: string; translate?: boolean };
-      const settings = await getSettings();
-      const baseUrl = settings.backendUrl || "http://localhost:8000";
-      const res = await fetch(`${baseUrl}/api/v1/inpaint`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_data, translate: translate ?? true }),
-      });
-      if (!res.ok) throw new Error(`Lỗi máy chủ inpaint (${res.status})`);
-      const data = await res.json();
-      return { type: "INPAINT_RESULT", payload: data };
     }
 
     case "OPEN_APP": {

@@ -73,6 +73,26 @@ export function SettingsView({
 
         <fieldset className="hk-settings-card">
           <legend className="hk-settings-card__title">Study Preferences</legend>
+          
+          <div className="hk-settings-row">
+            <div className="hk-settings-row__info">
+              <label htmlFor="localOcrEnabled" className="hk-settings-row__label">Enable Local OCR</label>
+              <div id="localOcrEnabled-desc" className="hk-settings-row__desc">Run ML models locally (requires ~120MB download initially)</div>
+            </div>
+            <div className="hk-settings-row__control">
+              <label className="hk-toggle" htmlFor="localOcrEnabled">
+                <input
+                  id="localOcrEnabled"
+                  aria-describedby="localOcrEnabled-desc"
+                  type="checkbox"
+                  checked={settings.localOcrEnabled}
+                  onChange={(e) => onUpdate({ localOcrEnabled: e.target.checked })}
+                />
+                <span className="hk-toggle__slider" />
+              </label>
+            </div>
+          </div>
+
           <div className="hk-settings-row">
             <div className="hk-settings-row__info">
               <label htmlFor="autoDetect" className="hk-settings-row__label">Auto-detect Japanese</label>
