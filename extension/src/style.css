@@ -887,34 +887,76 @@
 
 /* ── Settings (Modern Minimal) ─────────────────────────────────── */
 
+.hk-settings-header {
+  margin-bottom: var(--hk-space-2xl);
+  padding-bottom: var(--hk-space-lg);
+  border-bottom: 1px solid var(--hk-border);
+}
+
+.hk-settings-title {
+  font-size: var(--hk-text-2xl);
+  font-weight: 700;
+  color: var(--hk-text-primary);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--hk-space-xs);
+}
+
+.hk-settings-subtitle {
+  font-size: var(--hk-text-sm);
+  color: var(--hk-text-muted);
+}
+
 .hk-settings-form {
   display: flex;
   flex-direction: column;
-  gap: var(--hk-space-xl);
+  gap: var(--hk-space-2xl);
 }
 
 .hk-settings-card {
-  border: 1px solid var(--hk-border);
-  border-radius: var(--hk-radius-lg);
-  background: var(--hk-bg-secondary);
-  padding: var(--hk-space-md) var(--hk-space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hk-space-lg);
   margin: 0;
 }
 
+.hk-settings-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--hk-space-sm);
+}
+
+.hk-settings-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--hk-radius-sm);
+  background: rgba(168, 85, 247, 0.1);
+  color: var(--hk-accent-primary);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
 .hk-settings-card__title {
-  font-size: var(--hk-text-sm);
+  font-size: var(--hk-text-base);
   font-weight: 600;
-  color: var(--hk-text-secondary);
-  padding: 0 var(--hk-space-xs);
-  margin-left: -var(--hk-space-xs);
-  margin-bottom: var(--hk-space-sm);
+  color: var(--hk-text-primary);
+}
+
+.hk-settings-card__body {
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-lg);
+  background: var(--hk-bg-secondary);
+  padding: 0 var(--hk-space-lg);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
 }
 
 .hk-settings-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--hk-space-md) 0;
+  padding: var(--hk-space-lg) 0;
+  transition: background-color var(--hk-transition-fast);
 }
 
 .hk-settings-row:not(:last-child) {
@@ -924,36 +966,40 @@
 .hk-settings-row__info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .hk-settings-row__label {
   font-size: var(--hk-text-sm);
   color: var(--hk-text-primary);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .hk-settings-row__desc {
   font-size: var(--hk-text-xs);
   color: var(--hk-text-muted);
+  max-width: 280px;
+  line-height: 1.4;
 }
 
 .hk-settings-input {
   width: 240px;
   padding: var(--hk-space-sm) var(--hk-space-md);
-  background: var(--hk-bg-primary);
+  background: var(--hk-bg-tertiary);
   border: 1px solid var(--hk-border);
   border-radius: var(--hk-radius-md);
   color: var(--hk-text-primary);
   font-family: var(--hk-font-mono);
   font-size: var(--hk-text-sm);
   transition: all var(--hk-transition-fast);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .hk-settings-input:focus-visible {
   outline: none;
   border-color: var(--hk-accent-primary);
-  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2);
+  background: var(--hk-bg-secondary);
+  box-shadow: var(--hk-shadow-glow), inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .hk-settings-footer {
@@ -1152,8 +1198,8 @@
 
 .hk-toggle {
   position: relative;
-  width: 40px;
-  height: 22px;
+  width: 44px;
+  height: 24px;
   flex-shrink: 0;
 }
 
@@ -1172,20 +1218,22 @@
   bottom: 0;
   background: var(--hk-bg-tertiary);
   border-radius: var(--hk-radius-full);
-  transition: var(--hk-transition-fast);
+  transition: all var(--hk-transition-normal) cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid var(--hk-border);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .hk-toggle__slider::before {
   position: absolute;
   content: "";
-  height: 16px;
-  width: 16px;
+  height: 18px;
+  width: 18px;
   left: 2px;
   bottom: 2px;
   background: var(--hk-text-muted);
   border-radius: 50%;
-  transition: var(--hk-transition-fast);
+  transition: all var(--hk-transition-normal) cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .hk-toggle input:checked + .hk-toggle__slider {
@@ -1194,8 +1242,9 @@
 }
 
 .hk-toggle input:checked + .hk-toggle__slider::before {
-  transform: translateX(18px);
-  background: var(--hk-bg-primary);
+  transform: translateX(20px);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 /* ── Subtitle View ─────────────────────────────────────────────── */
