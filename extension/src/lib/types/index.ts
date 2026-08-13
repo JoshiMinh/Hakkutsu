@@ -5,6 +5,7 @@ export type {
   TokenAnalysis,
   TokenReading,
   DictionaryEntry,
+  GrammarPattern,
 } from "./api";
 export type {
   SubtitleRequest,

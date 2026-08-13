@@ -72,6 +72,105 @@ export function SettingsView({
         </fieldset>
 
         <fieldset className="hk-settings-card">
+          <legend className="hk-settings-card__title">Feature Toggles</legend>
+          
+          <div className="hk-settings-row">
+            <div className="hk-settings-row__info">
+              <label htmlFor="srsEnabled" className="hk-settings-row__label">SRS Reviews</label>
+              <div id="srsEnabled-desc" className="hk-settings-row__desc">Built-in spaced repetition system</div>
+            </div>
+            <div className="hk-settings-row__control">
+              <label className="hk-toggle" htmlFor="srsEnabled">
+                <input
+                  id="srsEnabled"
+                  aria-describedby="srsEnabled-desc"
+                  type="checkbox"
+                  checked={settings.srsEnabled}
+                  onChange={(e) => onUpdate({ srsEnabled: e.target.checked })}
+                />
+                <span className="hk-toggle__slider" />
+              </label>
+            </div>
+          </div>
+
+          <div className="hk-settings-row">
+            <div className="hk-settings-row__info">
+              <label htmlFor="textAnalysisEnabled" className="hk-settings-row__label">Inline Dictionary</label>
+              <div id="textAnalysisEnabled-desc" className="hk-settings-row__desc">Alt/Double-click word lookups</div>
+            </div>
+            <div className="hk-settings-row__control">
+              <label className="hk-toggle" htmlFor="textAnalysisEnabled">
+                <input
+                  id="textAnalysisEnabled"
+                  aria-describedby="textAnalysisEnabled-desc"
+                  type="checkbox"
+                  checked={settings.textAnalysisEnabled}
+                  onChange={(e) => onUpdate({ textAnalysisEnabled: e.target.checked })}
+                />
+                <span className="hk-toggle__slider" />
+              </label>
+            </div>
+          </div>
+
+          <div className="hk-settings-row">
+            <div className="hk-settings-row__info">
+              <label htmlFor="youtubeEnabled" className="hk-settings-row__label">YouTube Subtitles</label>
+              <div id="youtubeEnabled-desc" className="hk-settings-row__desc">Interactive subtitle overlay on YouTube</div>
+            </div>
+            <div className="hk-settings-row__control">
+              <label className="hk-toggle" htmlFor="youtubeEnabled">
+                <input
+                  id="youtubeEnabled"
+                  aria-describedby="youtubeEnabled-desc"
+                  type="checkbox"
+                  checked={settings.youtubeEnabled}
+                  onChange={(e) => onUpdate({ youtubeEnabled: e.target.checked })}
+                />
+                <span className="hk-toggle__slider" />
+              </label>
+            </div>
+          </div>
+
+          <div className="hk-settings-row">
+            <div className="hk-settings-row__info">
+              <label htmlFor="netflixEnabled" className="hk-settings-row__label">Netflix Subtitles</label>
+              <div id="netflixEnabled-desc" className="hk-settings-row__desc">Interactive subtitle overlay on Netflix</div>
+            </div>
+            <div className="hk-settings-row__control">
+              <label className="hk-toggle" htmlFor="netflixEnabled">
+                <input
+                  id="netflixEnabled"
+                  aria-describedby="netflixEnabled-desc"
+                  type="checkbox"
+                  checked={settings.netflixEnabled}
+                  onChange={(e) => onUpdate({ netflixEnabled: e.target.checked })}
+                />
+                <span className="hk-toggle__slider" />
+              </label>
+            </div>
+          </div>
+
+          <div className="hk-settings-row">
+            <div className="hk-settings-row__info">
+              <label htmlFor="ankiEnabled" className="hk-settings-row__label">Anki Integration</label>
+              <div id="ankiEnabled-desc" className="hk-settings-row__desc">Connect to local Anki application</div>
+            </div>
+            <div className="hk-settings-row__control">
+              <label className="hk-toggle" htmlFor="ankiEnabled">
+                <input
+                  id="ankiEnabled"
+                  aria-describedby="ankiEnabled-desc"
+                  type="checkbox"
+                  checked={settings.ankiEnabled}
+                  onChange={(e) => onUpdate({ ankiEnabled: e.target.checked })}
+                />
+                <span className="hk-toggle__slider" />
+              </label>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset className="hk-settings-card">
           <legend className="hk-settings-card__title">Study Preferences</legend>
           
           <div className="hk-settings-row">
@@ -133,7 +232,7 @@ export function SettingsView({
         </fieldset>
 
         <fieldset className="hk-settings-card">
-          <legend className="hk-settings-card__title">Anki Integration</legend>
+          <legend className="hk-settings-card__title">Anki Integration Details</legend>
           <div className="hk-settings-row">
             <div className="hk-settings-row__info">
               <label htmlFor="ankiDeck" className="hk-settings-row__label">Anki Deck Name</label>

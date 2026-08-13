@@ -33,6 +33,7 @@ export interface SrsStats {
   total: number;
   mined: number;
   forecast: number[]; // counts of cards due today, tomorrow, etc. (7 days)
+  cardsReviewedToday: number;
 }
 
 interface SrsDBSchema extends DBSchema {
@@ -169,8 +170,10 @@ class LocalSrsService {
     let learning = 0;
     let graduated = 0;
     let mined = 0;
+    let cardsReviewedToday = 0;
     const forecast = Array(7).fill(0);
     const msPerDay = 24 * 60 * 60 * 1000;
+    const startOfToday = new Date().setHours(0, 0, 0, 0);
     
     for (const card of allCards) {
       if (card.due_date <= now) {
@@ -188,6 +191,10 @@ class LocalSrsService {
       if (card.sentence || card.source_url) {
         mined++;
       }
+      
+      if (card.updated_at >= startOfToday && card.repetition > 0) {
+        cardsReviewedToday++;
+      }
 
       // Forecast calculation
       if (card.due_date > now) {
@@ -201,7 +208,7 @@ class LocalSrsService {
       }
     }
     
-    return { due, new: newCards, learning, graduated, total: allCards.length, mined, forecast };
+    return { due, new: newCards, learning, graduated, total: allCards.length, mined, forecast, cardsReviewedToday };
   }
 
   async submitSrsReview(cardId: string, quality: number): Promise<SrsCard> {
@@ -223,6 +230,14 @@ class LocalSrsService {
       } else {
         interval = Math.round(interval * efactor);
       }
+      
+      // Fuzzing to prevent clumping
+      if (interval > 1) {
+        const minFuzz = Math.max(1, Math.round(interval * 0.95 - 1));
+        const maxFuzz = Math.round(interval * 1.05 + 1);
+        interval = Math.floor(Math.random() * (maxFuzz - minFuzz + 1)) + minFuzz;
+      }
+      
       repetition++;
     } else {
       repetition = 0;

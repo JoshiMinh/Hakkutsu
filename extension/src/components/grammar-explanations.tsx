@@ -1,5 +1,5 @@
 import React from "react"
-import type { GrammarPattern } from "../types/api"
+import type { GrammarPattern } from "~lib/types"
 
 interface GrammarExplanationsProps {
   patterns: GrammarPattern[]

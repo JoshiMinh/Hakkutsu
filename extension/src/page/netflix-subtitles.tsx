@@ -12,6 +12,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import type { SubtitleSegment } from "~lib/types";
 import { youtubeSubtitleCss, youtubeToolbarCss } from "./youtube-subtitle-styles"; // We can reuse the same CSS
 import { SubtitleOverlay, type SubtitleSettings } from "~components/subtitle-overlay";
+import { useSettingsStore } from "~lib/utils/settings";
 
 export const config: PlasmoCSConfig = {
   matches: ["https://www.netflix.com/watch/*"],
@@ -59,10 +60,15 @@ const NetflixSubtitles = () => {
   const [isEnabled, setIsEnabled] = useState(false);
   const [currentUrl, setCurrentUrl] = useState(window.location.href);
   const [toolbarContainer, setToolbarContainer] = useState<Element | null>(null);
+  const { settings, isHydrated } = useSettingsStore();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // ── Native Toolbar Injection ──────────────────────────────────────────
+
+  if (isHydrated && !settings.netflixEnabled) {
+    return null;
+  }
 
   useEffect(() => {
     const interval = setInterval(() => {

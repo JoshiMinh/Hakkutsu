@@ -6,6 +6,7 @@ import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis, AnkiExportD
 import { DefinitionCard } from "~components/definition-card";
 import { TokenDisplay } from "~components/token-display";
 import { GrammarExplanations } from "~components/grammar-explanations";
+import { useSettingsStore } from "~lib/utils/settings";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
@@ -48,6 +49,7 @@ const InlineDictionary = () => {
   const [phraseMode, setPhraseMode] = useState(false);
   const [sentenceMode, setSentenceMode] = useState(false);
   const [transientMode, setTransientMode] = useState(false);
+  const { settings, isHydrated } = useSettingsStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const analysisRequestRef = useRef(0);
@@ -63,6 +65,14 @@ const InlineDictionary = () => {
   }, []);
 
   useEffect(() => {
+    if (isHydrated && !settings.textAnalysisEnabled) {
+      if (position) {
+        setPosition(null);
+        window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+      }
+      return;
+    }
+
     const handleSelection = (e: MouseEvent, isDoubleClick: boolean) => {
       // Don't trigger if they clicked inside the dictionary itself
       if (containerRef.current && e.target instanceof Node && containerRef.current.contains(e.target)) {
@@ -167,7 +177,7 @@ const InlineDictionary = () => {
       window.removeEventListener("hakkutsu:analysis-dismiss", onDismissAnalysis);
       window.removeEventListener("hakkutsu:token-hover", onTokenHover);
     };
-  }, [position]);
+  }, [position, settings.textAnalysisEnabled, isHydrated]);
 
   const analyzeText = async (
     text: string,

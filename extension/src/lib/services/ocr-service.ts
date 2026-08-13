@@ -16,7 +16,7 @@ class LocalOcrService {
     try {
       // Load manga-ocr ONNX model (vision2seq)
       this.ocrPipeline = await pipeline("image-to-text", "onnx-community/manga-ocr-base-ONNX", {
-        dtype: "q8"
+        quantized: true
       });
       // Optionally we could load a text detector model if needed. 
       // For basic usage where the user already cropped the image, 

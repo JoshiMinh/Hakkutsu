@@ -14,6 +14,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import type { SubtitleSegment, SubtitleFetchResult } from "~lib/types";
 import { youtubeSubtitleCss, youtubeToolbarCss } from "./youtube-subtitle-styles";
 import { SubtitleOverlay, type SubtitleSettings } from "~components/subtitle-overlay";
+import { useSettingsStore } from "~lib/utils/settings";
 import { fetchTranscriptPanelSubtitles } from "~lib/services/youtube-transcript-dom";
 import {
   buildSmartCues,
@@ -145,6 +146,7 @@ const YouTubeSubtitles = () => {
   const [currentUrl, setCurrentUrl] = useState(window.location.href);
   const [toolbarContainer, setToolbarContainer] = useState<Element | null>(null);
   const [autoPause, setAutoPause] = useState(false);
+  const { settings, isHydrated } = useSettingsStore();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rafIdRef = useRef<number | null>(null);
@@ -152,6 +154,10 @@ const YouTubeSubtitles = () => {
   const loadingRef = useRef(false);
 
   // ── Native Toolbar Injection ──────────────────────────────────────────
+
+  if (isHydrated && !settings.youtubeEnabled) {
+    return null;
+  }
 
   useEffect(() => {
     const interval = setInterval(() => {

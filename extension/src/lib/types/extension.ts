@@ -16,6 +16,10 @@ export interface ExtensionSettings {
   showFurigana: boolean;
   theme: "dark" | "light" | "auto";
   fontSize: "small" | "medium" | "large";
+  srsEnabled: boolean;
+  youtubeEnabled: boolean;
+  netflixEnabled: boolean;
+  textAnalysisEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -29,6 +33,10 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   showFurigana: true,
   theme: "dark",
   fontSize: "medium",
+  srsEnabled: true,
+  youtubeEnabled: true,
+  netflixEnabled: true,
+  textAnalysisEnabled: true,
 };
 
 export interface VocabularyEntry {

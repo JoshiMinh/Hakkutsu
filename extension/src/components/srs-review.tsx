@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
-import { localSrs, type SrsCard } from "~lib/services/local-srs";
-import { PartyPopper } from "lucide-react";
+import { localSrs, type SrsCard, type SrsStats } from "~lib/services/local-srs";
+import { PartyPopper, Volume2 } from "lucide-react";
 
 export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   const [cards, setCards] = useState<SrsCard[]>([]);
+  const [stats, setStats] = useState<SrsStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -17,7 +18,9 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
     setError(null);
     try {
       const dueCards = await localSrs.getDueCards();
+      const currentStats = await localSrs.getSrsStats();
       setCards(dueCards);
+      setStats(currentStats);
     } catch (err: any) {
       setError(err.message || "Failed to load due cards");
     } finally {
@@ -35,10 +38,34 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
     
     try {
       await localSrs.submitSrsReview(currentCard.id, quality);
+      // We don't fetch stats here to keep UI snappy, but we can increment optimistically if we wanted
+      if (stats) {
+        setStats({
+           ...stats, 
+           cardsReviewedToday: stats.cardsReviewedToday + 1,
+           due: Math.max(0, stats.due - 1)
+        });
+      }
     } catch (err) {
       console.error("Failed to submit review", err);
     }
-  }, [cards]);
+  }, [cards, stats]);
+
+  const speakText = (text: string) => {
+    if ("speechSynthesis" in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "ja-JP";
+      utterance.rate = 0.9;
+      window.speechSynthesis.cancel(); // Stop current speech
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  useEffect(() => {
+    if (showAnswer && cards.length > 0) {
+      speakText(cards[0].word);
+    }
+  }, [showAnswer, cards]);
 
   // Keyboard accessibility
   useEffect(() => {
@@ -112,14 +139,31 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
 
   return (
     <div className="hk-content hk-fade-in hk-srs-container">
-      <div className="hk-srs-header">
-        <span className="hk-srs-stat">Reviews due: <strong>{cards.length}</strong></span>
-        <span className="hk-srs-stat">State: <strong className={`hk-srs-state--${queueState}`}>{queueState}</strong></span>
+      <div className="hk-srs-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <span className="hk-srs-stat">Due: <strong>{cards.length}</strong></span>
+          <span className="hk-srs-stat" style={{ marginLeft: "12px" }}>State: <strong className={`hk-srs-state--${queueState}`}>{queueState}</strong></span>
+        </div>
+        {stats && (
+          <div className="hk-srs-stat" style={{ background: "var(--hk-bg-tertiary)", padding: "4px 8px", borderRadius: "12px", fontSize: "12px" }}>
+            Reviewed today: <strong style={{ color: "var(--hk-accent-primary)" }}>{stats.cardsReviewedToday}</strong>
+          </div>
+        )}
       </div>
 
       <div className="hk-srs-card">
-        <div className="hk-srs-card__word">
+        <div className="hk-srs-card__word" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
           {card.word}
+          {showAnswer && (
+            <button 
+              onClick={() => speakText(card.word)}
+              className="hk-btn hk-btn--ghost hk-btn--icon"
+              style={{ padding: "4px", marginTop: "4px" }}
+              title="Listen again"
+            >
+              <Volume2 size={20} style={{ color: "var(--hk-text-secondary)" }} />
+            </button>
+          )}
         </div>
         
         {showAnswer && (
@@ -177,20 +221,20 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
         ) : (
           <div className="hk-srs-grades">
             <button className="hk-btn hk-srs-btn--grade hk-srs-grade--1" onClick={() => handleReview(1)}>
-              <span className="hk-srs-grade__label">Again</span>
-              <span className="hk-shortcut-hint">1</span>
+              <div className="hk-srs-grade__label">Again</div>
+              <div className="hk-shortcut-hint" style={{ fontSize: "11px", marginTop: "4px" }}>Press 1</div>
             </button>
             <button className="hk-btn hk-srs-btn--grade hk-srs-grade--3" onClick={() => handleReview(3)}>
-              <span className="hk-srs-grade__label">Hard</span>
-              <span className="hk-shortcut-hint">2</span>
+              <div className="hk-srs-grade__label">Hard</div>
+              <div className="hk-shortcut-hint" style={{ fontSize: "11px", marginTop: "4px" }}>Press 2</div>
             </button>
             <button className="hk-btn hk-srs-btn--grade hk-srs-grade--4" onClick={() => handleReview(4)}>
-              <span className="hk-srs-grade__label">Good</span>
-              <span className="hk-shortcut-hint">3</span>
+              <div className="hk-srs-grade__label">Good</div>
+              <div className="hk-shortcut-hint" style={{ fontSize: "11px", marginTop: "4px" }}>Press 3</div>
             </button>
             <button className="hk-btn hk-srs-btn--grade hk-srs-grade--5" onClick={() => handleReview(5)}>
-              <span className="hk-srs-grade__label">Easy</span>
-              <span className="hk-shortcut-hint">4</span>
+              <div className="hk-srs-grade__label">Easy</div>
+              <div className="hk-shortcut-hint" style={{ fontSize: "11px", marginTop: "4px" }}>Press 4</div>
             </button>
           </div>
         )}

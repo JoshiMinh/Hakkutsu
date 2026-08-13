@@ -315,9 +315,6 @@ function Popup() {
 
   useEffect(() => {
     const init = async () => {
-      if (settings.backendUrl) {
-        apiClient.setBaseUrl(settings.backendUrl);
-      }
 
       try {
         await apiClient.healthCheck();
@@ -335,20 +332,29 @@ function Popup() {
     };
 
     init();
-  }, [settings.backendUrl]);
+  }, []);
 
   const handleUpdateSettings = (patch: Partial<ExtensionSettings>) => {
     updateSettings(patch);
-    if (patch.backendUrl) {
-      apiClient.setBaseUrl(patch.backendUrl);
-    }
   };
 
   const tabs: Array<{ id: ExtensionView; label: string; icon: React.ReactNode }> = [
     { id: "translate", label: "Translate", icon: <Languages size={16} /> },
-    { id: "srs", label: "Reviews", icon: <Brain size={16} /> },
-    { id: "anki", label: "Anki", icon: <BookMarked size={16} /> },
   ];
+  if (settings.srsEnabled) {
+    tabs.push({ id: "srs", label: "Reviews", icon: <Brain size={16} /> });
+  }
+  if (settings.ankiEnabled) {
+    tabs.push({ id: "anki", label: "Anki", icon: <BookMarked size={16} /> });
+  }
+
+  useEffect(() => {
+    if (activeView === "srs" && !settings.srsEnabled) {
+      setActiveView("translate");
+    } else if (activeView === "anki" && !settings.ankiEnabled) {
+      setActiveView("translate");
+    }
+  }, [settings.srsEnabled, settings.ankiEnabled, activeView]);
 
   return (
     <div className="hk-popup">

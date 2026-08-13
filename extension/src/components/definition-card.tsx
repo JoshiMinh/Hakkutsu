@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { TokenAnalysis, AnkiExportData } from "~lib/types";
 import { POS_LABELS } from "~lib/utils/constants";
-import { JlptBadge, PosBadge, FrequencyBadge } from "./Badges";
+import { JlptBadge, PosBadge, FrequencyBadge } from "./badges";
 import { Volume2, BookmarkPlus, ExternalLink, Copy, Check, Sparkles, BookOpen } from "lucide-react";
 
 export function DefinitionCard({

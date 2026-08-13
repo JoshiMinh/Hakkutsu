@@ -21,17 +21,8 @@ export default function AppDashboard() {
     localStorage.setItem("hk_active_tab", activeTab);
   }, [activeTab]);
 
-  useEffect(() => {
-    if (settings.backendUrl) {
-      apiClient.setBaseUrl(settings.backendUrl);
-    }
-  }, [settings.backendUrl]);
-
   const handleUpdateSettings = (patch: Partial<ExtensionSettings>) => {
     updateSettings(patch);
-    if (patch.backendUrl) {
-      apiClient.setBaseUrl(patch.backendUrl);
-    }
   };
 
   return (
@@ -59,16 +50,20 @@ export default function AppDashboard() {
             onClick={() => setActiveTab("dashboard")}
             icon={<LayoutDashboard size={18} />} label="Dashboard" 
           />
-          <SidebarButton 
-            active={activeTab === "review"} 
-            onClick={() => setActiveTab("review")}
-            icon={<Brain size={18} />} label="Reviews" 
-          />
-          <SidebarButton 
-            active={activeTab === "vocabulary"} 
-            onClick={() => setActiveTab("vocabulary")}
-            icon={<BookOpen size={18} />} label="Vocabulary" 
-          />
+          {settings.srsEnabled && (
+            <>
+              <SidebarButton 
+                active={activeTab === "review"} 
+                onClick={() => setActiveTab("review")}
+                icon={<Brain size={18} />} label="Reviews" 
+              />
+              <SidebarButton 
+                active={activeTab === "vocabulary"} 
+                onClick={() => setActiveTab("vocabulary")}
+                icon={<BookOpen size={18} />} label="Vocabulary" 
+              />
+            </>
+          )}
           <SidebarButton 
             active={activeTab === "settings"} 
             onClick={() => setActiveTab("settings")}
