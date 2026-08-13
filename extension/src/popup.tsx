@@ -10,7 +10,6 @@ import {
   Languages, 
   BookMarked, 
   Scissors, 
-  Paintbrush,
   ExternalLink,
   Search,
   Wifi,
@@ -374,14 +373,7 @@ function Popup() {
           >
             <Scissors size={14} /> OCR
           </button>
-          <button 
-            className="hk-btn hk-btn--secondary hk-btn--sm"
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/editor.html") })}
-            title="Open Manga Studio (Inpainting & Typesetting)"
-            style={{ padding: "4px 8px" }}
-          >
-            <Paintbrush size={14} /> Editor
-          </button>
+
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"
             onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
