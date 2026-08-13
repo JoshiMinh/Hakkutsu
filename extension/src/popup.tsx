@@ -20,10 +20,10 @@ import {
   RefreshCw
 } from "lucide-react";
 
-import { apiClient } from "~services/api-client";
-import { ankiClient } from "~services/anki-connect";
-import { useSettingsStore } from "~store/settings";
-import { containsJapanese } from "~lib/japanese";
+import { apiClient } from "~lib/services/api-client";
+import { ankiClient } from "~lib/services/anki-connect";
+import { useSettingsStore } from "~lib/utils/settings";
+import { containsJapanese } from "~lib/utils/japanese";
 import logoUrl from "url:../assets/icon.png";
 import type {
   AnalyzeResponse,
@@ -31,16 +31,16 @@ import type {
   ExtensionSettings,
   ExtensionView,
   AnkiExportData,
-} from "~types";
-import { DEFAULT_SETTINGS } from "~types";
+} from "~lib/types";
+import { DEFAULT_SETTINGS } from "~lib/types";
 
-import { JlptBadge } from "~components/Badges";
-import { TokenDisplay } from "~components/TokenDisplay";
-import { DefinitionCard } from "~components/DefinitionCard";
+import { JlptBadge } from "~components/badges";
+import { TokenDisplay } from "~components/token-display";
+import { DefinitionCard } from "~components/definition-card";
 
-const GrammarExplanations = lazy(() => import("~components/GrammarExplanations").then(m => ({ default: m.GrammarExplanations })));
-const KanjiBreakdown = lazy(() => import("~components/KanjiBreakdown").then(m => ({ default: m.KanjiBreakdown })));
-const SrsReview = lazy(() => import("~components/SrsReview").then(m => ({ default: m.SrsReview })));
+const GrammarExplanations = lazy(() => import("~components/grammar-explanations").then(m => ({ default: m.GrammarExplanations })));
+const KanjiBreakdown = lazy(() => import("~components/kanji-breakdown").then(m => ({ default: m.KanjiBreakdown })));
+const SrsReview = lazy(() => import("~components/srs-review").then(m => ({ default: m.SrsReview })));
 
 import "./style.css";
 
@@ -297,7 +297,7 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
         <button
           className="hk-btn hk-btn--secondary"
           style={{ width: '100%', justifyContent: 'center' }}
-          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") })}
+          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
         >
           <ExternalLink size={16} /> Open Full App
         </button>
@@ -384,7 +384,7 @@ function Popup() {
           </button>
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") })}
+            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
             title="Open App Dashboard"
             style={{ padding: "4px 8px" }}
           >

@@ -1,4 +1,4 @@
-import { POS_LABELS } from "~lib/constants";
+import { POS_LABELS } from "~lib/utils/constants";
 
 export function JlptBadge({ level }: { level: string | null }) {
   if (!level) return null;

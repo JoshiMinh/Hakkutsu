@@ -1,14 +1,15 @@
 import type { PlasmoCSConfig } from "plasmo";
 import { useEffect, useState, useRef } from "react";
 import { X, Loader2, Sparkles, Languages, Zap } from "lucide-react";
-import { containsJapanese } from "~lib/japanese";
-import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis, AnkiExportData } from "~types";
-import { DefinitionCard } from "~components/DefinitionCard";
-import { TokenDisplay } from "~components/TokenDisplay";
-import { GrammarExplanations } from "~components/GrammarExplanations";
+import { containsJapanese } from "~lib/utils/japanese";
+import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis, AnkiExportData } from "~lib/types";
+import { DefinitionCard } from "~components/definition-card";
+import { TokenDisplay } from "~components/token-display";
+import { GrammarExplanations } from "~components/grammar-explanations";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
+  exclude_matches: ["*://*.saucenao.com/*", "*://saucenao.com/*"],
   all_frames: true,
 };
 

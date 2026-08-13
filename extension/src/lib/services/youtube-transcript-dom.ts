@@ -9,7 +9,7 @@
  * handling token-gated timedtext URLs.
  */
 
-import type { SubtitleFetchResult, SubtitleSegment } from "~types";
+import type { SubtitleFetchResult, SubtitleSegment } from "~lib/types";
 
 const delay = (milliseconds: number) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));

@@ -5,7 +5,7 @@
  * error handling, auth token injection, and retry logic.
  */
 
-import { DEFAULT_API_URL, API_V1 } from "~lib/constants";
+import { DEFAULT_API_URL, API_V1 } from "~lib/utils/constants";
 import type {
   AnalyzeRequest,
   AnalyzeResponse,
@@ -17,9 +17,9 @@ import type {
   HealthResponse,
   ApiError,
   WebTranslateResponse,
-} from "~types";
+} from "~lib/types";
 import { llmService } from "./llm-service";
-import { predictJlpt } from "~lib/jlpt-classifier";
+import { predictJlpt } from "~lib/utils/jlpt-classifier";
 
 class ApiClient {
   private baseUrl: string;

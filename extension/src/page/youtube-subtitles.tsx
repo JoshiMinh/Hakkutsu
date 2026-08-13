@@ -11,15 +11,15 @@ import type {
   PlasmoMountShadowHost,
 } from "plasmo";
 import { useEffect, useState, useRef, useCallback } from "react";
-import type { SubtitleSegment, SubtitleFetchResult } from "~types";
+import type { SubtitleSegment, SubtitleFetchResult } from "~lib/types";
 import { youtubeSubtitleCss, youtubeToolbarCss } from "./youtube-subtitle-styles";
 import { SubtitleOverlay, type SubtitleSettings } from "~components/subtitle-overlay";
-import { fetchTranscriptPanelSubtitles } from "~services/youtube-transcript-dom";
+import { fetchTranscriptPanelSubtitles } from "~lib/services/youtube-transcript-dom";
 import {
   buildSmartCues,
   findSmartCue,
   smartCueEnd,
-} from "~services/smart-cue";
+} from "~lib/services/smart-cue";
 
 export const config: PlasmoCSConfig = {
   matches: [

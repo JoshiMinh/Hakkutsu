@@ -5,8 +5,8 @@
  * and chrome.storage.local for larger data (vocabulary history).
  */
 
-import type { ExtensionSettings, VocabularyEntry } from "~types";
-import { DEFAULT_SETTINGS } from "~types";
+import type { ExtensionSettings, VocabularyEntry } from "~lib/types";
+import { DEFAULT_SETTINGS } from "~lib/types";
 
 const SETTINGS_KEY = "hakkutsu_settings";
 const VOCAB_KEY = "hakkutsu_vocabulary";

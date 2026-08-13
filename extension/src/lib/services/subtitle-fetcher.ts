@@ -17,7 +17,7 @@ import type {
   CaptionTrack,
   SubtitleSegment,
   SubtitleFetchResult,
-} from "~types";
+} from "~lib/types";
 
 /** Extract video ID from various YouTube URL formats or raw ID */
 function extractVideoId(url: string): string | null {

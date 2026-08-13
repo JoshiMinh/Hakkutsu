@@ -5,13 +5,13 @@
  * on port 8765 via HTTP POST requests.
  */
 
-import { ANKI_CONNECT_URL, ANKI_CONNECT_VERSION } from "~lib/constants";
+import { ANKI_CONNECT_URL, ANKI_CONNECT_VERSION } from "~lib/utils/constants";
 import type {
   AnkiConnectRequest,
   AnkiConnectResponse,
   AnkiNote,
   AnkiExportData,
-} from "~types";
+} from "~lib/types";
 
 class AnkiConnectClient {
   private url: string;

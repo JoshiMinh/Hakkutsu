@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { localSrs, type SrsCard } from "~services/local-srs";
+import { localSrs, type SrsCard } from "~lib/services/local-srs";
 import { Search, ListFilter, Download, Trash2, Edit2, X } from "lucide-react";
 
 export function WordList({ userId = "user_1" }: { userId?: string }) {

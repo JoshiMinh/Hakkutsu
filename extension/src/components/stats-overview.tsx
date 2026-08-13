@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { localSrs } from "~services/local-srs";
+import { localSrs } from "~lib/services/local-srs";
 import { Library, Pickaxe, Sprout, BookOpen, RefreshCw, GraduationCap, Loader2 } from "lucide-react";
 
 export function StatsOverview({ userId = "user_1" }: { userId?: string }) {

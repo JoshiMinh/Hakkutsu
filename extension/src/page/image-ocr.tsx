@@ -1,11 +1,12 @@
 import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useCallback } from "react";
 import { Scan, Paintbrush, X, Layers, Download, Copy, Check, Sparkles, RefreshCw, Languages, AlertCircle } from "lucide-react";
-import type { TokenAnalysis } from "~types";
+import type { TokenAnalysis } from "~lib/types";
 import cssText from "data-text:~style.css";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
+  exclude_matches: ["*://*.saucenao.com/*", "*://saucenao.com/*"],
   all_frames: true,
 };
 

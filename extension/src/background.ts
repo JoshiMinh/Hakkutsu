@@ -5,18 +5,18 @@
  * manages extension state and API proxying.
  */
 
-import { getSettings } from "~services/storage";
-import { apiClient } from "~services/api-client";
-import { localSrs } from "~services/local-srs";
-import { ankiClient } from "~services/anki-connect";
-import { localOcrService } from "~services/ocr-service";
+import { getSettings } from "~lib/services/storage";
+import { apiClient } from "~lib/services/api-client";
+import { localSrs } from "~lib/services/local-srs";
+import { ankiClient } from "~lib/services/anki-connect";
+import { localOcrService } from "~lib/services/ocr-service";
 import {
   fetchCaptionTracks,
   fetchSubtitles,
   fetchSubtitlesFromPlayerResponse,
   extractCaptionTracks,
   extractVideoId,
-} from "~services/subtitle-fetcher";
+} from "~lib/services/subtitle-fetcher";
 import type {
   ExtensionMessage,
   AnalyzeRequest,
@@ -25,9 +25,9 @@ import type {
   SubtitleResponse,
   TokenAnalysis,
   DictionaryEntry
-} from "~types";
-import { tokenize } from "~services/nlp/local-tokenizer";
-import { searchDictionary } from "~services/dictionary/local-lookup";
+} from "~lib/types";
+import { tokenize } from "~lib/services/local-tokenizer";
+import { searchDictionary } from "~lib/services/local-lookup";
 
 // Removed backend fallback logic since backend is now deprecated
 
@@ -494,7 +494,7 @@ async function handleMessage(
     }
 
     case "OPEN_APP": {
-      chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") });
+      chrome.tabs.create({ url: chrome.runtime.getURL("options.html") });
       return { type: "OPEN_APP_RESULT", payload: {} };
     }
 

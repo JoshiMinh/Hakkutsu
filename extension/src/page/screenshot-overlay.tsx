@@ -1,12 +1,13 @@
 import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { X, Sparkles, Paintbrush, Languages, Copy, Check, Download, Layers, BookOpen, RefreshCw } from "lucide-react";
-import { apiClient } from "~services/api-client";
-import type { TokenAnalysis } from "~types";
+import { apiClient } from "~lib/services/api-client";
+import type { TokenAnalysis } from "~lib/types";
 import cssText from "data-text:~style.css";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
+  exclude_matches: ["*://*.saucenao.com/*", "*://saucenao.com/*"],
 };
 
 export const getStyle: PlasmoGetStyle = () => {

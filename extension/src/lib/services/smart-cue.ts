@@ -1,4 +1,4 @@
-import type { SubtitleSegment, SubtitleWordTiming } from "~types";
+import type { SubtitleSegment, SubtitleWordTiming } from "~lib/types";
 
 const SENTENCE_END_RE = /[。！？!?…][」』）】”’"]?$/u;
 const NO_LEADING_SPACE_RE = /^[、。，．！？!?…：:；;」』）】]/u;

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { localSrs, type SrsCard } from "~services/local-srs";
+import { localSrs, type SrsCard } from "~lib/services/local-srs";
 import { PartyPopper } from "lucide-react";
 
 export function SrsReview({ userId = "user_1" }: { userId?: string }) {

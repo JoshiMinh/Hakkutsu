@@ -1,4 +1,4 @@
-import type { TokenAnalysis } from "~types";
+import type { TokenAnalysis } from "~lib/types";
 
 export function TokenDisplay({
   tokens,

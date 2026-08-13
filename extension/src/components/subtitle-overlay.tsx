@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Copy, RotateCcw, Brain, Download } from "lucide-react";
 import iconUrl from "url:~assets/icon.png";
-import type { SubtitleSegment, SubtitleFetchResult, AnalyzeResponse, TokenAnalysis } from "~types";
+import type { SubtitleSegment, SubtitleFetchResult, AnalyzeResponse, TokenAnalysis } from "~lib/types";
 
 // ── Cache ───────────────────────────────────────────────────────────────────
 

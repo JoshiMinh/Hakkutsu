@@ -1,5 +1,5 @@
-import { useSettingsStore } from "~store/settings";
-import type { AnalyzeResponse, PhraseAnalyzeResponse, WebTranslateResponse } from "~types";
+import { useSettingsStore } from "~lib/utils/settings";
+import type { AnalyzeResponse, PhraseAnalyzeResponse, WebTranslateResponse } from "~lib/types";
 
 export class LlmServiceError extends Error {
   constructor(message: string) {
