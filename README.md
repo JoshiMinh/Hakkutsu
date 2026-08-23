@@ -4,8 +4,6 @@
   <img src="extension/assets/icon-rounded.png" alt="Hakkutsu Logo" width="128" height="128" />
 </p>
 
-![Hakkutsu Promo Banner](extension/assets/promo_banner.png)
-
 Hakkutsu is an AI-powered browser extension designed for Japanese immersion and translation. It runs directly in your browser, extracting Japanese text from images, translating sentences, analyzing grammar, and helping you learn vocabulary as you browse the web.
 
 ## Core Features
