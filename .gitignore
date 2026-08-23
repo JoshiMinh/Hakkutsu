@@ -1,40 +1,10 @@
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-.env
-.pytest_cache/
-
 # Node
 node_modules/
 dist/
 build/
-.npm/
-
-# Data & ML
-data/manga_translator.db
-data/uploads/
-data/models/
-data/training/
-data/tools/
-data/vendor/
-data/ocr_evaluation/
-data/docdeco/
-data/*.log
-data/*.png
-
-ml/models/
-ml/outputs/
-ml/mlflow.db
-ml/data/processed/
-ml/data/raw/
-ml/data/eda/
 
 # Logs
 *.log
-*.err.log
-*.out.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -43,5 +13,3 @@ pnpm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
-apps/doc-deco/.runtime/
-apps/doc-deco/.venv-ml/
