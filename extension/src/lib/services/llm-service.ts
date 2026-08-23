@@ -37,35 +37,43 @@ class LlmService {
   private async callGemini(apiKey: string, systemPrompt: string, userPrompt: string, responseFormat?: object): Promise<string> {
     if (!apiKey) throw new LlmServiceError("Gemini API Key is missing");
     
-    // Convert OpenAI JSON schema format to Gemini's format if needed, 
-    // or just rely on system prompt instructions for JSON.
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    
-    const payload: any = {
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      generationConfig: {
-        temperature: 0.1,
+    const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    let lastError: Error | null = null;
+
+    for (const model of models) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const payload: any = {
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+          generationConfig: {
+            temperature: 0.1,
+          }
+        };
+        
+        if (responseFormat) {
+          payload.generationConfig.responseMimeType = "application/json";
+        }
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const err = await res.text();
+          throw new LlmServiceError(`Gemini API (${model}) Error: ${err}`);
+        }
+
+        const data = await res.json();
+        return data.candidates[0].content.parts[0].text;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new LlmServiceError(String(err));
       }
-    };
-    
-    if (responseFormat) {
-      payload.generationConfig.responseMimeType = "application/json";
     }
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      throw new LlmServiceError(`Gemini API Error: ${err}`);
-    }
-
-    const data = await res.json();
-    return data.candidates[0].content.parts[0].text;
+    throw lastError || new LlmServiceError("Gemini API call failed");
   }
 
   private async callOpenAI(apiKey: string, baseUrl: string, systemPrompt: string, userPrompt: string, responseFormat?: object): Promise<string> {
@@ -110,11 +118,11 @@ Analyze the following Japanese text. Break it down into tokens.
 Return a JSON object with:
 - "translation": The Vietnamese translation of the text.
 - "tokens": A list of token objects, each containing:
-  - "text": The Japanese word/token.
+  - "surface": The exact Japanese word/token snippet.
   - "reading": Kana reading.
-  - "pos": Part of speech.
+  - "pos": Part of speech in English.
   - "meaning": Vietnamese meaning of the token.
-  - "base_form": Dictionary form of the word.
+  - "dictionary_form": Dictionary form / lemma of the word.
 `;
     const userPrompt = text;
     

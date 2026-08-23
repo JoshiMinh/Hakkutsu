@@ -64,48 +64,52 @@ const InlineDictionary = () => {
       .catch(() => setAnkiConnected(false));
   }, []);
 
-  useEffect(() => {
-    if (isHydrated && !settings.textAnalysisEnabled) {
-      if (position) {
-        setPosition(null);
-        window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
-      }
-      return;
-    }
+  const selectionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
     const handleSelection = (e: MouseEvent, isDoubleClick: boolean) => {
-      // Don't trigger if they clicked inside the dictionary itself
+      // Don't trigger if clicked inside the inline dictionary itself
       if (containerRef.current && e.target instanceof Node && containerRef.current.contains(e.target)) {
         return;
       }
 
-      const selection = window.getSelection();
-      if (!selection || selection.isCollapsed) {
-        if (position) {
-          setPosition(null);
-          window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
-        }
-        return;
+      if (selectionTimerRef.current) {
+        clearTimeout(selectionTimerRef.current);
       }
 
-      // Trigger only on Alt + Highlight OR Double Click
-      if (!e.altKey && !isDoubleClick) return;
+      const clientX = e.clientX;
+      const clientY = e.clientY;
 
-      const selectedText = selection.toString().trim();
-      if (!selectedText || !containsJapanese(selectedText)) return;
+      selectionTimerRef.current = setTimeout(() => {
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed) {
+          if (!isDoubleClick && position) {
+            setPosition(null);
+            window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+          }
+          return;
+        }
 
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
+        const selectedText = selection.toString().trim();
+        if (!selectedText || !containsJapanese(selectedText)) return;
 
-      setPosition({
-        x: rect.left,
-        y: rect.bottom + 8,
-        placement: "anchor",
-      });
-      setInputText(selectedText);
-      setPhraseMode(false);
-      setSentenceMode(false);
-      analyzeText(selectedText, false, true);
+        const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+        const rect = range ? range.getBoundingClientRect() : null;
+
+        const hasValidRect = rect && (rect.width > 0 || rect.height > 0);
+        const x = hasValidRect ? rect.left : clientX;
+        const y = hasValidRect ? rect.bottom + 8 : clientY + 12;
+
+        setPosition({
+          x: Math.max(12, x),
+          y: Math.max(12, y),
+          placement: "anchor",
+        });
+        setInputText(selectedText);
+        setPhraseMode(false);
+        setSentenceMode(false);
+        analyzeText(selectedText, false, true);
+      }, isDoubleClick ? 10 : 40);
     };
 
     const onMouseUp = (e: MouseEvent) => handleSelection(e, false);

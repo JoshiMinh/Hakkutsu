@@ -31,43 +31,72 @@ import { searchDictionary } from "~lib/services/local-lookup";
 
 // Removed backend fallback logic since backend is now deprecated
 
-// Fallback logic for when the local backend is offline
+import { getHanViet } from "~lib/utils/hanviet-dict";
+import { lookupWordEnglish } from "~lib/services/dictionary-lookup";
+
+// Fallback logic for public dictionary lookups
 async function fetchFromJisho(text: string): Promise<AnalyzeResponse> {
-  const url = `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(text)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Jisho API failed");
-  const json = await res.json();
-  
-  if (!json.data || json.data.length === 0) {
-    throw new Error("No results found in public dictionary");
+  try {
+    const url = `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(text)}`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const json = await res.json();
+      if (json.data && json.data.length > 0) {
+        const data = json.data;
+        const mainEntry = data[0];
+        
+        return {
+          text,
+          sentence_reading: mainEntry.japanese?.[0]?.reading || "",
+          token_count: 1,
+          difficulty_score: null,
+          difficulty_label: null,
+          tokens: [
+            {
+              surface: text,
+              dictionary_form: mainEntry.japanese?.[0]?.word || mainEntry.slug || text,
+              pos: mainEntry.senses?.[0]?.parts_of_speech?.[0] || "Word",
+              pos_detail: [],
+              reading: {
+                hiragana: mainEntry.japanese?.[0]?.reading || "",
+                romaji: ""
+              },
+              is_japanese: true,
+              frequency_rank: mainEntry.is_common ? 1 : undefined,
+              jlpt_level: mainEntry.jlpt?.length ? mainEntry.jlpt[0].replace(/jlpt-/i, "").toUpperCase() : null,
+              vietnamese_sound: getHanViet(text),
+              definitions: data.slice(0, 3).map((d: any) => ({
+                dictionary: "Jisho",
+                glosses: d.senses.flatMap((s: any) => s.english_definitions)
+              }))
+            }
+          ]
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("[Hakkutsu] Jisho API error:", e);
   }
 
-  const data = json.data;
-  const mainEntry = data[0];
-  
+  const info = await lookupWordEnglish(text);
   return {
     text,
-    sentence_reading: mainEntry.japanese?.[0]?.reading || "",
+    sentence_reading: info.reading || text,
     token_count: 1,
     difficulty_score: null,
     difficulty_label: null,
     tokens: [
       {
         surface: text,
-        dictionary_form: mainEntry.japanese?.[0]?.word || mainEntry.slug || text,
-        pos: mainEntry.senses?.[0]?.parts_of_speech?.[0] || "Unknown",
+        dictionary_form: text,
+        pos: "Word",
         pos_detail: [],
-        reading: {
-          hiragana: mainEntry.japanese?.[0]?.reading || "",
-          romaji: ""
-        },
+        reading: { hiragana: info.reading || "", romaji: "" },
         is_japanese: true,
-        frequency_rank: mainEntry.is_common ? 1 : undefined,
-        jlpt_level: mainEntry.jlpt?.length ? mainEntry.jlpt[0].replace(/jlpt-/i, "").toUpperCase() : null,
-        definitions: data.slice(0, 3).map((d: any) => ({
-          dictionary: "Jisho",
-          glosses: d.senses.flatMap((s: any) => s.english_definitions)
-        }))
+        jlpt_level: info.jlpt || null,
+        frequency_rank: null,
+        vietnamese_sound: getHanViet(text),
+        definitions: info.meaning ? [{ dictionary: "Jisho", glosses: [info.meaning], pos: ["Word"], field: null, misc: [] }] : []
       }
     ]
   };
@@ -122,12 +151,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
   };
 }
 
-// Initialize API client with stored settings
-async function initializeApiClient(): Promise<void> {
-  apiClient.setBaseUrl("http://localhost:8000");
-}
 
-initializeApiClient();
 
 // Listen for messages from popup and content scripts
 chrome.runtime.onMessage.addListener(
@@ -243,38 +267,75 @@ async function handleMessage(
   sender?: chrome.runtime.MessageSender
 ): Promise<ExtensionMessage> {
   switch (message.type) {
-    case "ANALYZE_TEXT": {
-      const request = message.payload as AnalyzeRequest;
-      try {
-        const result = await apiClient.analyzeJavi(request);
-        return { type: "ANALYZE_RESULT", payload: result };
-      } catch {
-        try {
-          const result = await apiClient.analyzeText(request);
-          return { type: "ANALYZE_RESULT", payload: result };
-        } catch (err) {
-          console.warn("Backend analysis failed, falling back to local for", request.text, err);
-          const fallbackResult = await analyzeLocal(request.text);
-          return { type: "ANALYZE_RESULT", payload: fallbackResult };
-        }
-      }
-    }
-
+    case "ANALYZE_TEXT":
     case "ANALYZE_JAVI": {
       const request = message.payload as AnalyzeRequest;
       try {
-        const result = await apiClient.analyzeJavi(request);
+        const result = await apiClient.analyzePhrase(request);
         return { type: "ANALYZE_RESULT", payload: result };
-      } catch {
-        const result = await apiClient.analyzeText(request);
-        return { type: "ANALYZE_RESULT", payload: result };
+      } catch (llmErr) {
+        console.warn("[Hakkutsu] LLM analysis unavailable, trying Jisho API:", llmErr);
+        try {
+          const jishoResult = await fetchFromJisho(request.text);
+          return { type: "ANALYZE_RESULT", payload: jishoResult };
+        } catch (jishoErr) {
+          console.warn("[Hakkutsu] Jisho API failed, using local tokenizer:", jishoErr);
+          try {
+            const fallbackResult = await analyzeLocal(request.text);
+            return { type: "ANALYZE_RESULT", payload: fallbackResult };
+          } catch {
+            return {
+              type: "ANALYZE_RESULT",
+              payload: {
+                text: request.text,
+                sentence_reading: "",
+                token_count: 1,
+                difficulty_score: null,
+                difficulty_label: null,
+                tokens: [
+                  {
+                    surface: request.text,
+                    dictionary_form: request.text,
+                    pos: "Word",
+                    pos_detail: [],
+                    reading: { hiragana: "", romaji: "" },
+                    is_japanese: true,
+                    jlpt_level: null,
+                    frequency_rank: null,
+                    definitions: []
+                  }
+                ]
+              }
+            };
+          }
+        }
       }
     }
 
     case "ANALYZE_PHRASE": {
       const request = message.payload as AnalyzeRequest;
-      const result = await apiClient.analyzePhrase(request);
-      return { type: "ANALYZE_PHRASE_RESULT", payload: result };
+      try {
+        const result = await apiClient.analyzePhrase(request);
+        return { type: "ANALYZE_PHRASE_RESULT", payload: result };
+      } catch (err) {
+        console.warn("[Hakkutsu] Phrase LLM analysis failed, fallback to Jisho:", err);
+        try {
+          const jishoResult = await fetchFromJisho(request.text);
+          return {
+            type: "ANALYZE_PHRASE_RESULT",
+            payload: {
+              ...jishoResult,
+              translation: jishoResult.tokens[0]?.definitions?.[0]?.glosses?.slice(0, 3).join(", ") || ""
+            }
+          };
+        } catch {
+          const fallbackResult = await analyzeLocal(request.text);
+          return {
+            type: "ANALYZE_PHRASE_RESULT",
+            payload: { ...fallbackResult, translation: "" }
+          };
+        }
+      }
     }
 
 

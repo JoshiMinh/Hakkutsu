@@ -17,9 +17,50 @@ import type {
   HealthResponse,
   ApiError,
   WebTranslateResponse,
+  TokenAnalysis,
+  DictionaryEntry,
 } from "~lib/types";
 import { llmService } from "./llm-service";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
+
+import { containsJapanese } from "~lib/utils/japanese";
+import { getHanViet } from "~lib/utils/hanviet-dict";
+
+function mapRawTokenToAnalysis(t: any): TokenAnalysis {
+  const surface = t.surface || t.text || "";
+  const dictionary_form = t.dictionary_form || t.base_form || t.lemma || surface;
+  const meaning = t.meaning || t.definition || "";
+  
+  const definitions: DictionaryEntry[] = Array.isArray(t.definitions) && t.definitions.length > 0
+    ? t.definitions
+    : (meaning ? [{
+        dictionary: "LLM",
+        glosses: Array.isArray(meaning) ? meaning : [meaning],
+        pos: t.pos ? [t.pos] : [],
+        field: null,
+        misc: []
+      }] : []);
+
+  let reading = t.reading;
+  if (typeof reading === "string") {
+    reading = { hiragana: reading, romaji: "" };
+  } else if (!reading || typeof reading !== "object") {
+    reading = { hiragana: "", romaji: "" };
+  }
+
+  return {
+    surface,
+    dictionary_form,
+    reading,
+    pos: t.pos || "word",
+    pos_detail: Array.isArray(t.pos_detail) ? t.pos_detail : [],
+    is_japanese: typeof t.is_japanese === "boolean" ? t.is_japanese : containsJapanese(surface),
+    jlpt_level: t.jlpt_level || t.jlpt || predictJlpt(dictionary_form || surface),
+    frequency_rank: typeof t.frequency_rank === "number" ? t.frequency_rank : null,
+    definitions,
+    vietnamese_sound: t.vietnamese_sound || getHanViet(dictionary_form || surface) || ""
+  };
+}
 
 class ApiClient {
   private baseUrl: string;
@@ -111,15 +152,14 @@ class ApiClient {
     const llmResult = await llmService.analyzeText(request.text, false);
     
     // Process tokens to add JLPT info
-    const tokens = llmResult.tokens?.map((t: any) => ({
-      ...t,
-      jlpt: predictJlpt(t.base_form || t.text)
-    })) || [];
+    const tokens: TokenAnalysis[] = llmResult.tokens?.map(mapRawTokenToAnalysis) || [];
+
+    const sentenceReading = tokens.map(t => t.reading?.hiragana || t.surface).join("");
 
     const response: AnalyzeResponse = {
       text: request.text,
       tokens,
-      sentence_reading: llmResult.tokens?.map((t: any) => t.reading).join("") || "",
+      sentence_reading: sentenceReading,
       token_count: tokens.length,
       difficulty_score: null,
       difficulty_label: null
@@ -152,16 +192,15 @@ class ApiClient {
 
     const llmResult = await llmService.analyzeText(request.text, true);
     
-    const tokens = llmResult.tokens?.map((t: any) => ({
-      ...t,
-      jlpt: predictJlpt(t.base_form || t.text)
-    })) || [];
+    const tokens: TokenAnalysis[] = llmResult.tokens?.map(mapRawTokenToAnalysis) || [];
+
+    const sentenceReading = tokens.map(t => t.reading?.hiragana || t.surface).join("");
 
     const response: PhraseAnalyzeResponse = {
       text: request.text,
       translation: llmResult.translation || "",
       tokens,
-      sentence_reading: llmResult.tokens?.map((t: any) => t.reading).join("") || "",
+      sentence_reading: sentenceReading,
       token_count: tokens.length,
       difficulty_score: null,
       difficulty_label: null

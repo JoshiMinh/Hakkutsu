@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { TokenAnalysis, AnkiExportData } from "~lib/types";
 import { POS_LABELS } from "~lib/utils/constants";
+import { getHanViet } from "~lib/utils/hanviet-dict";
 import { JlptBadge, PosBadge, FrequencyBadge } from "./badges";
 import { Volume2, BookmarkPlus, ExternalLink, Copy, Check, Sparkles, BookOpen } from "lucide-react";
 
@@ -21,6 +22,8 @@ export function DefinitionCard({
 }) {
   const [copied, setCopied] = useState(false);
   const [srsAdded, setSrsAdded] = useState(false);
+
+  const hanViet = token.vietnamese_sound || getHanViet(token.dictionary_form || token.surface);
 
   const handleExport = () => {
     if (!onExport) return;
@@ -95,11 +98,28 @@ export function DefinitionCard({
               {copied ? <Check size={14} color="#4ade80" /> : <Copy size={14} />}
             </button>
           </div>
-          {token.reading?.hiragana && token.reading.hiragana !== token.dictionary_form && (
-            <span className="hk-definition__reading">
-              {token.reading.hiragana}
-            </span>
-          )}
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginTop: "2px" }}>
+            {token.reading?.hiragana && token.reading.hiragana !== token.dictionary_form && (
+              <span className="hk-definition__reading">
+                {token.reading.hiragana}
+              </span>
+            )}
+            {hanViet && (
+              <span style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "#38bdf8",
+                background: "rgba(56, 189, 248, 0.12)",
+                border: "1px solid rgba(56, 189, 248, 0.25)",
+                padding: "1px 6px",
+                borderRadius: "4px",
+                letterSpacing: "0.5px"
+              }}>
+                Hán-Việt: {hanViet}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="hk-definition__meta">

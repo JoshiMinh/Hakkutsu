@@ -14,9 +14,12 @@ import {
   Search,
   Wifi,
   WifiOff,
-  Server,
   Settings as SettingsIcon,
-  RefreshCw
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  CornerDownLeft,
+  ChevronRight
 } from "lucide-react";
 
 import { apiClient } from "~lib/services/api-client";
@@ -48,42 +51,8 @@ import "./style.css";
 function LoadingSpinner({ text = "Analyzing..." }: { text?: string }) {
   return (
     <div className="hk-loading">
-      <RefreshCw size={24} className="hk-loading__spinner hk-spin" style={{ color: "var(--hk-accent-primary)" }} />
+      <RefreshCw size={22} className="hk-loading__spinner hk-spin" style={{ color: "var(--hk-accent-primary)" }} />
       <span>{text}</span>
-    </div>
-  );
-}
-
-function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
-  return (
-    <div className="hk-empty">
-      <div className="hk-empty__icon" style={{ color: "var(--hk-text-muted)", marginBottom: 12 }}>{icon}</div>
-      <p className="hk-empty__text">{text}</p>
-    </div>
-  );
-}
-
-function DifficultyMeter({ label, score }: { label: string | null; score: number | null }) {
-  if (!label || score === null) return null;
-  const percentage = (score * 100).toFixed(1);
-  return (
-    <div style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "10px 14px",
-      background: "var(--hk-bg-secondary)",
-      borderLeft: "4px solid var(--hk-accent-primary)",
-      borderRadius: "6px",
-      marginBottom: "16px",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-        <span style={{ fontSize: 13, color: "var(--hk-text-muted)", fontWeight: "bold" }}>JLPT Level</span>
-        <JlptBadge level={label} />
-      </div>
-      <div style={{ fontSize: 12, color: "var(--hk-text-secondary)" }}>
-        AI Confidence: <strong>{percentage}%</strong>
-      </div>
     </div>
   );
 }
@@ -92,15 +61,15 @@ function DifficultyMeter({ label, score }: { label: string | null; score: number
 
 function TranslateQuickView({
   ankiConnected,
-  backendConnected,
 }: {
   ankiConnected: boolean;
-  backendConnected: boolean;
 }) {
   const [inputText, setInputText] = useState("");
   const [result, setResult] = useState<PhraseAnalyzeResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usedFallback, setUsedFallback] = useState(false);
+  const { settings } = useSettingsStore();
 
   useEffect(() => {
     const listener = (message: { type: string; payload: { text: string } }) => {
@@ -124,14 +93,31 @@ function TranslateQuickView({
     setLoading(true);
     setError(null);
     setResult(null);
+    setUsedFallback(false);
 
     try {
+      // Try direct LLM API if key is present
       const response = await apiClient.analyzePhrase({
         text: textToAnalyze,
         include_definitions: true,
       });
       setResult(response);
     } catch (e) {
+      // Fallback via background script (Jisho / local tokenizer)
+      try {
+        const bgResponse = await chrome.runtime.sendMessage({
+          type: "ANALYZE_PHRASE",
+          payload: { text: textToAnalyze, include_definitions: true }
+        });
+
+        if (bgResponse?.payload) {
+          setResult(bgResponse.payload);
+          setUsedFallback(true);
+          return;
+        }
+      } catch {
+        // Fallthrough
+      }
       setError(e instanceof Error ? e.message : "Translation failed");
     } finally {
       setLoading(false);
@@ -140,25 +126,105 @@ function TranslateQuickView({
 
   return (
     <div className="hk-content hk-fade-in" style={{ padding: "16px" }}>
-      <div className="hk-input" style={{ marginBottom: "16px" }}>
+      {/* Sleek Input Container */}
+      <div style={{
+        background: "linear-gradient(180deg, #18181c 0%, #121215 100%)",
+        border: "1px solid rgba(255, 255, 255, 0.08)",
+        borderRadius: "12px",
+        padding: "12px",
+        marginBottom: "16px",
+        boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)"
+      }}>
         <textarea
           className="hk-input__textarea"
-          style={{ minHeight: "60px", fontSize: "14px", padding: "10px" }}
+          rows={3}
+          style={{
+            width: "100%",
+            minHeight: "76px",
+            maxHeight: "140px",
+            background: "transparent",
+            border: "none",
+            outline: "none",
+            color: "var(--hk-text-primary)",
+            fontFamily: "var(--hk-font-jp)",
+            fontSize: "15px",
+            lineHeight: "1.6",
+            padding: "0",
+            boxSizing: "border-box",
+            resize: "vertical",
+            overflowY: "auto"
+          }}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Enter Japanese to translate..."
+          placeholder="Enter Japanese text to analyze & translate..."
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
               handleTranslate();
             }
           }}
         />
-        <div className="hk-input__actions" style={{ marginTop: "8px" }}>
+
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingTop: "8px",
+          borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+          marginTop: "6px"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{
+              fontSize: "11px",
+              color: "var(--hk-text-muted)",
+              background: "rgba(255, 255, 255, 0.05)",
+              padding: "2px 6px",
+              borderRadius: "4px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "3px"
+            }}>
+              <CornerDownLeft size={10} /> Ctrl+Enter
+            </span>
+            {inputText && (
+              <button
+                onClick={() => setInputText("")}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--hk-text-muted)",
+                  cursor: "pointer",
+                  padding: "2px",
+                  display: "flex",
+                  alignItems: "center"
+                }}
+                title="Clear text"
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
+          </div>
+
           <button
-            className="hk-btn hk-btn--primary hk-btn--sm"
             onClick={() => handleTranslate()}
-            disabled={loading || !inputText.trim() || !backendConnected}
-            style={{ borderRadius: "4px" }}
+            disabled={loading || !inputText.trim()}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "7px 14px",
+              background: inputText.trim() && !loading
+                ? "linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)"
+                : "rgba(255, 255, 255, 0.08)",
+              color: inputText.trim() && !loading ? "#ffffff" : "var(--hk-text-muted)",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: inputText.trim() && !loading ? "pointer" : "not-allowed",
+              boxShadow: inputText.trim() && !loading ? "0 4px 14px rgba(168, 85, 247, 0.35)" : "none",
+              transition: "all 0.2s ease"
+            }}
           >
             {loading ? <RefreshCw size={14} className="hk-spin" /> : <Languages size={14} />} 
             Translate
@@ -166,51 +232,150 @@ function TranslateQuickView({
         </div>
       </div>
 
+      {/* Fallback Info Banner */}
+      {usedFallback && (
+        <div style={{
+          padding: "8px 12px",
+          background: "rgba(168, 85, 247, 0.08)",
+          border: "1px solid rgba(168, 85, 247, 0.2)",
+          borderRadius: "8px",
+          color: "var(--hk-text-secondary)",
+          fontSize: "12px",
+          marginBottom: "14px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between"
+        }}>
+          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <Sparkles size={13} color="#a855f7" /> Jisho dictionary used. Set API Key for full AI sentences.
+          </span>
+          <button
+            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#a855f7",
+              cursor: "pointer",
+              fontSize: "11px",
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center"
+            }}
+          >
+            Settings <ChevronRight size={12} />
+          </button>
+        </div>
+      )}
+
       {error && (
-        <div style={{ padding: "8px 12px", background: "var(--hk-bg-tertiary)", borderLeft: "3px solid var(--hk-accent-crimson)", color: "var(--hk-text-primary)", fontSize: 13, borderRadius: "4px" }}>
-          {error}
+        <div style={{
+          padding: "10px 12px",
+          background: "rgba(232, 93, 117, 0.1)",
+          borderLeft: "3px solid var(--hk-accent-crimson)",
+          color: "var(--hk-text-primary)",
+          fontSize: 13,
+          borderRadius: "8px",
+          marginBottom: "16px"
+        }}>
+          <div>{error}</div>
+          {error.toLowerCase().includes("api key") && (
+            <button
+              onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--hk-accent-purple)",
+                textDecoration: "underline",
+                cursor: "pointer",
+                padding: 0,
+                marginTop: "6px",
+                fontSize: "12px",
+                display: "block"
+              }}
+            >
+              Open Settings to configure API key →
+            </button>
+          )}
         </div>
       )}
 
       {loading && (
-        <div style={{ textAlign: "center", padding: "24px", color: "var(--hk-text-muted)" }}>
-          <RefreshCw size={20} className="hk-spin" style={{ color: "var(--hk-accent-primary)", marginBottom: "8px" }} />
-          <div style={{ fontSize: "13px" }}>Translating...</div>
+        <div style={{ textAlign: "center", padding: "28px 0", color: "var(--hk-text-muted)" }}>
+          <RefreshCw size={22} className="hk-spin" style={{ color: "var(--hk-accent-primary)", marginBottom: "8px" }} />
+          <div style={{ fontSize: "13px" }}>Analyzing Japanese text...</div>
         </div>
       )}
 
+      {/* Structured Result Display */}
       {result && !loading && (
-        <div style={{ background: "var(--hk-bg-secondary)", border: "1px solid var(--hk-border)", borderRadius: "6px", padding: "12px" }}>
+        <div style={{
+          background: "var(--hk-bg-secondary)",
+          border: "1px solid var(--hk-border)",
+          borderRadius: "10px",
+          padding: "14px",
+          boxShadow: "var(--hk-shadow-sm)"
+        }}>
           {result.sentence_reading && (
-            <div style={{ fontSize: "12px", color: "var(--hk-accent-primary)", marginBottom: "8px", fontFamily: "var(--hk-font-jp)" }}>
+            <div style={{
+              fontSize: "12px",
+              color: "var(--hk-accent-primary)",
+              marginBottom: "10px",
+              fontFamily: "var(--hk-font-jp)",
+              background: "rgba(168, 85, 247, 0.08)",
+              padding: "4px 8px",
+              borderRadius: "4px",
+              borderLeft: "3px solid var(--hk-accent-primary)"
+            }}>
               {result.sentence_reading}
             </div>
           )}
           
           {result.translation && (
-            <div style={{ fontSize: "14px", color: "var(--hk-text-primary)", marginBottom: "12px", fontStyle: "italic" }}>
+            <div style={{
+              fontSize: "14px",
+              color: "var(--hk-text-primary)",
+              marginBottom: "14px",
+              background: "rgba(20, 184, 166, 0.08)",
+              borderLeft: "3px solid #14b8a6",
+              padding: "8px 12px",
+              borderRadius: "4px",
+              lineHeight: "1.5"
+            }}>
               "{result.translation}"
             </div>
           )}
           
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "16px" }}>
-            {result.tokens.filter(t => t.is_japanese && t.dictionary_form).map((token, idx) => (
-              <div key={idx} style={{ padding: "4px 8px", background: "var(--hk-bg-tertiary)", borderRadius: "4px", fontSize: "13px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "16px" }}>
+            {result.tokens.filter(t => t.is_japanese && (t.dictionary_form || t.surface)).map((token, idx) => (
+              <div
+                key={idx}
+                style={{
+                  padding: "4px 9px",
+                  background: "var(--hk-bg-tertiary)",
+                  border: "1px solid var(--hk-border)",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  display: "flex",
+                  alignItems: "center"
+                }}
+              >
                 <span style={{ color: "var(--hk-text-primary)", fontWeight: 500, marginRight: "6px" }}>{token.surface}</span>
-                <span style={{ color: "var(--hk-text-muted)", fontSize: "11px" }}>{token.dictionary_form}</span>
+                <span style={{ color: "var(--hk-text-muted)", fontSize: "11px" }}>{token.dictionary_form || token.surface}</span>
               </div>
             ))}
           </div>
 
           {result.tokens.filter(t => t.definitions && t.definitions.length > 0).length > 0 && (
             <div style={{ borderTop: "1px solid var(--hk-border)", paddingTop: "12px" }}>
-              <div style={{ fontSize: "11px", textTransform: "uppercase", color: "var(--hk-text-muted)", fontWeight: "bold", marginBottom: "8px" }}>Quick Definitions</div>
+              <div style={{ fontSize: "11px", textTransform: "uppercase", color: "var(--hk-text-muted)", fontWeight: "bold", marginBottom: "8px", letterSpacing: "0.5px" }}>
+                Quick Definitions
+              </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {result.tokens.filter(t => t.definitions && t.definitions.length > 0).slice(0, 5).map((token, idx) => (
-                  <div key={idx} style={{ fontSize: "13px" }}>
-                    <strong style={{ color: "var(--hk-text-primary)" }}>{token.dictionary_form}</strong>
-                    <span style={{ color: "var(--hk-text-muted)", margin: "0 4px" }}>—</span>
-                    <span style={{ color: "var(--hk-text-secondary)" }}>{token.definitions?.[0]?.glosses?.slice(0, 2).join(", ")}</span>
+                  <div key={idx} style={{ fontSize: "13px", display: "flex", gap: "6px" }}>
+                    <strong style={{ color: "var(--hk-text-primary)", minWidth: "70px" }}>{token.dictionary_form || token.surface}</strong>
+                    <span style={{ color: "var(--hk-text-muted)" }}>—</span>
+                    <span style={{ color: "var(--hk-text-secondary)", flex: 1 }}>{token.definitions?.[0]?.glosses?.slice(0, 2).join(", ")}</span>
                   </div>
                 ))}
               </div>
@@ -268,7 +433,7 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
               aria-describedby="ankiDeck-desc"
               className="hk-settings-input hk-settings-input--text"
               type="text"
-              value={settings.ankiDeck}
+              value={settings.ankiDeck || ""}
               onChange={(e) => onUpdate({ ankiDeck: e.target.value })}
             />
           </div>
@@ -285,7 +450,7 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
               aria-describedby="ankiModel-desc"
               className="hk-settings-input hk-settings-input--text"
               type="text"
-              value={settings.ankiModel}
+              value={settings.ankiModel || ""}
               onChange={(e) => onUpdate({ ankiModel: e.target.value })}
             />
           </div>
@@ -310,19 +475,10 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
 function Popup() {
   const [activeView, setActiveView] = useState<ExtensionView>("translate");
   const { settings, updateSettings } = useSettingsStore();
-  const [backendConnected, setBackendConnected] = useState(false);
   const [ankiConnected, setAnkiConnected] = useState(false);
 
   useEffect(() => {
     const init = async () => {
-
-      try {
-        await apiClient.healthCheck();
-        setBackendConnected(true);
-      } catch {
-        setBackendConnected(false);
-      }
-
       try {
         const connected = await ankiClient.isConnected();
         setAnkiConnected(connected);
@@ -339,31 +495,62 @@ function Popup() {
   };
 
   const tabs: Array<{ id: ExtensionView; label: string; icon: React.ReactNode }> = [
-    { id: "translate", label: "Translate", icon: <Languages size={16} /> },
+    { id: "translate", label: "Translate", icon: <Languages size={15} /> },
+    { id: "srs", label: "Reviews", icon: <Brain size={15} /> },
+    { id: "anki", label: "Anki", icon: <BookMarked size={15} /> },
   ];
-  if (settings.srsEnabled) {
-    tabs.push({ id: "srs", label: "Reviews", icon: <Brain size={16} /> });
-  }
-  if (settings.ankiEnabled) {
-    tabs.push({ id: "anki", label: "Anki", icon: <BookMarked size={16} /> });
-  }
 
-  useEffect(() => {
-    if (activeView === "srs" && !settings.srsEnabled) {
-      setActiveView("translate");
-    } else if (activeView === "anki" && !settings.ankiEnabled) {
-      setActiveView("translate");
-    }
-  }, [settings.srsEnabled, settings.ankiEnabled, activeView]);
+function HakkutsuLogo({ size = 32 }: { size?: number }) {
+  return (
+    <div style={{
+      width: size,
+      height: size,
+      borderRadius: Math.round(size * 0.28),
+      background: "linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(99, 102, 241, 0.3) 100%)",
+      border: "1px solid rgba(168, 85, 247, 0.45)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      position: "relative",
+      boxShadow: "0 0 14px rgba(168, 85, 247, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.25)",
+      overflow: "hidden",
+      flexShrink: 0
+    }}>
+      <div style={{
+        position: "absolute",
+        inset: 0,
+        background: "radial-gradient(circle at 30% 30%, rgba(192, 132, 252, 0.4), transparent 70%)"
+      }} />
+      <span style={{
+        position: "relative",
+        zIndex: 1,
+        fontFamily: "var(--hk-font-jp), sans-serif",
+        fontSize: Math.round(size * 0.54),
+        fontWeight: 800,
+        background: "linear-gradient(135deg, #ffffff 0%, #e9d5ff 50%, #c084fc 100%)",
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+        letterSpacing: "-0.5px",
+        filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))"
+      }}>
+        発
+      </span>
+    </div>
+  );
+}
 
   return (
     <div className="hk-popup">
-      <header className="hk-header" style={{ padding: "12px 16px" }}>
-        <div className="hk-header__logo" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <img src={logoUrl} alt="Hakkutsu Logo" style={{ width: 24, height: 24, borderRadius: 6 }} />
-          <div className="hk-header__title" style={{ fontSize: "16px" }}>Hakkutsu</div>
+      <header className="hk-header">
+        <div className="hk-header__logo" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <HakkutsuLogo size={32} />
+          <div>
+            <div className="hk-header__title" style={{ fontSize: "15px", lineHeight: "1.2", fontWeight: 700 }}>Hakkutsu</div>
+            <div style={{ fontSize: "10px", color: "var(--hk-text-muted)" }}>Japanese Immersion</div>
+          </div>
         </div>
-        <div className="hk-header__actions" style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+
+        <div className="hk-header__actions" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"
             onClick={() => {
@@ -375,36 +562,54 @@ function Popup() {
               });
             }}
             title="Extract text from screen"
-            style={{ padding: "4px 8px" }}
+            style={{
+              padding: "5px 10px",
+              fontSize: "12px",
+              background: "rgba(168, 85, 247, 0.12)",
+              color: "#d8b4fe",
+              border: "1px solid rgba(168, 85, 247, 0.25)",
+              borderRadius: "6px"
+            }}
           >
-            <Scissors size={14} /> OCR
+            <Scissors size={13} /> OCR
           </button>
 
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"
             onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
             title="Open App Dashboard"
-            style={{ padding: "4px 8px" }}
+            style={{
+              padding: "5px 10px",
+              fontSize: "12px",
+              background: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid var(--hk-border)",
+              borderRadius: "6px"
+            }}
           >
-            <ExternalLink size={14} /> App
+            <ExternalLink size={13} /> App
           </button>
           
-          <div className="hk-status" title={ankiConnected ? "Anki connected" : "Anki disconnected"} style={{ display: "flex", alignItems: "center" }}>
-            <BookMarked size={14} color={ankiConnected ? "var(--hk-jlpt-n5)" : "var(--hk-text-muted)"} style={{ filter: ankiConnected ? "drop-shadow(0 0 4px var(--hk-jlpt-n5))" : "none" }} />
-          </div>
-          <div className="hk-status" title={backendConnected ? "Backend connected" : "Backend disconnected"} style={{ display: "flex", alignItems: "center" }}>
-            <Server size={14} color={backendConnected ? "var(--hk-jlpt-n5)" : "var(--hk-text-muted)"} style={{ filter: backendConnected ? "drop-shadow(0 0 4px var(--hk-jlpt-n5))" : "none" }} />
-          </div>
+          <div 
+            title={ankiConnected ? "Anki connected" : "Anki disconnected"} 
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              backgroundColor: ankiConnected ? "var(--hk-jlpt-n5)" : "var(--hk-text-muted)",
+              boxShadow: ankiConnected ? "0 0 8px var(--hk-jlpt-n5)" : "none",
+              marginLeft: "4px"
+            }} 
+          />
         </div>
       </header>
 
+      {/* Segmented Pill Tabs */}
       <nav className="hk-nav">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             className={`hk-nav__tab ${activeView === tab.id ? "hk-nav__tab--active" : ""}`}
             onClick={() => setActiveView(tab.id)}
-            style={{ display: "flex", alignItems: "center", gap: "6px", justifyContent: "center" }}
           >
             {tab.icon} {tab.label}
           </button>
@@ -415,7 +620,6 @@ function Popup() {
         {activeView === "translate" && (
           <TranslateQuickView
             ankiConnected={ankiConnected}
-            backendConnected={backendConnected}
           />
         )}
         {activeView === "srs" && (
@@ -434,3 +638,4 @@ function Popup() {
 }
 
 export default Popup;
+

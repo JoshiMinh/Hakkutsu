@@ -64,12 +64,18 @@ const NetflixSubtitles = () => {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  // ── Inject Toolbar CSS into Main Document ────────────────────────────
+  useEffect(() => {
+    let styleEl = document.getElementById("hk-netflix-toolbar-style") as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = "hk-netflix-toolbar-style";
+      styleEl.textContent = youtubeToolbarCss;
+      document.head.appendChild(styleEl);
+    }
+  }, []);
+
   // ── Native Toolbar Injection ──────────────────────────────────────────
-
-  if (isHydrated && !settings.netflixEnabled) {
-    return null;
-  }
-
   useEffect(() => {
     const interval = setInterval(() => {
       // Try multiple selectors for resilience: Netflix bottom right controls
@@ -79,20 +85,19 @@ const NetflixSubtitles = () => {
                     
       if (controls) {
         let container = document.getElementById("hk-toolbar-portal");
-        if (!container) {
-          container = document.createElement("div");
-          container.id = "hk-toolbar-portal";
-          container.className = "hk-toolbar-btn";
-          // Insert it near the subtitle button
+        if (!container || !controls.contains(container)) {
+          if (!container) {
+            container = document.createElement("div");
+            container.id = "hk-toolbar-portal";
+            container.className = "hk-toolbar-btn";
+          }
           controls.prepend(container);
-        }
-        if (toolbarContainer !== container) {
           setToolbarContainer(container);
         }
       }
-    }, 1000);
+    }, 500);
     return () => clearInterval(interval);
-  }, [toolbarContainer]);
+  }, []);
 
   // ── SPA Navigation ──────────────────────────────────────────────────
 

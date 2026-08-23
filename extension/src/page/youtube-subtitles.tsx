@@ -153,31 +153,36 @@ const YouTubeSubtitles = () => {
   const currentSegmentRef = useRef<SubtitleSegment | null>(null);
   const loadingRef = useRef(false);
 
+  // ── Inject Toolbar CSS into Main Document ────────────────────────────
+  useEffect(() => {
+    let styleEl = document.getElementById("hk-youtube-toolbar-style") as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = "hk-youtube-toolbar-style";
+      styleEl.textContent = youtubeToolbarCss;
+      document.head.appendChild(styleEl);
+    }
+  }, []);
+
   // ── Native Toolbar Injection ──────────────────────────────────────────
-
-  if (isHydrated && !settings.youtubeEnabled) {
-    return null;
-  }
-
   useEffect(() => {
     const interval = setInterval(() => {
       const rightControls = document.querySelector(".ytp-right-controls");
       if (rightControls) {
         let container = document.getElementById("hk-toolbar-portal");
-        if (!container) {
-          container = document.createElement("div");
-          container.id = "hk-toolbar-portal";
-          container.className = "ytp-button";
-          // Prepend to place it on the far left of the right controls
+        if (!container || !rightControls.contains(container)) {
+          if (!container) {
+            container = document.createElement("div");
+            container.id = "hk-toolbar-portal";
+            container.className = "ytp-button";
+          }
           rightControls.prepend(container);
-        }
-        if (toolbarContainer !== container) {
           setToolbarContainer(container);
         }
       }
-    }, 1000);
+    }, 500);
     return () => clearInterval(interval);
-  }, [toolbarContainer]);
+  }, []);
 
   // ── SPA & Player Response ─────────────────────────────────────────────
 

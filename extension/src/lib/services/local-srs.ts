@@ -1,4 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import { getHanViet } from "~lib/utils/hanviet-dict";
+import { lookupWordEnglish } from "./dictionary-lookup";
 
 export interface SrsCard {
   id: string;
@@ -69,20 +71,30 @@ class LocalSrsService {
     source_url?: string;
     source_title?: string;
     target_word?: string;
+    jlpt?: string;
   }): Promise<SrsCard> {
     const db = await this.dbPromise;
     const now = Date.now();
     const word = data.target_word || data.word;
     
-    if (word.length === 1 && /^[\u3040-\u309F\u30A0-\u30FF]$/.test(word)) {
-      throw new Error("Cannot save single katakana or hiragana characters.");
+    let meaning = data.meaning;
+    let reading = data.reading;
+    let jlpt = data.jlpt;
+
+    if (!meaning || meaning.trim() === "" || meaning === "—") {
+      const info = await lookupWordEnglish(word);
+      meaning = info.meaning || meaning;
+      reading = reading || info.reading;
+      jlpt = jlpt || info.jlpt;
     }
-    
+
     const card: SrsCard = {
       id: crypto.randomUUID(),
       word,
-      reading: data.reading,
-      meaning: data.meaning,
+      reading,
+      meaning,
+      jlpt,
+      vietnamese_sound: getHanViet(word),
       sentence: data.sentence,
       source_url: data.source_url,
       source_title: data.source_title,

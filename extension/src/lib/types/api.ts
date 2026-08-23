@@ -36,6 +36,7 @@ export interface TokenAnalysis {
   jlpt_level: string | null;
   frequency_rank: number | null;
   definitions: DictionaryEntry[];
+  vietnamese_sound?: string;
   srs_state?: string | null;
   grammar_note_vi?: string;
   components?: Array<{

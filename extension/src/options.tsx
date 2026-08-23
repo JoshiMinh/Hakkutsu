@@ -50,20 +50,16 @@ export default function AppDashboard() {
             onClick={() => setActiveTab("dashboard")}
             icon={<LayoutDashboard size={18} />} label="Dashboard" 
           />
-          {settings.srsEnabled && (
-            <>
-              <SidebarButton 
-                active={activeTab === "review"} 
-                onClick={() => setActiveTab("review")}
-                icon={<Brain size={18} />} label="Reviews" 
-              />
-              <SidebarButton 
-                active={activeTab === "vocabulary"} 
-                onClick={() => setActiveTab("vocabulary")}
-                icon={<BookOpen size={18} />} label="Vocabulary" 
-              />
-            </>
-          )}
+          <SidebarButton 
+            active={activeTab === "review"} 
+            onClick={() => setActiveTab("review")}
+            icon={<Brain size={18} />} label="Reviews" 
+          />
+          <SidebarButton 
+            active={activeTab === "vocabulary"} 
+            onClick={() => setActiveTab("vocabulary")}
+            icon={<BookOpen size={18} />} label="Vocabulary" 
+          />
           <SidebarButton 
             active={activeTab === "settings"} 
             onClick={() => setActiveTab("settings")}
@@ -94,8 +90,7 @@ export default function AppDashboard() {
           </div>
         )}
         {activeTab === "settings" && (
-          <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-            <h2 style={{ marginBottom: "24px", color: "var(--hk-text-primary)", fontWeight: "bold" }}>App Settings</h2>
+          <div style={{ maxWidth: "640px", margin: "0 auto" }}>
             <SettingsView settings={settings} onUpdate={handleUpdateSettings} />
           </div>
         )}
