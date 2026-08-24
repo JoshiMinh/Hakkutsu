@@ -7,10 +7,10 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "dev": "node --require ./require-graceful-fs.js ./node_modules/plasmo/bin/index.mjs dev",
-    "build": "node --require ./require-graceful-fs.js ./node_modules/plasmo/bin/index.mjs build",
-    "build:firefox": "node --require ./require-graceful-fs.js ./node_modules/plasmo/bin/index.mjs build --target=firefox-mv2",
-    "package": "node --require ./require-graceful-fs.js ./node_modules/plasmo/bin/index.mjs package",
+    "dev": "node ./run-plasmo.cjs dev",
+    "build": "node ./run-plasmo.cjs build",
+    "build:firefox": "node ./run-plasmo.cjs build --target=firefox-mv2",
+    "package": "node ./run-plasmo.cjs package",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
