@@ -88,6 +88,188 @@ export function hiraganaToKatakana(text: string): string {
     .join("");
 }
 
+/** Check if a string contains any kanji characters */
+export function hasKanji(text: string): boolean {
+  if (!text) return false;
+  return [...text].some(isKanji);
+}
+
+/** Check if a string is purely kana (hiragana or katakana, no kanji) */
+export function isPureKana(text: string): boolean {
+  if (!text || text.trim().length === 0) return false;
+  return [...text].every((c) => isHiragana(c) || isKatakana(c) || /[\s\u3000\u30FCー・]/.test(c));
+}
+
+export interface RubySegment {
+  text: string;
+  ruby?: string;
+}
+
+/**
+ * Distributes reading across kanji and kana segments for clean ruby annotation.
+ * Pure kana segments have no ruby, while kanji segments get their matched reading.
+ */
+export function distributeFurigana(text: string, reading?: string): RubySegment[] {
+  if (!text) return [];
+  if (!reading || !hasKanji(text) || text === reading) {
+    return [{ text }];
+  }
+
+  const cleanText = text.trim();
+  const cleanReading = reading.trim();
+
+  // If text has bracket format like 漢[かん]字[じ]
+  if (cleanText.includes("[") && cleanText.includes("]")) {
+    const segments: RubySegment[] = [];
+    const bracketRe = /([\u4E00-\u9FFF\u3400-\u4DBF]+)\[([^\]]+)\]|([^\u4E00-\u9FFF\u3400-\u4DBF\[\]]+)/g;
+    let match: RegExpExecArray | null;
+    while ((match = bracketRe.exec(cleanText)) !== null) {
+      if (match[1] && match[2]) {
+        segments.push({ text: match[1], ruby: match[2] });
+      } else if (match[3]) {
+        segments.push({ text: match[3] });
+      }
+    }
+    if (segments.length > 0) return segments;
+  }
+
+  // Step 1: Strip common kana prefixes
+  let start = 0;
+  while (
+    start < cleanText.length &&
+    start < cleanReading.length &&
+    !isKanji(cleanText[start]) &&
+    cleanText[start] === cleanReading[start]
+  ) {
+    start++;
+  }
+
+  // Step 2: Strip common kana suffixes
+  let endText = cleanText.length - 1;
+  let endReading = cleanReading.length - 1;
+  while (
+    endText >= start &&
+    endReading >= start &&
+    !isKanji(cleanText[endText]) &&
+    cleanText[endText] === cleanReading[endReading]
+  ) {
+    endText--;
+    endReading--;
+  }
+
+  const prefix = cleanText.slice(0, start);
+  const suffix = cleanText.slice(endText + 1);
+  const middleText = cleanText.slice(start, endText + 1);
+  const middleReading = cleanReading.slice(start, endReading + 1);
+
+  const result: RubySegment[] = [];
+  if (prefix) result.push({ text: prefix });
+
+  if (middleText) {
+    // Check if middleText contains internal kana separators (e.g. "思" + "い" + "出")
+    const parts = middleText.split(/([^\u4E00-\u9FFF\u3400-\u4DBF]+)/).filter(Boolean);
+    if (parts.length > 1) {
+      let currentReading = middleReading;
+      let matchedAll = true;
+      const subSegments: RubySegment[] = [];
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (!hasKanji(part)) {
+          // Kana part: find where it occurs in currentReading
+          const idx = currentReading.indexOf(part);
+          if (idx !== -1) {
+            subSegments.push({ text: part });
+            currentReading = currentReading.slice(idx + part.length);
+          } else {
+            matchedAll = false;
+            break;
+          }
+        } else {
+          // Kanji part: it takes the reading up to the next kana part
+          const nextKana = parts[i + 1];
+          if (nextKana) {
+            const nextIdx = currentReading.indexOf(nextKana);
+            if (nextIdx !== -1) {
+              const kanjiReading = currentReading.slice(0, nextIdx);
+              subSegments.push({ text: part, ruby: kanjiReading });
+              currentReading = currentReading.slice(nextIdx);
+            } else {
+              matchedAll = false;
+              break;
+            }
+          } else {
+            // Last part takes the remainder
+            subSegments.push({ text: part, ruby: currentReading });
+            currentReading = "";
+          }
+        }
+      }
+
+      if (matchedAll && currentReading.length === 0) {
+        result.push(...subSegments);
+      } else {
+        result.push({ text: middleText, ruby: middleReading });
+      }
+    } else {
+      result.push({ text: middleText, ruby: middleReading });
+    }
+  }
+
+  if (suffix) result.push({ text: suffix });
+
+  return result;
+}
+
+/** Common Japanese particles for boundary splitting */
+const COMMON_PARTICLES = new Set([
+  "の", "を", "に", "へ", "と", "から", "より", "で", "や", "が", "は", "も", "か", "など", "まで",
+  "けど", "けれど", "けれども", "のに", "ので", "たら", "なら", "ば"
+]);
+
+/**
+ * Fast offline segmentation for Japanese phrases and compounds.
+ * Correctly splits compounds, particles, and kana inflections.
+ */
+export function segmentJapaneseTokens(text: string): string[] {
+  if (!text || text.trim().length === 0) return [];
+  const clean = text.trim();
+  const tokens: string[] = [];
+
+  // Match sequences of Kanji (CJK), Katakana, Hiragana, Punctuation/Latin
+  const re = /([\u4E00-\u9FFF\u3400-\u4DBF]+)|([\u30A0-\u30FFー]+)|([\u3040-\u309F]+)|([a-zA-Z0-9]+)|([^\s\w\u3040-\u30FF\u4E00-\u9FFF]+)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = re.exec(clean)) !== null) {
+    const chunk = match[0];
+    // If hiragana chunk, check if it contains known particles
+    if (/^[\u3040-\u309F]+$/.test(chunk) && chunk.length > 1) {
+      // Check if it's a particle or compound
+      if (COMMON_PARTICLES.has(chunk)) {
+        tokens.push(chunk);
+      } else {
+        // Look for embedded single character particles like 'の', 'が', 'を', 'に'
+        let sub = "";
+        for (let i = 0; i < chunk.length; i++) {
+          const char = chunk[i];
+          if (COMMON_PARTICLES.has(char) && sub.length > 0) {
+            tokens.push(sub);
+            tokens.push(char);
+            sub = "";
+          } else {
+            sub += char;
+          }
+        }
+        if (sub) tokens.push(sub);
+      }
+    } else {
+      tokens.push(chunk);
+    }
+  }
+
+  return tokens.length > 0 ? tokens : [clean];
+}
+
 /**
  * Extract Japanese text segments from mixed-language text.
  * Returns an array of { text, isJapanese } segments.

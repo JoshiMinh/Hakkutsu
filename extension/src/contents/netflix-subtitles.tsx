@@ -2,17 +2,17 @@
  * Netflix Subtitles — Content Script Overlay
  *
  * Injects an interactive subtitle overlay into the Netflix player.
- * Since Netflix doesn't easily expose the full subtitle track in a predictable format,
- * this implementation uses a MutationObserver to read the currently displayed
- * native subtitle from the DOM.
+ * Reads native subtitles from the DOM observer (.player-timedtext) and
+ * supports custom external subtitle files (.srt, .vtt, .ass) via drag-and-drop.
  */
 
 import type { PlasmoCSConfig, PlasmoGetOverlayAnchor, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useRef, useCallback } from "react";
-import type { SubtitleSegment } from "~lib/types";
-import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/youtube-subtitle-styles"; // We can reuse the same CSS
+import type { SubtitleSegment, SubtitleFetchResult } from "~lib/types";
+import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/youtube-subtitle-styles";
 import { SubtitleOverlay, type SubtitleSettings } from "~components/subtitle-overlay";
 import { useSettingsStore } from "~lib/utils/settings";
+import { findSmartCue } from "~lib/services/smart-cue";
 
 export const config: PlasmoCSConfig = {
   matches: ["https://www.netflix.com/watch/*"],
@@ -25,7 +25,11 @@ import cssText from "data-text:~style.css";
 
 export const getStyle: PlasmoGetStyle = () => {
   const style = document.createElement("style");
-  style.textContent = cssText + youtubeSubtitleCss + youtubeToolbarCss + `
+  style.textContent =
+    cssText +
+    youtubeSubtitleCss +
+    youtubeToolbarCss +
+    `
     /* Extra styles for Netflix */
     .hk-subs-active .player-timedtext {
       opacity: 0 !important; /* Hide native subs visually but keep in DOM for observer */
@@ -46,23 +50,22 @@ export const getStyle: PlasmoGetStyle = () => {
       overflow: visible !important;
       min-width: 48px;
     }
-    
-    /* Override Netflix focus styles that might cause issues */
-    #hk-toolbar-portal button {
-      /* Removed to avoid conflicts with switch layout */
-    }
   `;
   return style;
 };
 
 const NetflixSubtitles = () => {
+  const [customSubtitleData, setCustomSubtitleData] = useState<SubtitleFetchResult | null>(null);
   const [currentSegment, setCurrentSegment] = useState<SubtitleSegment | null>(null);
-  const [isEnabled, setIsEnabled] = useState(false);
+  const [isEnabled, setIsEnabled] = useState(true);
   const [currentUrl, setCurrentUrl] = useState(window.location.href);
   const [toolbarContainer, setToolbarContainer] = useState<Element | null>(null);
-  const { settings, isHydrated } = useSettingsStore();
+  const [offset, setOffset] = useState(0);
+  const [autoPause, setAutoPause] = useState(false);
+  const { settings } = useSettingsStore();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const rafIdRef = useRef<number | null>(null);
 
   // ── Inject Toolbar CSS into Main Document ────────────────────────────
   useEffect(() => {
@@ -78,11 +81,11 @@ const NetflixSubtitles = () => {
   // ── Native Toolbar Injection ──────────────────────────────────────────
   useEffect(() => {
     const interval = setInterval(() => {
-      // Try multiple selectors for resilience: Netflix bottom right controls
-      const controls = document.querySelector(".PlayerControlsNeo__button-control-row") 
-                    || document.querySelector('[data-uia="control-fullscreen"]')?.parentElement
-                    || document.querySelector('[data-uia="control-audio-subtitle"]')?.parentElement;
-                    
+      const controls =
+        document.querySelector(".PlayerControlsNeo__button-control-row") ||
+        document.querySelector('[data-uia="control-fullscreen"]')?.parentElement ||
+        document.querySelector('[data-uia="control-audio-subtitle"]')?.parentElement;
+
       if (controls) {
         let container = document.getElementById("hk-toolbar-portal");
         if (!container || !controls.contains(container)) {
@@ -109,8 +112,11 @@ const NetflixSubtitles = () => {
         if (lastUrl.includes("watch")) {
           setCurrentUrl(lastUrl);
           setCurrentSegment(null);
+          setCustomSubtitleData(null);
+          setOffset(0);
         } else {
           setCurrentSegment(null);
+          setCustomSubtitleData(null);
           setIsEnabled(false);
         }
       }
@@ -132,23 +138,62 @@ const NetflixSubtitles = () => {
     }
   }, [isEnabled]);
 
-  // ── MutationObserver for DOM Subtitles ───────────────────────────────
+  // ── Video Reference ──────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!isEnabled) return;
-
-    const tickInterval = setInterval(() => {
+    const interval = setInterval(() => {
       const video = document.querySelector("video");
       if (video) videoRef.current = video;
     }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ── Track Custom File Sync (if loaded) ───────────────────────────────
+
+  useEffect(() => {
+    if (!isEnabled || !customSubtitleData) return;
+
+    const video = document.querySelector("video");
+    if (!video) return;
+    videoRef.current = video;
+
+    const tick = () => {
+      if (!video.paused && customSubtitleData) {
+        const adjustedTime = video.currentTime - offset;
+        const segment = findSmartCue(customSubtitleData.segments, adjustedTime);
+        setCurrentSegment(segment);
+      }
+      rafIdRef.current = requestAnimationFrame(tick);
+    };
+
+    const handleSeeked = () => {
+      const adjustedTime = video.currentTime - offset;
+      const segment = findSmartCue(customSubtitleData.segments, adjustedTime);
+      setCurrentSegment(segment);
+    };
+
+    rafIdRef.current = requestAnimationFrame(tick);
+    video.addEventListener("seeked", handleSeeked);
+
+    return () => {
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      video.removeEventListener("seeked", handleSeeked);
+    };
+  }, [isEnabled, customSubtitleData, offset]);
+
+  // ── MutationObserver for Native DOM Subtitles ────────────────────────
+
+  useEffect(() => {
+    // If user loaded a custom file, skip DOM scraping
+    if (!isEnabled || customSubtitleData) return;
 
     let lastText = "";
-    
-    // Netflix renders subtitles in .player-timedtext > .player-timedtext-text-container
-    const observeTarget = document.querySelector(".watch-video");
+    const observeTarget = document.querySelector(".watch-video") || document.body;
     if (!observeTarget) return;
 
     const observer = new MutationObserver(() => {
+      if (customSubtitleData) return;
+
       const timedTextElement = document.querySelector(".player-timedtext");
       if (!timedTextElement) {
         if (lastText !== "") {
@@ -158,21 +203,21 @@ const NetflixSubtitles = () => {
         return;
       }
 
-      // Extract text, combining multiple lines
       let text = "";
       const spans = timedTextElement.querySelectorAll("span");
       if (spans.length > 0) {
-        const textParts = [];
-        spans.forEach(span => {
-          // Exclude ruby/rt if Netflix somehow renders them, or just get pure text
-          // Sometimes Netflix uses <br>, so innerText is better than textContent
-          if (span.innerText.trim()) {
-            textParts.push(span.innerText.trim());
+        const textParts: string[] = [];
+        spans.forEach((span) => {
+          const content = (span as HTMLElement).innerText?.trim() || span.textContent?.trim() || "";
+          if (content) {
+            textParts.push(content);
           }
         });
         text = textParts.join(" ").replace(/\n/g, " ").trim();
       } else {
-        text = (timedTextElement as HTMLElement).innerText.replace(/\n/g, " ").trim();
+        text = ((timedTextElement as HTMLElement).innerText || timedTextElement.textContent || "")
+          .replace(/\n/g, " ")
+          .trim();
       }
 
       if (text !== lastText) {
@@ -180,11 +225,11 @@ const NetflixSubtitles = () => {
         if (text) {
           const video = document.querySelector("video");
           const currentTime = video ? video.currentTime : 0;
-          
+
           setCurrentSegment({
             text,
             start: currentTime,
-            duration: 2 // We don't know the exact duration, but we just need start for the UI key
+            duration: 2,
           });
         } else {
           setCurrentSegment(null);
@@ -192,29 +237,47 @@ const NetflixSubtitles = () => {
       }
     });
 
-    observer.observe(observeTarget, { 
-      childList: true, 
+    observer.observe(observeTarget, {
+      childList: true,
       subtree: true,
-      characterData: true
+      characterData: true,
     });
 
     return () => {
-      clearInterval(tickInterval);
       observer.disconnect();
     };
-  }, [isEnabled]);
+  }, [isEnabled, customSubtitleData]);
+
+  const handleSettingsChange = useCallback((newSettings: SubtitleSettings) => {
+    setAutoPause(newSettings.autoPause);
+  }, []);
+
+  const handleLoadCustomSubtitles = useCallback((result: SubtitleFetchResult) => {
+    setCustomSubtitleData(result);
+    setIsEnabled(true);
+  }, []);
+
+  const handleUnloadCustomSubtitles = useCallback(() => {
+    setCustomSubtitleData(null);
+    setCurrentSegment(null);
+  }, []);
 
   return (
     <SubtitleOverlay
       isEnabled={isEnabled}
       loading={false}
       error={null}
-      subtitleData={null} // Netflix doesn't support full transcript via DOM scraping
+      subtitleData={customSubtitleData}
       currentSegment={currentSegment}
       videoRef={videoRef}
       currentUrl={currentUrl}
       toolbarContainer={toolbarContainer}
-      onToggleEnabled={() => setIsEnabled(prev => !prev)}
+      onToggleEnabled={() => setIsEnabled((prev) => !prev)}
+      onSettingsChange={handleSettingsChange}
+      offset={offset}
+      onOffsetChange={setOffset}
+      onLoadCustomSubtitles={handleLoadCustomSubtitles}
+      onUnloadCustomSubtitles={handleUnloadCustomSubtitles}
     />
   );
 };

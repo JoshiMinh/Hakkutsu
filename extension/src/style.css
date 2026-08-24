@@ -588,8 +588,22 @@ html, body {
   font-size: 22px;
   font-weight: 700;
   color: #fafafa;
-  line-height: 1.2;
+  line-height: 1.4;
   letter-spacing: -0.01em;
+}
+
+.hk-ruby {
+  ruby-position: over;
+  ruby-align: center;
+}
+
+.hk-ruby rt {
+  font-size: 0.52em;
+  color: #f472b6;
+  font-weight: 600;
+  user-select: none;
+  line-height: 1.1;
+  text-align: center;
 }
 
 .hk-definition__reading {

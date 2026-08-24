@@ -471,13 +471,21 @@ function Popup() {
     init();
   }, []);
 
+  useEffect(() => {
+    if (settings.srsEnabled === false && activeView === "srs") {
+      setActiveView("translate");
+    }
+  }, [settings.srsEnabled, activeView]);
+
   const handleUpdateSettings = (patch: Partial<ExtensionSettings>) => {
     updateSettings(patch);
   };
 
   const tabs: Array<{ id: ExtensionView; label: string; icon: React.ReactNode }> = [
     { id: "translate", label: t("popup_tab_translate"), icon: <Languages size={15} /> },
-    { id: "srs", label: t("popup_tab_review"), icon: <Brain size={15} /> },
+    ...(settings.srsEnabled !== false
+      ? [{ id: "srs" as ExtensionView, label: t("popup_tab_review"), icon: <Brain size={15} /> }]
+      : []),
     { id: "anki", label: "Anki", icon: <BookMarked size={15} /> },
   ];
 

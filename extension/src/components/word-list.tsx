@@ -10,18 +10,28 @@ import {
   ArrowUpDown, 
   Sparkles, 
   Layers, 
-  Check 
+  Check,
+  Brain,
+  ExternalLink
 } from "lucide-react";
 import { JlptBadge } from "~components/Badges";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { lookupWord } from "~lib/services/dictionary-lookup";
 import { useTranslation } from "~lib/languages/locales";
+import { ankiClient } from "~lib/services/anki-connect";
 
-export function WordList({ userId = "user_1" }: { userId?: string }) {
+export function WordList({ 
+  userId = "user_1",
+  onStartReview
+}: { 
+  userId?: string;
+  onStartReview?: () => void;
+}) {
   const { t, isVietnamese, showHanViet, lang } = useTranslation();
   const [cards, setCards] = useState<SrsCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ankiExporting, setAnkiExporting] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState("");
   const [displayLimit, setDisplayLimit] = useState(50);
@@ -148,6 +158,37 @@ export function WordList({ userId = "user_1" }: { userId?: string }) {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportAnki = async () => {
+    try {
+      setAnkiExporting(true);
+      const connected = await ankiClient.isConnected();
+      if (!connected) {
+        alert(t("vocab_anki_not_connected"));
+        return;
+      }
+
+      let count = 0;
+      for (const card of cards) {
+        await ankiClient.exportVocabulary({
+          word: card.word,
+          reading: card.reading,
+          meaning: card.meaning,
+          sentence: card.sentence,
+          sentenceReading: card.sentence_furigana,
+          jlptLevel: card.jlpt || "",
+          pos: "Word"
+        });
+        count++;
+      }
+      alert(isVietnamese ? `Đã xuất ${count} từ sang Anki thành công!` : `Exported ${count} cards to Anki successfully!`);
+    } catch (e: any) {
+      console.error("Anki export error:", e);
+      alert(e.message || "Failed to export to Anki");
+    } finally {
+      setAnkiExporting(false);
+    }
+  };
+
   const saveEdit = async (updated: SrsCard) => {
     try {
       const saved = await localSrs.updateSrsCard(updated.id, updated);
@@ -185,6 +226,7 @@ export function WordList({ userId = "user_1" }: { userId?: string }) {
 
   const displayedCards = sortedCards.slice(0, displayLimit);
 
+  const dueCount = cards.filter(c => c.due_date <= Date.now()).length;
   const newCount = cards.filter(c => c.repetition === 0).length;
   const learningCount = cards.filter(c => c.repetition > 0 && c.interval < 21).length;
   const graduatedCount = cards.filter(c => c.interval >= 21).length;
@@ -219,9 +261,43 @@ export function WordList({ userId = "user_1" }: { userId?: string }) {
         </div>
 
         {/* Global Actions */}
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          {onStartReview && cards.length > 0 && (
+            <button 
+              className="hk-btn hk-btn--primary"
+              onClick={onStartReview}
+              style={{ fontSize: "12px", padding: "6px 14px", gap: "6px" }}
+            >
+              <Brain size={14} />
+              {t("vocab_btn_learn_srs")}
+              {dueCount > 0 && (
+                <span style={{
+                  background: "#ef4444",
+                  color: "#ffffff",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  padding: "1px 6px",
+                  borderRadius: "10px",
+                  marginLeft: "2px"
+                }}>
+                  {dueCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {cards.length > 0 && (
             <>
+              <button 
+                className="hk-btn hk-btn--secondary"
+                onClick={handleExportAnki}
+                disabled={ankiExporting}
+                title={t("vocab_btn_export_anki")}
+                style={{ fontSize: "12px", padding: "6px 12px", gap: "6px" }}
+              >
+                <ExternalLink size={14} />
+                {ankiExporting ? t("vocab_anki_exporting") : t("vocab_btn_export_anki")}
+              </button>
               <button 
                 className="hk-btn hk-btn--secondary"
                 onClick={handleExportCSV}

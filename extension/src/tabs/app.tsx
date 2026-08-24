@@ -29,6 +29,12 @@ export default function AppDashboard() {
     updateSettings(patch);
   };
 
+  useEffect(() => {
+    if (settings.srsEnabled === false && activeTab === "review") {
+      setActiveTab("dashboard");
+    }
+  }, [settings.srsEnabled, activeTab]);
+
   return (
     <div style={{ display: "flex", height: "100vh", backgroundColor: "var(--hk-bg-primary)", color: "var(--hk-text-primary)", overflow: "hidden" }}>
       {/* Sidebar */}
@@ -60,12 +66,14 @@ export default function AppDashboard() {
             icon={<LayoutDashboard size={17} />} 
             label={t("nav_dashboard")} 
           />
-          <SidebarButton 
-            active={activeTab === "review"} 
-            onClick={() => setActiveTab("review")}
-            icon={<Brain size={17} />} 
-            label={t("nav_review")} 
-          />
+          {settings.srsEnabled !== false && (
+            <SidebarButton 
+              active={activeTab === "review"} 
+              onClick={() => setActiveTab("review")}
+              icon={<Brain size={17} />} 
+              label={t("nav_review")} 
+            />
+          )}
           <SidebarButton 
             active={activeTab === "vocabulary"} 
             onClick={() => setActiveTab("vocabulary")}
@@ -95,7 +103,7 @@ export default function AppDashboard() {
         )}
         {activeTab === "vocabulary" && (
           <div style={{ maxWidth: "1080px", margin: "0 auto" }}>
-            <WordList />
+            <WordList onStartReview={() => setActiveTab("review")} />
           </div>
         )}
         {activeTab === "dashboard" && (

@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Copy, RotateCcw, Brain, Download } from "lucide-react";
-import iconUrl from "url:~assets/icon.png";
+import { Copy, RotateCcw, Brain, Download, Upload, Plus, Minus, XCircle, Layers } from "lucide-react";
 import type { SubtitleSegment, SubtitleFetchResult, AnalyzeResponse, TokenAnalysis } from "~lib/types";
+import { readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
+import { useSettingsStore } from "~lib/utils/settings";
+import { SelectSubtitlesModal, type SubtitleTrackOption } from "./select-subtitles-modal";
 
 // ── Cache ───────────────────────────────────────────────────────────────────
 
@@ -15,6 +17,7 @@ export interface SubtitleSettings {
   showJlptColors: boolean;
   showTranscript: boolean;
   autoPause: boolean;
+  fontSize?: "small" | "medium" | "large";
 }
 
 const DEFAULT_SUB_SETTINGS: SubtitleSettings = {
@@ -22,36 +25,36 @@ const DEFAULT_SUB_SETTINGS: SubtitleSettings = {
   showJlptColors: true,
   showTranscript: false,
   autoPause: false,
+  fontSize: "medium",
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 function findSegmentIndex(
   segments: SubtitleSegment[],
-  currentTime: number
+  time: number,
+  offset: number = 0
 ): number {
-  let low = 0;
-  let high = segments.length - 1;
+  const adjustedTime = time - offset;
   let bestIdx = -1;
+  let minDiff = Infinity;
 
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const seg = segments[mid];
-    const segEnd = seg.start + seg.duration;
-
-    if (currentTime >= seg.start && currentTime <= segEnd) {
-      return mid;
-    } else if (currentTime < seg.start) {
-      high = mid - 1;
-    } else {
-      bestIdx = mid;
-      low = mid + 1;
+  for (let i = 0; i < segments.length; i++) {
+    const s = segments[i];
+    const segEnd = s.start + s.duration;
+    if (adjustedTime >= s.start && adjustedTime <= segEnd) {
+      return i;
+    }
+    const dist = Math.abs(s.start - adjustedTime);
+    if (dist < minDiff && dist < 0.2) {
+      minDiff = dist;
+      bestIdx = i;
     }
   }
 
@@ -78,8 +81,18 @@ export interface SubtitleOverlayProps {
   currentUrl: string;
   toolbarContainer: Element | null;
   onToggleEnabled: () => void;
-  // Hook for parent to know when settings change, e.g. for autoPause
   onSettingsChange?: (settings: SubtitleSettings) => void;
+  offset?: number;
+  onOffsetChange?: (offset: number) => void;
+  onLoadCustomSubtitles?: (result: SubtitleFetchResult) => void;
+  onUnloadCustomSubtitles?: () => void;
+  isFloatingButton?: boolean;
+  videoTitle?: string;
+  availableTracks?: SubtitleTrackOption[];
+  currentTrackId?: string;
+  secondaryTrackId?: string;
+  onSelectTrack?: (track: SubtitleTrackOption) => Promise<void> | void;
+  onSelectSecondaryTrack?: (track: SubtitleTrackOption | null) => Promise<void> | void;
 }
 
 export const SubtitleOverlay = ({
@@ -94,27 +107,64 @@ export const SubtitleOverlay = ({
   toolbarContainer,
   onToggleEnabled,
   onSettingsChange,
+  offset = 0,
+  onOffsetChange,
+  onLoadCustomSubtitles,
+  onUnloadCustomSubtitles,
+  isFloatingButton = false,
+  videoTitle = "",
+  availableTracks = [],
+  currentTrackId,
+  secondaryTrackId,
+  onSelectTrack,
+  onSelectSecondaryTrack,
 }: SubtitleOverlayProps) => {
+  const globalSettings = useSettingsStore((state) => state.settings);
   const [analyzedTokens, setAnalyzedTokens] = useState<TokenAnalysis[] | null>(null);
-  const [settings, setSettings] = useState<SubtitleSettings>(DEFAULT_SUB_SETTINGS);
+  const [settings, setSettings] = useState<SubtitleSettings>({
+    showFurigana: globalSettings.showFurigana !== false,
+    showJlptColors: globalSettings.showJlptColors !== false,
+    showTranscript: false,
+    autoPause: !!globalSettings.autoPauseSubtitles,
+    fontSize: globalSettings.subtitleFontSize || "medium",
+  });
   const [showSettings, setShowSettings] = useState(false);
-  
+  const [showSelectModal, setShowSelectModal] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [offsetToast, setOffsetToast] = useState<string | null>(null);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const wasPlayingRef = useRef(false);
   const analysisOpenRef = useRef(false);
   const ctrlShortcutArmedRef = useRef(false);
   const ctrlPeekOpenRef = useRef(false);
   const ctrlHoldTimerRef = useRef<number | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+
+  // Sync settings when global settings hydrate/change
+  useEffect(() => {
+    setSettings((prev) => ({
+      ...prev,
+      showFurigana: globalSettings.showFurigana !== false,
+      showJlptColors: globalSettings.showJlptColors !== false,
+      autoPause: !!globalSettings.autoPauseSubtitles,
+      fontSize: globalSettings.subtitleFontSize || prev.fontSize || "medium",
+    }));
+  }, [
+    globalSettings.showFurigana,
+    globalSettings.showJlptColors,
+    globalSettings.autoPauseSubtitles,
+    globalSettings.subtitleFontSize,
+  ]);
 
   // ── Prefetch Analysis ─────────────────────────────────────────────────
 
   const prefetchAnalysis = useCallback((segment: SubtitleSegment) => {
     if (analysisCache.has(segment.text)) return;
-    
-    // Mark as fetching to avoid duplicates
-    analysisCache.set(segment.text, []); 
-    
+    analysisCache.set(segment.text, []);
+
     chrome.runtime
       .sendMessage({
         type: "ANALYZE_JAVI",
@@ -123,7 +173,6 @@ export const SubtitleOverlay = ({
       .then((response) => {
         if (response?.type === "ANALYZE_RESULT") {
           analysisCache.set(segment.text, (response.payload as AnalyzeResponse).tokens);
-          // If we prefetched the segment that is currently active, update state
           if (currentSegment?.text === segment.text) {
             setAnalyzedTokens(analysisCache.get(segment.text)!);
           }
@@ -153,17 +202,15 @@ export const SubtitleOverlay = ({
 
     const text = currentSegment.text;
     const cached = analysisCache.get(text);
-    
+
     if (cached && cached.length > 0) {
       setAnalyzedTokens(cached);
     } else {
-      // It's not cached or currently fetching empty array, let prefetch handle it or fetch now
       prefetchAnalysis(currentSegment);
     }
-    
-    // Also prefetch next segment if we have subtitleData
+
     if (subtitleData) {
-      const idx = subtitleData.segments.findIndex(s => s.start === currentSegment.start);
+      const idx = subtitleData.segments.findIndex((s) => s.start === currentSegment.start);
       if (idx >= 0 && idx + 1 < subtitleData.segments.length) {
         prefetchAnalysis(subtitleData.segments[idx + 1]);
       }
@@ -180,10 +227,103 @@ export const SubtitleOverlay = ({
     }
   }, [currentSegment, settings.showTranscript]);
 
-  // ── Keyboard Shortcuts ────────────────────────────────────────────────
+  // ── Show Offset Toast ─────────────────────────────────────────────────
+
+  const showOffsetNotification = useCallback((newOffset: number) => {
+    const formatted = `${newOffset >= 0 ? "+" : ""}${(newOffset * 1000).toFixed(0)} ms`;
+    setOffsetToast(`Subtitle Sync: ${formatted}`);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setOffsetToast(null), 1500);
+  }, []);
+
+  const adjustOffset = useCallback(
+    (deltaSec: number) => {
+      const newOffset = Math.round((offset + deltaSec) * 100) / 100;
+      if (onOffsetChange) {
+        onOffsetChange(newOffset);
+      }
+      showOffsetNotification(newOffset);
+    },
+    [offset, onOffsetChange, showOffsetNotification]
+  );
+
+  // ── Drag & Drop Subtitle Files ────────────────────────────────────────
 
   useEffect(() => {
-    if (!isEnabled || !subtitleData) return;
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer?.types?.includes("Files")) {
+        setIsDraggingFile(true);
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Only dismiss if leaving window/container
+      if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+        setIsDraggingFile(false);
+      }
+    };
+
+    const handleDrop = async (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDraggingFile(false);
+
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        const lower = file.name.toLowerCase();
+        if (lower.endsWith(".srt") || lower.endsWith(".vtt") || lower.endsWith(".ass") || lower.endsWith(".ssa")) {
+          try {
+            const parsed = await readSubtitleFile(file);
+            const subResult = parsedToSubtitleFetchResult(parsed, currentUrl);
+            if (onLoadCustomSubtitles) {
+              onLoadCustomSubtitles(subResult);
+            }
+          } catch (err) {
+            console.error("Hakkutsu: Failed to parse dropped subtitle file", err);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("dragover", handleDragOver);
+    window.addEventListener("dragleave", handleDragLeave);
+    window.addEventListener("drop", handleDrop);
+
+    return () => {
+      window.removeEventListener("dragover", handleDragOver);
+      window.removeEventListener("dragleave", handleDragLeave);
+      window.removeEventListener("drop", handleDrop);
+    };
+  }, [currentUrl, onLoadCustomSubtitles]);
+
+  // ── File Input Picker Handler ─────────────────────────────────────────
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const parsed = await readSubtitleFile(file);
+        const subResult = parsedToSubtitleFetchResult(parsed, currentUrl);
+        if (onLoadCustomSubtitles) {
+          onLoadCustomSubtitles(subResult);
+        }
+      } catch (err) {
+        console.error("Hakkutsu: Failed to parse chosen subtitle file", err);
+      }
+    }
+    // reset input so the same file can be selected again
+    e.target.value = "";
+  };
+
+  // ── asbplayer Keyboard Navigation & Shortcuts ─────────────────────────
+
+  useEffect(() => {
+    if (!isEnabled) return;
 
     const isEditableTarget = (target: EventTarget | null) => {
       const element = target as HTMLElement | null;
@@ -195,18 +335,16 @@ export const SubtitleOverlay = ({
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input
       if (isEditableTarget(e.target)) return;
 
+      // Ctrl Hold to Quick Peek Analysis
       if (e.key === "Control") {
         if (e.repeat || ctrlShortcutArmedRef.current) return;
         ctrlShortcutArmedRef.current = true;
         ctrlHoldTimerRef.current = window.setTimeout(() => {
-          if (!ctrlShortcutArmedRef.current || !videoRef.current) return;
-          const idx = findSegmentIndex(
-            subtitleData.segments,
-            videoRef.current.currentTime
-          );
+          if (!ctrlShortcutArmedRef.current || !videoRef.current || !subtitleData) return;
+          const adjustedTime = videoRef.current.currentTime - offset;
+          const idx = findSegmentIndex(subtitleData.segments, adjustedTime);
           if (idx < 0) return;
           const segment = subtitleData.segments[idx];
           if (!videoRef.current.paused) {
@@ -229,6 +367,7 @@ export const SubtitleOverlay = ({
         }, 180);
         return;
       }
+
       if (e.ctrlKey) {
         ctrlShortcutArmedRef.current = false;
         if (ctrlHoldTimerRef.current !== null) {
@@ -241,40 +380,62 @@ export const SubtitleOverlay = ({
         }
       }
 
-      if (!videoRef.current) return;
-      const time = videoRef.current.currentTime;
-      let idx = findSegmentIndex(subtitleData.segments, time);
+      // Timing Offset Shortcuts: 'Z' / 'X'
+      if (e.key === "z" || e.key === "Z") {
+        e.preventDefault();
+        adjustOffset(e.shiftKey ? -0.5 : -0.1);
+        return;
+      }
+      if (e.key === "x" || e.key === "X") {
+        e.preventDefault();
+        adjustOffset(e.shiftKey ? 0.5 : 0.1);
+        return;
+      }
 
+      if (!videoRef.current || !subtitleData || subtitleData.segments.length === 0) return;
+      const adjustedTime = videoRef.current.currentTime - offset;
+      const idx = findSegmentIndex(subtitleData.segments, adjustedTime);
+
+      // Cue navigation: A / Left (Prev), D / Right (Next), S / Up (Replay)
       switch (e.key) {
         case "ArrowLeft":
+        case "a":
+        case "A": {
           e.preventDefault();
           e.stopPropagation();
           if (idx > 0) {
             const cur = subtitleData.segments[idx];
-            if (time - cur.start < 1.0) {
-              videoRef.current.currentTime = subtitleData.segments[idx - 1].start;
+            if (adjustedTime - cur.start < 1.0) {
+              videoRef.current.currentTime = subtitleData.segments[idx - 1].start + offset;
             } else {
-              videoRef.current.currentTime = cur.start;
+              videoRef.current.currentTime = cur.start + offset;
             }
           } else if (idx === 0) {
-            videoRef.current.currentTime = subtitleData.segments[0].start;
+            videoRef.current.currentTime = subtitleData.segments[0].start + offset;
           }
           break;
+        }
         case "ArrowRight":
+        case "d":
+        case "D": {
           e.preventDefault();
           e.stopPropagation();
           if (idx < subtitleData.segments.length - 1) {
-            videoRef.current.currentTime = subtitleData.segments[idx + 1].start;
+            videoRef.current.currentTime = subtitleData.segments[idx + 1].start + offset;
           }
           break;
+        }
         case "ArrowUp":
+        case "s":
+        case "S": {
           e.preventDefault();
           e.stopPropagation();
           if (idx >= 0) {
-            videoRef.current.currentTime = subtitleData.segments[idx].start;
+            videoRef.current.currentTime = subtitleData.segments[idx].start + offset;
             if (videoRef.current.paused) videoRef.current.play();
           }
           break;
+        }
       }
     };
 
@@ -302,7 +463,9 @@ export const SubtitleOverlay = ({
       }
       ctrlPeekOpenRef.current = false;
     };
-  }, [currentUrl, isEnabled, subtitleData, videoRef]);
+  }, [isEnabled, subtitleData, videoRef, offset, adjustOffset]);
+
+  // ── Pause on Analysis Open ────────────────────────────────────────────
 
   useEffect(() => {
     const handleAnalysisOpened = () => {
@@ -327,7 +490,7 @@ export const SubtitleOverlay = ({
     };
   }, [videoRef]);
 
-  // ── Event Handlers ────────────────────────────────────────────────────
+  // ── Hover Handlers ────────────────────────────────────────────────────
 
   const handleMouseEnter = useCallback(() => {
     if (videoRef.current && !videoRef.current.paused) {
@@ -340,11 +503,7 @@ export const SubtitleOverlay = ({
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed) return;
 
-    if (
-      videoRef.current &&
-      wasPlayingRef.current &&
-      !analysisOpenRef.current
-    ) {
+    if (videoRef.current && wasPlayingRef.current && !analysisOpenRef.current) {
       videoRef.current.play();
       wasPlayingRef.current = false;
     }
@@ -358,9 +517,9 @@ export const SubtitleOverlay = ({
         wasPlayingRef.current = true;
         videoRef.current.pause();
       }
-      const playerRect = document
-        .querySelector("#movie_player")
-        ?.getBoundingClientRect();
+      const playerRect = videoRef.current?.getBoundingClientRect() ||
+        document.querySelector("#movie_player")?.getBoundingClientRect();
+
       window.dispatchEvent(
         new CustomEvent("hakkutsu:analyze", {
           detail: {
@@ -408,16 +567,18 @@ export const SubtitleOverlay = ({
         })
       );
 
-      chrome.runtime.sendMessage({
-        type: "TEXT_SELECTED",
-        payload: {
-          text: token.dictionary_form || token.surface,
-          context: currentSegment?.text,
-          x: e.clientX,
-          y: e.clientY,
-          sourceUrl: currentUrl,
-        },
-      }).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          type: "TEXT_SELECTED",
+          payload: {
+            text: token.dictionary_form || token.surface,
+            context: currentSegment?.text,
+            x: e.clientX,
+            y: e.clientY,
+            sourceUrl: currentUrl,
+          },
+        })
+        .catch(() => {});
     },
     [currentSegment, currentUrl, videoRef]
   );
@@ -445,69 +606,83 @@ export const SubtitleOverlay = ({
         })
       );
 
-      chrome.runtime.sendMessage({
-        type: "TEXT_SELECTED",
-        payload: {
-          text: selectedText,
-          context: currentSegment?.text,
-          x: e.clientX,
-          y: e.clientY,
-          sourceUrl: currentUrl,
-        },
-      }).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          type: "TEXT_SELECTED",
+          payload: {
+            text: selectedText,
+            context: currentSegment?.text,
+            x: e.clientX,
+            y: e.clientY,
+            sourceUrl: currentUrl,
+          },
+        })
+        .catch(() => {});
     },
     [currentSegment, currentUrl]
   );
 
-  const handleTranscriptClick = useCallback((segment: SubtitleSegment) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = segment.start;
-    }
-  }, [videoRef]);
-
-  const toggleSetting = useCallback(
-    (key: keyof SubtitleSettings) => {
-      setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  const handleTranscriptClick = useCallback(
+    (segment: SubtitleSegment) => {
+      if (videoRef.current) {
+        videoRef.current.currentTime = segment.start + offset;
+      }
     },
-    []
+    [videoRef, offset]
   );
 
-  const handleCopySubtitle = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (currentSegment) {
-      navigator.clipboard.writeText(currentSegment.text);
-    }
-  }, [currentSegment]);
+  const toggleSetting = useCallback((key: keyof SubtitleSettings) => {
+    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
 
-  const handleExportAnki = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!currentSegment) return;
-    
-    const exportData = {
-      word: currentSegment.text,
-      reading: "",
-      sentence: currentSegment.text,
-      meaning: "",
-      sourceUrl: currentUrl
-    };
-    
-    chrome.runtime.sendMessage({
-      type: "EXPORT_ANKI",
-      payload: exportData,
-    }).catch(console.error);
-  }, [currentSegment, currentUrl]);
+  const handleCopySubtitle = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (currentSegment) {
+        navigator.clipboard.writeText(currentSegment.text);
+      }
+    },
+    [currentSegment]
+  );
+
+  const handleExportAnki = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!currentSegment) return;
+
+      const exportData = {
+        word: currentSegment.text,
+        reading: "",
+        sentence: currentSegment.text,
+        meaning: "",
+        sourceUrl: currentUrl,
+      };
+
+      chrome.runtime
+        .sendMessage({
+          type: "EXPORT_ANKI",
+          payload: exportData,
+        })
+        .catch(console.error);
+    },
+    [currentSegment, currentUrl]
+  );
 
   // ── Render ────────────────────────────────────────────────────────────
 
   const subtitleSourceLabel =
     subtitleData?.source === "transcript_panel"
-      ? "YouTube Transcript panel"
+      ? "YouTube Transcript"
       : subtitleData?.source === "backend"
         ? "Backend local"
-        : "YouTube player";
+        : subtitleData?.source === "local_file"
+          ? "Local Subtitle File"
+          : subtitleData?.source === "text_track"
+            ? "Embedded Track"
+            : "Media Player Track";
 
-  const toolbarPortal = toolbarContainer ? createPortal(
-    <div 
+  const renderToolbarContent = () => (
+    <div
       className="hk-toolbar-wrapper"
       onMouseEnter={() => setShowSettings(true)}
       onMouseLeave={() => setShowSettings(false)}
@@ -531,30 +706,143 @@ export const SubtitleOverlay = ({
         }
       >
         <div className="hk-yt-btn__icon-wrapper">
-          {loading ? (
-            <div className="hk-yt-btn__spinner" />
-          ) : (
-            <span className="hk-yt-btn__kanji">発</span>
+          <span className={`hk-yt-btn__kanji ${loading ? "hk-yt-btn__kanji--loading" : ""}`}>
+            発
+          </span>
+          {loading && (
+            <div className="hk-yt-btn__spinner-overlay">
+              <div className="hk-yt-btn__spinner" />
+            </div>
           )}
           {error && <span className="hk-yt-btn__badge hk-yt-btn__badge--error" />}
         </div>
         <div className="hk-yt-btn__active-bar" />
       </button>
-      
+
       {showSettings && (
         <div className="hk-toolbar-menu" onClick={(e) => e.stopPropagation()}>
-          <div className="hk-toolbar-menu-header">Hakkutsu Settings</div>
+          <div className="hk-toolbar-menu-header">Hakkutsu Subtitles</div>
           {subtitleData && (
             <div
               style={{
-                padding: "0 12px 8px",
-                color: "rgba(255,255,255,.55)",
+                padding: "0 12px 6px",
+                color: "rgba(255,255,255,.6)",
                 fontSize: 10,
+                lineHeight: 1.3,
+                wordBreak: "break-all",
               }}
             >
-              {subtitleData.trackName} · {subtitleSourceLabel}
+              <strong>{subtitleData.trackName}</strong>
+              <div style={{ opacity: 0.75, marginTop: 2 }}>{subtitleSourceLabel}</div>
             </div>
           )}
+
+          {/* Sync Offset Controls */}
+          <div className="hk-sub__settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label>Sync Offset</label>
+              <span className="hk-sub__offset-badge">
+                {offset >= 0 ? `+${(offset * 1000).toFixed(0)}` : (offset * 1000).toFixed(0)} ms
+              </span>
+            </div>
+            <div className="hk-sub__offset-controls">
+              <button
+                type="button"
+                className="hk-sub__offset-btn"
+                onClick={() => adjustOffset(-0.5)}
+                title="Shift -500ms (Shift+Z)"
+              >
+                -0.5s
+              </button>
+              <button
+                type="button"
+                className="hk-sub__offset-btn"
+                onClick={() => adjustOffset(-0.1)}
+                title="Shift -100ms (Z)"
+              >
+                -100ms
+              </button>
+              <button
+                type="button"
+                className="hk-sub__offset-btn"
+                onClick={() => {
+                  if (onOffsetChange) onOffsetChange(0);
+                  showOffsetNotification(0);
+                }}
+                title="Reset offset"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                className="hk-sub__offset-btn"
+                onClick={() => adjustOffset(0.1)}
+                title="Shift +100ms (X)"
+              >
+                +100ms
+              </button>
+              <button
+                type="button"
+                className="hk-sub__offset-btn"
+                onClick={() => adjustOffset(0.5)}
+                title="Shift +500ms (Shift+X)"
+              >
+                +0.5s
+              </button>
+            </div>
+          </div>
+
+          {/* Select Subtitles Hub Button (asbplayer style) */}
+          <div style={{ margin: "6px 0 4px" }}>
+            <button
+              type="button"
+              className="hk-sub__file-btn"
+              style={{
+                background: "linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%)",
+                borderColor: "rgba(168, 85, 247, 0.6)",
+                color: "#fff",
+                fontWeight: 700,
+                boxShadow: "0 2px 8px rgba(168, 85, 247, 0.25)",
+              }}
+              onClick={() => setShowSelectModal(true)}
+            >
+              <Layers size={13} style={{ color: "#d8b4fe" }} /> Select Subtitles (Tracks & Jimaku)
+            </button>
+          </div>
+
+          {/* Subtitle File Loader */}
+          <div style={{ margin: "4px 0" }}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".srt,.vtt,.ass,.ssa"
+              style={{ display: "none" }}
+              onChange={handleFileInputChange}
+            />
+            <button
+              type="button"
+              className="hk-sub__file-btn"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload size={13} /> Load Subtitle File (.srt, .vtt, .ass)
+            </button>
+            {subtitleData?.source === "local_file" && onUnloadCustomSubtitles && (
+              <button
+                type="button"
+                className="hk-sub__file-btn"
+                style={{
+                  marginTop: 6,
+                  background: "rgba(239, 68, 68, 0.15)",
+                  borderColor: "rgba(239, 68, 68, 0.3)",
+                }}
+                onClick={onUnloadCustomSubtitles}
+              >
+                <XCircle size={13} /> Reset to Default Track
+              </button>
+            )}
+          </div>
+
+          {/* Toggles */}
           <div className="hk-sub__settings-row">
             <label>Furigana</label>
             <input
@@ -593,13 +881,70 @@ export const SubtitleOverlay = ({
           </div>
         </div>
       )}
-    </div>,
-    toolbarContainer
+    </div>
+  );
+
+  const toolbarPortal = toolbarContainer
+    ? createPortal(renderToolbarContent(), toolbarContainer)
+    : null;
+
+  const floatingBadge = isFloatingButton ? (
+    <div
+      style={{
+        position: "absolute",
+        top: 14,
+        right: 14,
+        zIndex: 9999,
+        pointerEvents: "auto",
+      }}
+    >
+      {renderToolbarContent()}
+    </div>
   ) : null;
+
+  const fontSizeClass = `hk-sub--${settings.fontSize || "medium"}`;
 
   return (
     <>
       {toolbarPortal}
+      {floatingBadge}
+
+      {/* Drag & Drop Visual Dropzone */}
+      {isDraggingFile && (
+        <div className="hk-sub__dropzone">
+          <div className="hk-sub__dropzone-icon">
+            <Upload size={32} />
+          </div>
+          <div className="hk-sub__dropzone-text">Thả file phụ đề vào đây</div>
+          <div className="hk-sub__dropzone-sub">Hỗ trợ các định dạng .srt, .vtt, .ass, .ssa</div>
+        </div>
+      )}
+
+      {/* Subtitle Sync Offset Toast */}
+      {offsetToast && (
+        <div
+          role="status"
+          style={{
+            position: "absolute",
+            top: "14%",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 10002,
+            padding: "6px 14px",
+            borderRadius: 8,
+            background: "rgba(15, 23, 42, 0.95)",
+            border: "1px solid rgba(168, 85, 247, 0.4)",
+            color: "#f8fafc",
+            fontSize: 13,
+            fontWeight: 700,
+            pointerEvents: "none",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+            animation: "hk-sub-fade-in 0.15s ease-out",
+          }}
+        >
+          {offsetToast}
+        </div>
+      )}
 
       {isEnabled && loading && !subtitleData && (
         <div
@@ -643,7 +988,11 @@ export const SubtitleOverlay = ({
             textAlign: "center",
           }}
         >
-          <div>{error === "Video này không có phụ đề." ? error : `Hakkutsu không tải được phụ đề: ${error}`}</div>
+          <div>
+            {error === "Video này không có phụ đề."
+              ? error
+              : `Hakkutsu không tải được phụ đề: ${error}`}
+          </div>
           {requiresPageReload && (
             <button
               type="button"
@@ -659,7 +1008,7 @@ export const SubtitleOverlay = ({
                 cursor: "pointer",
               }}
             >
-              Tải lại tab YouTube
+              Tải lại trang
             </button>
           )}
         </div>
@@ -668,14 +1017,25 @@ export const SubtitleOverlay = ({
       {isEnabled && (subtitleData || currentSegment) && (
         <div
           ref={containerRef}
-          className={`hk-sub__container ${!currentSegment ? "hk-sub__container--hidden" : ""}`}
+          className={`hk-sub__container ${fontSizeClass} ${!currentSegment ? "hk-sub__container--hidden" : ""}`}
           onMouseUp={handleMouseUp}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
           {currentSegment && (
-            <div className="hk-sub__overlay-wrapper" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-              <div className="hk-sub__brand">HAKKUTSU SUB · CTRL PHÂN TÍCH</div>
+            <div
+              className="hk-sub__overlay-wrapper"
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
+            >
+              <div className="hk-sub__brand">
+                HAKKUTSU SUB · CTRL PHÂN TÍCH
+                {offset !== 0 && (
+                  <span style={{ marginLeft: 6, opacity: 0.8, fontSize: "0.85em" }}>
+                    ({offset >= 0 ? `+${(offset * 1000).toFixed(0)}` : (offset * 1000).toFixed(0)}ms)
+                  </span>
+                )}
+              </div>
               <div className="hk-sub__action-bar" onMouseDown={(e) => e.stopPropagation()}>
                 <button
                   type="button"
@@ -710,12 +1070,12 @@ export const SubtitleOverlay = ({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (videoRef.current) {
-                      videoRef.current.currentTime = currentSegment.start;
+                      videoRef.current.currentTime = currentSegment.start + offset;
                       videoRef.current.play();
                     }
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  title="Replay (Up Arrow)"
+                  title="Replay (S / Up Arrow)"
                 >
                   <RotateCcw size={16} />
                 </button>
@@ -725,7 +1085,10 @@ export const SubtitleOverlay = ({
                   analyzedTokens.map((token, i) => {
                     const jlptClass = settings.showJlptColors ? getJlptClass(token) : "";
                     const particleClass = isParticleToken(token) ? "hk-sub__token--particle" : "";
-                    const showReading = settings.showFurigana && token.is_japanese && token.reading.hiragana !== token.surface;
+                    const showReading =
+                      settings.showFurigana &&
+                      token.is_japanese &&
+                      token.reading.hiragana !== token.surface;
 
                     return (
                       <span
@@ -733,9 +1096,15 @@ export const SubtitleOverlay = ({
                         className={`hk-sub__token ${jlptClass} ${particleClass}`}
                         onClick={(e) => handleTokenClick(token, i, e)}
                         onMouseEnter={() => handleTokenHover(i)}
-                        title={token.is_japanese ? `${token.dictionary_form} — ${token.pos}` : undefined}
+                        title={
+                          token.is_japanese
+                            ? `${token.dictionary_form} — ${token.pos}`
+                            : undefined
+                        }
                       >
-                        <span className={`hk-sub__furigana ${!showReading ? "hk-sub__furigana--hidden" : ""}`}>
+                        <span
+                          className={`hk-sub__furigana ${!showReading ? "hk-sub__furigana--hidden" : ""}`}
+                        >
                           {showReading ? token.reading.hiragana : "\u00A0"}
                         </span>
                         <span className="hk-sub__surface">{token.surface}</span>
@@ -768,6 +1137,30 @@ export const SubtitleOverlay = ({
           })}
         </div>
       )}
+
+      {/* asbplayer-style Select Subtitles Modal */}
+      <SelectSubtitlesModal
+        isOpen={showSelectModal}
+        onClose={() => setShowSelectModal(false)}
+        videoTitle={videoTitle || document.title.replace(/ - YouTube$/, "")}
+        availableTracks={availableTracks}
+        currentTrackId={currentTrackId || subtitleData?.trackName}
+        secondaryTrackId={secondaryTrackId}
+        onSelectTrack={async (track) => {
+          if (onSelectTrack) {
+            await onSelectTrack(track);
+          }
+        }}
+        onSelectSecondaryTrack={onSelectSecondaryTrack}
+        onCustomSubtitleLoaded={(res) => {
+          if (onLoadCustomSubtitles) {
+            onLoadCustomSubtitles(res);
+          }
+        }}
+        onOpenSettings={() => {
+          chrome.runtime?.sendMessage?.({ type: "OPEN_SETTINGS" });
+        }}
+      />
     </>
   );
 };

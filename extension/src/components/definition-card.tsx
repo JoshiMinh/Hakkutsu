@@ -1,11 +1,56 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { TokenAnalysis, AnkiExportData } from "~lib/types";
-import { POS_LABELS } from "~lib/utils/constants";
+import { formatPosLabel } from "~lib/utils/constants";
 import { getHanViet } from "~lib/utils/hanviet-dict";
+import { hasKanji, distributeFurigana } from "~lib/utils/japanese";
 import { JlptBadge, PosBadge, FrequencyBadge } from "./Badges";
-import { Volume2, BookmarkPlus, ExternalLink, Copy, Check, Sparkles, BookOpen } from "lucide-react";
+import { Volume2, BookmarkPlus, Copy, Check, Sparkles, BookOpen, MessageSquareText, Loader2 } from "lucide-react";
 import { useTranslation } from "~lib/languages/locales";
 import { ttsService } from "~lib/services/tts-service";
+import { fetchExampleSentences, type ExampleSentence } from "~lib/services/dictionary-lookup";
+
+function highlightJapaneseSentence(sentence: string, targetWords: string[]): React.ReactNode {
+  if (!sentence) return "";
+  const cleanWords = Array.from(
+    new Set(
+      targetWords
+        .map((w) => w?.trim())
+        .filter((w): w is string => Boolean(w && w.length > 0))
+    )
+  ).sort((a, b) => b.length - a.length);
+
+  if (cleanWords.length === 0) return sentence;
+
+  const pattern = cleanWords
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+
+  if (!pattern) return sentence;
+
+  const regex = new RegExp(`(${pattern})`, "gi");
+  const parts = sentence.split(regex);
+
+  return parts.map((part, i) => {
+    const isMatch = cleanWords.some((w) => w.toLowerCase() === part.toLowerCase());
+    if (isMatch) {
+      return (
+        <strong
+          key={i}
+          style={{
+            color: "#c084fc",
+            fontWeight: 700,
+            textDecoration: "underline",
+            textUnderlineOffset: "3px",
+            textDecorationColor: "rgba(192, 132, 252, 0.4)",
+          }}
+        >
+          {part}
+        </strong>
+      );
+    }
+    return part;
+  });
+}
 
 export function DefinitionCard({
   token,
@@ -25,26 +70,45 @@ export function DefinitionCard({
   const { t, isVietnamese, showHanViet, lang } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [srsAdded, setSrsAdded] = useState(false);
+  const [examples, setExamples] = useState<ExampleSentence[]>([]);
+  const [loadingExamples, setLoadingExamples] = useState(false);
 
-  // Strictly only show Han-Viet when enabled and target language is Vietnamese
-  const hanViet = showHanViet ? (token.vietnamese_sound || getHanViet(token.dictionary_form || token.surface)) : null;
+  const wordQuery = token.dictionary_form || token.surface;
+  const wordHasKanji = hasKanji(token.dictionary_form) || hasKanji(token.surface);
+  const rubySegments = distributeFurigana(token.dictionary_form, token.reading?.hiragana);
 
-  const handleExport = () => {
-    if (!onExport) return;
-    const meanings = token.definitions
-      .flatMap((d) => d.glosses)
-      .join("; ");
+  // Strictly only show Han-Viet when enabled and target language is Vietnamese and word has Kanji
+  const hanViet = showHanViet && wordHasKanji
+    ? (token.vietnamese_sound || getHanViet(token.dictionary_form || token.surface))
+    : null;
 
-    onExport({
-      word: token.dictionary_form,
-      reading: token.reading.hiragana,
-      meaning: meanings || "—",
-      sentence: originalText,
-      sentenceReading: sentenceReading,
-      jlptLevel: token.jlpt_level || "",
-      pos: POS_LABELS[token.pos] || token.pos,
-    });
-  };
+  // Fetch real example sentences for this word
+  useEffect(() => {
+    let isMounted = true;
+    if (!wordQuery || !token.is_japanese) {
+      setExamples([]);
+      return;
+    }
+
+    setLoadingExamples(true);
+    fetchExampleSentences(wordQuery, lang, 2)
+      .then((items) => {
+        if (isMounted) {
+          setExamples(items);
+        }
+      })
+      .catch((e) => {
+        console.warn("[Hakkutsu] Example sentence fetch failed:", e);
+        if (isMounted) setExamples([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingExamples(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [wordQuery, lang, token.is_japanese]);
 
   const handlePlayAudio = () => {
     ttsService.playJapanese(token.dictionary_form || token.surface);
@@ -60,7 +124,7 @@ export function DefinitionCard({
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const handleSrsClick = () => {
+  const handleAddToLibrary = () => {
     if (onSrsAdd) {
       onSrsAdd();
       setSrsAdded(true);
@@ -68,13 +132,29 @@ export function DefinitionCard({
     }
   };
 
+  const totalGlossCount = token.definitions.reduce((acc, d) => acc + d.glosses.length, 0);
+  const countLabel = isVietnamese
+    ? `${totalGlossCount} ${t("def_dict_count")}`
+    : `${totalGlossCount} ${totalGlossCount === 1 ? t("def_sense_single") : t("def_sense_plural")}`;
+
   return (
     <div className="hk-definition hk-fade-in">
       {/* Top Header */}
       <div className="hk-definition__header">
         <div className="hk-definition__word-group">
           <div className="hk-definition__word-row">
-            <span className="hk-definition__word">{token.dictionary_form}</span>
+            <span className="hk-definition__word">
+              {rubySegments.map((seg, idx) =>
+                seg.ruby ? (
+                  <ruby key={idx} className="hk-ruby">
+                    {seg.text}
+                    <rt>{seg.ruby}</rt>
+                  </ruby>
+                ) : (
+                  <span key={idx}>{seg.text}</span>
+                )
+              )}
+            </span>
             <button
               className="hk-btn-icon-subtle"
               onClick={handlePlayAudio}
@@ -91,8 +171,8 @@ export function DefinitionCard({
             </button>
           </div>
           
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginTop: "2px" }}>
-            {token.reading?.hiragana && token.reading.hiragana !== token.dictionary_form && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginTop: "4px" }}>
+            {wordHasKanji && token.reading?.hiragana && (
               <span className="hk-definition__reading">
                 {token.reading.hiragana}
               </span>
@@ -151,11 +231,12 @@ export function DefinitionCard({
       {token.definitions.length > 0 ? (
         <div className="hk-definition__body">
           <div className="hk-dict-label-row">
-            <span className="hk-dict-label">
+            <span className="hk-dict-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <BookOpen size={13} style={{ opacity: 0.7 }} />
               {t("def_dict_label")}
             </span>
             <span className="hk-dict-count-badge">
-              {token.definitions.reduce((acc, d) => acc + d.glosses.length, 0)} {t("def_dict_count")}
+              {countLabel}
             </span>
           </div>
 
@@ -185,35 +266,72 @@ export function DefinitionCard({
         </div>
       )}
 
+      {/* Example Sentences Section */}
+      {(examples.length > 0 || loadingExamples) && (
+        <div className="hk-definition__examples" style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
+          <div className="hk-dict-label-row" style={{ marginBottom: "6px" }}>
+            <span className="hk-dict-label" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#a855f7" }}>
+              <MessageSquareText size={13} />
+              {t("def_examples_label")}
+            </span>
+            {loadingExamples && <Loader2 size={12} className="hk-spin" style={{ color: "#a855f7" }} />}
+          </div>
+
+          {examples.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {examples.map((ex, idx) => (
+                <div
+                  key={ex.id || idx}
+                  style={{
+                    background: "rgba(255, 255, 255, 0.03)",
+                    border: "1px solid rgba(255, 255, 255, 0.06)",
+                    borderRadius: "8px",
+                    padding: "8px 10px",
+                    fontSize: "12.5px",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "6px" }}>
+                    <span style={{ color: "#f4f4f5", fontFamily: "var(--hk-font-jp)", fontWeight: 500 }}>
+                      {highlightJapaneseSentence(ex.japanese, [token.dictionary_form, token.surface, wordQuery])}
+                    </span>
+                    <button
+                      className="hk-btn-icon-subtle"
+                      style={{ flexShrink: 0, width: "22px", height: "22px" }}
+                      onClick={() => ttsService.playJapanese(ex.japanese)}
+                      title={t("def_play_audio_jp")}
+                    >
+                      <Volume2 size={12} />
+                    </button>
+                  </div>
+                  <div style={{ color: "#a1a1aa", fontSize: "11.5px", marginTop: "3px" }}>
+                    {ex.translation}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Actions Footer */}
-      <div className="hk-definition__actions">
-        {onSrsAdd && (
-          <button
-            className={`hk-btn ${srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
-            onClick={handleSrsClick}
-            title={srsAdded ? t("def_btn_added_srs") : t("def_btn_add_srs")}
-          >
-            {srsAdded ? (
-              <>
-                <Check size={14} /> {t("def_btn_added_srs")}
-              </>
-            ) : (
-              <>
-                <BookmarkPlus size={14} /> {t("def_btn_add_srs")}
-              </>
-            )}
-          </button>
-        )}
-        {onExport && (
-          <button
-            className="hk-btn hk-btn--secondary"
-            onClick={handleExport}
-            disabled={!ankiConnected}
-            title={ankiConnected ? t("def_anki_connected") : t("def_anki_disconnected")}
-          >
-            <ExternalLink size={14} /> {t("def_btn_export_anki")}
-          </button>
-        )}
+      <div className="hk-definition__actions" style={{ marginTop: "14px" }}>
+        <button
+          className={`hk-btn ${srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
+          onClick={handleAddToLibrary}
+          title={srsAdded ? t("def_btn_added_library") : t("def_btn_add_library")}
+          style={{ width: "100%", justifyContent: "center", padding: "8px 16px" }}
+        >
+          {srsAdded ? (
+            <>
+              <Check size={14} /> {t("def_btn_added_library")}
+            </>
+          ) : (
+            <>
+              <BookmarkPlus size={14} /> {t("def_btn_add_library")}
+            </>
+          )}
+        </button>
       </div>
     </div>
   );

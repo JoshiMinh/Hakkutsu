@@ -16,6 +16,12 @@ export interface ExtensionSettings {
   autoDetect: boolean;
   localOcrEnabled: boolean;
   showFurigana: boolean;
+  showJlptColors: boolean;
+  autoFetchJapaneseSubtitles: boolean;
+  universalVideoEnabled: boolean;
+  subtitleFontSize: "small" | "medium" | "large";
+  autoPauseSubtitles: boolean;
+  jimakuApiKey?: string;
   theme: "dark" | "light" | "auto";
   fontSize: "small" | "medium" | "large";
   srsEnabled: boolean;
@@ -35,6 +41,12 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   autoDetect: true,
   localOcrEnabled: false,
   showFurigana: true,
+  showJlptColors: true,
+  autoFetchJapaneseSubtitles: true,
+  universalVideoEnabled: true,
+  subtitleFontSize: "medium",
+  autoPauseSubtitles: false,
+  jimakuApiKey: "",
   theme: "dark",
   fontSize: "medium",
   srsEnabled: true,

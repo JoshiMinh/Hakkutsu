@@ -630,10 +630,30 @@ export const youtubeToolbarCss = `
     box-shadow: 0 0 6px rgba(239, 68, 68, 0.8) !important;
   }
 
+  .hk-yt-btn__kanji--loading {
+    opacity: 0.6 !important;
+    transform: scale(0.85) !important;
+  }
+
+  .hk-yt-btn__spinner-overlay {
+    position: absolute !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    pointer-events: none !important;
+  }
+
   .hk-yt-btn__spinner {
-    width: 16px !important;
-    height: 16px !important;
-    display: block !important;
+    width: 22px !important;
+    height: 22px !important;
+    border: 2px solid rgba(255, 255, 255, 0.15) !important;
+    border-top-color: #c084fc !important;
+    border-right-color: #a855f7 !important;
+    border-radius: 50% !important;
+    display: inline-block !important;
+    box-sizing: border-box !important;
+    animation: hk-spin 0.75s linear infinite !important;
   }
 
   .hk-yt-switch.is-on .hk-yt-switch-icon {
@@ -660,6 +680,155 @@ export const youtubeToolbarCss = `
     to { transform: rotate(360deg); }
   }
 
+  /* ── Font Size Presets ─────────────────────────────────────── */
+  .hk-sub--small .hk-sub__bar {
+    font-size: 20px !important;
+    padding: 8px 18px 10px !important;
+  }
+  .hk-sub--medium .hk-sub__bar {
+    font-size: 26px !important;
+    padding: 10px 24px 14px !important;
+  }
+  .hk-sub--large .hk-sub__bar {
+    font-size: 32px !important;
+    padding: 12px 28px 16px !important;
+  }
+
+  /* ── Drag & Drop Subtitle Dropzone ──────────────────────────── */
+  .hk-sub__dropzone {
+    position: absolute !important;
+    inset: 0 !important;
+    border: 3px dashed #a855f7 !important;
+    background: rgba(168, 85, 247, 0.18) !important;
+    backdrop-filter: blur(8px) !important;
+    border-radius: 12px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 99999 !important;
+    pointer-events: none !important;
+    color: #ffffff !important;
+    font-family: 'Inter', system-ui, sans-serif !important;
+    animation: hk-sub-fade-in 0.15s ease-out !important;
+  }
+
+  .hk-sub__dropzone-icon {
+    font-size: 40px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .hk-sub__dropzone-text {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8) !important;
+  }
+
+  .hk-sub__dropzone-sub {
+    font-size: 12px !important;
+    opacity: 0.85 !important;
+    margin-top: 4px !important;
+  }
+
+  /* ── Subtitle Offset Controls ──────────────────────────────── */
+  .hk-sub__offset-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #e4e4e7;
+  }
+
+  .hk-sub__offset-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    padding: 2px 0;
+  }
+
+  .hk-sub__offset-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #f4f4f5;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.15s ease;
+  }
+
+  .hk-sub__offset-btn:hover {
+    background: rgba(168, 85, 247, 0.3);
+    border-color: #a855f7;
+  }
+
+  /* ── File Upload / Track Switcher in Menu ───────────────────── */
+  .hk-sub__file-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 6px 10px;
+    background: rgba(168, 85, 247, 0.15);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 6px;
+    color: #f4f4f5;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .hk-sub__file-btn:hover {
+    background: rgba(168, 85, 247, 0.28);
+    border-color: #a855f7;
+  }
+
+  /* ── Universal Floating Toggle Badge for HTML5 Media Players ─ */
+  .hk-floating-video-btn {
+    position: absolute !important;
+    top: 14px !important;
+    right: 14px !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    background: rgba(9, 9, 11, 0.88) !important;
+    backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 20px !important;
+    padding: 5px 12px !important;
+    color: #f4f4f5 !important;
+    font-family: 'Inter', system-ui, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    pointer-events: auto !important;
+    user-select: none !important;
+  }
+
+  .hk-floating-video-btn:hover {
+    background: rgba(168, 85, 247, 0.25) !important;
+    border-color: #a855f7 !important;
+    transform: scale(1.03) !important;
+  }
+
+  .hk-floating-video-btn.is-active {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.45), rgba(236, 72, 153, 0.45)) !important;
+    border-color: #a855f7 !important;
+    box-shadow: 0 0 16px rgba(168, 85, 247, 0.45) !important;
+  }
+
   /* ── Settings Menu ─────────────────────────────────────────── */
   .hk-toolbar-menu {
     position: absolute;
@@ -669,11 +838,11 @@ export const youtubeToolbarCss = `
     margin-bottom: 15px;
     background: rgba(9, 9, 11, 0.95);
     backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     padding: 12px;
-    min-width: 200px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    min-width: 220px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
     display: flex;
     flex-direction: column;
     gap: 10px;

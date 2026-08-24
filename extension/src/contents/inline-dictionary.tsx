@@ -7,6 +7,8 @@ import { DefinitionCard } from "~components/definition-card";
 import { TokenDisplay } from "~components/token-display";
 import { GrammarExplanations } from "~components/grammar-explanations";
 import { useSettingsStore } from "~lib/utils/settings";
+import { useTranslation } from "~lib/languages/locales";
+import logoUrl from "data-base64:~assets/icon.png";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
@@ -95,6 +97,7 @@ const InlineDictionary = () => {
   const [sentenceMode, setSentenceMode] = useState(false);
   const [transientMode, setTransientMode] = useState(false);
   const { settings, isHydrated } = useSettingsStore();
+  const { t, isVietnamese, lang } = useTranslation();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const analysisRequestRef = useRef(0);
@@ -341,7 +344,7 @@ const InlineDictionary = () => {
         const analyzeResponse = response.payload as AnalyzeResponse | PhraseAnalyzeResponse;
         if (requestId !== analysisRequestRef.current) return;
         if (analyzeResponse.text.trim() !== expectedText) {
-          throw new Error("Backend trả kết quả của một câu khác. Vui lòng thử lại.");
+          throw new Error(isVietnamese ? "Backend trả kết quả của một câu khác. Vui lòng thử lại." : "Analysis result text mismatch. Please retry.");
         }
         setResult(analyzeResponse);
         
@@ -482,23 +485,39 @@ const InlineDictionary = () => {
     >
       {/* Sleek Header */}
       <div className="hk-header">
-        <div className="hk-header__logo">
-          <Sparkles size={16} style={{ color: "#c084fc" }} />
+        <div className="hk-header__logo" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <img
+            src={logoUrl}
+            alt="Hakkutsu"
+            style={{
+              width: 17,
+              height: 17,
+              borderRadius: "4px",
+              flexShrink: 0,
+              display: "block",
+            }}
+          />
           <h1 className="hk-header__title">
             {sentenceMode
               ? phraseMode
-                ? "Hakkutsu AI"
+                ? t("dict_header_ai")
                 : "Hakkutsu"
-              : "Hakkutsu · Từ điển"}
+              : t("dict_header_lookup")}
           </h1>
           {phraseMode ? (
-            <span className="hk-header__badge hk-header__badge--ai">✨ Gemini</span>
+            <span className="hk-header__badge hk-header__badge--ai" style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
+              <Sparkles size={10} />
+              {t("dict_badge_ai")}
+            </span>
           ) : sentenceMode ? (
-            <span className="hk-header__badge hk-header__badge--fast">⚡ Sudachi</span>
+            <span className="hk-header__badge hk-header__badge--fast" style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
+              <Zap size={10} />
+              {t("dict_badge_fast")}
+            </span>
           ) : null}
           {transientMode && (
             <span className="hk-header__subtitle">
-              (giữ Ctrl)
+              {t("dict_hint_transient")}
             </span>
           )}
         </div>
@@ -511,7 +530,7 @@ const InlineDictionary = () => {
               setTransientMode(false);
               window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
             }}
-            title="Đóng (Esc)"
+            title={t("dict_btn_close")}
           >
             <X size={15} />
           </button>
@@ -525,8 +544,8 @@ const InlineDictionary = () => {
             <Loader2 className="hk-spin" size={20} style={{ color: "#a855f7", margin: "0 auto 8px" }} />
             <div style={{ color: "#a1a1aa", fontSize: "13px" }}>
               {phraseMode
-                ? "Gemini đang phân tích sâu..."
-                : "Đang phân tích cú pháp..."}
+                ? t("dict_loading_phrase")
+                : t("dict_loading_syntax")}
             </div>
           </div>
         )}
@@ -544,7 +563,7 @@ const InlineDictionary = () => {
               <div className="hk-dict-section">
                 <div className="hk-dict-label-row">
                   <span className="hk-dict-label">
-                    {settings.targetLanguage === "en" ? "ORIGINAL SENTENCE (CLICK TO INSPECT)" : "CÂU GỐC (BẤM TỪ ĐỂ TRA CỤ THỂ)"}
+                    {t("dict_label_original")}
                   </span>
                   {sentenceMode && !phraseMode && !transientMode && (
                     <button
@@ -555,7 +574,7 @@ const InlineDictionary = () => {
                       }}
                       style={{ padding: "3px 8px", fontSize: "11px" }}
                     >
-                      <Sparkles size={12} /> {settings.targetLanguage === "en" ? "Deep AI Breakdown" : "AI phân tích sâu"}
+                      <Sparkles size={12} /> {t("dict_btn_deep_ai")}
                     </button>
                   )}
                 </div>
@@ -571,9 +590,9 @@ const InlineDictionary = () => {
             {/* Target Language sentence translation */}
             {phraseTranslation && (
               <div className="hk-dict-section hk-dict-section--highlight">
-                <div className="hk-dict-label" style={{ color: "#14b8a6" }}>
-                  <Languages size={12} style={{ display: "inline-block", marginRight: "4px" }} />
-                  {settings.targetLanguage === "en" ? "ENGLISH TRANSLATION" : "BẢN DỊCH TIẾNG VIỆT"}
+                <div className="hk-dict-label" style={{ color: "#14b8a6", display: "flex", alignItems: "center", gap: "5px" }}>
+                  <Languages size={13} />
+                  {t("dict_label_translation")}
                 </div>
                 <div className="hk-translation-text">
                   {phraseTranslation}
@@ -596,8 +615,8 @@ const InlineDictionary = () => {
                 <div className="hk-empty">
                   <p className="hk-empty__text">
                     {transientMode
-                      ? (settings.targetLanguage === "en" ? "Hover over a word in the subtitles to inspect." : "Rê chuột qua một từ trong phụ đề để xem chi tiết.")
-                      : (settings.targetLanguage === "en" ? "Select a Japanese word from the sentence to inspect." : "Chọn một từ tiếng Nhật trong câu để tra từ điển.")}
+                      ? t("dict_empty_transient")
+                      : t("dict_empty_select")}
                   </p>
                 </div>
               )}

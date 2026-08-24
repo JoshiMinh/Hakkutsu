@@ -33,6 +33,7 @@ import { searchDictionary } from "~lib/services/local-lookup";
 
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { lookupWord } from "~lib/services/dictionary-lookup";
+import { katakanaToHiragana } from "~lib/utils/japanese";
 
 // Fallback logic for public dictionary lookups
 async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
@@ -87,13 +88,15 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
       }
     }
     
+    const hiraganaReading = t.reading ? katakanaToHiragana(t.reading) : (is_japanese ? t.surface_form : "");
+
     return {
       surface: t.surface_form,
       dictionary_form: t.base_form,
       pos: t.pos,
       pos_detail: [],
       reading: {
-        hiragana: t.reading || "",
+        hiragana: hiraganaReading,
         romaji: ""
       },
       is_japanese,
@@ -103,10 +106,12 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
     };
   }));
 
+  const sentence_reading = tokenAnalyses.map((t) => t.reading.hiragana || t.surface).join("");
+
   return {
     text,
     tokens: tokenAnalyses,
-    sentence_reading: "",
+    sentence_reading,
     token_count: tokens.length,
     difficulty_score: null,
     difficulty_label: null

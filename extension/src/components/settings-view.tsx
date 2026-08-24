@@ -1,4 +1,4 @@
-import { Bot, Database, GraduationCap, Languages, Sparkles } from "lucide-react";
+import { Bot, Database, Film, GraduationCap, Languages, Sparkles } from "lucide-react";
 import type { ExtensionSettings } from "~lib/types";
 import { t } from "~lib/languages/locales";
 import { SUPPORTED_LANGUAGES } from "~lib/languages";
@@ -233,6 +233,120 @@ export function SettingsView({
           </div>
         </section>
 
+        {/* Video & Subtitles Card */}
+        <section className="hk-settings-card">
+          <header className="hk-settings-card__header">
+            <div className="hk-settings-card__icon">
+              <Film size={18} />
+            </div>
+            <h3 className="hk-settings-card__title">{t("settings_video_section", currentLang)}</h3>
+          </header>
+          
+          <div className="hk-settings-card__body">
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="autoFetchJapaneseSubtitles" className="hk-settings-row__label">{t("settings_autofetch_sub", currentLang)}</label>
+                <div id="autoFetchJapaneseSubtitles-desc" className="hk-settings-row__desc">{t("settings_autofetch_sub_desc", currentLang)}</div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="autoFetchJapaneseSubtitles">
+                  <input
+                    id="autoFetchJapaneseSubtitles"
+                    aria-describedby="autoFetchJapaneseSubtitles-desc"
+                    type="checkbox"
+                    checked={settings.autoFetchJapaneseSubtitles !== false}
+                    onChange={(e) => onUpdate({ autoFetchJapaneseSubtitles: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="universalVideoEnabled" className="hk-settings-row__label">{t("settings_universal_video", currentLang)}</label>
+                <div id="universalVideoEnabled-desc" className="hk-settings-row__desc">{t("settings_universal_video_desc", currentLang)}</div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="universalVideoEnabled">
+                  <input
+                    id="universalVideoEnabled"
+                    aria-describedby="universalVideoEnabled-desc"
+                    type="checkbox"
+                    checked={settings.universalVideoEnabled !== false}
+                    onChange={(e) => onUpdate({ universalVideoEnabled: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="autoPauseSubtitles" className="hk-settings-row__label">{t("settings_sub_autopause", currentLang)}</label>
+                <div id="autoPauseSubtitles-desc" className="hk-settings-row__desc">{t("settings_sub_autopause_desc", currentLang)}</div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="autoPauseSubtitles">
+                  <input
+                    id="autoPauseSubtitles"
+                    aria-describedby="autoPauseSubtitles-desc"
+                    type="checkbox"
+                    checked={!!settings.autoPauseSubtitles}
+                    onChange={(e) => onUpdate({ autoPauseSubtitles: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="subtitleFontSize" className="hk-settings-row__label">{t("settings_sub_fontsize", currentLang)}</label>
+                <div id="subtitleFontSize-desc" className="hk-settings-row__desc">{t("settings_sub_fontsize_desc", currentLang)}</div>
+              </div>
+              <div className="hk-settings-row__control">
+                <select
+                  id="subtitleFontSize"
+                  className="hk-settings-input hk-settings-select"
+                  value={settings.subtitleFontSize || "medium"}
+                  onChange={(e) => onUpdate({ subtitleFontSize: e.target.value as "small" | "medium" | "large" })}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "8px",
+                    background: "var(--hk-bg-tertiary)",
+                    color: "var(--hk-text-primary)",
+                    border: "1px solid var(--hk-border)",
+                    cursor: "pointer"
+                  }}
+                >
+                  <option value="small">Small (80%)</option>
+                  <option value="medium">Medium (100%)</option>
+                  <option value="large">Large (125%)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="jimakuApiKey" className="hk-settings-row__label">{t("settings_jimaku_key", currentLang)}</label>
+                <div id="jimakuApiKey-desc" className="hk-settings-row__desc">{t("settings_jimaku_key_desc", currentLang)}</div>
+              </div>
+              <div className="hk-settings-row__control">
+                <input
+                  id="jimakuApiKey"
+                  aria-describedby="jimakuApiKey-desc"
+                  className="hk-settings-input hk-settings-input--text"
+                  type="password"
+                  placeholder="Bearer or user token..."
+                  value={settings.jimakuApiKey || ""}
+                  onChange={(e) => onUpdate({ jimakuApiKey: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Immersion & Study Preferences Card */}
         <section className="hk-settings-card">
           <header className="hk-settings-card__header">
@@ -243,6 +357,25 @@ export function SettingsView({
           </header>
           
           <div className="hk-settings-card__body">
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="srsEnabled" className="hk-settings-row__label">{t("settings_srs", currentLang)}</label>
+                <div id="srsEnabled-desc" className="hk-settings-row__desc">{t("settings_srs_desc", currentLang)}</div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="srsEnabled">
+                  <input
+                    id="srsEnabled"
+                    aria-describedby="srsEnabled-desc"
+                    type="checkbox"
+                    checked={settings.srsEnabled !== false}
+                    onChange={(e) => onUpdate({ srsEnabled: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
             <div className="hk-settings-row">
               <div className="hk-settings-row__info">
                 <label htmlFor="localOcrEnabled" className="hk-settings-row__label">{t("settings_ocr", currentLang)}</label>
@@ -292,8 +425,27 @@ export function SettingsView({
                     id="showFurigana"
                     aria-describedby="showFurigana-desc"
                     type="checkbox"
-                    checked={!!settings.showFurigana}
+                    checked={settings.showFurigana !== false}
                     onChange={(e) => onUpdate({ showFurigana: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="showJlptColors" className="hk-settings-row__label">{t("settings_jlpt_colors", currentLang)}</label>
+                <div id="showJlptColors-desc" className="hk-settings-row__desc">{t("settings_jlpt_colors_desc", currentLang)}</div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="showJlptColors">
+                  <input
+                    id="showJlptColors"
+                    aria-describedby="showJlptColors-desc"
+                    type="checkbox"
+                    checked={settings.showJlptColors !== false}
+                    onChange={(e) => onUpdate({ showJlptColors: e.target.checked })}
                   />
                   <span className="hk-toggle__slider" />
                 </label>

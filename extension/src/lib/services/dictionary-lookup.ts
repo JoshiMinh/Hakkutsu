@@ -65,6 +65,16 @@ const COMMON_VI_DICT: Record<string, LookupResult> = {
   "の": { meaning: "của (trợ từ sở hữu)", jlpt: "N5", reading: "の" },
 };
 
+export interface ExampleSentence {
+  id: string;
+  japanese: string;
+  reading?: string;
+  translation: string;
+  source?: string;
+}
+
+const exampleCache = new Map<string, ExampleSentence[]>();
+
 /**
  * Look up a Japanese word in English using Jisho API.
  */
@@ -87,18 +97,28 @@ export async function lookupWordEnglish(word: string): Promise<LookupResult> {
     if (res.ok) {
       const json = await res.json();
       if (json.data && json.data.length > 0) {
-        const entry = json.data[0];
-        const englishDefs: string[] = entry.senses
-          .flatMap((s: any) => s.english_definitions || [])
-          .slice(0, 3);
-        
-        const meaning = englishDefs.join("; ");
-        const reading = entry.japanese?.[0]?.reading || "";
-        const jlpt = entry.jlpt?.length ? entry.jlpt[0].replace(/jlpt-/i, "").toUpperCase() : undefined;
+        // Find match that actually corresponds to the search word
+        const exactMatch = json.data.find((entry: any) =>
+          entry.slug === key ||
+          entry.japanese?.some((j: any) => j.word === key || j.reading === key)
+        );
 
-        const result: LookupResult = { meaning, jlpt, reading, source: "jisho" };
-        lookupCache.set(cacheKey, result);
-        return result;
+        if (exactMatch) {
+          const englishDefs: string[] = exactMatch.senses
+            .flatMap((s: any) => s.english_definitions || [])
+            .slice(0, 3);
+          
+          const meaning = englishDefs.join("; ");
+          const matchedJp = exactMatch.japanese?.find((j: any) => j.word === key || j.reading === key);
+          const reading = matchedJp?.reading || exactMatch.japanese?.[0]?.reading || "";
+          const jlpt = exactMatch.jlpt?.length ? exactMatch.jlpt[0].replace(/jlpt-/i, "").toUpperCase() : undefined;
+
+          if (meaning) {
+            const result: LookupResult = { meaning, jlpt, reading: reading || undefined, source: "jisho" };
+            lookupCache.set(cacheKey, result);
+            return result;
+          }
+        }
       }
     }
   } catch (e) {
@@ -147,23 +167,25 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
     if (res.ok) {
       const json = await res.json();
       if (json.status === 200 && json.data && json.data.length > 0) {
-        const item = json.data[0];
-        const means = (item.means || [])
-          .map((m: any) => m.mean || "")
-          .filter(Boolean)
-          .slice(0, 3);
+        const exactMatch = json.data.find((item: any) => item.word === key || item.phonetic === key);
+        if (exactMatch) {
+          const means = (exactMatch.means || [])
+            .map((m: any) => m.mean || "")
+            .filter(Boolean)
+            .slice(0, 3);
 
-        const meaning = means.join("; ");
-        const reading = item.phonetic || "";
-        const result: LookupResult = {
-          meaning: meaning || "",
-          reading,
-          hanviet: hanviet || undefined,
-          source: "mazii",
-        };
-        if (meaning) {
-          lookupCache.set(cacheKey, result);
-          return result;
+          const meaning = means.join("; ");
+          const reading = exactMatch.phonetic || "";
+          const result: LookupResult = {
+            meaning: meaning || "",
+            reading,
+            hanviet: hanviet || undefined,
+            source: "mazii",
+          };
+          if (meaning) {
+            lookupCache.set(cacheKey, result);
+            return result;
+          }
         }
       }
     }
@@ -180,6 +202,101 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
   };
   lookupCache.set(cacheKey, fallbackResult);
   return fallbackResult;
+}
+
+/**
+ * Fetch example sentences for a Japanese word with translations.
+ */
+export async function fetchExampleSentences(
+  word: string,
+  targetLang: string = "en",
+  limit = 3
+): Promise<ExampleSentence[]> {
+  if (!word || word.trim() === "") return [];
+  const key = word.trim();
+  const cacheKey = `${targetLang}:${key}`;
+
+  if (exampleCache.has(cacheKey)) {
+    return exampleCache.get(cacheKey)!.slice(0, limit);
+  }
+
+  const results: ExampleSentence[] = [];
+
+  // 1. Try Mazii Example Search
+  try {
+    const dictType = targetLang === "vi" ? "javi" : "jaen";
+    const res = await fetch("https://mazii.net/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        dict: dictType,
+        type: "example",
+        query: key,
+        page: 1,
+      }),
+    });
+
+    if (res.ok) {
+      const json = await res.json();
+      const rawExamples = json.results || json.data || [];
+      if (Array.isArray(rawExamples) && rawExamples.length > 0) {
+        for (const item of rawExamples.slice(0, limit)) {
+          const japanese = (item.content || item.example || item.entry || "").trim();
+          const translation = (item.mean || item.trans || item.translation || "").trim();
+          const reading = (item.phonetic || item.transcription || "").trim();
+          if (japanese && translation) {
+            results.push({
+              id: `mazii-${results.length}`,
+              japanese,
+              reading: reading || undefined,
+              translation,
+              source: "mazii",
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[Hakkutsu] Mazii example fetch error:", word, e);
+  }
+
+  // 2. Fallback to Tatoeba API if Mazii returned no results
+  if (results.length === 0) {
+    try {
+      const tatoebaLang = targetLang === "vi" ? "vie" : "eng";
+      const res = await fetch(
+        `https://tatoeba.org/en/api_v0/search?from=jpn&to=${tatoebaLang}&query=${encodeURIComponent(key)}`
+      );
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.results || [];
+        if (Array.isArray(data)) {
+          for (const item of data.slice(0, limit)) {
+            const japanese = item.text?.trim();
+            const translations = item.translations?.[0];
+            const translation = translations?.find((t: any) => t.lang === tatoebaLang)?.text?.trim();
+            if (japanese && translation) {
+              results.push({
+                id: `tatoeba-${item.id || results.length}`,
+                japanese,
+                translation,
+                source: "tatoeba",
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[Hakkutsu] Tatoeba example fetch error:", word, e);
+    }
+  }
+
+  // 3. Fallback: Context synthetic example if needed
+  if (results.length > 0) {
+    exampleCache.set(cacheKey, results);
+  }
+
+  return results.slice(0, limit);
 }
 
 /**

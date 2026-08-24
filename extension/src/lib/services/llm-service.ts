@@ -139,8 +139,77 @@ Return a JSON object with:
       }
     }
 
-    // Google Translate + Dictionary fallback
+    // Google Translate + Local Tokenizer & Dictionary fallback
     const translation = await googleTranslateService.translate(text, targetLang, "ja");
+    
+    try {
+      const { katakanaToHiragana, containsJapanese, hasKanji, segmentJapaneseTokens } = await import("~lib/utils/japanese");
+      const { getHanViet } = await import("~lib/utils/hanviet-dict");
+      const { predictJlpt } = await import("~lib/utils/jlpt-classifier");
+
+      let tokenList: Array<{ surface: string; base_form: string; reading?: string; pos?: string }> = [];
+
+      try {
+        const { tokenize } = await import("./local-tokenizer");
+        const kTokens = await tokenize(text);
+        if (kTokens && kTokens.length > 0) {
+          tokenList = kTokens.map(t => ({ surface: t.surface_form, base_form: t.base_form || t.surface_form, reading: t.reading, pos: t.pos }));
+        }
+      } catch {
+        // Kuromoji not ready or offline
+      }
+
+      if (tokenList.length === 0) {
+        const segs = segmentJapaneseTokens(text);
+        tokenList = segs.map(s => ({ surface: s, base_form: s, pos: "Word" }));
+      }
+
+      if (tokenList && tokenList.length > 0) {
+        const tokens = await Promise.all(
+          tokenList.map(async (t) => {
+            const surface = t.surface;
+            const baseForm = t.base_form || surface;
+            const isJp = containsJapanese(surface);
+
+            if (!isJp) {
+              return {
+                surface,
+                reading: surface,
+                pos: t.pos || "Symbol",
+                meaning: "",
+                dictionary_form: baseForm,
+                is_japanese: false,
+              };
+            }
+
+            const dict = await lookupWord(baseForm, targetLang);
+            const readingKana = t.reading
+              ? katakanaToHiragana(t.reading)
+              : (hasKanji(baseForm) ? (dict.reading || surface) : surface);
+
+            return {
+              surface,
+              reading: readingKana,
+              pos: t.pos || "Word",
+              meaning: dict.meaning || "",
+              dictionary_form: baseForm,
+              jlpt: dict.jlpt || predictJlpt(baseForm),
+              vietnamese_sound: targetLang === "vi" && hasKanji(baseForm) ? (dict.hanviet || getHanViet(baseForm || surface)) : undefined,
+              is_japanese: true,
+            };
+          })
+        );
+
+        return {
+          translation,
+          usedFallback: true,
+          tokens,
+        };
+      }
+    } catch (e) {
+      console.warn("[Hakkutsu] Fallback local tokenization error:", e);
+    }
+
     const dictLookup = await lookupWord(text, targetLang);
 
     return {
@@ -150,7 +219,7 @@ Return a JSON object with:
         {
           surface: text,
           reading: dictLookup.reading || text,
-          pos: "word",
+          pos: "Word",
           meaning: dictLookup.meaning || translation,
           dictionary_form: text,
           jlpt: dictLookup.jlpt,
