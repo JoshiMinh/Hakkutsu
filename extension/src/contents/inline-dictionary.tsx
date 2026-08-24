@@ -1,6 +1,6 @@
 import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useRef } from "react";
-import { X, Loader2, Sparkles, Languages, Zap } from "lucide-react";
+import { X, Loader2, Sparkles, Languages, Zap, Check, BookmarkPlus } from "lucide-react";
 import { containsJapanese } from "~lib/utils/japanese";
 import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis, AnkiExportData } from "~lib/types";
 import { DefinitionCard } from "~components/definition-card";
@@ -8,7 +8,8 @@ import { TokenDisplay } from "~components/token-display";
 import { GrammarExplanations } from "~components/grammar-explanations";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/languages/locales";
-import logoUrl from "data-base64:~assets/icon.png";
+import logoUrl from "data-base64:~assets/icon/icon-rounded.png";
+import geminiSvg from "data-base64:~assets/logo/gemini.svg";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
@@ -67,6 +68,29 @@ export const getStyle: PlasmoGetStyle = () => {
       flex: 1 !important;
       background: #0d0d11 !important;
     }
+    /* Modern sleek custom dark scrollbar */
+    .hk-popup *::-webkit-scrollbar,
+    ::-webkit-scrollbar {
+      width: 5px !important;
+      height: 5px !important;
+    }
+    .hk-popup *::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-track {
+      background: transparent !important;
+    }
+    .hk-popup *::-webkit-scrollbar-thumb,
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.18) !important;
+      border-radius: 9999px !important;
+    }
+    .hk-popup *::-webkit-scrollbar-thumb:hover,
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(192, 132, 252, 0.5) !important;
+    }
+    * {
+      scrollbar-width: thin !important;
+      scrollbar-color: rgba(255, 255, 255, 0.18) transparent !important;
+    }
   `;
   return style;
 };
@@ -96,6 +120,7 @@ const InlineDictionary = () => {
   const [phraseMode, setPhraseMode] = useState(false);
   const [sentenceMode, setSentenceMode] = useState(false);
   const [transientMode, setTransientMode] = useState(false);
+  const [srsAdded, setSrsAdded] = useState(false);
   const { settings, isHydrated } = useSettingsStore();
   const { t, isVietnamese, lang } = useTranslation();
 
@@ -404,6 +429,8 @@ const InlineDictionary = () => {
           jlpt: selectedTokenData.jlpt_level,
         },
       });
+      setSrsAdded(true);
+      setTimeout(() => setSrsAdded(false), 2000);
     } catch (e) {
       console.error("SRS Add failed", e);
     }
@@ -447,98 +474,59 @@ const InlineDictionary = () => {
           window.innerWidth - playerPanelWidth - 16,
           position.x > window.innerWidth / 2
             ? (playerRect?.right ?? window.innerWidth) - playerPanelWidth - 20
-            : Math.max(16, (playerRect?.left ?? 16) + 20)
+            : (playerRect?.left ?? 0) + 20
         )
       )
-    : Math.max(16, Math.min(position.x, window.innerWidth - panelWidth - 16));
+    : Math.max(
+        16,
+        Math.min(window.innerWidth - panelWidth - 16, position.x - panelWidth / 2)
+      );
 
   const panelTop = usePlayerOverlay
     ? Math.max(
         16,
         Math.min(
-          window.innerHeight - 480,
-          position.y > 480
-            ? position.y - 450
-            : (playerRect ? Math.max(16, Math.min(window.innerHeight - 480, playerRect.top + 24)) : 24)
+          window.innerHeight - 380,
+          (playerRect?.top ?? 0) + Math.max(20, position.y - 120)
         )
       )
-    : Math.max(16, Math.min(position.y, window.innerHeight - 120));
+    : Math.max(16, position.y + 12);
 
   const panelMaxHeight = Math.min(window.innerHeight - 32, 540);
 
   return (
     <div
       ref={containerRef}
-      className="hk-popup hk-fade-in-up"
+      className="hk-popup hk-fade-in"
       style={{
         position: "fixed",
-        left: panelLeft,
-        top: panelTop,
+        top: `${panelTop}px`,
+        left: `${panelLeft}px`,
+        width: `${playerPanelWidth}px`,
+        maxHeight: usePlayerOverlay ? "min(360px, calc(100vh - 40px))" : "min(460px, calc(100vh - 40px))",
         zIndex: 2147483647,
-        width: usePlayerOverlay ? playerPanelWidth : panelWidth,
-        maxWidth: "calc(100vw - 24px)",
-        maxHeight: panelMaxHeight,
-        minHeight: "auto",
-        pointerEvents: "auto",
+        display: "flex",
+        flexDirection: "column"
       }}
-      onMouseUp={(e) => e.stopPropagation()}
     >
-      {/* Sleek Header */}
-      <div className="hk-header">
-        <div className="hk-header__logo" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <img
-            src={logoUrl}
-            alt="Hakkutsu"
-            style={{
-              width: 17,
-              height: 17,
-              borderRadius: "4px",
-              flexShrink: 0,
-              display: "block",
-            }}
-          />
-          <h1 className="hk-header__title">
-            {sentenceMode
-              ? phraseMode
-                ? t("dict_header_ai")
-                : "Hakkutsu"
-              : t("dict_header_lookup")}
-          </h1>
-          {phraseMode ? (
-            <span className="hk-header__badge hk-header__badge--ai" style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
-              <Sparkles size={10} />
-              {t("dict_badge_ai")}
-            </span>
-          ) : sentenceMode ? (
-            <span className="hk-header__badge hk-header__badge--fast" style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
-              <Zap size={10} />
-              {t("dict_badge_fast")}
-            </span>
-          ) : null}
-          {transientMode && (
-            <span className="hk-header__subtitle">
-              {t("dict_hint_transient")}
-            </span>
-          )}
+      {/* Header */}
+      <header className="hk-header">
+        <div className="hk-header__logo">
+          <img src={logoUrl} alt="Hakkutsu" style={{ width: 18, height: 18, borderRadius: "4px" }} />
+          <h2 className="hk-header__title">Hakkutsu Lookup</h2>
         </div>
-        <div className="hk-header__actions">
-          <button 
-            className="hk-btn hk-btn--ghost hk-btn--icon"
-            onClick={() => {
-              analysisRequestRef.current += 1;
-              setPosition(null);
-              setTransientMode(false);
-              window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
-            }}
-            title={t("dict_btn_close")}
-          >
-            <X size={15} />
-          </button>
-        </div>
-      </div>
+        <button
+          className="hk-btn-icon-subtle"
+          onClick={() => setPosition(null)}
+          title={t("dict_btn_close")}
+          style={{ width: "24px", height: "24px" }}
+        >
+          <X size={15} />
+        </button>
+      </header>
 
-      {/* Main Content */}
-      <div className="hk-content">
+      {/* Main Scrollable Content */}
+      <div className="hk-content" style={{ overflowY: "auto", flex: 1 }}>
         {loading && (
           <div className="hk-loading">
             <Loader2 className="hk-spin" size={20} style={{ color: "#a855f7", margin: "0 auto 8px" }} />
@@ -600,7 +588,7 @@ const InlineDictionary = () => {
               </div>
             )}
 
-            {/* Selected Token Definition Card */}
+            {/* Selected Token Definition Card (Without trapped action button) */}
             <div>
               {selectedTokenData && selectedTokenData.is_japanese ? (
                 <DefinitionCard
@@ -610,6 +598,7 @@ const InlineDictionary = () => {
                   originalText={result.text}
                   sentenceReading={result.sentence_reading}
                   onSrsAdd={transientMode ? undefined : handleSrsAdd}
+                  hideBottomAction={true}
                 />
               ) : (
                 <div className="hk-empty">
@@ -629,6 +618,33 @@ const InlineDictionary = () => {
           </>
         )}
       </div>
+
+      {/* Pinned Bottom Footer Action (Outside the meaning scroll container) */}
+      {selectedTokenData && selectedTokenData.is_japanese && !transientMode && (
+        <div className="hk-popup__footer" style={{
+          padding: "10px 14px",
+          background: "#141418",
+          borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+          flexShrink: 0
+        }}>
+          <button
+            className={`hk-btn ${srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
+            onClick={handleSrsAdd}
+            title={srsAdded ? t("def_btn_added_library") : t("def_btn_add_library")}
+            style={{ width: "100%", justifyContent: "center", padding: "8px 16px", fontSize: "13px", fontWeight: 600, borderRadius: "8px", gap: "6px" }}
+          >
+            {srsAdded ? (
+              <>
+                <Check size={14} /> {t("def_btn_added_library")}
+              </>
+            ) : (
+              <>
+                <BookmarkPlus size={14} /> {t("def_btn_add_library")}
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

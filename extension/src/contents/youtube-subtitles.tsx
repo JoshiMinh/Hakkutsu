@@ -174,6 +174,7 @@ const YouTubeSubtitles = () => {
   const rafIdRef = useRef<number | null>(null);
   const currentSegmentRef = useRef<SubtitleSegment | null>(null);
   const loadingRef = useRef(false);
+  const hasAttemptedFetchRef = useRef<string | null>(null);
 
   const activeSubtitleData = customSubtitleData || subtitleData;
   const videoTitle = getYouTubeVideoTitle();
@@ -199,7 +200,16 @@ const YouTubeSubtitles = () => {
           if (!container) {
             container = document.createElement("div");
             container.id = "hk-toolbar-portal";
-            container.className = "ytp-button";
+            container.className = "ytp-button hk-toolbar-portal";
+            Object.assign(container.style, {
+              background: "transparent",
+              backgroundColor: "transparent",
+              border: "none",
+              boxShadow: "none",
+              outline: "none",
+              padding: "0",
+              margin: "0",
+            });
           }
           rightControls.prepend(container);
           setToolbarContainer(container);
@@ -218,6 +228,7 @@ const YouTubeSubtitles = () => {
         lastUrl = window.location.href;
         if (lastUrl.includes("watch")) {
           setCurrentUrl(lastUrl);
+          hasAttemptedFetchRef.current = null; // Reset only when navigating to a new video
           setSubtitleData(null);
           setCustomSubtitleData(null);
           setCurrentSegment(null);
@@ -226,6 +237,7 @@ const YouTubeSubtitles = () => {
           setOffset(0);
           setIsEnabled(true);
         } else {
+          hasAttemptedFetchRef.current = null;
           setSubtitleData(null);
           setCustomSubtitleData(null);
           setCurrentSegment(null);
@@ -413,13 +425,19 @@ const YouTubeSubtitles = () => {
   }, [currentUrl]);
 
   useEffect(() => {
-    // Auto-fetch if enabled in settings and no custom subtitle loaded
+    // Auto-fetch ONLY on initial page load / navigation for this URL, NOT on toggle on/off
+    const videoId = getVideoId(currentUrl);
+    if (!videoId) return;
+
+    if (hasAttemptedFetchRef.current === videoId) return;
+
     const shouldAutoFetch = settings.autoFetchJapaneseSubtitles !== false;
-    if (isEnabled && shouldAutoFetch && !activeSubtitleData && currentUrl.includes("watch")) {
-      const timer = window.setTimeout(loadSubtitles, 0);
+    if (shouldAutoFetch && currentUrl.includes("watch")) {
+      hasAttemptedFetchRef.current = videoId;
+      const timer = window.setTimeout(loadSubtitles, 50);
       return () => window.clearTimeout(timer);
     }
-  }, [isEnabled, currentUrl, loadSubtitles, activeSubtitleData, settings.autoFetchJapaneseSubtitles]);
+  }, [currentUrl, loadSubtitles, settings.autoFetchJapaneseSubtitles]);
 
   // ── Time Sync & Auto Pause ────────────────────────────────────────────
 

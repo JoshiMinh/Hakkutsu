@@ -507,7 +507,15 @@ export const youtubeToolbarCss = `
   #hk-toolbar-portal:hover,
   #hk-toolbar-portal.ytp-button:hover,
   #hk-toolbar-portal:focus,
-  #hk-toolbar-portal.ytp-button:focus {
+  #hk-toolbar-portal.ytp-button:focus,
+  .html5-video-player #hk-toolbar-portal,
+  .html5-video-player #hk-toolbar-portal:hover,
+  .html5-video-player #hk-toolbar-portal.ytp-button:hover,
+  .ytp-right-controls #hk-toolbar-portal,
+  .ytp-right-controls #hk-toolbar-portal:hover,
+  .ytp-right-controls #hk-toolbar-portal.ytp-button:hover,
+  .ytp-chrome-bottom #hk-toolbar-portal,
+  .ytp-chrome-bottom #hk-toolbar-portal:hover {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -515,28 +523,46 @@ export const youtubeToolbarCss = `
     height: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    border-radius: 0 !important;
   }
 
   #hk-toolbar-portal::before,
   #hk-toolbar-portal::after,
   #hk-toolbar-portal:hover::before,
-  #hk-toolbar-portal:hover::after {
+  #hk-toolbar-portal:hover::after,
+  #hk-toolbar-portal *::before,
+  #hk-toolbar-portal *::after {
     display: none !important;
     content: none !important;
     background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
   }
 
   /* ── Native YouTube Player Control Button ─────────────────────── */
-  .hk-toolbar-wrapper {
+  .hk-toolbar-wrapper,
+  .hk-toolbar-wrapper:hover {
     position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     height: 100% !important;
     vertical-align: top !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
   }
 
-  .hk-yt-btn {
+  .hk-yt-btn,
+  .hk-yt-btn:hover,
+  .hk-yt-btn:focus,
+  .hk-yt-btn:active {
     position: relative !important;
     display: inline-flex !important;
     align-items: center !important;
@@ -544,7 +570,10 @@ export const youtubeToolbarCss = `
     width: 48px !important;
     height: 100% !important;
     background: transparent !important;
+    background-color: transparent !important;
     border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
     cursor: pointer !important;
     padding: 0 !important;
     margin: 0 !important;
@@ -557,6 +586,9 @@ export const youtubeToolbarCss = `
 
   .hk-yt-btn:hover {
     opacity: 1 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
   }
 
   .hk-yt-btn:active {
@@ -567,14 +599,18 @@ export const youtubeToolbarCss = `
     outline: none !important;
   }
 
-  .hk-yt-btn__icon-wrapper {
+  .hk-yt-btn__icon-wrapper,
+  .hk-yt-btn__icon-wrapper:hover {
     position: relative !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     width: 28px !important;
     height: 28px !important;
-    border-radius: 6px !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
     transition: all 0.2s ease !important;
   }
 

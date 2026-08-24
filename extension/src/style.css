@@ -551,14 +551,13 @@ html, body {
 /* ── Definition Card ───────────────────────────────────────────── */
 
 .hk-definition {
-  background: rgba(24, 24, 28, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(12px);
-  animation: hk-slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 0;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .hk-definition__header {
@@ -2045,4 +2044,42 @@ select.hk-settings-input:focus {
 .hk-form-input--jp {
   font-family: var(--hk-font-jp);
 }
+
+/* ── Sleek Modern Dark Scrollbars ── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(192, 132, 252, 0.5);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+/* ── Dark Mode Select & Options Styling ── */
+select,
+select option {
+  background-color: #18181b !important;
+  color: #f4f4f5 !important;
+}
+
+select option:checked,
+select option:hover {
+  background-color: #27272a !important;
+  color: #ffffff !important;
+}
+
 

@@ -1,9 +1,10 @@
+import { SUPPORTED_LANGUAGES, getLanguageConfig } from "~lib/languages";
+
 /**
  * High-Quality Text-to-Speech (TTS) Service for Hakkutsu.
- * Prioritizes Google Translate TTS natural neural voices for Japanese learning
- * and Target Language audio, with browser SpeechSynthesis as an offline fallback.
+ * Uses Google Translate natural neural voice via extension background proxy
+ * (immune to page CSP and CORS restrictions), with browser SpeechSynthesis as fallback.
  */
-
 class TtsService {
   private currentAudio: HTMLAudioElement | null = null;
 
@@ -38,50 +39,65 @@ class TtsService {
   }
 
   /**
-   * Play natural speech for target language translation (e.g. 'vi', 'en').
+   * Play natural speech for target language translation (e.g. 'vi', 'en', etc.).
    */
   playTargetLanguage(text: string, targetLang: string = "vi"): void {
-    const localeMap: Record<string, { googleCode: string; ttsLocale: string }> = {
-      vi: { googleCode: "vi", ttsLocale: "vi-VN" },
-      en: { googleCode: "en", ttsLocale: "en-US" },
-    };
-    const config = localeMap[targetLang] || { googleCode: targetLang || "vi", ttsLocale: "vi-VN" };
-    this.play(text, config.googleCode, config.ttsLocale);
+    const config = getLanguageConfig(targetLang);
+    this.play(
+      text, 
+      config.googleTranslateCode || targetLang || "vi", 
+      config.ttsLangCode || "vi-VN"
+    );
   }
 
   /**
-   * Primary: Google Translate TTS natural audio.
-   * Secondary Fallback: Browser Web Speech API.
+   * Primary: Google Translate natural neural voice fetched via background service.
+   * Secondary: Direct Google Translate Audio URL.
+   * Tertiary Fallback: Browser Web Speech API.
    */
-  play(text: string, googleLangCode: string = "ja", fallbackTtsLocale: string = "ja-JP"): void {
+  async play(text: string, googleLangCode: string = "ja", fallbackTtsLocale: string = "ja-JP"): Promise<void> {
     if (!text || !text.trim()) return;
     const cleanText = text.trim();
     this.stop();
 
-    // Google Translate TTS URL
+    // 1. Try background proxy for Google Translate TTS (bypasses webpage CSP/CORS)
+    if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: "FETCH_TTS_AUDIO",
+          payload: { text: cleanText, lang: googleLangCode }
+        });
+
+        if (response?.payload?.dataUrl) {
+          const audio = new Audio(response.payload.dataUrl);
+          this.currentAudio = audio;
+          await audio.play();
+          return;
+        }
+      } catch (e) {
+        console.warn("[Hakkutsu TTS] Background proxy failed, trying direct audio:", e);
+      }
+    }
+
+    // 2. Direct Google Translate TTS URL
     const googleTtsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${encodeURIComponent(
       googleLangCode
     )}&q=${encodeURIComponent(cleanText.slice(0, 200))}`;
 
-    const audio = new Audio(googleTtsUrl);
-    this.currentAudio = audio;
+    try {
+      const audio = new Audio(googleTtsUrl);
+      this.currentAudio = audio;
 
-    let fallbackTriggered = false;
-    const triggerFallback = () => {
-      if (fallbackTriggered) return;
-      fallbackTriggered = true;
+      audio.onerror = () => {
+        console.warn("[Hakkutsu TTS] Direct Google TTS failed, using browser SpeechSynthesis fallback.");
+        this.playBrowserSpeechFallback(cleanText, fallbackTtsLocale);
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.warn("[Hakkutsu TTS] Audio playback rejected, using browser fallback:", err);
       this.playBrowserSpeechFallback(cleanText, fallbackTtsLocale);
-    };
-
-    audio.onerror = () => {
-      console.warn("[Hakkutsu] Google TTS failed, falling back to browser SpeechSynthesis.");
-      triggerFallback();
-    };
-
-    audio.play().catch((err) => {
-      console.warn("[Hakkutsu] Audio play rejected:", err);
-      triggerFallback();
-    });
+    }
   }
 
   /**
@@ -97,9 +113,10 @@ class TtsService {
         window.speechSynthesis.speak(utterance);
       }
     } catch (err) {
-      console.error("[Hakkutsu] Browser SpeechSynthesis failed:", err);
+      console.error("[Hakkutsu TTS] Browser SpeechSynthesis failed:", err);
     }
   }
 }
 
 export const ttsService = new TtsService();
+

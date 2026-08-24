@@ -107,6 +107,8 @@ export type MessageType =
   | "OCR_RESULT"
   | "INPAINT_IMAGE"
   | "INPAINT_RESULT"
+  | "FETCH_TTS_AUDIO"
+  | "TTS_AUDIO_RESULT"
   | "IGNORED"
   | "ERROR";
 

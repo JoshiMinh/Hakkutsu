@@ -7,8 +7,8 @@ import { SettingsView } from "~components/settings-view";
 import { useSettingsStore } from "~lib/utils/settings";
 import type { ExtensionSettings } from "~lib/types";
 import { useTranslation } from "~lib/languages/locales";
+import logoUrl from "data-base64:~assets/icon/icon-rounded.png";
 import "~style.css";
-import logoUrl from "url:~assets/icon.png";
 
 export default function AppDashboard() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "review" | "vocabulary" | "settings">(() => {
@@ -34,6 +34,20 @@ export default function AppDashboard() {
       setActiveTab("dashboard");
     }
   }, [settings.srsEnabled, activeTab]);
+
+  // Keep-alive connection to prevent Chrome from discarding this tab when backgrounded
+  useEffect(() => {
+    try {
+      if (typeof chrome !== "undefined" && chrome.runtime?.connect) {
+        const port = chrome.runtime.connect({ name: "hakkutsu-app-tab" });
+        return () => {
+          port.disconnect();
+        };
+      }
+    } catch {
+      // Ignore
+    }
+  }, []);
 
   return (
     <div style={{ display: "flex", height: "100vh", backgroundColor: "var(--hk-bg-primary)", color: "var(--hk-text-primary)", overflow: "hidden" }}>
@@ -93,16 +107,19 @@ export default function AppDashboard() {
       <main style={{ flex: 1, padding: "32px 40px", overflowY: "auto", backgroundColor: "var(--hk-bg-primary)" }}>
         {activeTab === "review" && (
           <div style={{ maxWidth: "800px", margin: "0 auto", minHeight: "560px" }}>
-            <h2 style={{ marginBottom: "20px", color: "var(--hk-text-primary)", fontWeight: "bold", fontSize: "20px" }}>
-              {t("srs_title")}
-            </h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+              <Brain size={22} style={{ color: "var(--hk-accent-light, #c084fc)" }} />
+              <h2 style={{ color: "var(--hk-text-primary)", fontWeight: "bold", fontSize: "20px", margin: 0 }}>
+                {t("srs_title")}
+              </h2>
+            </div>
             <div style={{ border: "1px solid var(--hk-border)", borderRadius: "12px", overflow: "hidden", background: "var(--hk-bg-secondary)" }}>
               <SrsReview />
             </div>
           </div>
         )}
         {activeTab === "vocabulary" && (
-          <div style={{ maxWidth: "1080px", margin: "0 auto" }}>
+          <div style={{ maxWidth: "1380px", margin: "0 auto" }}>
             <WordList onStartReview={() => setActiveTab("review")} />
           </div>
         )}

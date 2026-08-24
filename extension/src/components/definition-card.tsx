@@ -59,6 +59,7 @@ export function DefinitionCard({
   originalText,
   sentenceReading,
   onSrsAdd,
+  hideBottomAction = false,
 }: {
   token: TokenAnalysis;
   onExport?: (data: AnkiExportData) => void;
@@ -66,6 +67,7 @@ export function DefinitionCard({
   originalText: string;
   sentenceReading: string;
   onSrsAdd?: () => void;
+  hideBottomAction?: boolean;
 }) {
   const { t, isVietnamese, showHanViet, lang } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -315,24 +317,26 @@ export function DefinitionCard({
       )}
 
       {/* Actions Footer */}
-      <div className="hk-definition__actions" style={{ marginTop: "14px" }}>
-        <button
-          className={`hk-btn ${srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
-          onClick={handleAddToLibrary}
-          title={srsAdded ? t("def_btn_added_library") : t("def_btn_add_library")}
-          style={{ width: "100%", justifyContent: "center", padding: "8px 16px" }}
-        >
-          {srsAdded ? (
-            <>
-              <Check size={14} /> {t("def_btn_added_library")}
-            </>
-          ) : (
-            <>
-              <BookmarkPlus size={14} /> {t("def_btn_add_library")}
-            </>
-          )}
-        </button>
-      </div>
+      {!hideBottomAction && (
+        <div className="hk-definition__actions" style={{ marginTop: "14px" }}>
+          <button
+            className={`hk-btn ${srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
+            onClick={handleAddToLibrary}
+            title={srsAdded ? t("def_btn_added_library") : t("def_btn_add_library")}
+            style={{ width: "100%", justifyContent: "center", padding: "8px 16px" }}
+          >
+            {srsAdded ? (
+              <>
+                <Check size={14} /> {t("def_btn_added_library")}
+              </>
+            ) : (
+              <>
+                <BookmarkPlus size={14} /> {t("def_btn_add_library")}
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -301,10 +301,41 @@ export async function fetchExampleSentences(
 
 /**
  * Universal dictionary lookup routed by target language.
+ * Seamlessly handles any future language by translating dictionary definitions.
  */
 export async function lookupWord(word: string, targetLang: string = "vi"): Promise<LookupResult> {
   if (targetLang === "en") {
     return lookupWordEnglish(word);
   }
-  return lookupWordVietnamese(word);
+  if (targetLang === "vi") {
+    return lookupWordVietnamese(word);
+  }
+
+  // Universal dynamic language adapter for any future target language:
+  const enResult = await lookupWordEnglish(word);
+  if (enResult && enResult.meaning) {
+    try {
+      const translatedMeaning = await googleTranslateService.translate(enResult.meaning, targetLang, "en");
+      return {
+        ...enResult,
+        meaning: translatedMeaning || enResult.meaning,
+        source: `JMdict (${targetLang.toUpperCase()})`
+      };
+    } catch {
+      return enResult;
+    }
+  }
+
+  // Direct translation fallback
+  try {
+    const directTranslation = await googleTranslateService.translate(word, targetLang, "ja");
+    return {
+      meaning: directTranslation,
+      reading: enResult.reading || word,
+      jlpt: enResult.jlpt,
+      source: "Google Translate"
+    };
+  } catch {
+    return { meaning: "" };
+  }
 }

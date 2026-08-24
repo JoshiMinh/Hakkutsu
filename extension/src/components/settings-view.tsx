@@ -1,7 +1,12 @@
-import { Bot, Database, Film, GraduationCap, Languages, Sparkles } from "lucide-react";
+import { Bot, Database, Film, GraduationCap, Languages, Sparkles, Settings as SettingsIcon } from "lucide-react";
 import type { ExtensionSettings } from "~lib/types";
 import { t } from "~lib/languages/locales";
 import { SUPPORTED_LANGUAGES } from "~lib/languages";
+import geminiSvg from "data-base64:~assets/logo/gemini.svg";
+import openaiSvg from "data-base64:~assets/logo/openai.svg";
+import ankiSvg from "data-base64:~assets/logo/anki.svg";
+import usFlag from "data-base64:~assets/language/en.png";
+import vnFlag from "data-base64:~assets/language/vi.png";
 
 export function SettingsView({
   settings,
@@ -15,7 +20,10 @@ export function SettingsView({
   return (
     <div className="hk-content hk-fade-in">
       <div className="hk-settings-header">
-        <h2 className="hk-settings-title">{t("settings_title", currentLang)}</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+          <SettingsIcon size={22} style={{ color: "var(--hk-accent-light, #c084fc)" }} />
+          <h2 className="hk-settings-title" style={{ margin: 0 }}>{t("settings_title", currentLang)}</h2>
+        </div>
         <p className="hk-settings-subtitle">{t("settings_subtitle", currentLang)}</p>
       </div>
       
@@ -42,6 +50,7 @@ export function SettingsView({
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
                 {Object.values(SUPPORTED_LANGUAGES).map((lang) => {
                   const isSelected = currentLang === lang.code;
+                  const flagImg = lang.code === "vi" ? vnFlag : usFlag;
                   return (
                     <button
                       key={lang.code}
@@ -62,7 +71,11 @@ export function SettingsView({
                         textAlign: "left"
                       }}
                     >
-                      <span style={{ fontSize: "24px" }}>{lang.flag}</span>
+                      <img 
+                        src={flagImg} 
+                        alt={lang.code} 
+                        style={{ width: 26, height: 26, objectFit: "contain", flexShrink: 0 }} 
+                      />
                       <div>
                         <div style={{ fontSize: "14px", fontWeight: 700 }}>{lang.nativeName}</div>
                         <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", marginTop: "2px" }}>
@@ -135,9 +148,10 @@ export function SettingsView({
                     boxShadow: settings.llmProvider === "gemini" ? "0 4px 16px rgba(168, 85, 247, 0.25)" : "none"
                   }}
                 >
+                  <img src={geminiSvg} alt="Gemini" style={{ width: 22, height: 22, marginBottom: "6px" }} />
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: "14px", fontWeight: 700 }}>Google Gemini</div>
-                    <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", marginTop: "3px" }}>Flash 2.0 / 1.5</div>
+                    <div style={{ fontSize: "13.5px", fontWeight: 700 }}>Google Gemini</div>
+                    <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", marginTop: "2px" }}>Flash 2.0 / 1.5</div>
                   </div>
                 </button>
 
@@ -160,9 +174,10 @@ export function SettingsView({
                     boxShadow: settings.llmProvider === "openai" ? "0 4px 16px rgba(16, 163, 127, 0.25)" : "none"
                   }}
                 >
+                  <img src={openaiSvg} alt="OpenAI" style={{ width: 22, height: 22, marginBottom: "6px" }} />
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: "14px", fontWeight: 700 }}>OpenAI</div>
-                    <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", marginTop: "3px" }}>GPT-4o / GPT-4o-mini</div>
+                    <div style={{ fontSize: "13.5px", fontWeight: 700 }}>OpenAI</div>
+                    <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", marginTop: "2px" }}>GPT-4o / mini</div>
                   </div>
                 </button>
 
@@ -185,9 +200,10 @@ export function SettingsView({
                     boxShadow: settings.llmProvider === "custom" ? "0 4px 16px rgba(59, 130, 246, 0.25)" : "none"
                   }}
                 >
+                  <Sparkles size={20} style={{ color: "#3b82f6", marginBottom: "6px" }} />
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: "14px", fontWeight: 700 }}>Custom API</div>
-                    <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", marginTop: "3px" }}>OpenRouter / Ollama</div>
+                    <div style={{ fontSize: "13.5px", fontWeight: 700 }}>Custom API</div>
+                    <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", marginTop: "2px" }}>OpenRouter / Ollama</div>
                   </div>
                 </button>
               </div>
@@ -457,8 +473,8 @@ export function SettingsView({
         {/* Anki Integration Card */}
         <section className="hk-settings-card">
           <header className="hk-settings-card__header">
-            <div className="hk-settings-card__icon">
-              <Database size={18} />
+            <div className="hk-settings-card__icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <img src={ankiSvg} alt="Anki" style={{ width: 17, height: 17 }} />
             </div>
             <h3 className="hk-settings-card__title">{t("settings_anki_section", currentLang)}</h3>
           </header>

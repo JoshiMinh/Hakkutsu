@@ -9,7 +9,8 @@ import {
   Calendar,
   Layers,
   CheckCircle2,
-  Clock
+  Clock,
+  LayoutDashboard
 } from "lucide-react";
 import { useTranslation } from "~lib/languages/locales";
 import { JlptBadge } from "~components/Badges";
@@ -72,9 +73,12 @@ export function StatsOverview({
         paddingBottom: "4px"
       }}>
         <div>
-          <h2 style={{ fontSize: "20px", fontWeight: 700, color: "#ffffff", margin: "0 0 4px" }}>
-            {t("nav_dashboard")}
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: "4px" }}>
+            <LayoutDashboard size={20} style={{ color: "var(--hk-accent-light, #c084fc)" }} />
+            <h2 style={{ fontSize: "20px", fontWeight: 700, color: "#ffffff", margin: 0 }}>
+              {t("nav_dashboard")}
+            </h2>
+          </div>
           <p style={{ fontSize: "12.5px", color: "var(--hk-text-muted)", margin: 0 }}>
             {isVietnamese 
               ? "Theo dõi tiến độ ghi nhớ SRS và kho từ vựng tiếng Nhật" 

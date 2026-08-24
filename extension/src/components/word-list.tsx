@@ -8,6 +8,7 @@ import {
   X, 
   BookOpen, 
   ArrowUpDown, 
+  Filter,
   Sparkles, 
   Layers, 
   Check,
@@ -19,6 +20,7 @@ import { getHanViet } from "~lib/utils/hanviet-dict";
 import { lookupWord } from "~lib/services/dictionary-lookup";
 import { useTranslation } from "~lib/languages/locales";
 import { ankiClient } from "~lib/services/anki-connect";
+import ankiSvg from "data-base64:~assets/logo/anki.svg";
 
 export function WordList({ 
   userId = "user_1",
@@ -32,6 +34,7 @@ export function WordList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ankiExporting, setAnkiExporting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const [searchTerm, setSearchTerm] = useState("");
   const [displayLimit, setDisplayLimit] = useState(50);
@@ -94,30 +97,62 @@ export function WordList({
     try {
       await localSrs.deleteSrsCard(id);
       setCards(cards.filter(c => c.id !== id));
+      if (selectedIds.has(id)) {
+        const next = new Set(selectedIds);
+        next.delete(id);
+        setSelectedIds(next);
+      }
     } catch (err) {
       console.error(err);
       alert("Failed to delete word.");
     }
   };
 
-  const handleDeleteAll = async () => {
-    if (!confirm(t("vocab_confirm_delete_all"))) return;
-    try {
-      await localSrs.deleteAllSrsCards();
-      setCards([]);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete all words.");
+  const handleToggleSelectAll = (targetCards: SrsCard[]) => {
+    if (selectedIds.size === targetCards.length && targetCards.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(targetCards.map(c => c.id)));
     }
   };
 
-  const handleExportCSV = () => {
+  const handleToggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedIds(next);
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    if (!confirm(isVietnamese ? `Bạn có chắc muốn xóa ${count} từ đã chọn?` : `Are you sure you want to delete ${count} selected words?`)) return;
+
+    try {
+      for (const id of selectedIds) {
+        await localSrs.deleteSrsCard(id);
+      }
+      setCards(cards.filter(c => !selectedIds.has(c.id)));
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete selected words.");
+    }
+  };
+
+  const handleExportCSV = (specificCards?: SrsCard[]) => {
+    const targetCards = specificCards || (selectedIds.size > 0 ? cards.filter(c => selectedIds.has(c.id)) : cards);
+    if (targetCards.length === 0) return;
+
     const headers = showHanViet ? [
-      "Word", "Word Reading", "Word Furigana", "Word Meaning", 
-      "JLPT", "Vietnamese Sound", "Sentence", "Sentence Furigana", "Sentence Meaning"
+      "Word", "Furigana", "Word Meaning", 
+      "Han Viet", "Example Sentence", "JLPT"
     ] : [
-      "Word", "Word Reading", "Word Furigana", "Word Meaning", 
-      "JLPT", "Sentence", "Sentence Furigana", "Sentence Meaning"
+      "Word", "Furigana", "Word Meaning", 
+      "Example Sentence", "JLPT"
     ];
 
     const escapeCsv = (str?: string) => {
@@ -127,21 +162,18 @@ export function WordList({
 
     const csvContent = [
       headers.join(","),
-      ...cards.map(c => {
+      ...targetCards.map(c => {
         const row = [
           escapeCsv(c.word),
           escapeCsv(c.reading),
-          escapeCsv(c.word_furigana),
           escapeCsv(c.meaning),
-          escapeCsv(c.jlpt),
         ];
         if (showHanViet) {
           row.push(escapeCsv(c.vietnamese_sound || getHanViet(c.word)));
         }
         row.push(
           escapeCsv(c.sentence),
-          escapeCsv(c.sentence_furigana),
-          escapeCsv(c.sentence_meaning)
+          escapeCsv(c.jlpt)
         );
         return row.join(",");
       })
@@ -158,7 +190,10 @@ export function WordList({
     URL.revokeObjectURL(url);
   };
 
-  const handleExportAnki = async () => {
+  const handleExportAnki = async (specificCards?: SrsCard[]) => {
+    const targetCards = specificCards || (selectedIds.size > 0 ? cards.filter(c => selectedIds.has(c.id)) : cards);
+    if (targetCards.length === 0) return;
+
     try {
       setAnkiExporting(true);
       const connected = await ankiClient.isConnected();
@@ -168,7 +203,7 @@ export function WordList({
       }
 
       let count = 0;
-      for (const card of cards) {
+      for (const card of targetCards) {
         await ankiClient.exportVocabulary({
           word: card.word,
           reading: card.reading,
@@ -230,29 +265,33 @@ export function WordList({
   const newCount = cards.filter(c => c.repetition === 0).length;
   const learningCount = cards.filter(c => c.repetition > 0 && c.interval < 21).length;
   const graduatedCount = cards.filter(c => c.interval >= 21).length;
+  const allDisplayedSelected = displayedCards.length > 0 && displayedCards.every(c => selectedIds.has(c.id));
 
   return (
     <div className="hk-content hk-fade-in" style={{ paddingBottom: "40px" }}>
-      {/* Header */}
+      {/* ── Top Header Row ──────────────────────────────────────────────── */}
       <div style={{
         display: "flex",
-        alignItems: "flex-start",
+        alignItems: "center",
         justifyContent: "space-between",
-        marginBottom: "20px",
+        marginBottom: "18px",
         flexWrap: "wrap",
         gap: "14px"
       }}>
         <div>
-          <h2 style={{
-            fontSize: "20px",
-            fontWeight: 700,
-            color: "var(--hk-text-primary)",
-            margin: "0 0 4px"
-          }}>
-            {t("vocab_title")}
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+            <BookOpen size={21} style={{ color: "var(--hk-accent-light, #c084fc)" }} />
+            <h2 style={{
+              fontSize: "20px",
+              fontWeight: 700,
+              color: "var(--hk-text-primary)",
+              margin: 0
+            }}>
+              {t("vocab_title")}
+            </h2>
+          </div>
           <p style={{
-            fontSize: "12px",
+            fontSize: "12.5px",
             color: "var(--hk-text-muted)",
             margin: 0
           }}>
@@ -260,7 +299,7 @@ export function WordList({
           </p>
         </div>
 
-        {/* Global Actions */}
+        {/* Global Action Buttons */}
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
           {onStartReview && cards.length > 0 && (
             <button 
@@ -290,47 +329,39 @@ export function WordList({
             <>
               <button 
                 className="hk-btn hk-btn--secondary"
-                onClick={handleExportAnki}
+                onClick={() => handleExportAnki()}
                 disabled={ankiExporting}
                 title={t("vocab_btn_export_anki")}
                 style={{ fontSize: "12px", padding: "6px 12px", gap: "6px" }}
               >
-                <ExternalLink size={14} />
+                <img src={ankiSvg} alt="Anki" style={{ width: 14, height: 14 }} />
                 {ankiExporting ? t("vocab_anki_exporting") : t("vocab_btn_export_anki")}
               </button>
               <button 
                 className="hk-btn hk-btn--secondary"
-                onClick={handleExportCSV}
+                onClick={() => handleExportCSV()}
                 title={t("vocab_btn_export_csv")}
                 style={{ fontSize: "12px", padding: "6px 12px", gap: "6px" }}
               >
                 <Download size={14} />
                 {t("vocab_btn_export_csv")}
               </button>
-              <button 
-                className="hk-btn hk-btn--ghost"
-                onClick={handleDeleteAll}
-                title={t("vocab_btn_delete_all")}
-                style={{ fontSize: "12px", padding: "6px 10px", color: "#f87171" }}
-              >
-                <Trash2 size={14} />
-              </button>
             </>
           )}
         </div>
       </div>
 
-      {/* Sleek Compact Toolbar */}
+      {/* ── Second Row: Search on Left + Filter & Sort on Right ─────────── */}
       <div style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        gap: "10px",
+        gap: "12px",
         marginBottom: "14px",
         flexWrap: "wrap"
       }}>
-        {/* Compact Search Input */}
-        <div style={{ position: "relative", flex: "1 1 200px", maxWidth: "300px" }}>
+        {/* Left Side: Search Bar */}
+        <div style={{ position: "relative", flex: 1, maxWidth: "360px", minWidth: "200px" }}>
           <Search size={13} style={{
             position: "absolute",
             left: "10px",
@@ -346,10 +377,11 @@ export function WordList({
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
               width: "100%",
+              height: "32px",
               background: "var(--hk-bg-secondary)",
               border: "1px solid var(--hk-border)",
               borderRadius: "6px",
-              padding: "6px 28px 6px 30px",
+              padding: "0 26px 0 30px",
               color: "var(--hk-text-primary)",
               fontSize: "12px",
               outline: "none"
@@ -377,72 +409,148 @@ export function WordList({
           )}
         </div>
 
-        {/* Compact Filter Pills */}
+        {/* Right Side: Grouped Filter Select + Sort Select */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          {/* 1. Filter Select */}
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            background: "#18181b",
+            border: "1px solid var(--hk-border)",
+            borderRadius: "6px",
+            padding: "0 8px 0 10px",
+            height: "32px"
+          }}>
+            <Filter size={12} style={{ color: "var(--hk-accent-light, #c084fc)" }} />
+            <select
+              value={filterState}
+              onChange={(e) => setFilterState(e.target.value)}
+              style={{
+                background: "#18181b",
+                border: "none",
+                color: "#ffffff",
+                fontSize: "12px",
+                outline: "none",
+                cursor: "pointer",
+                fontWeight: 500
+              }}
+            >
+              <option value="all" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
+                {t("vocab_filter_all")} ({cards.length})
+              </option>
+              <option value="new" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
+                {t("vocab_filter_new")} ({newCount})
+              </option>
+              <option value="learning" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
+                {t("vocab_filter_learning")} ({learningCount})
+              </option>
+              <option value="graduated" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
+                {t("vocab_filter_graduated")} ({graduatedCount})
+              </option>
+            </select>
+          </div>
+
+          {/* 2. Sort Select */}
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            background: "#18181b",
+            border: "1px solid var(--hk-border)",
+            borderRadius: "6px",
+            padding: "0 8px 0 10px",
+            height: "32px"
+          }}>
+            <ArrowUpDown size={12} style={{ color: "var(--hk-accent-light, #c084fc)" }} />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              style={{
+                background: "#18181b",
+                border: "none",
+                color: "#ffffff",
+                fontSize: "12px",
+                outline: "none",
+                cursor: "pointer",
+                fontWeight: 500
+              }}
+            >
+              <option value="created_desc" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
+                {t("vocab_sort_newest")}
+              </option>
+              <option value="due_asc" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
+                {t("vocab_sort_due_asc")}
+              </option>
+              <option value="due_desc" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
+                {t("vocab_sort_due_desc")}
+              </option>
+              <option value="word_asc" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
+                {t("vocab_sort_word_asc")}
+              </option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Bulk Actions Bar ────────────────────────────────────────────── */}
+      {selectedIds.size > 0 && (
         <div style={{
           display: "flex",
           alignItems: "center",
-          gap: "3px",
-          background: "rgba(255, 255, 255, 0.03)",
-          padding: "3px",
+          justifyContent: "space-between",
+          background: "rgba(168, 85, 247, 0.12)",
+          border: "1px solid rgba(168, 85, 247, 0.3)",
           borderRadius: "8px",
-          border: "1px solid var(--hk-border)"
+          padding: "8px 14px",
+          marginBottom: "12px",
+          fontSize: "12.5px"
         }}>
-          {[
-            { id: "all", label: t("vocab_filter_all"), count: cards.length },
-            { id: "new", label: t("vocab_filter_new"), count: newCount },
-            { id: "learning", label: t("vocab_filter_learning"), count: learningCount },
-            { id: "graduated", label: t("vocab_filter_graduated"), count: graduatedCount },
-          ].map(tab => {
-            const isActive = filterState === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setFilterState(tab.id)}
-                style={{
-                  padding: "4px 9px",
-                  borderRadius: "6px",
-                  border: "none",
-                  fontSize: "11.5px",
-                  fontWeight: isActive ? 600 : 500,
-                  color: isActive ? "#ffffff" : "var(--hk-text-muted)",
-                  background: isActive ? "var(--hk-accent-primary)" : "transparent",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                  boxShadow: isActive ? "0 2px 8px rgba(168, 85, 247, 0.3)" : "none"
-                }}
-              >
-                {tab.label} <span style={{ opacity: 0.75, fontSize: "10.5px" }}>({tab.count})</span>
-              </button>
-            );
-          })}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#e9d5ff", fontWeight: 600 }}>
+            <Check size={15} style={{ color: "#c084fc" }} />
+            <span>
+              {selectedIds.size} {isVietnamese ? t("vocab_selected_count") : (selectedIds.size === 1 ? "word selected" : "words selected")}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              className="hk-btn hk-btn--secondary"
+              onClick={() => handleExportAnki()}
+              disabled={ankiExporting}
+              style={{ fontSize: "11.5px", padding: "4px 10px", gap: "5px" }}
+            >
+              <img src={ankiSvg} alt="Anki" style={{ width: 13, height: 13 }} />
+              {t("vocab_btn_export_selected_anki")}
+            </button>
+            <button
+              className="hk-btn hk-btn--secondary"
+              onClick={() => handleExportCSV()}
+              style={{ fontSize: "11.5px", padding: "4px 10px", gap: "5px" }}
+            >
+              <Download size={12} />
+              {t("vocab_btn_export_selected_csv")}
+            </button>
+            <button
+              className="hk-btn hk-btn--ghost"
+              onClick={handleBatchDelete}
+              style={{ fontSize: "11.5px", padding: "4px 10px", color: "#f87171", gap: "5px" }}
+            >
+              <Trash2 size={12} />
+              {t("vocab_btn_delete_selected")}
+            </button>
+            <button
+              className="hk-btn hk-btn--ghost"
+              onClick={() => setSelectedIds(new Set())}
+              style={{ fontSize: "11.5px", padding: "4px 8px" }}
+              title="Deselect All"
+            >
+              <X size={13} />
+            </button>
+          </div>
         </div>
-
-        {/* Compact Sort Selector */}
-        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-          <ArrowUpDown size={13} style={{ color: "var(--hk-text-muted)" }} />
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            style={{
-              background: "var(--hk-bg-secondary)",
-              border: "1px solid var(--hk-border)",
-              borderRadius: "6px",
-              color: "var(--hk-text-primary)",
-              padding: "5px 8px",
-              fontSize: "11.5px",
-              outline: "none",
-              cursor: "pointer"
-            }}
-          >
-            <option value="created_desc">{t("vocab_sort_newest")}</option>
-            <option value="due_asc">{t("vocab_sort_due_asc")}</option>
-            <option value="due_desc">{t("vocab_sort_due_desc")}</option>
-            <option value="word_asc">{t("vocab_sort_word_asc")}</option>
-          </select>
-        </div>
-      </div>
+      )}
       
-      {/* Data Table / Empty State */}
+      {/* ── Data Table / Empty State ────────────────────────────────────── */}
       <div style={{
         background: "var(--hk-bg-secondary)",
         border: "1px solid var(--hk-border)",
@@ -478,100 +586,156 @@ export function WordList({
             </h3>
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="hk-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div style={{ width: "100%", overflow: "hidden" }}>
+            <table className="hk-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <thead>
                 <tr style={{ background: "#0e0e12", borderBottom: "1px solid var(--hk-border)" }}>
-                  <th style={{ padding: "10px 14px", textAlign: "left", fontSize: "12px" }}>{t("vocab_th_word")}</th>
-                  <th style={{ padding: "10px 14px", textAlign: "left", fontSize: "12px" }}>{t("vocab_th_reading")}</th>
-                  <th style={{ padding: "10px 14px", textAlign: "left", fontSize: "12px" }}>{t("vocab_th_meaning")}</th>
-                  <th style={{ padding: "10px 14px", textAlign: "left", fontSize: "12px" }}>{t("vocab_th_jlpt")}</th>
+                  {/* Select All Checkbox */}
+                  <th style={{ padding: "10px 8px", width: "36px", textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={allDisplayedSelected}
+                      onChange={() => handleToggleSelectAll(displayedCards)}
+                      style={{ cursor: "pointer", accentColor: "#a855f7" }}
+                    />
+                  </th>
+                  {/* Proportional, non-overflowing column widths */}
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", width: "13%" }}>{t("vocab_th_word")}</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", width: "13%" }}>{t("vocab_th_furigana")}</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", width: "25%" }}>{t("vocab_th_meaning")}</th>
                   {showHanViet && (
-                    <th style={{ padding: "10px 14px", textAlign: "left", fontSize: "12px" }}>{t("vocab_th_hanviet")}</th>
+                    <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", width: "12%" }}>{t("vocab_th_hanviet")}</th>
                   )}
-                  <th style={{ padding: "10px 14px", textAlign: "left", fontSize: "12px" }}>{t("vocab_th_sentence")}</th>
-                  <th style={{ padding: "10px 14px", textAlign: "center", width: "70px", fontSize: "12px" }}>{t("vocab_th_actions")}</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px" }}>{t("vocab_th_sentence")}</th>
+                  <th style={{ padding: "10px 6px", textAlign: "center", fontSize: "12px", width: "52px" }}>{t("vocab_th_jlpt")}</th>
+                  <th style={{ padding: "10px 6px", textAlign: "center", width: "56px", fontSize: "12px" }}>{t("vocab_th_actions")}</th>
                 </tr>
               </thead>
               <tbody>
-                {displayedCards.map(card => (
-                  <tr 
-                    key={card.id}
-                    style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.04)", transition: "background 0.15s ease" }}
-                  >
-                    {/* Word */}
-                    <td style={{ padding: "10px 14px" }}>
-                      <div style={{
-                        fontFamily: "var(--hk-font-jp)",
-                        fontSize: "16px",
-                        fontWeight: 700,
-                        color: "#ffffff"
-                      }}>
-                        {card.word}
-                      </div>
-                    </td>
-
-                    {/* Reading */}
-                    <td style={{ padding: "10px 14px" }}>
-                      <div style={{
-                        fontFamily: "var(--hk-font-jp)",
-                        fontSize: "13px",
-                        color: "#f472b6",
-                        fontWeight: 500
-                      }}>
-                        {card.reading || "—"}
-                      </div>
-                    </td>
-
-                    {/* Meaning */}
-                    <td style={{ padding: "10px 14px", fontSize: "12.5px", color: "var(--hk-text-primary)", maxWidth: "200px" }}>
-                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={card.meaning}>
-                        {card.meaning || "—"}
-                      </div>
-                    </td>
-
-                    {/* JLPT */}
-                    <td style={{ padding: "10px 14px" }}>
-                      {card.jlpt ? <JlptBadge level={card.jlpt} /> : <span style={{ color: "var(--hk-text-muted)", fontSize: "11px" }}>—</span>}
-                    </td>
-
-                    {/* Sino-Vietnamese sound (Only if showHanViet enabled) */}
-                    {showHanViet && (
-                      <td style={{ padding: "10px 14px", fontSize: "12.5px", color: "#38bdf8", fontWeight: 600 }}>
-                        {card.vietnamese_sound || getHanViet(card.word) || "—"}
+                {displayedCards.map(card => {
+                  const isSelected = selectedIds.has(card.id);
+                  return (
+                    <tr 
+                      key={card.id}
+                      style={{
+                        borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
+                        background: isSelected ? "rgba(168, 85, 247, 0.08)" : "transparent",
+                        transition: "background 0.15s ease"
+                      }}
+                    >
+                      {/* Checkbox */}
+                      <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelect(card.id)}
+                          style={{ cursor: "pointer", accentColor: "#a855f7" }}
+                        />
                       </td>
-                    )}
 
-                    {/* Sentence */}
-                    <td style={{ padding: "10px 14px", fontSize: "12.5px", color: "var(--hk-text-muted)", maxWidth: "240px" }}>
-                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={card.sentence}>
-                        {card.sentence || "—"}
-                      </div>
-                    </td>
+                      {/* 1. Word */}
+                      <td style={{ padding: "10px 12px" }}>
+                        <div style={{
+                          fontFamily: "var(--hk-font-jp)",
+                          fontSize: "15px",
+                          fontWeight: 700,
+                          color: "#ffffff",
+                          wordBreak: "break-word"
+                        }}>
+                          {card.word}
+                        </div>
+                      </td>
 
-                    {/* Actions */}
-                    <td style={{ padding: "10px 14px", textAlign: "center" }}>
-                      <div style={{ display: "inline-flex", gap: "4px" }}>
-                        <button 
-                          className="hk-btn hk-btn--ghost hk-btn--icon" 
-                          onClick={() => setEditingCard(card)} 
-                          title="Edit"
-                          style={{ padding: "5px" }}
+                      {/* 2. Furigana */}
+                      <td style={{ padding: "10px 12px" }}>
+                        <div style={{
+                          fontFamily: "var(--hk-font-jp)",
+                          fontSize: "13px",
+                          color: "#f472b6",
+                          fontWeight: 500,
+                          wordBreak: "break-word"
+                        }}>
+                          {card.reading || "—"}
+                        </div>
+                      </td>
+
+                      {/* 3. Meaning */}
+                      <td style={{ padding: "10px 12px" }}>
+                        <div 
+                          style={{ 
+                            fontSize: "12.5px", 
+                            color: "var(--hk-text-primary)", 
+                            lineHeight: "1.4",
+                            wordBreak: "break-word",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden"
+                          }} 
+                          title={card.meaning}
                         >
-                          <Edit2 size={13} />
-                        </button>
-                        <button 
-                          className="hk-btn hk-btn--ghost hk-btn--icon" 
-                          style={{ color: "#f87171", padding: "5px" }} 
-                          onClick={() => handleDelete(card.id)} 
-                          title="Delete"
+                          {card.meaning || "—"}
+                        </div>
+                      </td>
+
+                      {/* 4. Han-Viet (if enabled) */}
+                      {showHanViet && (
+                        <td style={{ padding: "10px 12px" }}>
+                          <div style={{ fontSize: "12px", color: "#38bdf8", fontWeight: 600, letterSpacing: "0.3px", wordBreak: "break-word" }}>
+                            {card.vietnamese_sound || getHanViet(card.word) || "—"}
+                          </div>
+                        </td>
+                      )}
+
+                      {/* 5. Example Sentence (Spacious) */}
+                      <td style={{ padding: "10px 12px" }}>
+                        <div 
+                          style={{ 
+                            fontSize: "12.5px", 
+                            color: "var(--hk-text-muted)", 
+                            fontFamily: "var(--hk-font-jp)", 
+                            lineHeight: "1.5",
+                            wordBreak: "break-word",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden"
+                          }} 
+                          title={card.sentence}
                         >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {card.sentence || "—"}
+                        </div>
+                      </td>
+
+                      {/* 6. JLPT */}
+                      <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                        {card.jlpt ? <JlptBadge level={card.jlpt} /> : <span style={{ color: "var(--hk-text-muted)", fontSize: "11px" }}>—</span>}
+                      </td>
+
+                      {/* 7. Actions */}
+                      <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                        <div style={{ display: "inline-flex", gap: "4px" }}>
+                          <button 
+                            className="hk-btn hk-btn--ghost hk-btn--icon" 
+                            onClick={() => setEditingCard(card)} 
+                            title="Edit"
+                            style={{ padding: "5px" }}
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button 
+                            className="hk-btn hk-btn--ghost hk-btn--icon" 
+                            style={{ color: "#f87171", padding: "5px" }} 
+                            onClick={() => handleDelete(card.id)} 
+                            title="Delete"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

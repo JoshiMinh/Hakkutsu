@@ -36,6 +36,7 @@ import type {
 } from "~lib/types";
 
 import "./style.css";
+import appLogo from "data-base64:~assets/icon/icon-rounded.png";
 
 const SrsReview = lazy(() => import("~components/srs-review").then(m => ({ default: m.SrsReview })));
 
@@ -131,33 +132,30 @@ function TranslateQuickView({
 
   return (
     <div className="hk-content hk-fade-in" style={{ padding: "16px" }}>
-      {/* Sleek Input Container */}
+      {/* Sleek Modern Input Card */}
       <div style={{
-        background: "linear-gradient(180deg, #18181c 0%, #121215 100%)",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
-        borderRadius: "12px",
-        padding: "12px",
+        background: "#141418",
+        border: "1px solid rgba(255, 255, 255, 0.1)",
+        borderRadius: "10px",
+        padding: "12px 14px",
         marginBottom: "16px",
-        boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)"
+        boxShadow: "0 2px 12px rgba(0, 0, 0, 0.25)"
       }}>
         <textarea
-          className="hk-input__textarea"
           rows={3}
           style={{
             width: "100%",
-            minHeight: "76px",
-            maxHeight: "140px",
+            minHeight: "72px",
             background: "transparent",
             border: "none",
             outline: "none",
-            color: "var(--hk-text-primary)",
+            color: "#ffffff",
             fontFamily: "var(--hk-font-jp)",
-            fontSize: "15px",
+            fontSize: "14.5px",
             lineHeight: "1.6",
             padding: "0",
             boxSizing: "border-box",
-            resize: "vertical",
-            overflowY: "auto"
+            resize: "none"
           }}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
@@ -174,7 +172,7 @@ function TranslateQuickView({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingTop: "8px",
+          paddingTop: "10px",
           borderTop: "1px solid rgba(255, 255, 255, 0.06)",
           marginTop: "6px"
         }}>
@@ -183,11 +181,12 @@ function TranslateQuickView({
               fontSize: "11px",
               color: "var(--hk-text-muted)",
               background: "rgba(255, 255, 255, 0.05)",
-              padding: "2px 6px",
+              padding: "3px 7px",
               borderRadius: "4px",
               display: "inline-flex",
               alignItems: "center",
-              gap: "3px"
+              gap: "4px",
+              fontWeight: 500
             }}>
               <CornerDownLeft size={10} /> Ctrl+Enter
             </span>
@@ -199,9 +198,10 @@ function TranslateQuickView({
                   border: "none",
                   color: "var(--hk-text-muted)",
                   cursor: "pointer",
-                  padding: "2px",
+                  padding: "4px",
                   display: "flex",
-                  alignItems: "center"
+                  alignItems: "center",
+                  borderRadius: "4px"
                 }}
                 title="Clear text"
               >
@@ -217,21 +217,21 @@ function TranslateQuickView({
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
-              padding: "7px 14px",
+              padding: "7px 16px",
               background: inputText.trim() && !loading
                 ? "linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)"
                 : "rgba(255, 255, 255, 0.08)",
               color: inputText.trim() && !loading ? "#ffffff" : "var(--hk-text-muted)",
               border: "none",
               borderRadius: "8px",
-              fontSize: "13px",
+              fontSize: "12.5px",
               fontWeight: 600,
               cursor: inputText.trim() && !loading ? "pointer" : "not-allowed",
               boxShadow: inputText.trim() && !loading ? "0 4px 14px rgba(168, 85, 247, 0.35)" : "none",
               transition: "all 0.2s ease"
             }}
           >
-            {loading ? <RefreshCw size={14} className="hk-spin" /> : <Languages size={14} />} 
+            {loading ? <RefreshCw size={13} className="hk-spin" /> : <Sparkles size={13} />} 
             {t("popup_btn_analyze")}
           </button>
         </div>
@@ -441,7 +441,7 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
         <button
           className="hk-btn hk-btn--secondary"
           style={{ width: '100%', justifyContent: 'center' }}
-          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
+          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("app.html") })}
         >
           <ExternalLink size={16} /> Open Full App
         </button>
@@ -489,50 +489,29 @@ function Popup() {
     { id: "anki", label: "Anki", icon: <BookMarked size={15} /> },
   ];
 
-function HakkutsuLogo({ size = 32 }: { size?: number }) {
-  return (
-    <div style={{
-      width: size,
-      height: size,
-      borderRadius: Math.round(size * 0.28),
-      background: "linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(99, 102, 241, 0.3) 100%)",
-      border: "1px solid rgba(168, 85, 247, 0.45)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      position: "relative",
-      boxShadow: "0 0 14px rgba(168, 85, 247, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.25)",
-      overflow: "hidden",
-      flexShrink: 0
-    }}>
-      <div style={{
-        position: "absolute",
-        inset: 0,
-        background: "radial-gradient(circle at 30% 30%, rgba(192, 132, 252, 0.4), transparent 70%)"
-      }} />
-      <span style={{
-        position: "relative",
-        zIndex: 1,
-        fontFamily: "var(--hk-font-jp), sans-serif",
-        fontSize: Math.round(size * 0.54),
-        fontWeight: 800,
-        background: "linear-gradient(135deg, #ffffff 0%, #e9d5ff 50%, #c084fc 100%)",
-        WebkitBackgroundClip: "text",
-        WebkitTextFillColor: "transparent",
-        letterSpacing: "-0.5px",
-        filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5))"
-      }}>
-        発
-      </span>
-    </div>
-  );
-}
+  const handleOpenAppTab = () => {
+    const appUrl = chrome.runtime.getURL("tabs/app.html");
+    if (typeof chrome !== "undefined" && chrome.tabs?.query) {
+      chrome.tabs.query({ url: appUrl }, (tabs) => {
+        if (tabs && tabs.length > 0 && tabs[0].id) {
+          chrome.tabs.update(tabs[0].id, { active: true });
+          if (tabs[0].windowId) {
+            chrome.windows.update(tabs[0].windowId, { focused: true });
+          }
+        } else {
+          chrome.tabs.create({ url: appUrl });
+        }
+      });
+    } else {
+      window.open(appUrl, "_blank");
+    }
+  };
 
   return (
-    <div className="hk-popup">
-      <header className="hk-header">
-        <div className="hk-header__logo" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <HakkutsuLogo size={32} />
+    <div className="hk-popup" style={{ width: "420px", minHeight: "480px", background: "#09090b", color: "#ffffff", boxSizing: "border-box" }}>
+      <header className="hk-header" style={{ padding: "12px 14px" }}>
+        <div className="hk-header__logo" style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+          <img src={appLogo} alt="Hakkutsu" style={{ width: 28, height: 28, borderRadius: "6px", flexShrink: 0 }} />
           <div>
             <div className="hk-header__title" style={{ fontSize: "15px", lineHeight: "1.2", fontWeight: 700 }}>Hakkutsu</div>
             <div style={{ fontSize: "10px", color: "var(--hk-text-muted)" }}>{t("popup_subtitle")}</div>
@@ -566,7 +545,7 @@ function HakkutsuLogo({ size = 32 }: { size?: number }) {
 
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") })}
+            onClick={handleOpenAppTab}
             title={t("popup_btn_app")}
             style={{
               padding: "4px 8px",

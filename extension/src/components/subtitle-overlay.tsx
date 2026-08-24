@@ -695,14 +695,23 @@ export const SubtitleOverlay = ({
         className={`hk-yt-btn ${isEnabled ? "is-active" : "is-off"} ${error ? "is-error" : ""}`}
         onClick={(e) => {
           e.stopPropagation();
+          if (!subtitleData && error) {
+            setShowSelectModal(true);
+            return;
+          }
           onToggleEnabled();
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setShowSelectModal(true);
         }}
         title={
           error
-            ? `Hakkutsu: ${error}`
+            ? `Hakkutsu: ${error} · Click to Select Subtitles`
             : subtitleData
-              ? `Hakkutsu (${subtitleData.trackName}) · Click to toggle`
-              : "Hakkutsu Subtitles"
+              ? `Hakkutsu (${subtitleData.trackName}) · Click to toggle · Right click for tracks`
+              : "Hakkutsu Subtitles · Click to Select"
         }
       >
         <div className="hk-yt-btn__icon-wrapper">
@@ -977,40 +986,74 @@ export const SubtitleOverlay = ({
             bottom: "18%",
             transform: "translateX(-50%)",
             zIndex: 70,
-            maxWidth: "70%",
-            padding: "9px 14px",
+            maxWidth: "75%",
+            padding: "12px 18px",
             border: "1px solid rgba(248, 113, 113, 0.75)",
-            borderRadius: 8,
-            background: "rgba(69, 10, 10, 0.94)",
+            borderRadius: "10px",
+            background: "rgba(30, 10, 10, 0.95)",
             color: "#fee2e2",
-            fontSize: 14,
+            fontSize: "13.5px",
             fontWeight: 600,
             textAlign: "center",
+            boxShadow: "0 8px 30px rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "6px",
+            pointerEvents: "auto",
           }}
         >
-          <div>
+          <div style={{ lineHeight: 1.4 }}>
             {error === "Video này không có phụ đề."
               ? error
               : `Hakkutsu không tải được phụ đề: ${error}`}
           </div>
-          {requiresPageReload && (
+
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowSelectModal(true);
+              }}
               style={{
-                marginTop: 8,
-                padding: "7px 12px",
-                border: "1px solid rgba(254, 226, 226, 0.7)",
-                borderRadius: 6,
-                background: "#fee2e2",
-                color: "#7f1d1d",
+                padding: "8px 16px",
+                background: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
+                border: "none",
+                borderRadius: "8px",
+                color: "#fff",
+                fontSize: "12.5px",
                 fontWeight: 700,
                 cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 2px 10px rgba(168, 85, 247, 0.45)",
+                pointerEvents: "auto",
               }}
             >
-              Tải lại trang
+              <Layers size={14} /> Select Subtitles (Tracks & Jimaku)
             </button>
-          )}
+
+            {requiresPageReload && (
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                style={{
+                  padding: "7px 12px",
+                  border: "1px solid rgba(254, 226, 226, 0.7)",
+                  borderRadius: "6px",
+                  background: "#fee2e2",
+                  color: "#7f1d1d",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Tải lại trang
+              </button>
+            )}
+          </div>
         </div>
       )}
 
