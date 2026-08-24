@@ -7,10 +7,10 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "dev": "pnpm exec plasmo dev",
-    "build": "pnpm exec plasmo build",
-    "build:firefox": "pnpm exec plasmo build --target=firefox-mv2",
-    "package": "pnpm exec plasmo package",
+    "dev": "node ./run-plasmo.cjs dev",
+    "build": "node ./run-plasmo.cjs build",
+    "build:firefox": "node ./run-plasmo.cjs build --target=firefox-mv2",
+    "package": "node ./run-plasmo.cjs package",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
