@@ -74,27 +74,25 @@ export function SettingsView({
                 })}
               </div>
 
-              {currentLang === "vi" && (
-                <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid rgba(255, 255, 255, 0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div>
-                    <label htmlFor="showHanViet" className="hk-settings-row__label" style={{ cursor: "pointer" }}>
-                      {t("settings_hanviet", currentLang)}
-                    </label>
-                    <div className="hk-settings-row__desc">
-                      {t("settings_hanviet_desc", currentLang)}
-                    </div>
-                  </div>
-                  <label className="hk-toggle" htmlFor="showHanViet">
-                    <input
-                      id="showHanViet"
-                      type="checkbox"
-                      checked={settings.showHanViet !== false}
-                      onChange={(e) => onUpdate({ showHanViet: e.target.checked })}
-                    />
-                    <span className="hk-toggle__slider" />
+              <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid rgba(255, 255, 255, 0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <label htmlFor="showHanViet" className="hk-settings-row__label" style={{ cursor: "pointer" }}>
+                    {t("settings_hanviet", currentLang)}
                   </label>
+                  <div className="hk-settings-row__desc">
+                    {t("settings_hanviet_desc", currentLang)}
+                  </div>
                 </div>
-              )}
+                <label className="hk-toggle" htmlFor="showHanViet">
+                  <input
+                    id="showHanViet"
+                    type="checkbox"
+                    checked={settings.showHanViet !== false}
+                    onChange={(e) => onUpdate({ showHanViet: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
             </div>
           </div>
         </section>

@@ -88,7 +88,7 @@ export const translations = {
     vocab_label_reading: "Cách đọc (Hiragana)",
     vocab_label_word_furigana: "Furigana của từ",
     vocab_label_jlpt: "Cấp độ JLPT",
-    vocab_label_meaning: "Ý nghĩa tiếng Việt",
+    vocab_label_meaning: "Ý nghĩa",
     vocab_label_hanviet: "Âm Hán-Việt",
     vocab_label_sentence: "Câu ví dụ (Tiếng Nhật)",
     vocab_label_sentence_furigana: "Furigana câu ví dụ",
@@ -111,13 +111,29 @@ export const translations = {
     srs_reviewed_today: "Đã ôn hôm nay",
 
     // Dashboard Overview
-    dash_title: "Tổng quan học tập",
+    dash_title: "Trung tâm học tập",
+    dash_greeting_morning: "Chào buổi sáng",
+    dash_greeting_afternoon: "Chào buổi chiều",
+    dash_greeting_evening: "Chào buổi tối",
+    dash_daily_goal: "Mục tiêu hàng ngày",
+    dash_daily_goal_sub: "thẻ đã hoàn thành hôm nay",
+    dash_streak_days: "ngày chuỗi học",
     dash_total_vocab: "Tổng từ đã lưu",
     dash_cards_due: "Cần ôn hôm nay",
-    dash_retention: "Tỉ lệ nhớ",
-    dash_cards_studied: "Đã ôn tập",
+    dash_retention: "Tỉ lệ nhớ tốt",
+    dash_cards_studied: "Đã ôn hôm nay",
     dash_recent_activity: "Hoạt động gần đây",
-    dash_jlpt_distribution: "Phân bổ theo cấp độ JLPT",
+    dash_forecast_title: "Dự báo lịch ôn tập 7 ngày tới",
+    dash_forecast_desc: "Số lượng thẻ dự kiến cần ôn theo từng ngày trong tuần",
+    dash_today: "Hôm nay",
+    dash_jlpt_mastery: "Tiến độ từ vựng theo JLPT",
+    dash_jlpt_mastery_sub: "Phân bổ từ vựng đã lưu từ cấp độ N5 đến N1",
+    dash_unranked: "Chưa xếp loại",
+    dash_recent_vocab: "Từ vựng vừa lưu gần đây",
+    dash_recent_vocab_sub: "Khám phá và nghe lại các từ mới được thêm vào kho",
+    dash_view_all_vocab: "Xem toàn bộ kho từ",
+    dash_start_review: "Bắt đầu ôn tập ngay",
+    dash_no_reviews_today: "Đã xong hết thẻ cần ôn!",
     dash_maturity_title: "Phân loại trạng thái ghi nhớ",
     dash_maturity_dist: "Phân bổ độ trưởng thành thẻ",
     dash_maturity_new: "Từ mới",
@@ -132,10 +148,10 @@ export const translations = {
     settings_lang_section: "Ngôn ngữ & Dịch thuật",
     settings_lang_label: "Ngôn ngữ đích (Target Language)",
     settings_lang_desc: "Ngôn ngữ hiển thị giao diện, tra từ điển, dịch thuật AI và Google Translate.",
-    settings_lang_vi: "Tiếng Việt (Hán-Việt, Mazii, UI Tiếng Việt)",
+    settings_lang_vi: "Tiếng Việt (Mazii, UI Tiếng Việt)",
     settings_lang_en: "English (Jisho, JMdict, English UI)",
     
-    settings_hanviet: "Hiển thị âm Hán-Việt",
+    settings_hanviet: "Hiển thị âm Hán-Việt (Sino-Vietnamese)",
     settings_hanviet_desc: "Hiển thị phiên âm Hán-Việt cho các chữ Hán (Kanji)",
     
     settings_llm_section: "Dịch & Phân tích AI",
@@ -249,7 +265,7 @@ export const translations = {
     vocab_label_reading: "Reading (Hiragana)",
     vocab_label_word_furigana: "Word Furigana",
     vocab_label_jlpt: "JLPT Level",
-    vocab_label_meaning: "English Meaning",
+    vocab_label_meaning: "Meaning",
     vocab_label_hanviet: "Sino-Vietnamese Sound",
     vocab_label_sentence: "Example Sentence (Japanese)",
     vocab_label_sentence_furigana: "Sentence Furigana",
@@ -272,13 +288,29 @@ export const translations = {
     srs_reviewed_today: "Reviewed today",
 
     // Dashboard Overview
-    dash_title: "Learning Overview",
+    dash_title: "Learning Hub",
+    dash_greeting_morning: "Good morning",
+    dash_greeting_afternoon: "Good afternoon",
+    dash_greeting_evening: "Good evening",
+    dash_daily_goal: "Daily Goal",
+    dash_daily_goal_sub: "cards reviewed today",
+    dash_streak_days: "day study streak",
     dash_total_vocab: "Saved Words",
     dash_cards_due: "Cards Due Today",
-    dash_retention: "Retention Rate",
-    dash_cards_studied: "Reviews Done",
+    dash_retention: "Memory Retention",
+    dash_cards_studied: "Studied Today",
     dash_recent_activity: "Recent Activity",
-    dash_jlpt_distribution: "JLPT Level Distribution",
+    dash_forecast_title: "7-Day SRS Due Forecast",
+    dash_forecast_desc: "Anticipated review load for the upcoming week",
+    dash_today: "Today",
+    dash_jlpt_mastery: "JLPT Vocabulary Breakdown",
+    dash_jlpt_mastery_sub: "Distribution of saved words from N5 to N1",
+    dash_unranked: "Unranked",
+    dash_recent_vocab: "Recently Added Words",
+    dash_recent_vocab_sub: "Quick look and audio playback of latest cards",
+    dash_view_all_vocab: "View all vocabulary",
+    dash_start_review: "Start Review Session",
+    dash_no_reviews_today: "All caught up for today!",
     dash_maturity_title: "Retention Breakdown",
     dash_maturity_dist: "Maturity Distribution",
     dash_maturity_new: "New",
@@ -293,7 +325,7 @@ export const translations = {
     settings_lang_section: "Target Language & Translations",
     settings_lang_label: "Target Language",
     settings_lang_desc: "Controls UI language, dictionary lookups, AI translations, and Google Translate target.",
-    settings_lang_vi: "Tiếng Việt (Hán-Việt, Mazii, Vietnamese UI)",
+    settings_lang_vi: "Tiếng Việt (Mazii, Vietnamese UI)",
     settings_lang_en: "English (Jisho, JMdict, English UI)",
     
     settings_hanviet: "Show Sino-Vietnamese (Hán-Việt)",
@@ -342,8 +374,8 @@ export function useTranslation() {
     ? settings.targetLanguage 
     : "vi";
 
-  // Han-Viet is enabled only when target language is Vietnamese AND showHanViet is true
-  const showHanViet = lang === "vi" && settings.showHanViet !== false;
+  // Han-Viet is enabled whenever settings.showHanViet is true (supports both EN and VI)
+  const showHanViet = settings.showHanViet !== false;
 
   return {
     t: (key: TranslationKey) => translations[lang][key] || translations.en[key] || key,

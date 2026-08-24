@@ -558,7 +558,7 @@ function HakkutsuLogo({ size = 32 }: { size?: number }) {
 
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
+            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") })}
             title={t("popup_btn_app")}
             style={{
               padding: "4px 8px",
