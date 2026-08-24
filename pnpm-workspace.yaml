@@ -1,6 +1,8 @@
 packages:
   - 'extension'
 
+nodeLinker: hoisted
+
 allowBuilds:
   '@firebase/util': true
   '@parcel/watcher': true
