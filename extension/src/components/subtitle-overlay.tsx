@@ -514,32 +514,31 @@ export const SubtitleOverlay = ({
     >
       <button
         type="button"
-        role="switch"
-        aria-checked={isEnabled}
+        aria-label="Hakkutsu Subtitles"
+        aria-pressed={isEnabled}
         disabled={loading}
-        className={`hk-yt-switch ${isEnabled ? "is-on" : ""} ${error ? "is-error" : ""}`}
+        className={`hk-yt-btn ${isEnabled ? "is-active" : "is-off"} ${error ? "is-error" : ""}`}
         onClick={(e) => {
           e.stopPropagation();
           onToggleEnabled();
         }}
         title={
-          error ||
-          (subtitleData
-            ? `${subtitleData.trackName} · ${subtitleSourceLabel}`
-            : "Hakkutsu Subtitles")
+          error
+            ? `Hakkutsu: ${error}`
+            : subtitleData
+              ? `Hakkutsu (${subtitleData.trackName}) · Click to toggle`
+              : "Hakkutsu Subtitles"
         }
       >
-        <div className="hk-yt-switch-track">
-          <div className="hk-yt-switch-thumb">
-            {loading ? (
-              <span className="hk-spinner-small" />
-            ) : error ? (
-              <span className="hk-error-mark-small">!</span>
-            ) : (
-              <span className="hk-yt-switch-icon">発</span>
-            )}
-          </div>
+        <div className="hk-yt-btn__icon-wrapper">
+          {loading ? (
+            <div className="hk-yt-btn__spinner" />
+          ) : (
+            <span className="hk-yt-btn__kanji">発</span>
+          )}
+          {error && <span className="hk-yt-btn__badge hk-yt-btn__badge--error" />}
         </div>
+        <div className="hk-yt-btn__active-bar" />
       </button>
       
       {showSettings && (

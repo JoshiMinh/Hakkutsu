@@ -12,7 +12,7 @@ import type {
 } from "plasmo";
 import { useEffect, useState, useRef, useCallback } from "react";
 import type { SubtitleSegment, SubtitleFetchResult } from "~lib/types";
-import { youtubeSubtitleCss, youtubeToolbarCss } from "./youtube-subtitle-styles";
+import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/youtube-subtitle-styles";
 import { SubtitleOverlay, type SubtitleSettings } from "~components/subtitle-overlay";
 import { useSettingsStore } from "~lib/utils/settings";
 import { fetchTranscriptPanelSubtitles } from "~lib/services/youtube-transcript-dom";
@@ -24,14 +24,14 @@ import {
 
 export const config: PlasmoCSConfig = {
   matches: [
-    "https://www.youtube.com/watch*",
-    "https://www.youtube.com/shorts/*",
-    "https://www.youtube.com/live/*",
+    "https://www.youtube.com/*",
   ],
 };
 
 export const getOverlayAnchor: PlasmoGetOverlayAnchor = async () =>
-  document.querySelector("#movie_player") || document.querySelector(".html5-video-player");
+  document.querySelector("#movie_player") ||
+  document.querySelector(".html5-video-player") ||
+  document.querySelector("video");
 
 export const getShadowHostId = () => "hakkutsu-youtube-subtitles-host";
 
@@ -39,39 +39,50 @@ export const mountShadowHost: PlasmoMountShadowHost = async ({
   shadowHost,
   mountState,
 }) => {
-  const player =
-    (mountState?.overlayTargetList?.[0] as HTMLElement | undefined) ||
-    document.querySelector<HTMLElement>("#movie_player") ||
-    document.querySelector<HTMLElement>(".html5-video-player");
+  const mountToPlayer = () => {
+    const player =
+      (mountState?.overlayTargetList?.[0] as HTMLElement | undefined) ||
+      document.querySelector<HTMLElement>("#movie_player") ||
+      document.querySelector<HTMLElement>(".html5-video-player");
 
-  if (!player) {
-    throw new Error("Hakkutsu: YouTube player container not found");
-  }
+    if (!player) return false;
 
-  const host = shadowHost as HTMLElement;
-  Object.assign(host.style, {
-    position: "absolute",
-    inset: "0",
-    width: "100%",
-    height: "100%",
-    display: "block",
-    overflow: "hidden",
-    zIndex: "70",
-    pointerEvents: "none",
-  });
-  player.appendChild(host);
-
-  const shadowContainer = host.shadowRoot?.getElementById(
-    "plasmo-shadow-container"
-  );
-  if (shadowContainer) {
-    Object.assign(shadowContainer.style, {
+    const host = shadowHost as HTMLElement;
+    Object.assign(host.style, {
       position: "absolute",
       inset: "0",
       width: "100%",
       height: "100%",
+      display: "block",
+      overflow: "hidden",
+      zIndex: "70",
       pointerEvents: "none",
     });
+
+    if (!player.contains(host)) {
+      player.appendChild(host);
+    }
+
+    const shadowContainer = host.shadowRoot?.getElementById(
+      "plasmo-shadow-container"
+    );
+    if (shadowContainer) {
+      Object.assign(shadowContainer.style, {
+        position: "absolute",
+        inset: "0",
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+      });
+    }
+    return true;
+  };
+
+  if (!mountToPlayer()) {
+    const interval = setInterval(() => {
+      if (mountToPlayer()) clearInterval(interval);
+    }, 250);
+    setTimeout(() => clearInterval(interval), 15000);
   }
 };
 

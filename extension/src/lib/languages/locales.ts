@@ -1,0 +1,354 @@
+/**
+ * UI Internationalization Strings for Hakkutsu.
+ * Separates English and Vietnamese UI text completely with clean extensibility.
+ */
+
+import { useSettingsStore } from "~lib/utils/settings";
+
+export const translations = {
+  vi: {
+    // Navigation & Tabs
+    nav_dashboard: "Tổng quan",
+    nav_review: "Ôn tập SRS",
+    nav_vocabulary: "Từ vựng",
+    nav_settings: "Cài đặt",
+    app_subtitle: "Học tập & Cài đặt",
+    
+    // Popup & Quick Translate (Short, single-line tabs)
+    popup_title: "Hakkutsu",
+    popup_subtitle: "Học tiếng Nhật đắm chìm",
+    popup_tab_translate: "Dịch",
+    popup_tab_review: "Ôn tập",
+    popup_tab_anki: "Anki",
+    popup_tab_settings: "Cài đặt",
+    popup_input_placeholder: "Nhập câu hoặc từ tiếng Nhật để phân tích...",
+    popup_btn_analyze: "Phân tích",
+    popup_analyzing: "Đang phân tích...",
+    popup_error_no_japanese: "Vui lòng nhập văn bản tiếng Nhật.",
+    popup_error_generic: "Đã xảy ra lỗi khi phân tích văn bản.",
+    popup_empty_state: "Nhập hoặc bôi đen văn bản tiếng Nhật trên trang web để tra từ và phân tích ngữ pháp.",
+    popup_fallback_badge: "Dịch bằng Google Translate",
+    popup_llm_badge: "AI Phân tích",
+    popup_btn_ocr: "Chụp OCR",
+    popup_btn_app: "Mở App",
+    popup_ready: "Sẵn sàng phân tích.",
+    
+    // Definition Card
+    def_reading: "Cách đọc",
+    def_hanviet: "Hán-Việt",
+    def_surface_root: "Từ gốc của",
+    def_grammar_note: "Biến đổi trong câu",
+    def_dict_label: "🇻🇳 Nghĩa tiếng Việt",
+    def_dict_count: "nghĩa",
+    def_dict_empty: "Chưa có dữ liệu từ điển cho từ này.",
+    def_btn_add_srs: "Thêm vào SRS",
+    def_btn_added_srs: "Đã thêm vào SRS",
+    def_btn_export_anki: "Xuất Anki",
+    def_anki_connected: "Xuất thẻ sang Anki",
+    def_anki_disconnected: "AnkiConnect chưa kết nối",
+    def_play_audio_jp: "Phát âm tiếng Nhật",
+    def_play_audio_trans: "Phát âm bản dịch",
+    def_copy_word: "Sao chép từ",
+    def_copied: "Đã sao chép",
+
+    // Word List / Vocabulary
+    vocab_title: "Kho từ vựng",
+    vocab_subtitle: "Quản lý và ôn tập các từ vựng đã lưu",
+    vocab_total_words: "từ đã lưu",
+    vocab_search_placeholder: "Tìm kiếm từ vựng, cách đọc, nghĩa...",
+    vocab_filter_all: "Tất cả",
+    vocab_filter_new: "Mới",
+    vocab_filter_learning: "Đang học",
+    vocab_filter_graduated: "Thành thục",
+    vocab_sort_newest: "Mới nhất",
+    vocab_sort_due_asc: "Hạn ôn (gần nhất)",
+    vocab_sort_due_desc: "Hạn ôn (xa nhất)",
+    vocab_sort_word_asc: "Từ (A-Z)",
+    vocab_btn_add: "Thêm từ mới",
+    vocab_btn_export_anki: "Xuất sang Anki",
+    vocab_btn_export_csv: "Xuất file CSV",
+    vocab_btn_delete_all: "Xóa toàn bộ",
+    vocab_th_word: "Từ vựng",
+    vocab_th_reading: "Cách đọc",
+    vocab_th_meaning: "Ý nghĩa",
+    vocab_th_hanviet: "Âm Hán-Việt",
+    vocab_th_jlpt: "JLPT",
+    vocab_th_sentence: "Câu ví dụ",
+    vocab_th_status: "Trạng thái",
+    vocab_th_actions: "Thao tác",
+    vocab_empty: "Chưa có từ vựng nào trong kho lưu trữ.",
+    vocab_empty_search: "Không tìm thấy từ vựng nào phù hợp.",
+    vocab_modal_add_title: "Thêm từ vựng mới",
+    vocab_modal_edit_title: "Chỉnh sửa từ vựng",
+    vocab_modal_sec_details: "Chi tiết từ vựng",
+    vocab_modal_sec_sentence: "Ngữ cảnh câu ví dụ",
+    vocab_modal_save: "Lưu thay đổi",
+    vocab_modal_cancel: "Hủy bỏ",
+    vocab_label_word: "Từ tiếng Nhật (Kanji/Kana)",
+    vocab_label_reading: "Cách đọc (Hiragana)",
+    vocab_label_word_furigana: "Furigana của từ",
+    vocab_label_jlpt: "Cấp độ JLPT",
+    vocab_label_meaning: "Ý nghĩa tiếng Việt",
+    vocab_label_hanviet: "Âm Hán-Việt",
+    vocab_label_sentence: "Câu ví dụ (Tiếng Nhật)",
+    vocab_label_sentence_furigana: "Furigana câu ví dụ",
+    vocab_label_sentence_meaning: "Dịch nghĩa câu ví dụ",
+    vocab_confirm_delete: "Bạn có chắc muốn xóa từ vựng này không?",
+    vocab_confirm_delete_all: "Bạn có chắc muốn xóa TOÀN BỘ từ vựng? Thao tác này không thể hoàn tác.",
+
+    // SRS Review
+    srs_title: "Phiên ôn tập Spaced Repetition",
+    srs_no_cards_title: "Tuyệt vời! Đã hoàn thành ôn tập",
+    srs_no_cards_desc: "Hiện không có thẻ nào cần ôn tập hôm nay. Hãy tiếp tục khám phá thêm nội dung mới!",
+    srs_btn_show_answer: "Hiện đáp án",
+    srs_btn_again: "Quên (1 ngày)",
+    srs_btn_hard: "Khó (2 ngày)",
+    srs_btn_good: "Tốt (3 ngày)",
+    srs_btn_easy: "Dễ (4 ngày)",
+    srs_card_count: "Thẻ cần ôn",
+    srs_interval: "Khoảng cách",
+    srs_streak: "Chuỗi nhớ",
+    srs_reviewed_today: "Đã ôn hôm nay",
+
+    // Dashboard Overview
+    dash_title: "Tổng quan học tập",
+    dash_total_vocab: "Tổng từ đã lưu",
+    dash_cards_due: "Cần ôn hôm nay",
+    dash_retention: "Tỉ lệ nhớ",
+    dash_cards_studied: "Đã ôn tập",
+    dash_recent_activity: "Hoạt động gần đây",
+    dash_jlpt_distribution: "Phân bổ theo cấp độ JLPT",
+    dash_maturity_title: "Phân loại trạng thái ghi nhớ",
+    dash_maturity_dist: "Phân bổ độ trưởng thành thẻ",
+    dash_maturity_new: "Từ mới",
+    dash_maturity_learning: "Đang học",
+    dash_maturity_review: "Đang ôn",
+    dash_maturity_graduated: "Thành thục",
+
+    // Settings
+    settings_title: "Cài đặt ứng dụng",
+    settings_subtitle: "Tùy chỉnh ngôn ngữ, AI, từ điển và tiện ích Hakkutsu",
+    
+    settings_lang_section: "Ngôn ngữ & Dịch thuật",
+    settings_lang_label: "Ngôn ngữ đích (Target Language)",
+    settings_lang_desc: "Ngôn ngữ hiển thị giao diện, tra từ điển, dịch thuật AI và Google Translate.",
+    settings_lang_vi: "Tiếng Việt (Hán-Việt, Mazii, UI Tiếng Việt)",
+    settings_lang_en: "English (Jisho, JMdict, English UI)",
+    
+    settings_hanviet: "Hiển thị âm Hán-Việt",
+    settings_hanviet_desc: "Hiển thị phiên âm Hán-Việt cho các chữ Hán (Kanji)",
+    
+    settings_llm_section: "Dịch & Phân tích AI",
+    settings_llm_provider: "Nhà cung cấp LLM",
+    settings_llm_provider_desc: "Chọn mô hình AI phân tích câu và bóc tách ngữ pháp",
+    settings_llm_key: "Khóa API Key",
+    settings_llm_key_desc: "Khóa API lưu cục bộ trên trình duyệt (Nếu trống, sẽ tự động dùng Google Translate)",
+    settings_llm_custom_url: "Địa chỉ Custom API",
+    settings_llm_custom_url_desc: "Ví dụ: endpoint tương thích OpenAI hoặc OpenRouter",
+    
+    settings_study_section: "Tùy chọn học tập",
+    settings_ocr: "Bật OCR cục bộ",
+    settings_ocr_desc: "Nhận diện chữ trên ảnh offline (tải mô hình ~120MB trong lần đầu)",
+    settings_autodetect: "Tự động phát hiện tiếng Nhật",
+    settings_autodetect_desc: "Tự động quét và hỗ trợ trên các trang có văn bản tiếng Nhật",
+    settings_furigana: "Hiện Furigana",
+    settings_furigana_desc: "Hiển thị cách đọc Hiragana phía trên chữ Hán",
+    
+    settings_anki_section: "Tích hợp AnkiConnect",
+    settings_anki_deck: "Tên Deck Anki",
+    settings_anki_deck_desc: "Deck lưu thẻ mặc định khi xuất sang Anki",
+    settings_anki_model: "Loại thẻ (Note Type)",
+    settings_anki_model_desc: "Mẫu Note Type dùng trong Anki",
+    settings_anki_status_running: "AnkiConnect đang chạy",
+    settings_anki_status_disconnected: "AnkiConnect chưa kết nối",
+    settings_anki_ready: "Sẵn sàng xuất flashcard.",
+    settings_anki_start_prompt: "Vui lòng mở Anki và đảm bảo đã cài AnkiConnect.",
+    
+    settings_footer_built: "Tiện ích mở rộng hỗ trợ học tiếng Nhật đắm chìm.",
+  },
+
+  en: {
+    // Navigation & Tabs
+    nav_dashboard: "Dashboard",
+    nav_review: "SRS Review",
+    nav_vocabulary: "Vocabulary",
+    nav_settings: "Settings",
+    app_subtitle: "Learning & Settings",
+    
+    // Popup & Quick Translate (Short, single-line tabs)
+    popup_title: "Hakkutsu",
+    popup_subtitle: "Japanese Immersion",
+    popup_tab_translate: "Translate",
+    popup_tab_review: "Reviews",
+    popup_tab_anki: "Anki",
+    popup_tab_settings: "Settings",
+    popup_input_placeholder: "Enter Japanese text or sentence to analyze...",
+    popup_btn_analyze: "Analyze",
+    popup_analyzing: "Analyzing...",
+    popup_error_no_japanese: "Please enter Japanese text.",
+    popup_error_generic: "An error occurred while analyzing the text.",
+    popup_empty_state: "Type or select Japanese text on web pages to look up words and grammatical breakdown.",
+    popup_fallback_badge: "Translated via Google Translate",
+    popup_llm_badge: "AI Analysis",
+    popup_btn_ocr: "OCR",
+    popup_btn_app: "App",
+    popup_ready: "Ready to translate.",
+    
+    // Definition Card
+    def_reading: "Reading",
+    def_hanviet: "Sino-Vietnamese",
+    def_surface_root: "Base form of",
+    def_grammar_note: "Sentence Form Note",
+    def_dict_label: "🇬🇧 JMdict / English Definition",
+    def_dict_count: "senses",
+    def_dict_empty: "No dictionary entries found for this word.",
+    def_btn_add_srs: "Add to SRS",
+    def_btn_added_srs: "Added to SRS",
+    def_btn_export_anki: "Export to Anki",
+    def_anki_connected: "Export note to Anki",
+    def_anki_disconnected: "AnkiConnect not connected",
+    def_play_audio_jp: "Play Japanese audio",
+    def_play_audio_trans: "Play translation audio",
+    def_copy_word: "Copy word",
+    def_copied: "Copied",
+
+    // Word List / Vocabulary
+    vocab_title: "Vocabulary Deck",
+    vocab_subtitle: "Manage and review your saved Japanese vocabulary",
+    vocab_total_words: "words total",
+    vocab_search_placeholder: "Search word, reading, meaning...",
+    vocab_filter_all: "All",
+    vocab_filter_new: "New",
+    vocab_filter_learning: "Learning",
+    vocab_filter_graduated: "Graduated",
+    vocab_sort_newest: "Newest First",
+    vocab_sort_due_asc: "Due Date (Soonest)",
+    vocab_sort_due_desc: "Due Date (Furthest)",
+    vocab_sort_word_asc: "Word (A-Z)",
+    vocab_btn_add: "Add New Word",
+    vocab_btn_export_anki: "Export to Anki",
+    vocab_btn_export_csv: "Export CSV",
+    vocab_btn_delete_all: "Delete All",
+    vocab_th_word: "Word",
+    vocab_th_reading: "Reading",
+    vocab_th_meaning: "Meaning",
+    vocab_th_hanviet: "Sino-Vietnamese",
+    vocab_th_jlpt: "JLPT",
+    vocab_th_sentence: "Example Sentence",
+    vocab_th_status: "Status",
+    vocab_th_actions: "Actions",
+    vocab_empty: "No vocabulary saved yet.",
+    vocab_empty_search: "No matching vocabulary found.",
+    vocab_modal_add_title: "Add New Word",
+    vocab_modal_edit_title: "Edit Vocabulary",
+    vocab_modal_sec_details: "Word Details",
+    vocab_modal_sec_sentence: "Sentence Context",
+    vocab_modal_save: "Save Changes",
+    vocab_modal_cancel: "Cancel",
+    vocab_label_word: "Japanese Word (Kanji/Kana)",
+    vocab_label_reading: "Reading (Hiragana)",
+    vocab_label_word_furigana: "Word Furigana",
+    vocab_label_jlpt: "JLPT Level",
+    vocab_label_meaning: "English Meaning",
+    vocab_label_hanviet: "Sino-Vietnamese Sound",
+    vocab_label_sentence: "Example Sentence (Japanese)",
+    vocab_label_sentence_furigana: "Sentence Furigana",
+    vocab_label_sentence_meaning: "Sentence Meaning",
+    vocab_confirm_delete: "Are you sure you want to delete this word?",
+    vocab_confirm_delete_all: "Are you sure you want to delete ALL vocabulary? This cannot be undone.",
+
+    // SRS Review
+    srs_title: "Spaced Repetition Review",
+    srs_no_cards_title: "Awesome! Reviews Completed",
+    srs_no_cards_desc: "No cards are currently due for review. Go explore more Japanese content!",
+    srs_btn_show_answer: "Show Answer",
+    srs_btn_again: "Again (1d)",
+    srs_btn_hard: "Hard (2d)",
+    srs_btn_good: "Good (3d)",
+    srs_btn_easy: "Easy (4d)",
+    srs_card_count: "Cards Due",
+    srs_interval: "Interval",
+    srs_streak: "Streak",
+    srs_reviewed_today: "Reviewed today",
+
+    // Dashboard Overview
+    dash_title: "Learning Overview",
+    dash_total_vocab: "Saved Words",
+    dash_cards_due: "Cards Due Today",
+    dash_retention: "Retention Rate",
+    dash_cards_studied: "Reviews Done",
+    dash_recent_activity: "Recent Activity",
+    dash_jlpt_distribution: "JLPT Level Distribution",
+    dash_maturity_title: "Retention Breakdown",
+    dash_maturity_dist: "Maturity Distribution",
+    dash_maturity_new: "New",
+    dash_maturity_learning: "Learning",
+    dash_maturity_review: "Review",
+    dash_maturity_graduated: "Graduated",
+
+    // Settings
+    settings_title: "App Settings",
+    settings_subtitle: "Configure target language, AI, dictionaries, and immersion tools",
+    
+    settings_lang_section: "Target Language & Translations",
+    settings_lang_label: "Target Language",
+    settings_lang_desc: "Controls UI language, dictionary lookups, AI translations, and Google Translate target.",
+    settings_lang_vi: "Tiếng Việt (Hán-Việt, Mazii, Vietnamese UI)",
+    settings_lang_en: "English (Jisho, JMdict, English UI)",
+    
+    settings_hanviet: "Show Sino-Vietnamese (Hán-Việt)",
+    settings_hanviet_desc: "Display Sino-Vietnamese readings for Kanji characters",
+    
+    settings_llm_section: "Translation & Analysis AI",
+    settings_llm_provider: "LLM Provider",
+    settings_llm_provider_desc: "Select AI engine used for text breakdown and translation",
+    settings_llm_key: "API Key",
+    settings_llm_key_desc: "Stored securely locally (If left blank, Google Translate will be used automatically)",
+    settings_llm_custom_url: "Custom Endpoint URL",
+    settings_llm_custom_url_desc: "E.g., OpenRouter or OpenAI-compatible endpoint",
+    
+    settings_study_section: "Immersion & Study Preferences",
+    settings_ocr: "Enable Local OCR",
+    settings_ocr_desc: "Run OCR models locally in-browser (~120MB download on first run)",
+    settings_autodetect: "Auto-detect Japanese",
+    settings_autodetect_desc: "Automatically detect and assist on Japanese web pages",
+    settings_furigana: "Show Furigana",
+    settings_furigana_desc: "Display phonetic reading above Japanese Kanji",
+    
+    settings_anki_section: "AnkiConnect Integration",
+    settings_anki_deck: "Anki Deck Name",
+    settings_anki_deck_desc: "Target deck name for card exports",
+    settings_anki_model: "Note Type",
+    settings_anki_model_desc: "Anki note model type for new cards",
+    settings_anki_status_running: "AnkiConnect is running",
+    settings_anki_status_disconnected: "AnkiConnect not detected",
+    settings_anki_ready: "Ready to export flashcards.",
+    settings_anki_start_prompt: "Please start Anki and ensure AnkiConnect is installed.",
+    
+    settings_footer_built: "AI-powered Japanese immersion browser extension.",
+  },
+};
+
+export type TranslationKey = keyof typeof translations.en;
+
+export function t(key: TranslationKey, langCode?: string): string {
+  const lang = (langCode === "en" || langCode === "vi") ? langCode : "vi";
+  return translations[lang][key] || translations.en[key] || (key as string);
+}
+
+export function useTranslation() {
+  const { settings } = useSettingsStore();
+  const lang = (settings.targetLanguage === "en" || settings.targetLanguage === "vi") 
+    ? settings.targetLanguage 
+    : "vi";
+
+  // Han-Viet is enabled only when target language is Vietnamese AND showHanViet is true
+  const showHanViet = lang === "vi" && settings.showHanViet !== false;
+
+  return {
+    t: (key: TranslationKey) => translations[lang][key] || translations.en[key] || key,
+    lang,
+    isVietnamese: lang === "vi",
+    showHanViet,
+  };
+}

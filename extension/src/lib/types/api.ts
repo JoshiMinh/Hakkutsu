@@ -76,9 +76,10 @@ export interface WebTranslateItem {
 }
 
 export interface WebTranslateResponse {
-  source_language: "ja";
-  target_language: "vi";
-  items: WebTranslateItem[];
+  source_language?: string;
+  target_language?: string;
+  items?: WebTranslateItem[];
+  translations?: Array<{ id: number; text: string }>;
 }
 
 // ── Subtitles ───────────────────────────────────────────────────────────────

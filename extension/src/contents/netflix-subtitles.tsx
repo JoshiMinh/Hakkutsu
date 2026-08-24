@@ -10,7 +10,7 @@
 import type { PlasmoCSConfig, PlasmoGetOverlayAnchor, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useRef, useCallback } from "react";
 import type { SubtitleSegment } from "~lib/types";
-import { youtubeSubtitleCss, youtubeToolbarCss } from "./youtube-subtitle-styles"; // We can reuse the same CSS
+import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/youtube-subtitle-styles"; // We can reuse the same CSS
 import { SubtitleOverlay, type SubtitleSettings } from "~components/subtitle-overlay";
 import { useSettingsStore } from "~lib/utils/settings";
 

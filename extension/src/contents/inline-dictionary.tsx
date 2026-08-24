@@ -1,4 +1,4 @@
-import type { PlasmoCSConfig } from "plasmo";
+import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useRef } from "react";
 import { X, Loader2, Sparkles, Languages, Zap } from "lucide-react";
 import { containsJapanese } from "~lib/utils/japanese";
@@ -16,23 +16,68 @@ export const config: PlasmoCSConfig = {
 
 import cssText from "data-text:~style.css";
 
-export const getStyle = () => {
+export const getStyle: PlasmoGetStyle = () => {
   const style = document.createElement("style");
-  style.textContent = cssText;
+  style.textContent = cssText + `
+    :host {
+      all: initial;
+      z-index: 2147483647;
+    }
+    .hk-popup {
+      background: #0d0d11 !important;
+      border: 1px solid rgba(255, 255, 255, 0.14) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+      color: #f4f4f5 !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
+      box-sizing: border-box !important;
+    }
+    .hk-popup *, .hk-popup *::before, .hk-popup *::after {
+      box-sizing: border-box !important;
+    }
+    .hk-header {
+      background: #141418 !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+      padding: 10px 14px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      flex-shrink: 0 !important;
+    }
+    .hk-header__logo {
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+    }
+    .hk-header__title {
+      font-size: 14px !important;
+      font-weight: 700 !important;
+      color: #f4f4f5 !important;
+      margin: 0 !important;
+      line-height: 1.2 !important;
+    }
+    .hk-content {
+      padding: 14px !important;
+      overflow-y: auto !important;
+      flex: 1 !important;
+      background: #0d0d11 !important;
+    }
+  `;
   return style;
 };
 
-export const getRootContainer = () => {
-  return new Promise((resolve) => {
-    const checkInterval = setInterval(() => {
-      const rootContainer = document.createElement("div");
-      rootContainer.id = "hakkutsu-inline-dictionary";
-      document.body.appendChild(rootContainer);
-      clearInterval(checkInterval);
-      resolve(rootContainer);
-    }, 137);
-  });
-};
+function cleanJapaneseText(raw: string): string {
+  return raw
+    .trim()
+    .replace(
+      /^[\s\u3000\u3001\u3002\uff0c\uff0e\uff01\uff1f\u300c\u300d\u300e\u300f()（）\[\]【】"'\-—~〜…・]+|[\s\u3000\u3001\u3002\uff0c\uff0e\uff01\uff1f\u300c\u300d\u300e\u300f()（）\[\]【】"'\-—~〜…・]+$/g,
+      ""
+    )
+    .trim();
+}
 
 const InlineDictionary = () => {
   const [position, setPosition] = useState<{
@@ -53,9 +98,16 @@ const InlineDictionary = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const analysisRequestRef = useRef(0);
+  const positionRef = useRef(position);
+  positionRef.current = position;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const isHydratedRef = useRef(isHydrated);
+  isHydratedRef.current = isHydrated;
 
   useEffect(() => {
-    chrome.runtime.sendMessage({ type: "CHECK_ANKI" })
+    chrome.runtime
+      .sendMessage({ type: "CHECK_ANKI" })
       .then((response) => {
         if (response?.type === "ANKI_STATUS") {
           setAnkiConnected(response.payload.connected);
@@ -67,49 +119,113 @@ const InlineDictionary = () => {
   const selectionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    const isClickInsidePopup = (e: MouseEvent): boolean => {
+      const path = (e.composedPath && e.composedPath()) || [];
+      if (
+        containerRef.current &&
+        (containerRef.current.contains(e.target as Node) ||
+          path.includes(containerRef.current))
+      ) {
+        return true;
+      }
+      return path.some(
+        (el: any) =>
+          el?.id === "hakkutsu-inline-dictionary" ||
+          el?.classList?.contains?.("hk-popup")
+      );
+    };
+
     const handleSelection = (e: MouseEvent, isDoubleClick: boolean) => {
-      // Don't trigger if clicked inside the inline dictionary itself
-      if (containerRef.current && e.target instanceof Node && containerRef.current.contains(e.target)) {
+      if (isClickInsidePopup(e)) {
+        return;
+      }
+
+      if (
+        isHydratedRef.current &&
+        settingsRef.current.textAnalysisEnabled === false
+      ) {
         return;
       }
 
       if (selectionTimerRef.current) {
         clearTimeout(selectionTimerRef.current);
+        selectionTimerRef.current = null;
       }
 
       const clientX = e.clientX;
       const clientY = e.clientY;
 
-      selectionTimerRef.current = setTimeout(() => {
-        const selection = window.getSelection();
-        if (!selection || selection.isCollapsed) {
-          if (!isDoubleClick && position) {
+      const processSelection = () => {
+        let rawSelectedText = "";
+        let rect: DOMRect | null = null;
+
+        const activeEl = document.activeElement;
+        if (
+          activeEl &&
+          (activeEl instanceof HTMLInputElement ||
+            activeEl instanceof HTMLTextAreaElement) &&
+          typeof activeEl.selectionStart === "number" &&
+          typeof activeEl.selectionEnd === "number" &&
+          activeEl.selectionStart !== activeEl.selectionEnd
+        ) {
+          rawSelectedText = activeEl.value.substring(
+            activeEl.selectionStart,
+            activeEl.selectionEnd
+          );
+          rect = activeEl.getBoundingClientRect();
+        } else {
+          const selection = window.getSelection();
+          if (selection && !selection.isCollapsed) {
+            rawSelectedText = selection.toString();
+            if (selection.rangeCount > 0) {
+              rect = selection.getRangeAt(0).getBoundingClientRect();
+            }
+          }
+        }
+
+        const selectedText = cleanJapaneseText(rawSelectedText);
+
+        if (!selectedText || !containsJapanese(selectedText)) {
+          if (!isDoubleClick && positionRef.current) {
             setPosition(null);
             window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
           }
           return;
         }
 
-        const selectedText = selection.toString().trim();
-        if (!selectedText || !containsJapanese(selectedText)) return;
-
-        const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-        const rect = range ? range.getBoundingClientRect() : null;
-
         const hasValidRect = rect && (rect.width > 0 || rect.height > 0);
         const x = hasValidRect ? rect.left : clientX;
-        const y = hasValidRect ? rect.bottom + 8 : clientY + 12;
+
+        // Position smartly: place below selection by default, or above if near bottom of viewport
+        const estimatedPanelHeight = 360;
+        const targetY = hasValidRect ? rect.bottom + 8 : clientY + 12;
+        const placeAbove =
+          hasValidRect &&
+          window.innerHeight - rect.bottom < estimatedPanelHeight &&
+          rect.top > estimatedPanelHeight;
+        const y = placeAbove
+          ? Math.max(16, rect.top - estimatedPanelHeight - 8)
+          : targetY;
 
         setPosition({
-          x: Math.max(12, x),
-          y: Math.max(12, y),
+          x: Math.max(16, Math.min(x, window.innerWidth - 340)),
+          y: Math.max(16, y),
           placement: "anchor",
         });
         setInputText(selectedText);
         setPhraseMode(false);
         setSentenceMode(false);
         analyzeText(selectedText, false, true);
-      }, isDoubleClick ? 10 : 40);
+        window.dispatchEvent(new CustomEvent("hakkutsu:analysis-opened"));
+      };
+
+      if (isDoubleClick) {
+        // Immediate processing for double click
+        processSelection();
+      } else {
+        // Slight debounce on normal mouseup to allow drag-selection or double-click to resolve
+        selectionTimerRef.current = setTimeout(processSelection, 120);
+      }
     };
 
     const onMouseUp = (e: MouseEvent) => handleSelection(e, false);
@@ -124,8 +240,12 @@ const InlineDictionary = () => {
 
     const onCustomAnalyze = (e: any) => {
       if (e.detail?.text) {
-        const x = Number.isFinite(e.detail.x) ? e.detail.x : window.innerWidth / 2;
-        const y = Number.isFinite(e.detail.y) ? e.detail.y : window.innerHeight / 2;
+        const x = Number.isFinite(e.detail.x)
+          ? e.detail.x
+          : window.innerWidth / 2;
+        const y = Number.isFinite(e.detail.y)
+          ? e.detail.y
+          : window.innerHeight / 2;
         setPosition({
           x,
           y: y + 8,
@@ -166,22 +286,25 @@ const InlineDictionary = () => {
       window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
     };
 
-    document.addEventListener("mouseup", onMouseUp);
-    document.addEventListener("dblclick", onDoubleClick);
+    document.addEventListener("mouseup", onMouseUp, true);
+    document.addEventListener("dblclick", onDoubleClick, true);
     document.addEventListener("keydown", onKeyDown);
     window.addEventListener("hakkutsu:analyze", onCustomAnalyze);
     window.addEventListener("hakkutsu:analysis-dismiss", onDismissAnalysis);
     window.addEventListener("hakkutsu:token-hover", onTokenHover);
 
     return () => {
-      document.removeEventListener("mouseup", onMouseUp);
-      document.removeEventListener("dblclick", onDoubleClick);
+      if (selectionTimerRef.current) {
+        clearTimeout(selectionTimerRef.current);
+      }
+      document.removeEventListener("mouseup", onMouseUp, true);
+      document.removeEventListener("dblclick", onDoubleClick, true);
       document.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("hakkutsu:analyze", onCustomAnalyze);
       window.removeEventListener("hakkutsu:analysis-dismiss", onDismissAnalysis);
       window.removeEventListener("hakkutsu:token-hover", onTokenHover);
     };
-  }, [position, settings.textAnalysisEnabled, isHydrated]);
+  }, []);
 
   const analyzeText = async (
     text: string,
@@ -267,10 +390,15 @@ const InlineDictionary = () => {
       await chrome.runtime.sendMessage({
         type: "ADD_SRS_CARD",
         payload: {
-          word: selectedTokenData.dictionary_form,
+          word: selectedTokenData.dictionary_form || selectedTokenData.surface,
           reading: selectedTokenData.reading.hiragana,
+          word_furigana: `${selectedTokenData.dictionary_form || selectedTokenData.surface}[${selectedTokenData.reading.hiragana}]`,
           meaning: meanings || "—",
           sentence: result?.text,
+          sentence_furigana: result?.sentence_reading,
+          sentence_meaning: phraseTranslation,
+          vietnamese_sound: selectedTokenData.vietnamese_sound,
+          jlpt: selectedTokenData.jlpt_level,
         },
       });
     } catch (e) {
@@ -331,7 +459,7 @@ const InlineDictionary = () => {
             : (playerRect ? Math.max(16, Math.min(window.innerHeight - 480, playerRect.top + 24)) : 24)
         )
       )
-    : Math.max(16, Math.min(position.y, Math.max(16, window.innerHeight - 520)));
+    : Math.max(16, Math.min(position.y, window.innerHeight - 120));
 
   const panelMaxHeight = Math.min(window.innerHeight - 32, 540);
 
@@ -415,7 +543,9 @@ const InlineDictionary = () => {
             {result.tokens.length > 1 && (
               <div className="hk-dict-section">
                 <div className="hk-dict-label-row">
-                  <span className="hk-dict-label">CÂU GỐC (BẤM TỪ ĐỂ TRA CỤ THỂ)</span>
+                  <span className="hk-dict-label">
+                    {settings.targetLanguage === "en" ? "ORIGINAL SENTENCE (CLICK TO INSPECT)" : "CÂU GỐC (BẤM TỪ ĐỂ TRA CỤ THỂ)"}
+                  </span>
                   {sentenceMode && !phraseMode && !transientMode && (
                     <button
                       className="hk-btn hk-btn--primary hk-btn--sm"
@@ -425,7 +555,7 @@ const InlineDictionary = () => {
                       }}
                       style={{ padding: "3px 8px", fontSize: "11px" }}
                     >
-                      <Sparkles size={12} /> AI phân tích sâu
+                      <Sparkles size={12} /> {settings.targetLanguage === "en" ? "Deep AI Breakdown" : "AI phân tích sâu"}
                     </button>
                   )}
                 </div>
@@ -438,12 +568,12 @@ const InlineDictionary = () => {
               </div>
             )}
 
-            {/* Vietnamese sentence translation */}
+            {/* Target Language sentence translation */}
             {phraseTranslation && (
               <div className="hk-dict-section hk-dict-section--highlight">
                 <div className="hk-dict-label" style={{ color: "#14b8a6" }}>
                   <Languages size={12} style={{ display: "inline-block", marginRight: "4px" }} />
-                  BẢN DỊCH TIẾNG VIỆT
+                  {settings.targetLanguage === "en" ? "ENGLISH TRANSLATION" : "BẢN DỊCH TIẾNG VIỆT"}
                 </div>
                 <div className="hk-translation-text">
                   {phraseTranslation}
@@ -466,8 +596,8 @@ const InlineDictionary = () => {
                 <div className="hk-empty">
                   <p className="hk-empty__text">
                     {transientMode
-                      ? "Rê chuột qua một từ trong phụ đề để xem chi tiết."
-                      : "Chọn một từ tiếng Nhật trong câu để tra từ điển."}
+                      ? (settings.targetLanguage === "en" ? "Hover over a word in the subtitles to inspect." : "Rê chuột qua một từ trong phụ đề để xem chi tiết.")
+                      : (settings.targetLanguage === "en" ? "Select a Japanese word from the sentence to inspect." : "Chọn một từ tiếng Nhật trong câu để tra từ điển.")}
                   </p>
                 </div>
               )}

@@ -5,10 +5,9 @@ import { WordList } from "~components/word-list";
 import { StatsOverview } from "~components/stats-overview";
 import { SettingsView } from "~components/settings-view";
 import { useSettingsStore } from "~lib/utils/settings";
-import { apiClient } from "~lib/services/api-client";
 import type { ExtensionSettings } from "~lib/types";
-import { DEFAULT_SETTINGS } from "~lib/types";
-import "~style.css"; // Ensure styles are loaded
+import { useTranslation } from "~lib/languages/locales";
+import "~style.css";
 import logoUrl from "url:../assets/icon.png";
 
 export default function AppDashboard() {
@@ -16,6 +15,7 @@ export default function AppDashboard() {
     return (localStorage.getItem("hk_active_tab") as any) || "dashboard";
   });
   const { settings, updateSettings } = useSettingsStore();
+  const { t } = useTranslation();
 
   useEffect(() => {
     localStorage.setItem("hk_active_tab", activeTab);
@@ -41,29 +41,29 @@ export default function AppDashboard() {
             <img src={logoUrl} alt="Hakkutsu Logo" style={{ width: 28, height: 28, borderRadius: 6 }} />
             <h1 style={{ fontSize: "20px", fontWeight: "bold", margin: 0, fontFamily: "var(--hk-font-jp)", color: "var(--hk-text-primary)" }}>Hakkutsu</h1>
           </div>
-          <div style={{ fontSize: "12px", color: "var(--hk-text-muted)", paddingLeft: "36px" }}>Learning & Settings</div>
+          <div style={{ fontSize: "12px", color: "var(--hk-text-muted)", paddingLeft: "36px" }}>{t("app_subtitle")}</div>
         </div>
         
         <nav style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <SidebarButton 
             active={activeTab === "dashboard"} 
             onClick={() => setActiveTab("dashboard")}
-            icon={<LayoutDashboard size={18} />} label="Dashboard" 
+            icon={<LayoutDashboard size={18} />} label={t("nav_dashboard")} 
           />
           <SidebarButton 
             active={activeTab === "review"} 
             onClick={() => setActiveTab("review")}
-            icon={<Brain size={18} />} label="Reviews" 
+            icon={<Brain size={18} />} label={t("nav_review")} 
           />
           <SidebarButton 
             active={activeTab === "vocabulary"} 
             onClick={() => setActiveTab("vocabulary")}
-            icon={<BookOpen size={18} />} label="Vocabulary" 
+            icon={<BookOpen size={18} />} label={t("nav_vocabulary")} 
           />
           <SidebarButton 
             active={activeTab === "settings"} 
             onClick={() => setActiveTab("settings")}
-            icon={<SettingsIcon size={18} />} label="Settings" 
+            icon={<SettingsIcon size={18} />} label={t("nav_settings")} 
           />
         </nav>
       </div>
@@ -72,7 +72,7 @@ export default function AppDashboard() {
       <div style={{ flex: 1, padding: "32px", overflowY: "auto", backgroundColor: "var(--hk-bg-primary)" }}>
         {activeTab === "review" && (
           <div style={{ maxWidth: "800px", margin: "0 auto", height: "600px" }}>
-            <h2 style={{ marginBottom: "24px", color: "var(--hk-text-primary)", fontWeight: "bold" }}>Study Session</h2>
+            <h2 style={{ marginBottom: "24px", color: "var(--hk-text-primary)", fontWeight: "bold" }}>{t("srs_title")}</h2>
             <div style={{ height: "500px", border: "1px solid var(--hk-border)", borderRadius: "12px", overflow: "hidden" }}>
               <SrsReview />
             </div>
@@ -85,7 +85,7 @@ export default function AppDashboard() {
         )}
         {activeTab === "dashboard" && (
           <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-            <h2 style={{ marginBottom: "24px", color: "var(--hk-text-primary)", fontWeight: "bold" }}>Overview</h2>
+            <h2 style={{ marginBottom: "24px", color: "var(--hk-text-primary)", fontWeight: "bold" }}>{t("dash_title")}</h2>
             <StatsOverview />
           </div>
         )}

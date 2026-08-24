@@ -1,8 +1,8 @@
 /**
- * FastAPI backend client.
+ * API client for Hakkutsu.
  *
- * Provides typed methods for all API endpoints with
- * error handling, auth token injection, and retry logic.
+ * Provides typed methods for text analysis, phrase breakdown,
+ * translation, and subtitle fetching.
  */
 
 import { DEFAULT_API_URL, API_V1 } from "~lib/utils/constants";
@@ -22,9 +22,9 @@ import type {
 } from "~lib/types";
 import { llmService } from "./llm-service";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
-
 import { containsJapanese } from "~lib/utils/japanese";
 import { getHanViet } from "~lib/utils/hanviet-dict";
+import { useSettingsStore } from "~lib/utils/settings";
 
 function mapRawTokenToAnalysis(t: any): TokenAnalysis {
   const surface = t.surface || t.text || "";
@@ -65,6 +65,9 @@ function mapRawTokenToAnalysis(t: any): TokenAnalysis {
 class ApiClient {
   private baseUrl: string;
   private authToken: string | null = null;
+  private analyzeCache: Map<string, AnalyzeResponse> = new Map();
+  private phraseCache: Map<string, PhraseAnalyzeResponse> = new Map();
+  private maxCacheSize = 50;
 
   constructor(baseUrl: string = DEFAULT_API_URL) {
     this.baseUrl = baseUrl;
@@ -139,17 +142,15 @@ class ApiClient {
     return this.request<HealthResponse>("/health");
   }
 
-  private analyzeCache: Map<string, AnalyzeResponse> = new Map();
-  private maxCacheSize = 50;
-
   /** Analyze Japanese text */
   async analyzeText(request: AnalyzeRequest): Promise<AnalyzeResponse> {
-    const cacheKey = JSON.stringify(request);
+    const targetLang = useSettingsStore.getState().settings.targetLanguage || "vi";
+    const cacheKey = `${targetLang}:${JSON.stringify(request)}`;
     if (this.analyzeCache.has(cacheKey)) {
       return this.analyzeCache.get(cacheKey)!;
     }
 
-    const llmResult = await llmService.analyzeText(request.text, false);
+    const llmResult = await llmService.analyzeText(request.text, false, targetLang);
     
     // Process tokens to add JLPT info
     const tokens: TokenAnalysis[] = llmResult.tokens?.map(mapRawTokenToAnalysis) || [];
@@ -174,23 +175,19 @@ class ApiClient {
     return response;
   }
 
-  private phraseCache: Map<string, PhraseAnalyzeResponse> = new Map();
-  private javiCache: Map<string, PhraseAnalyzeResponse> = new Map();
-
-  /** Analyze with the fine-tuned Ja–Vi model, or local fallback when disabled. */
+  /** Analyze with the fine-tuned Ja–Vi model or fallback */
   async analyzeJavi(request: AnalyzeRequest): Promise<PhraseAnalyzeResponse> {
-    // Just wrap to llmService
-    const res = await this.analyzePhrase(request);
-    return res;
+    return this.analyzePhrase(request);
   }
 
-  /** Translate and deeply analyze a user-selected subtitle phrase. */
+  /** Translate and deeply analyze a user-selected subtitle phrase */
   async analyzePhrase(request: AnalyzeRequest): Promise<PhraseAnalyzeResponse> {
-    const cacheKey = request.text.trim();
+    const targetLang = useSettingsStore.getState().settings.targetLanguage || "vi";
+    const cacheKey = `${targetLang}:${request.text.trim()}`;
     const cached = this.phraseCache.get(cacheKey);
     if (cached) return cached;
 
-    const llmResult = await llmService.analyzeText(request.text, true);
+    const llmResult = await llmService.analyzeText(request.text, true, targetLang);
     
     const tokens: TokenAnalysis[] = llmResult.tokens?.map(mapRawTokenToAnalysis) || [];
 
@@ -212,19 +209,20 @@ class ApiClient {
     }
     this.phraseCache.set(cacheKey, response);
     this.analyzeCache.set(
-      JSON.stringify({ text: request.text, include_definitions: true }),
+      `${targetLang}:${JSON.stringify({ text: request.text, include_definitions: true })}`,
       response
     );
     return response;
   }
 
-  /** Translate Japanese webpage text into Vietnamese in one batch. */
+  /** Translate Japanese webpage text into target language in one batch */
   async translateWebpage(
     texts: string[],
     pageUrl: string,
     pageTitle: string
   ): Promise<WebTranslateResponse> {
-    return llmService.translateWebpage(texts, pageUrl, pageTitle);
+    const targetLang = useSettingsStore.getState().settings.targetLanguage || "vi";
+    return llmService.translateWebpage(texts, pageUrl, pageTitle, targetLang);
   }
 
   /** Get YouTube subtitles */

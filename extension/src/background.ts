@@ -32,53 +32,15 @@ import { searchDictionary } from "~lib/services/local-lookup";
 // Removed backend fallback logic since backend is now deprecated
 
 import { getHanViet } from "~lib/utils/hanviet-dict";
-import { lookupWordEnglish } from "~lib/services/dictionary-lookup";
+import { lookupWord } from "~lib/services/dictionary-lookup";
 
 // Fallback logic for public dictionary lookups
-async function fetchFromJisho(text: string): Promise<AnalyzeResponse> {
-  try {
-    const url = `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(text)}`;
-    const res = await fetch(url);
-    if (res.ok) {
-      const json = await res.json();
-      if (json.data && json.data.length > 0) {
-        const data = json.data;
-        const mainEntry = data[0];
-        
-        return {
-          text,
-          sentence_reading: mainEntry.japanese?.[0]?.reading || "",
-          token_count: 1,
-          difficulty_score: null,
-          difficulty_label: null,
-          tokens: [
-            {
-              surface: text,
-              dictionary_form: mainEntry.japanese?.[0]?.word || mainEntry.slug || text,
-              pos: mainEntry.senses?.[0]?.parts_of_speech?.[0] || "Word",
-              pos_detail: [],
-              reading: {
-                hiragana: mainEntry.japanese?.[0]?.reading || "",
-                romaji: ""
-              },
-              is_japanese: true,
-              frequency_rank: mainEntry.is_common ? 1 : undefined,
-              jlpt_level: mainEntry.jlpt?.length ? mainEntry.jlpt[0].replace(/jlpt-/i, "").toUpperCase() : null,
-              vietnamese_sound: getHanViet(text),
-              definitions: data.slice(0, 3).map((d: any) => ({
-                dictionary: "Jisho",
-                glosses: d.senses.flatMap((s: any) => s.english_definitions)
-              }))
-            }
-          ]
-        };
-      }
-    }
-  } catch (e) {
-    console.warn("[Hakkutsu] Jisho API error:", e);
-  }
+async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
+  const settings = await getSettings();
+  const targetLang = settings.targetLanguage || "vi";
+  const info = await lookupWord(text, targetLang);
+  const isVietnamese = targetLang === "vi";
 
-  const info = await lookupWordEnglish(text);
   return {
     text,
     sentence_reading: info.reading || text,
@@ -95,8 +57,8 @@ async function fetchFromJisho(text: string): Promise<AnalyzeResponse> {
         is_japanese: true,
         jlpt_level: info.jlpt || null,
         frequency_rank: null,
-        vietnamese_sound: getHanViet(text),
-        definitions: info.meaning ? [{ dictionary: "Jisho", glosses: [info.meaning], pos: ["Word"], field: null, misc: [] }] : []
+        vietnamese_sound: isVietnamese ? (info.hanviet || getHanViet(text)) : undefined,
+        definitions: info.meaning ? [{ dictionary: info.source || "Dict", glosses: [info.meaning], pos: ["Word"], field: null, misc: [] }] : []
       }
     ]
   };
@@ -206,6 +168,26 @@ async function playerResponseFromTab(
       ) || candidates[0];
       if (!response) return null;
 
+      const formatTrackName = (t: any): string => {
+        if (typeof t.name === "string") return t.name;
+        if (t.name?.simpleText) return t.name.simpleText;
+        if (Array.isArray(t.name?.runs)) return t.name.runs.map((r: any) => r.text || "").join("");
+        if (typeof t.displayName === "string") return t.displayName;
+        if (typeof t.languageName === "string") return t.languageName;
+        if (typeof t.languageCode === "string") return t.languageCode;
+        return "";
+      };
+
+      const formatLanguageCode = (t: any): string => {
+        if (typeof t.languageCode === "string" && t.languageCode) {
+          return t.languageCode.toLowerCase().replace(/^\./, "").replace(/^a\./, "");
+        }
+        if (typeof t.vssId === "string" && t.vssId) {
+          return t.vssId.toLowerCase().replace(/^\.?[a-z0-9_-]*\./i, "").replace(/^\./, "");
+        }
+        return "";
+      };
+
       let runtimeTracks: any[] = [];
       if (typeof moviePlayer?.getOption === "function") {
         try {
@@ -213,8 +195,8 @@ async function playerResponseFromTab(
           if (Array.isArray(list) && list.length > 0) {
             runtimeTracks = list.map((track: any) => ({
               baseUrl: track.baseUrl || track.url || "",
-              languageCode: track.languageCode || (typeof track.vssId === "string" ? track.vssId.replace(/^[a-z]\./, "") : "") || "",
-              name: track.name || track.displayName || track.languageName || track.languageCode || "",
+              languageCode: formatLanguageCode(track),
+              name: formatTrackName(track),
               kind: track.kind || "",
               vssId: track.vssId || "",
             }));
@@ -230,8 +212,8 @@ async function playerResponseFromTab(
           if (Array.isArray(tracks)) {
             runtimeTracks = tracks.map((track: any) => ({
               baseUrl: track.baseUrl || track.url || "",
-              languageCode: track.languageCode || "",
-              name: track.name || track.displayName || track.languageName || track.languageCode || "",
+              languageCode: formatLanguageCode(track),
+              name: formatTrackName(track),
               kind: track.kind || "",
               vssId: track.vssId || "",
             }));
@@ -258,7 +240,7 @@ async function playerResponseFromTab(
   });
   const result = results[0]?.result;
   return result && typeof result === "object"
-    ? result as Record<string, unknown>
+    ? (result as Record<string, unknown>)
     : null;
 }
 
@@ -274,12 +256,12 @@ async function handleMessage(
         const result = await apiClient.analyzePhrase(request);
         return { type: "ANALYZE_RESULT", payload: result };
       } catch (llmErr) {
-        console.warn("[Hakkutsu] LLM analysis unavailable, trying Jisho API:", llmErr);
+        console.warn("[Hakkutsu] LLM analysis unavailable, trying dictionary fallback:", llmErr);
         try {
-          const jishoResult = await fetchFromJisho(request.text);
-          return { type: "ANALYZE_RESULT", payload: jishoResult };
-        } catch (jishoErr) {
-          console.warn("[Hakkutsu] Jisho API failed, using local tokenizer:", jishoErr);
+          const dictResult = await fetchDictionaryFallback(request.text);
+          return { type: "ANALYZE_RESULT", payload: dictResult };
+        } catch (dictErr) {
+          console.warn("[Hakkutsu] Dictionary lookup failed, using local tokenizer:", dictErr);
           try {
             const fallbackResult = await analyzeLocal(request.text);
             return { type: "ANALYZE_RESULT", payload: fallbackResult };
@@ -318,14 +300,14 @@ async function handleMessage(
         const result = await apiClient.analyzePhrase(request);
         return { type: "ANALYZE_PHRASE_RESULT", payload: result };
       } catch (err) {
-        console.warn("[Hakkutsu] Phrase LLM analysis failed, fallback to Jisho:", err);
+        console.warn("[Hakkutsu] Phrase LLM analysis failed, fallback to dictionary:", err);
         try {
-          const jishoResult = await fetchFromJisho(request.text);
+          const dictResult = await fetchDictionaryFallback(request.text);
           return {
             type: "ANALYZE_PHRASE_RESULT",
             payload: {
-              ...jishoResult,
-              translation: jishoResult.tokens[0]?.definitions?.[0]?.glosses?.slice(0, 3).join(", ") || ""
+              ...dictResult,
+              translation: dictResult.tokens[0]?.definitions?.[0]?.glosses?.slice(0, 3).join(", ") || ""
             }
           };
         } catch {

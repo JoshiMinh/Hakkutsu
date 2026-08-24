@@ -515,14 +515,6 @@ export const youtubeToolbarCss = `
     height: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
-    vertical-align: top !important;
-    position: relative !important;
-    float: left !important;
-    background: none !important;
-    background-color: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
   }
 
   #hk-toolbar-portal::before,
@@ -534,115 +526,113 @@ export const youtubeToolbarCss = `
     background: transparent !important;
   }
 
+  /* ── Native YouTube Player Control Button ─────────────────────── */
   .hk-toolbar-wrapper {
-    display: flex !important;
+    position: relative !important;
+    display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     height: 100% !important;
-    width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    position: relative !important;
+    vertical-align: top !important;
   }
 
-  .hk-yt-switch {
-    display: flex !important;
+  .hk-yt-btn {
+    position: relative !important;
+    display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
+    width: 48px !important;
+    height: 100% !important;
     background: transparent !important;
     border: none !important;
     cursor: pointer !important;
     padding: 0 !important;
     margin: 0 !important;
-    -webkit-tap-highlight-color: transparent;
-    opacity: 0.85;
-    transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    color: #eee !important;
+    opacity: 0.85 !important;
+    transition: opacity 0.15s ease, transform 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
     box-sizing: border-box !important;
-    width: 36px !important;
-    height: 20px !important;
   }
 
-  .hk-yt-switch:hover {
-    opacity: 1;
+  .hk-yt-btn:hover {
+    opacity: 1 !important;
   }
 
-  .hk-yt-switch:active {
-    transform: scale(0.95);
+  .hk-yt-btn:active {
+    transform: scale(0.92) !important;
   }
 
-  .hk-yt-switch:focus-visible {
-    outline: none;
+  .hk-yt-btn:focus-visible {
+    outline: none !important;
   }
 
-  .hk-yt-switch:focus-visible .hk-yt-switch-track {
-    outline: 2px solid rgba(255, 255, 255, 0.8) !important;
-    outline-offset: 2px !important;
-  }
-
-  .hk-yt-switch-track {
+  .hk-yt-btn__icon-wrapper {
     position: relative !important;
-    width: 36px !important;
-    height: 20px !important;
-    background: rgba(255, 255, 255, 0.25) !important;
-    border-radius: 10px !important;
-    transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-sizing: border-box !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    display: block !important;
-  }
-
-  .hk-yt-switch.is-on .hk-yt-switch-track {
-    background: #a855f7 !important;
-    box-shadow: 0 0 10px rgba(168, 85, 247, 0.4) !important;
-  }
-
-  .hk-yt-switch.is-error .hk-yt-switch-track {
-    background: rgba(248, 113, 113, 0.5) !important;
-  }
-
-  .hk-yt-switch-thumb {
-    position: absolute !important;
-    left: 2px !important;
-    top: 2px !important;
-    width: 16px !important;
-    height: 16px !important;
-    background: #fff !important;
-    border-radius: 50% !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    box-sizing: border-box !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease !important;
   }
 
-  .hk-yt-switch.is-on .hk-yt-switch-thumb {
-    transform: translateX(16px) !important;
+  .hk-yt-btn.is-active .hk-yt-btn__icon-wrapper {
+    color: #fff !important;
   }
 
-  .hk-yt-switch.is-error .hk-yt-switch-thumb {
-    background: #fee2e2 !important;
+  .hk-yt-btn.is-off .hk-yt-btn__icon-wrapper {
+    opacity: 0.45 !important;
   }
 
-  .hk-yt-switch:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
+  /* YouTube-style active indicator bar at the bottom */
+  .hk-yt-btn__active-bar {
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 24px !important;
+    height: 3px !important;
+    background: #a855f7 !important;
+    border-radius: 2px 2px 0 0 !important;
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.7) !important;
+    opacity: 0 !important;
+    transition: opacity 0.2s ease, transform 0.2s ease !important;
   }
 
-  .hk-yt-switch-icon {
-    font-size: 9px !important;
-    font-weight: 800 !important;
-    font-family: 'Noto Sans JP', sans-serif !important;
-    color: rgba(0, 0, 0, 0.45) !important;
+  .hk-yt-btn.is-active .hk-yt-btn__active-bar {
+    opacity: 1 !important;
+  }
+
+  .hk-yt-btn__kanji {
+    font-size: 16px !important;
+    font-weight: 900 !important;
+    font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', sans-serif !important;
     line-height: 1 !important;
-    transition: color 0.3s ease;
+    letter-spacing: -0.5px !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
     user-select: none !important;
-    margin-top: 1px !important;
+  }
+
+  .hk-yt-btn__badge {
+    position: absolute !important;
+    top: 2px !important;
+    right: 2px !important;
+    width: 7px !important;
+    height: 7px !important;
+    border-radius: 50% !important;
+    border: 1px solid #18181b !important;
+  }
+
+  .hk-yt-btn__badge--error {
+    background: #ef4444 !important;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.8) !important;
+  }
+
+  .hk-yt-btn__spinner {
+    width: 16px !important;
+    height: 16px !important;
     display: block !important;
   }
 

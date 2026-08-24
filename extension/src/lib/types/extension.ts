@@ -5,6 +5,8 @@
 export type ExtensionView = "translate" | "srs" | "anki";
 
 export interface ExtensionSettings {
+  targetLanguage: "vi" | "en";
+  showHanViet: boolean;
   llmProvider: "gemini" | "openai" | "custom";
   llmApiKey: string;
   llmCustomUrl?: string;
@@ -23,6 +25,8 @@ export interface ExtensionSettings {
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
+  targetLanguage: "vi",
+  showHanViet: true,
   llmProvider: "gemini",
   llmApiKey: "",
   ankiEnabled: true,

@@ -1,7 +1,7 @@
 /**
  * Hakkutsu Popup — Main Extension Interface
  *
- * Single-view design combining text analysis and SRS reviews.
+ * Single-view design combining Japanese text analysis, translation, and SRS reviews.
  */
 
 import { useCallback, useEffect, useState, Suspense, lazy } from "react";
@@ -19,32 +19,25 @@ import {
   Sparkles,
   Trash2,
   CornerDownLeft,
-  ChevronRight
+  ChevronRight,
+  Volume2
 } from "lucide-react";
 
 import { apiClient } from "~lib/services/api-client";
 import { ankiClient } from "~lib/services/anki-connect";
 import { useSettingsStore } from "~lib/utils/settings";
 import { containsJapanese } from "~lib/utils/japanese";
-import logoUrl from "url:../assets/icon.png";
+import { ttsService } from "~lib/services/tts-service";
+import { useTranslation } from "~lib/languages/locales";
 import type {
-  AnalyzeResponse,
   PhraseAnalyzeResponse,
   ExtensionSettings,
   ExtensionView,
-  AnkiExportData,
 } from "~lib/types";
-import { DEFAULT_SETTINGS } from "~lib/types";
-
-import { JlptBadge } from "~components/badges";
-import { TokenDisplay } from "~components/token-display";
-import { DefinitionCard } from "~components/definition-card";
-
-const GrammarExplanations = lazy(() => import("~components/grammar-explanations").then(m => ({ default: m.GrammarExplanations })));
-const KanjiBreakdown = lazy(() => import("~components/kanji-breakdown").then(m => ({ default: m.KanjiBreakdown })));
-const SrsReview = lazy(() => import("~components/srs-review").then(m => ({ default: m.SrsReview })));
 
 import "./style.css";
+
+const SrsReview = lazy(() => import("~components/srs-review").then(m => ({ default: m.SrsReview })));
 
 // ── Helper Components ───────────────────────────────────────────────
 
@@ -64,12 +57,12 @@ function TranslateQuickView({
 }: {
   ankiConnected: boolean;
 }) {
+  const { t, lang, isVietnamese } = useTranslation();
   const [inputText, setInputText] = useState("");
   const [result, setResult] = useState<PhraseAnalyzeResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usedFallback, setUsedFallback] = useState(false);
-  const { settings } = useSettingsStore();
 
   useEffect(() => {
     const listener = (message: { type: string; payload: { text: string } }) => {
@@ -86,7 +79,7 @@ function TranslateQuickView({
     const textToAnalyze = text || inputText;
     if (!textToAnalyze.trim()) return;
     if (!containsJapanese(textToAnalyze)) {
-      setError("Please enter Japanese text.");
+      setError(t("popup_error_no_japanese"));
       return;
     }
 
@@ -96,14 +89,12 @@ function TranslateQuickView({
     setUsedFallback(false);
 
     try {
-      // Try direct LLM API if key is present
       const response = await apiClient.analyzePhrase({
         text: textToAnalyze,
         include_definitions: true,
       });
       setResult(response);
     } catch (e) {
-      // Fallback via background script (Jisho / local tokenizer)
       try {
         const bgResponse = await chrome.runtime.sendMessage({
           type: "ANALYZE_PHRASE",
@@ -118,9 +109,23 @@ function TranslateQuickView({
       } catch {
         // Fallthrough
       }
-      setError(e instanceof Error ? e.message : "Translation failed");
+      setError(e instanceof Error ? e.message : t("popup_error_generic"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePlayJapanese = () => {
+    if (result?.text) {
+      ttsService.playJapanese(result.text);
+    } else if (inputText) {
+      ttsService.playJapanese(inputText);
+    }
+  };
+
+  const handlePlayTranslation = () => {
+    if (result?.translation) {
+      ttsService.playTargetLanguage(result.translation, lang);
     }
   };
 
@@ -156,7 +161,7 @@ function TranslateQuickView({
           }}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Enter Japanese text to analyze & translate..."
+          placeholder={t("popup_input_placeholder")}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
               e.preventDefault();
@@ -227,45 +232,10 @@ function TranslateQuickView({
             }}
           >
             {loading ? <RefreshCw size={14} className="hk-spin" /> : <Languages size={14} />} 
-            Translate
+            {t("popup_btn_analyze")}
           </button>
         </div>
       </div>
-
-      {/* Fallback Info Banner */}
-      {usedFallback && (
-        <div style={{
-          padding: "8px 12px",
-          background: "rgba(168, 85, 247, 0.08)",
-          border: "1px solid rgba(168, 85, 247, 0.2)",
-          borderRadius: "8px",
-          color: "var(--hk-text-secondary)",
-          fontSize: "12px",
-          marginBottom: "14px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between"
-        }}>
-          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <Sparkles size={13} color="#a855f7" /> Jisho dictionary used. Set API Key for full AI sentences.
-          </span>
-          <button
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#a855f7",
-              cursor: "pointer",
-              fontSize: "11px",
-              fontWeight: 600,
-              display: "flex",
-              alignItems: "center"
-            }}
-          >
-            Settings <ChevronRight size={12} />
-          </button>
-        </div>
-      )}
 
       {error && (
         <div style={{
@@ -278,31 +248,13 @@ function TranslateQuickView({
           marginBottom: "16px"
         }}>
           <div>{error}</div>
-          {error.toLowerCase().includes("api key") && (
-            <button
-              onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--hk-accent-purple)",
-                textDecoration: "underline",
-                cursor: "pointer",
-                padding: 0,
-                marginTop: "6px",
-                fontSize: "12px",
-                display: "block"
-              }}
-            >
-              Open Settings to configure API key →
-            </button>
-          )}
         </div>
       )}
 
       {loading && (
         <div style={{ textAlign: "center", padding: "28px 0", color: "var(--hk-text-muted)" }}>
           <RefreshCw size={22} className="hk-spin" style={{ color: "var(--hk-accent-primary)", marginBottom: "8px" }} />
-          <div style={{ fontSize: "13px" }}>Analyzing Japanese text...</div>
+          <div style={{ fontSize: "13px" }}>{t("popup_analyzing")}</div>
         </div>
       )}
 
@@ -324,9 +276,20 @@ function TranslateQuickView({
               background: "rgba(168, 85, 247, 0.08)",
               padding: "4px 8px",
               borderRadius: "4px",
-              borderLeft: "3px solid var(--hk-accent-primary)"
+              borderLeft: "3px solid var(--hk-accent-primary)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between"
             }}>
-              {result.sentence_reading}
+              <span>{result.sentence_reading}</span>
+              <button
+                onClick={handlePlayJapanese}
+                className="hk-btn-icon-subtle"
+                title={t("def_play_audio_jp")}
+                style={{ padding: "2px" }}
+              >
+                <Volume2 size={13} />
+              </button>
             </div>
           )}
           
@@ -339,9 +302,21 @@ function TranslateQuickView({
               borderLeft: "3px solid #14b8a6",
               padding: "8px 12px",
               borderRadius: "4px",
-              lineHeight: "1.5"
+              lineHeight: "1.5",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "8px"
             }}>
-              "{result.translation}"
+              <span>"{result.translation}"</span>
+              <button
+                onClick={handlePlayTranslation}
+                className="hk-btn-icon-subtle"
+                title={t("def_play_audio_trans")}
+                style={{ flexShrink: 0, padding: "2px" }}
+              >
+                <Volume2 size={13} />
+              </button>
             </div>
           )}
           
@@ -368,12 +343,15 @@ function TranslateQuickView({
           {result.tokens.filter(t => t.definitions && t.definitions.length > 0).length > 0 && (
             <div style={{ borderTop: "1px solid var(--hk-border)", paddingTop: "12px" }}>
               <div style={{ fontSize: "11px", textTransform: "uppercase", color: "var(--hk-text-muted)", fontWeight: "bold", marginBottom: "8px", letterSpacing: "0.5px" }}>
-                Quick Definitions
+                {t("def_dict_label")}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {result.tokens.filter(t => t.definitions && t.definitions.length > 0).slice(0, 5).map((token, idx) => (
-                  <div key={idx} style={{ fontSize: "13px", display: "flex", gap: "6px" }}>
+                  <div key={idx} style={{ fontSize: "13px", display: "flex", gap: "6px", alignItems: "center" }}>
                     <strong style={{ color: "var(--hk-text-primary)", minWidth: "70px" }}>{token.dictionary_form || token.surface}</strong>
+                    {isVietnamese && token.vietnamese_sound && (
+                      <span style={{ fontSize: "11px", color: "#38bdf8", marginRight: "4px" }}>[{token.vietnamese_sound}]</span>
+                    )}
                     <span style={{ color: "var(--hk-text-muted)" }}>—</span>
                     <span style={{ color: "var(--hk-text-secondary)", flex: 1 }}>{token.definitions?.[0]?.glosses?.slice(0, 2).join(", ")}</span>
                   </div>
@@ -386,7 +364,7 @@ function TranslateQuickView({
 
       {!result && !loading && !error && (
         <div style={{ textAlign: "center", padding: "24px 0", color: "var(--hk-text-muted)", fontSize: "13px" }}>
-          Ready to translate.
+          {t("popup_empty_state")}
         </div>
       )}
     </div>
@@ -396,6 +374,8 @@ function TranslateQuickView({
 // ── Anki View ──────────────────────────────────────────────────
 
 function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSettings, onUpdate: (patch: Partial<ExtensionSettings>) => void, ankiConnected: boolean }) {
+  const { t } = useTranslation();
+
   return (
     <div className="hk-content hk-fade-in">
       <div style={{ 
@@ -424,8 +404,8 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
         <legend className="hk-settings-card__title">Export Settings</legend>
         <div className="hk-settings-row">
           <div className="hk-settings-row__info">
-            <label htmlFor="ankiDeck" className="hk-settings-row__label">Anki Deck Name</label>
-            <div id="ankiDeck-desc" className="hk-settings-row__desc">Default deck for exports</div>
+            <label htmlFor="ankiDeck" className="hk-settings-row__label">{t("settings_anki_deck")}</label>
+            <div id="ankiDeck-desc" className="hk-settings-row__desc">{t("settings_anki_deck_desc")}</div>
           </div>
           <div className="hk-settings-row__control">
             <input
@@ -441,8 +421,8 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
 
         <div className="hk-settings-row">
           <div className="hk-settings-row__info">
-            <label htmlFor="ankiModel" className="hk-settings-row__label">Anki Note Type</label>
-            <div id="ankiModel-desc" className="hk-settings-row__desc">Card model for exports</div>
+            <label htmlFor="ankiModel" className="hk-settings-row__label">{t("settings_anki_model")}</label>
+            <div id="ankiModel-desc" className="hk-settings-row__desc">{t("settings_anki_model_desc")}</div>
           </div>
           <div className="hk-settings-row__control">
             <input
@@ -475,6 +455,7 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
 function Popup() {
   const [activeView, setActiveView] = useState<ExtensionView>("translate");
   const { settings, updateSettings } = useSettingsStore();
+  const { t } = useTranslation();
   const [ankiConnected, setAnkiConnected] = useState(false);
 
   useEffect(() => {
@@ -495,8 +476,8 @@ function Popup() {
   };
 
   const tabs: Array<{ id: ExtensionView; label: string; icon: React.ReactNode }> = [
-    { id: "translate", label: "Translate", icon: <Languages size={15} /> },
-    { id: "srs", label: "Reviews", icon: <Brain size={15} /> },
+    { id: "translate", label: t("popup_tab_translate"), icon: <Languages size={15} /> },
+    { id: "srs", label: t("popup_tab_review"), icon: <Brain size={15} /> },
     { id: "anki", label: "Anki", icon: <BookMarked size={15} /> },
   ];
 
@@ -546,11 +527,11 @@ function HakkutsuLogo({ size = 32 }: { size?: number }) {
           <HakkutsuLogo size={32} />
           <div>
             <div className="hk-header__title" style={{ fontSize: "15px", lineHeight: "1.2", fontWeight: 700 }}>Hakkutsu</div>
-            <div style={{ fontSize: "10px", color: "var(--hk-text-muted)" }}>Japanese Immersion</div>
+            <div style={{ fontSize: "10px", color: "var(--hk-text-muted)" }}>{t("popup_subtitle")}</div>
           </div>
         </div>
 
-        <div className="hk-header__actions" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <div className="hk-header__actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"
             onClick={() => {
@@ -561,43 +542,45 @@ function HakkutsuLogo({ size = 32 }: { size?: number }) {
                 }
               });
             }}
-            title="Extract text from screen"
+            title={t("popup_btn_ocr")}
             style={{
-              padding: "5px 10px",
-              fontSize: "12px",
+              padding: "4px 8px",
+              fontSize: "11.5px",
               background: "rgba(168, 85, 247, 0.12)",
               color: "#d8b4fe",
               border: "1px solid rgba(168, 85, 247, 0.25)",
-              borderRadius: "6px"
+              borderRadius: "6px",
+              gap: "4px"
             }}
           >
-            <Scissors size={13} /> OCR
+            <Scissors size={12} /> {t("popup_btn_ocr")}
           </button>
 
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"
             onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
-            title="Open App Dashboard"
+            title={t("popup_btn_app")}
             style={{
-              padding: "5px 10px",
-              fontSize: "12px",
+              padding: "4px 8px",
+              fontSize: "11.5px",
               background: "rgba(255, 255, 255, 0.05)",
               border: "1px solid var(--hk-border)",
-              borderRadius: "6px"
+              borderRadius: "6px",
+              gap: "4px"
             }}
           >
-            <ExternalLink size={13} /> App
+            <ExternalLink size={12} /> {t("popup_btn_app")}
           </button>
           
           <div 
-            title={ankiConnected ? "Anki connected" : "Anki disconnected"} 
+            title={ankiConnected ? t("settings_anki_status_running") : t("settings_anki_status_disconnected")} 
             style={{
               width: 8,
               height: 8,
               borderRadius: "50%",
               backgroundColor: ankiConnected ? "var(--hk-jlpt-n5)" : "var(--hk-text-muted)",
               boxShadow: ankiConnected ? "0 0 8px var(--hk-jlpt-n5)" : "none",
-              marginLeft: "4px"
+              marginLeft: "2px"
             }} 
           />
         </div>
@@ -638,4 +621,3 @@ function HakkutsuLogo({ size = 32 }: { size?: number }) {
 }
 
 export default Popup;
-

@@ -1,10 +1,19 @@
-# Hakkutsu (Japanese Immersion Tool)
-
-<p align="center">
+<div align="center">
   <img src="extension/assets/icon-rounded.png" alt="Hakkutsu Logo" width="128" height="128" />
-</p>
+
+  # Hakkutsu (発掘)
+  **AI Japanese Immersion & Mining Tool**
+</div>
 
 Hakkutsu is an AI-powered browser extension designed for Japanese immersion and translation. It runs directly in your browser, extracting Japanese text from images, translating sentences, analyzing grammar, and helping you learn vocabulary as you browse the web.
+
+## Screenshots
+
+| Extension Popup | Dashboard Overview |
+|:---:|:---:|
+| ![Extension Popup](docs/screenshots/extension-popup.png) | ![Dashboard Overview](docs/screenshots/dashboard-overview.png) |
+| **Vocabulary List** | **App Settings** |
+| ![Vocabulary List](docs/screenshots/vocabulary-list.png) | ![App Settings](docs/screenshots/app-settings.png) |
 
 ## Core Features
 

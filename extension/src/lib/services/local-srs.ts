@@ -1,6 +1,8 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import { getHanViet } from "~lib/utils/hanviet-dict";
-import { lookupWordEnglish } from "./dictionary-lookup";
+import { lookupWord } from "./dictionary-lookup";
+import { googleTranslateService } from "./google-translate";
+import { getSettings } from "./storage";
 
 export interface SrsCard {
   id: string;
@@ -66,36 +68,77 @@ class LocalSrsService {
   async addSrsCard(data: {
     word: string;
     reading?: string;
+    word_furigana?: string;
     meaning?: string;
     sentence?: string;
+    sentence_furigana?: string;
+    sentence_meaning?: string;
+    vietnamese_sound?: string;
     source_url?: string;
     source_title?: string;
     target_word?: string;
     jlpt?: string;
   }): Promise<SrsCard> {
     const db = await this.dbPromise;
+    const settings = await getSettings().catch(() => ({ targetLanguage: "vi" as const, showHanViet: true }));
+    const targetLang = settings.targetLanguage || "vi";
+    const isVietnamese = targetLang === "vi" && settings.showHanViet !== false;
+
     const now = Date.now();
-    const word = data.target_word || data.word;
+    const word = (data.target_word || data.word || "").trim();
     
     let meaning = data.meaning;
     let reading = data.reading;
     let jlpt = data.jlpt;
+    let word_furigana = data.word_furigana;
+    let sentence = data.sentence?.trim();
+    let sentence_furigana = data.sentence_furigana?.trim();
+    let sentence_meaning = data.sentence_meaning?.trim();
 
-    if (!meaning || meaning.trim() === "" || meaning === "—") {
-      const info = await lookupWordEnglish(word);
-      meaning = info.meaning || meaning;
-      reading = reading || info.reading;
+    // Look up dictionary details if missing
+    if (!meaning || meaning.trim() === "" || meaning === "—" || !reading) {
+      const info = await lookupWord(word, targetLang);
+      meaning = (meaning && meaning !== "—") ? meaning : (info.meaning || "—");
+      reading = reading || info.reading || word;
       jlpt = jlpt || info.jlpt;
+    }
+
+    // Auto-generate word furigana if missing
+    const hasKanji = /[\u4e00-\u9faf]/.test(word);
+    if (!word_furigana) {
+      if (hasKanji && reading && reading !== word) {
+        word_furigana = `${word}[${reading}]`;
+      } else {
+        word_furigana = word;
+      }
+    }
+
+    // Handle example sentence context
+    if (!sentence || sentence === word) {
+      // Natural Japanese example sentences for common words
+      sentence = `${word}の意味を覚えます。`;
+      sentence_furigana = `${word_furigana || word}のいみをおぼえます。`;
+      sentence_meaning = await googleTranslateService.translate(sentence, targetLang, "ja");
+    } else {
+      if (!sentence_meaning) {
+        sentence_meaning = await googleTranslateService.translate(sentence, targetLang, "ja");
+      }
+      if (!sentence_furigana) {
+        sentence_furigana = sentence;
+      }
     }
 
     const card: SrsCard = {
       id: crypto.randomUUID(),
       word,
-      reading,
-      meaning,
+      reading: reading || word,
+      word_furigana,
+      meaning: meaning || "—",
       jlpt,
-      vietnamese_sound: getHanViet(word),
-      sentence: data.sentence,
+      vietnamese_sound: isVietnamese ? (data.vietnamese_sound || getHanViet(word)) : undefined,
+      sentence,
+      sentence_furigana,
+      sentence_meaning,
       source_url: data.source_url,
       source_title: data.source_title,
       
@@ -117,9 +160,13 @@ class LocalSrsService {
     source_url?: string;
     source_title?: string;
     target_word?: string;
+    meaning?: string;
+    reading?: string;
   }): Promise<SrsCard> {
     return this.addSrsCard({
       word: data.target_word || "Unknown",
+      reading: data.reading,
+      meaning: data.meaning,
       sentence: data.sentence,
       source_url: data.source_url,
       source_title: data.source_title,
@@ -148,92 +195,27 @@ class LocalSrsService {
 
   async getAllSrsCards(): Promise<SrsCard[]> {
     const db = await this.dbPromise;
-    return db.getAll("cards");
-  }
-
-  async updateSrsCard(id: string, patch: Partial<SrsCard>): Promise<SrsCard> {
-    const db = await this.dbPromise;
-    const tx = db.transaction("cards", "readwrite");
-    const card = await tx.store.get(id);
-    if (!card) throw new Error(`Card ${id} not found`);
-    const updated = { ...card, ...patch, updated_at: Date.now() };
-    await tx.store.put(updated);
-    await tx.done;
-    return updated;
-  }
-
-  async deleteSrsCard(id: string): Promise<void> {
-    const db = await this.dbPromise;
-    await db.delete("cards", id);
-  }
-
-  async deleteAllSrsCards(): Promise<void> {
-    const db = await this.dbPromise;
-    await db.clear("cards");
-  }
-
-  async getSrsStats(): Promise<SrsStats> {
-    const db = await this.dbPromise;
-    const allCards = await db.getAll("cards");
-    const now = Date.now();
+    const tx = db.transaction("cards", "readonly");
+    const index = tx.store.index("by-created-at");
     
-    let due = 0;
-    let newCards = 0;
-    let learning = 0;
-    let graduated = 0;
-    let mined = 0;
-    let cardsReviewedToday = 0;
-    const forecast = Array(7).fill(0);
-    const msPerDay = 24 * 60 * 60 * 1000;
-    const startOfToday = new Date().setHours(0, 0, 0, 0);
-    
-    for (const card of allCards) {
-      if (card.due_date <= now) {
-        due++;
-      }
-      
-      if (card.repetition === 0) {
-        newCards++;
-      } else if (card.interval < 21) {
-        learning++;
-      } else {
-        graduated++;
-      }
-
-      if (card.sentence || card.source_url) {
-        mined++;
-      }
-      
-      if (card.updated_at >= startOfToday && card.repetition > 0) {
-        cardsReviewedToday++;
-      }
-
-      // Forecast calculation
-      if (card.due_date > now) {
-        const daysUntilDue = Math.floor((card.due_date - now) / msPerDay);
-        if (daysUntilDue >= 0 && daysUntilDue < 7) {
-          forecast[daysUntilDue]++;
-        }
-      } else {
-        // Due today/now
-        forecast[0]++;
-      }
-    }
-    
-    return { due, new: newCards, learning, graduated, total: allCards.length, mined, forecast, cardsReviewedToday };
+    const cards = await index.getAll();
+    return cards.reverse();
   }
 
   async submitSrsReview(cardId: string, quality: number): Promise<SrsCard> {
     const db = await this.dbPromise;
     const tx = db.transaction("cards", "readwrite");
-    const card = await tx.store.get(cardId);
+    const store = tx.objectStore("cards");
     
+    const card = await store.get(cardId);
     if (!card) {
-      throw new Error(`Card with ID ${cardId} not found`);
+      throw new Error(`SRS Card not found: ${cardId}`);
     }
-    
-    let { interval, repetition, efactor } = card;
-    
+
+    let interval = card.interval;
+    let repetition = card.repetition;
+    let efactor = card.efactor;
+
     if (quality >= 3) {
       if (repetition === 0) {
         interval = 1;
@@ -242,36 +224,101 @@ class LocalSrsService {
       } else {
         interval = Math.round(interval * efactor);
       }
-      
-      // Fuzzing to prevent clumping
-      if (interval > 1) {
-        const minFuzz = Math.max(1, Math.round(interval * 0.95 - 1));
-        const maxFuzz = Math.round(interval * 1.05 + 1);
-        interval = Math.floor(Math.random() * (maxFuzz - minFuzz + 1)) + minFuzz;
-      }
-      
-      repetition++;
+      repetition += 1;
     } else {
       repetition = 0;
       interval = 1;
     }
-    
+
     efactor = efactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
     if (efactor < 1.3) efactor = 1.3;
-    
-    const now = Date.now();
-    const newDueDate = now + interval * 24 * 60 * 60 * 1000;
-    
+
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const dueDate = Date.now() + interval * oneDayMs;
+
     card.interval = interval;
     card.repetition = repetition;
     card.efactor = efactor;
-    card.due_date = newDueDate;
-    card.updated_at = now;
-    
-    await tx.store.put(card);
+    card.due_date = dueDate;
+    card.updated_at = Date.now();
+
+    await store.put(card);
     await tx.done;
-    
+
     return card;
+  }
+
+  async updateSrsCard(id: string, updates: Partial<SrsCard>): Promise<SrsCard> {
+    const db = await this.dbPromise;
+    const tx = db.transaction("cards", "readwrite");
+    const store = tx.objectStore("cards");
+    
+    const existing = await store.get(id);
+    if (!existing) {
+      throw new Error(`SRS Card not found: ${id}`);
+    }
+
+    const updated: SrsCard = {
+      ...existing,
+      ...updates,
+      updated_at: Date.now()
+    };
+
+    await store.put(updated);
+    await tx.done;
+    return updated;
+  }
+
+  async deleteSrsCard(id: string): Promise<void> {
+    const db = await this.dbPromise;
+    const tx = db.transaction("cards", "readwrite");
+    await tx.objectStore("cards").delete(id);
+    await tx.done;
+  }
+
+  async deleteAllSrsCards(): Promise<void> {
+    const db = await this.dbPromise;
+    const tx = db.transaction("cards", "readwrite");
+    await tx.objectStore("cards").clear();
+    await tx.done;
+  }
+
+  async getSrsStats(): Promise<SrsStats> {
+    const cards = await this.getAllSrsCards();
+    const now = Date.now();
+
+    let due = 0;
+    let newCards = 0;
+    let learning = 0;
+    let graduated = 0;
+    let mined = 0;
+
+    for (const card of cards) {
+      if (card.due_date <= now) {
+        due += 1;
+      }
+      if (card.repetition === 0) {
+        newCards += 1;
+      } else if (card.interval >= 21) {
+        graduated += 1;
+      } else {
+        learning += 1;
+      }
+      if (card.sentence && card.sentence !== card.word) {
+        mined += 1;
+      }
+    }
+
+    return {
+      due,
+      new: newCards,
+      learning,
+      graduated,
+      total: cards.length,
+      mined,
+      forecast: [due, 0, 0, 0, 0, 0, 0],
+      cardsReviewedToday: 0,
+    };
   }
 }
 

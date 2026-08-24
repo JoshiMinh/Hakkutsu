@@ -1,5 +1,7 @@
 import { useSettingsStore } from "~lib/utils/settings";
 import type { AnalyzeResponse, PhraseAnalyzeResponse, WebTranslateResponse } from "~lib/types";
+import { googleTranslateService } from "./google-translate";
+import { lookupWord } from "./dictionary-lookup";
 
 export class LlmServiceError extends Error {
   constructor(message: string) {
@@ -10,13 +12,10 @@ export class LlmServiceError extends Error {
 
 /**
  * Handles LLM API requests directly from the browser extension,
- * bypassing the need for a backend server.
+ * with automatic Google Translate fallback when LLM is unavailable.
  */
 class LlmService {
   private getSettings() {
-    // Plasmo store state can be retrieved statically if needed, 
-    // but in background we might need to use Storage API.
-    // For simplicity, we assume we fetch it via the store or pass it.
     const state = useSettingsStore.getState();
     return state.settings;
   }
@@ -82,7 +81,7 @@ class LlmService {
     const url = `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
     
     const payload: any = {
-      model: "gpt-4o-mini", // fallback model, should be configurable but hardcoded for now
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
@@ -112,45 +111,84 @@ class LlmService {
     return data.choices[0].message.content;
   }
 
-  async analyzeText(text: string, isPhrase: boolean = false): Promise<any> {
-    const systemPrompt = `You are an expert Japanese to Vietnamese translator and linguist.
+  async analyzeText(text: string, isPhrase: boolean = false, targetLang: string = "vi"): Promise<any> {
+    const langName = targetLang === "en" ? "English" : "Vietnamese";
+    const settings = this.getSettings();
+
+    // Check if we have an API key configured. If not, bypass to Google Translate fallback directly.
+    if (settings.llmApiKey && settings.llmApiKey.trim()) {
+      try {
+        const systemPrompt = `You are an expert Japanese to ${langName} translator and linguist.
 Analyze the following Japanese text. Break it down into tokens.
 Return a JSON object with:
-- "translation": The Vietnamese translation of the text.
+- "translation": The ${langName} translation of the text.
 - "tokens": A list of token objects, each containing:
   - "surface": The exact Japanese word/token snippet.
-  - "reading": Kana reading.
+  - "reading": Kana reading (Hiragana).
   - "pos": Part of speech in English.
-  - "meaning": Vietnamese meaning of the token.
+  - "meaning": ${langName} meaning of the token.
   - "dictionary_form": Dictionary form / lemma of the word.
 `;
-    const userPrompt = text;
-    
-    const format = { type: "json_object" };
-    const resultText = await this.callApi(systemPrompt, userPrompt, format);
-    
-    try {
-      return JSON.parse(resultText);
-    } catch (e) {
-      throw new LlmServiceError("Failed to parse LLM response as JSON");
+        const userPrompt = text;
+        const format = { type: "json_object" };
+        const resultText = await this.callApi(systemPrompt, userPrompt, format);
+        const parsed = JSON.parse(resultText);
+        return { ...parsed, usedFallback: false };
+      } catch (err) {
+        console.warn("[Hakkutsu] LLM text analysis failed, falling back to Google Translate:", err);
+      }
     }
+
+    // Google Translate + Dictionary fallback
+    const translation = await googleTranslateService.translate(text, targetLang, "ja");
+    const dictLookup = await lookupWord(text, targetLang);
+
+    return {
+      translation,
+      usedFallback: true,
+      tokens: [
+        {
+          surface: text,
+          reading: dictLookup.reading || text,
+          pos: "word",
+          meaning: dictLookup.meaning || translation,
+          dictionary_form: text,
+          jlpt: dictLookup.jlpt,
+          vietnamese_sound: targetLang === "vi" ? dictLookup.hanviet : undefined,
+        },
+      ],
+    };
   }
 
-  async translateWebpage(texts: string[], pageUrl: string, pageTitle: string): Promise<WebTranslateResponse> {
-    const systemPrompt = `You are a Japanese to Vietnamese translator.
+  async translateWebpage(
+    texts: string[],
+    pageUrl: string,
+    pageTitle: string,
+    targetLang: string = "vi"
+  ): Promise<WebTranslateResponse> {
+    const langName = targetLang === "en" ? "English" : "Vietnamese";
+    const settings = this.getSettings();
+
+    if (settings.llmApiKey && settings.llmApiKey.trim()) {
+      try {
+        const systemPrompt = `You are a Japanese to ${langName} translator.
 Translate the following array of texts.
 Return a JSON object with a "translations" array, containing objects with "id" (matching the input index) and "text" (the translation).`;
-    
-    const userPrompt = JSON.stringify({ texts: texts.map((t, i) => ({ id: i, text: t })) });
-    const format = { type: "json_object" };
-    
-    const resultText = await this.callApi(systemPrompt, userPrompt, format);
-    try {
-      const parsed = JSON.parse(resultText);
-      return parsed; // Returns { translations: [{ id, text }] }
-    } catch (e) {
-      throw new LlmServiceError("Failed to parse LLM response as JSON");
+        
+        const userPrompt = JSON.stringify({ texts: texts.map((t, i) => ({ id: i, text: t })) });
+        const format = { type: "json_object" };
+        
+        const resultText = await this.callApi(systemPrompt, userPrompt, format);
+        const parsed = JSON.parse(resultText);
+        return parsed;
+      } catch (err) {
+        console.warn("[Hakkutsu] LLM webpage translation failed, falling back to Google Translate:", err);
+      }
     }
+
+    // Google Translate batch fallback
+    const translations = await googleTranslateService.translateBatch(texts, targetLang, "ja");
+    return { translations };
   }
 }
 
