@@ -4,6 +4,7 @@ import { Copy, RotateCcw, Brain, Download, Upload, Plus, Minus, XCircle, Layers 
 import type { SubtitleSegment, SubtitleFetchResult, AnalyzeResponse, TokenAnalysis } from "~lib/types";
 import { readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
 import { useSettingsStore } from "~lib/utils/settings";
+import { useTranslation } from "~lib/languages/locales";
 import { SelectSubtitlesModal, type SubtitleTrackOption } from "./select-subtitles-modal";
 
 // ── Cache ───────────────────────────────────────────────────────────────────
@@ -77,6 +78,7 @@ export interface SubtitleOverlayProps {
   requiresPageReload?: boolean;
   subtitleData: SubtitleFetchResult | null;
   currentSegment: SubtitleSegment | null;
+  secondarySegment?: SubtitleSegment | null;
   videoRef: React.RefObject<HTMLVideoElement>;
   currentUrl: string;
   toolbarContainer: Element | null;
@@ -102,6 +104,7 @@ export const SubtitleOverlay = ({
   requiresPageReload = false,
   subtitleData,
   currentSegment,
+  secondarySegment,
   videoRef,
   currentUrl,
   toolbarContainer,
@@ -120,6 +123,7 @@ export const SubtitleOverlay = ({
   onSelectSecondaryTrack,
 }: SubtitleOverlayProps) => {
   const globalSettings = useSettingsStore((state) => state.settings);
+  const { t } = useTranslation();
   const [analyzedTokens, setAnalyzedTokens] = useState<TokenAnalysis[] | null>(null);
   const [settings, setSettings] = useState<SubtitleSettings>({
     showFurigana: globalSettings.showFurigana !== false,
@@ -964,16 +968,28 @@ export const SubtitleOverlay = ({
             bottom: "18%",
             transform: "translateX(-50%)",
             zIndex: 70,
-            padding: "8px 14px",
-            borderRadius: 8,
-            background: "rgba(15, 23, 42, 0.92)",
-            color: "#f8fafc",
-            fontSize: 14,
+            padding: "10px 18px",
+            borderRadius: 12,
+            background: "#18181b",
+            border: "1px solid rgba(168, 85, 247, 0.4)",
+            boxShadow: "0 10px 25px rgba(0, 0, 0, 0.5), 0 0 15px rgba(168, 85, 247, 0.2)",
+            color: "#f4f4f5",
+            fontSize: 13.5,
             fontWeight: 600,
             pointerEvents: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
           }}
         >
-          Hakkutsu đang tải phụ đề tiếng Nhật…
+          <div style={{
+            width: "8px",
+            height: "8px",
+            borderRadius: "50%",
+            backgroundColor: "#a855f7",
+            boxShadow: "0 0 8px #a855f7",
+          }} />
+          {t("sub_overlay_loading")}
         </div>
       )}
 
@@ -986,30 +1002,33 @@ export const SubtitleOverlay = ({
             bottom: "18%",
             transform: "translateX(-50%)",
             zIndex: 70,
-            maxWidth: "75%",
-            padding: "12px 18px",
-            border: "1px solid rgba(248, 113, 113, 0.75)",
-            borderRadius: "10px",
-            background: "rgba(30, 10, 10, 0.95)",
-            color: "#fee2e2",
+            maxWidth: "80%",
+            width: "440px",
+            padding: "16px 20px",
+            border: "1px solid rgba(239, 68, 68, 0.35)",
+            borderRadius: "14px",
+            background: "#18181b",
+            boxShadow: "0 16px 36px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(239, 68, 68, 0.15)",
+            color: "#f4f4f5",
             fontSize: "13.5px",
-            fontWeight: 600,
+            fontWeight: 500,
             textAlign: "center",
-            boxShadow: "0 8px 30px rgba(0, 0, 0, 0.7)",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: "6px",
+            gap: "12px",
             pointerEvents: "auto",
           }}
         >
-          <div style={{ lineHeight: 1.4 }}>
-            {error === "Video này không có phụ đề."
-              ? error
-              : `Hakkutsu không tải được phụ đề: ${error}`}
+          <div style={{ lineHeight: 1.5, color: "#e4e4e7" }}>
+            {error.startsWith("Tiện ích") || error.startsWith("Extension")
+              ? t("sub_overlay_extension_updated")
+              : error.includes("không có phụ đề tiếng Nhật") || error.includes("No Japanese subtitles")
+                ? t("sub_overlay_no_ja")
+                : `${t("sub_overlay_error_prefix")}${error}`}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "2px" }}>
             <button
               type="button"
               onClick={(e) => {
@@ -1018,12 +1037,12 @@ export const SubtitleOverlay = ({
               }}
               style={{
                 padding: "8px 16px",
-                background: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
+                background: "linear-gradient(135deg, #a855f7 0%, #7e22ce 100%)",
                 border: "none",
                 borderRadius: "8px",
                 color: "#fff",
                 fontSize: "12.5px",
-                fontWeight: 700,
+                fontWeight: 600,
                 cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",
@@ -1158,6 +1177,29 @@ export const SubtitleOverlay = ({
                   <span className="hk-sub__surface">{currentSegment.text}</span>
                 )}
               </div>
+
+              {secondarySegment && (
+                <div
+                  className="hk-sub__secondary-bar"
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "0.88em",
+                    color: "#f4f4f5",
+                    fontWeight: 500,
+                    textAlign: "center",
+                    textShadow: "0 2px 6px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.9)",
+                    pointerEvents: "auto",
+                    backgroundColor: "rgba(24, 24, 27, 0.85)",
+                    padding: "5px 12px",
+                    borderRadius: "6px",
+                    backdropFilter: "blur(4px)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    display: "inline-block",
+                  }}
+                >
+                  {secondarySegment.text}
+                </div>
+              )}
             </div>
           )}
         </div>

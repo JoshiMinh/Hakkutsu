@@ -502,6 +502,20 @@ async function handleMessage(
       }
     }
 
+    case "FETCH_TIMEDTEXT_URL": {
+      const { url } = message.payload as { url: string };
+      try {
+        const res = await fetch(url, { credentials: "include" });
+        if (res.ok) {
+          const text = await res.text();
+          return { type: "FETCH_TIMEDTEXT_RESULT", payload: { success: true, text } };
+        }
+        return { type: "FETCH_TIMEDTEXT_RESULT", payload: { success: false, error: `HTTP ${res.status}` } };
+      } catch (err: any) {
+        return { type: "FETCH_TIMEDTEXT_RESULT", payload: { success: false, error: String(err) } };
+      }
+    }
+
     case "TRANSLATE_TEXT": {
       const { texts } = message.payload as { texts: string[] };
 

@@ -109,6 +109,8 @@ export type MessageType =
   | "INPAINT_RESULT"
   | "FETCH_TTS_AUDIO"
   | "TTS_AUDIO_RESULT"
+  | "FETCH_TIMEDTEXT_URL"
+  | "FETCH_TIMEDTEXT_RESULT"
   | "IGNORED"
   | "ERROR";
 

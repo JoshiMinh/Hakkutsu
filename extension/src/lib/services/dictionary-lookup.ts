@@ -339,3 +339,121 @@ export async function lookupWord(word: string, targetLang: string = "vi"): Promi
     return { meaning: "" };
   }
 }
+
+export interface WordVariant {
+  word: string;
+  reading?: string;
+  meaning: string;
+}
+
+const variantCache = new Map<string, WordVariant[]>();
+
+/**
+ * Fetch other word variants / compound words containing the target word or kanji.
+ * e.g. 小説 -> 小説家, 私小説, 時代小説
+ */
+export async function fetchWordVariants(
+  word: string,
+  targetLang: string = "en",
+  limit = 4
+): Promise<WordVariant[]> {
+  if (!word || word.trim() === "") return [];
+  const key = word.trim();
+  const cacheKey = `var:${targetLang}:${key}`;
+
+  if (variantCache.has(cacheKey)) {
+    return variantCache.get(cacheKey)!;
+  }
+
+  const variants: WordVariant[] = [];
+  const seenWords = new Set<string>([key]);
+
+  // 1. Query Jisho API for compounds containing this word/kanji
+  try {
+    const res = await fetch(`https://jisho.org/api/v1/search/words?keyword=*${encodeURIComponent(key)}*`);
+    if (res.ok) {
+      const json = await res.json();
+      if (Array.isArray(json.data)) {
+        for (const entry of json.data) {
+          const matchedJp = entry.japanese?.find((j: any) => j.word && j.word.includes(key));
+          const entryWord = matchedJp?.word || entry.slug;
+          if (entryWord && entryWord !== key && entryWord.includes(key) && !seenWords.has(entryWord)) {
+            seenWords.add(entryWord);
+
+            const reading = matchedJp?.reading || entry.japanese?.[0]?.reading || "";
+            const englishDefs: string[] = entry.senses
+              ?.flatMap((s: any) => s.english_definitions || [])
+              .slice(0, 2);
+
+            let meaning = englishDefs.join("; ");
+            if (targetLang === "vi" && meaning) {
+              try {
+                const viMeaning = await googleTranslateService.translate(meaning, "vi", "en");
+                if (viMeaning) meaning = viMeaning;
+              } catch {}
+            }
+
+            variants.push({
+              word: entryWord,
+              reading: reading || undefined,
+              meaning: meaning || "",
+            });
+
+            if (variants.length >= limit) break;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[Hakkutsu] Jisho variant fetch error:", word, e);
+  }
+
+  // 2. Fallback to Mazii for Vietnamese variants if Jisho returns < limit
+  if (variants.length < limit && targetLang === "vi") {
+    try {
+      const res = await fetch("https://mazii.net/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dict: "javi",
+          type: "word",
+          query: key,
+          page: 1,
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === 200 && Array.isArray(json.data)) {
+          for (const item of json.data) {
+            const itemWord = item.word || item.phonetic;
+            if (itemWord && itemWord !== key && itemWord.includes(key) && !seenWords.has(itemWord)) {
+              seenWords.add(itemWord);
+              const means = (item.means || [])
+                .map((m: any) => m.mean || "")
+                .filter(Boolean)
+                .slice(0, 2)
+                .join("; ");
+
+              variants.push({
+                word: itemWord,
+                reading: item.phonetic || undefined,
+                meaning: means || "",
+              });
+
+              if (variants.length >= limit) break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[Hakkutsu] Mazii variant fetch error:", word, e);
+    }
+  }
+
+  if (variants.length > 0) {
+    variantCache.set(cacheKey, variants);
+  }
+
+  return variants.slice(0, limit);
+}

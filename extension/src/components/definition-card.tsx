@@ -7,7 +7,7 @@ import { JlptBadge, PosBadge, FrequencyBadge } from "./Badges";
 import { Volume2, BookmarkPlus, Copy, Check, Sparkles, BookOpen, MessageSquareText, Loader2 } from "lucide-react";
 import { useTranslation } from "~lib/languages/locales";
 import { ttsService } from "~lib/services/tts-service";
-import { fetchExampleSentences, type ExampleSentence } from "~lib/services/dictionary-lookup";
+import { fetchExampleSentences, fetchWordVariants, type ExampleSentence, type WordVariant } from "~lib/services/dictionary-lookup";
 
 function highlightJapaneseSentence(sentence: string, targetWords: string[]): React.ReactNode {
   if (!sentence) return "";
@@ -74,6 +74,8 @@ export function DefinitionCard({
   const [srsAdded, setSrsAdded] = useState(false);
   const [examples, setExamples] = useState<ExampleSentence[]>([]);
   const [loadingExamples, setLoadingExamples] = useState(false);
+  const [variants, setVariants] = useState<WordVariant[]>([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
 
   const wordQuery = token.dictionary_form || token.surface;
   const wordHasKanji = hasKanji(token.dictionary_form) || hasKanji(token.surface);
@@ -105,6 +107,34 @@ export function DefinitionCard({
       })
       .finally(() => {
         if (isMounted) setLoadingExamples(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [wordQuery, lang, token.is_japanese]);
+
+  // Fetch word variants / compound words
+  useEffect(() => {
+    let isMounted = true;
+    if (!wordQuery || !token.is_japanese) {
+      setVariants([]);
+      return;
+    }
+
+    setLoadingVariants(true);
+    fetchWordVariants(wordQuery, lang, 4)
+      .then((items) => {
+        if (isMounted) {
+          setVariants(items);
+        }
+      })
+      .catch((e) => {
+        console.warn("[Hakkutsu] Variant fetch error:", e);
+        if (isMounted) setVariants([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingVariants(false);
       });
 
     return () => {
@@ -309,6 +339,56 @@ export function DefinitionCard({
                   <div style={{ color: "#a1a1aa", fontSize: "11.5px", marginTop: "3px" }}>
                     {ex.translation}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Word Variants Section */}
+      {(variants.length > 0 || loadingVariants) && (
+        <div className="hk-definition__variants" style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
+          <div className="hk-dict-label-row" style={{ marginBottom: "6px" }}>
+            <span className="hk-dict-label" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#38bdf8" }}>
+              <Sparkles size={13} />
+              {t("def_variants_label")}
+            </span>
+            {loadingVariants && <Loader2 size={12} className="hk-spin" style={{ color: "#38bdf8" }} />}
+          </div>
+
+          {variants.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+              {variants.map((v, idx) => (
+                <div
+                  key={v.word || idx}
+                  style={{
+                    background: "rgba(56, 189, 248, 0.06)",
+                    border: "1px solid rgba(56, 189, 248, 0.18)",
+                    borderRadius: "8px",
+                    padding: "6px 9px",
+                    fontSize: "12px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "2px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "5px", flexWrap: "wrap" }}>
+                    <span style={{ color: "#f4f4f5", fontWeight: 700, fontFamily: "var(--hk-font-jp)", fontSize: "13px" }}>
+                      {v.word}
+                    </span>
+                    {v.reading && (
+                      <span style={{ fontSize: "10px", color: "#94a3b8" }}>
+                        {v.reading}
+                      </span>
+                    )}
+                  </div>
+                  {v.meaning && (
+                    <div style={{ color: "#cbd5e1", fontSize: "11px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {v.meaning}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
