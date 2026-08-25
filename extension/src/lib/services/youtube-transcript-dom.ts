@@ -1,12 +1,9 @@
 /**
  * YouTube transcript-panel fallback.
  *
- * The fallback strategy is based on the MIT-licensed SubtideX project:
- * https://github.com/yniijia/SubtideX
- *
- * It intentionally runs only after direct player caption URLs fail. This
- * avoids depending on YouTube's UI selectors in the normal path while still
- * handling token-gated timedtext URLs.
+ * The fallback strategy extracts transcript data directly from YouTube's
+ * in-page transcript panel and HTML5 media player when direct timedtext
+ * requests are blocked by PO-tokens or botguard restrictions.
  */
 
 import type { SubtitleFetchResult, SubtitleSegment } from "~lib/types";
@@ -34,6 +31,7 @@ function transcriptRoot(): HTMLElement | null {
     "#engagement-panel-searchable-transcript",
     "ytd-transcript-search-panel-renderer",
     "ytd-transcript-renderer",
+    "ytd-engagement-panel-section-list-renderer[target-id*='transcript']",
   ];
   for (const selector of selectors) {
     const element = document.querySelector<HTMLElement>(selector);
@@ -96,6 +94,7 @@ function visibleRows(root: HTMLElement): Element[] {
     "ytd-transcript-segment-renderer",
     "transcript-segment-view-model",
     "#segments-container > *",
+    ".ytd-transcript-search-panel-renderer #body ytd-transcript-segment-renderer",
   ];
   const rows = new Set<Element>();
   for (const selector of selectors) {
@@ -124,46 +123,74 @@ function finalizeSegments(collected: Map<string, SubtitleSegment>): SubtitleSegm
   return segments;
 }
 
+/** Check if text matches any transcript button keywords across common languages */
+function isTranscriptKeyword(raw: string): boolean {
+  const s = raw.toLowerCase().trim();
+  return (
+    s.includes("transcript") ||
+    s.includes("bản ghi") ||
+    s.includes("bản chép lời") ||
+    s.includes("chép lời") ||
+    s.includes("phụ đề") ||
+    s.includes("文字起こし") ||
+    s.includes("字幕") ||
+    s.includes("transcripción") ||
+    s.includes("transcription") ||
+    s.includes("transkription")
+  );
+}
+
 async function openTranscriptPanel(): Promise<{ root: HTMLElement; opened: boolean }> {
   const existing = transcriptRoot();
-  if (existing && isVisible(existing)) return { root: existing, opened: false };
+  if (existing && isVisible(existing) && visibleRows(existing).length > 0) {
+    return { root: existing, opened: false };
+  }
 
+  // 1. Expand video description if needed
   const expand = document.querySelector<HTMLElement>(
-    "ytd-watch-metadata #expand, ytd-text-inline-expander #expand"
+    "ytd-watch-metadata #expand, ytd-text-inline-expander #expand, #description #expand, #expand-sizer #expand"
   );
-  if (expand) {
+  if (expand && isVisible(expand)) {
     expand.click();
     await delay(250);
   }
 
-  const descriptionEntry = document.querySelector<HTMLElement>(
-    "ytd-video-description-transcript-section-renderer"
-  );
-  if (descriptionEntry) {
-    descriptionEntry.click();
+  // 2. Look for transcript section button inside description
+  const descriptionButtons = [
+    ...document.querySelectorAll<HTMLElement>(
+      "ytd-video-description-transcript-section-renderer button, ytd-structured-description-content-renderer button, #structured-description button"
+    ),
+  ];
+  const descTranscriptBtn = descriptionButtons.find((btn) => {
+    const label = (btn.getAttribute("aria-label") || "").toLowerCase();
+    const text = (btn.textContent || "").toLowerCase();
+    return isTranscriptKeyword(label) || isTranscriptKeyword(text);
+  }) || document.querySelector<HTMLElement>("ytd-video-description-transcript-section-renderer");
+
+  if (descTranscriptBtn) {
+    descTranscriptBtn.click();
   } else {
-    const directButtons = [...document.querySelectorAll<HTMLElement>("button")];
+    // 3. Look for direct transcript buttons anywhere in watch metadata
+    const directButtons = [...document.querySelectorAll<HTMLElement>("ytd-watch-metadata button, #top-level-buttons-computed button, ytd-menu-renderer button")];
     const direct = directButtons.find((button) => {
       const label = (button.getAttribute("aria-label") || "").toLowerCase();
-      return (
-        label.includes("transcript") ||
-        label.includes("bản ghi") ||
-        label.includes("phụ đề") ||
-        label.includes("字幕")
-      );
+      const text = (button.textContent || "").toLowerCase();
+      return isTranscriptKeyword(label) || isTranscriptKeyword(text);
     });
+
     if (direct) {
       direct.click();
     } else {
+      // 4. Look in the "..." More actions menu
       const moreButton = document.querySelector<HTMLElement>(
-        'ytd-watch-metadata button[aria-label*="More"], ytd-watch-metadata ytd-menu-renderer button'
+        'ytd-watch-metadata button[aria-label*="More"], ytd-watch-metadata button[aria-label*="Thêm"], ytd-watch-metadata button[aria-label*="その他"], ytd-watch-metadata ytd-menu-renderer button'
       );
       if (moreButton) {
         moreButton.click();
         await delay(300);
         const menuItems = [
           ...document.querySelectorAll<HTMLElement>(
-            "ytd-menu-service-item-renderer, tp-yt-paper-item"
+            "ytd-menu-service-item-renderer, tp-yt-paper-item, ytd-menu-navigation-item-renderer"
           ),
         ];
         const transcriptItem = menuItems.find((item) => {
@@ -172,39 +199,85 @@ async function openTranscriptPanel(): Promise<{ root: HTMLElement; opened: boole
           return (
             html.includes("getTranscriptEndpoint") ||
             html.includes("searchable-transcript") ||
-            text.includes("transcript") ||
-            text.includes("bản ghi") ||
-            text.includes("phụ đề") ||
-            text.includes("字幕")
+            isTranscriptKeyword(text)
           );
         });
-        transcriptItem?.click();
+        if (transcriptItem) {
+          transcriptItem.click();
+        } else {
+          // Close menu if transcript not found
+          document.body.click();
+        }
       }
     }
   }
 
-  const deadline = Date.now() + 8000;
+  const deadline = Date.now() + 6000;
   while (Date.now() < deadline) {
     const root = transcriptRoot();
     if (root && isVisible(root) && visibleRows(root).length > 0) {
       return { root, opened: true };
     }
-    await delay(160);
+    await delay(150);
   }
-  throw new Error("YouTube không mở được Transcript panel hoặc video không có transcript");
+  throw new Error("Không thể mở Transcript trên trang YouTube hoặc video không có transcript.");
 }
 
 async function closeTranscriptPanel(root: HTMLElement) {
   const closeButton =
     root.querySelector<HTMLElement>("#visibility-button button") ||
     root.querySelector<HTMLElement>('button[aria-label*="Close"]') ||
-    root.querySelector<HTMLElement>('button[aria-label*="Đóng"]');
+    root.querySelector<HTMLElement>('button[aria-label*="Đóng"]') ||
+    root.querySelector<HTMLElement>('button[aria-label*="閉じる"]');
   closeButton?.click();
+}
+
+/**
+ * Extract subtitles from the HTML5 media player's text tracks if active.
+ */
+export function tryExtractFromVideoTextTracks(videoId: string): SubtitleFetchResult | null {
+  const video = document.querySelector("video");
+  if (!video || !video.textTracks || video.textTracks.length === 0) return null;
+
+  for (let i = 0; i < video.textTracks.length; i++) {
+    const track = video.textTracks[i];
+    if (track.cues && track.cues.length > 0) {
+      const segments: SubtitleSegment[] = [];
+      for (let j = 0; j < track.cues.length; j++) {
+        const cue = track.cues[j] as VTTCue;
+        if (cue && cue.text && cue.text.trim()) {
+          segments.push({
+            start: cue.startTime,
+            duration: Math.max(0.1, cue.endTime - cue.startTime),
+            text: cue.text.trim(),
+          });
+        }
+      }
+      if (segments.length > 0) {
+        return {
+          videoId,
+          language: track.language || "ja",
+          trackName: track.label || track.language || "Native Player CC",
+          segments,
+          fullText: segments.map((s) => s.text).join(" "),
+          isAutoGenerated: false,
+          source: "player",
+        };
+      }
+    }
+  }
+  return null;
 }
 
 export async function fetchTranscriptPanelSubtitles(
   videoId: string
 ): Promise<SubtitleFetchResult> {
+  // First try extracting from active video text tracks if available
+  const textTrackResult = tryExtractFromVideoTextTracks(videoId);
+  if (textTrackResult && textTrackResult.segments.length > 0) {
+    return textTrackResult;
+  }
+
   const { root, opened } = await openTranscriptPanel();
   const collected = new Map<string, SubtitleSegment>();
   const scrollContainer =
@@ -230,7 +303,7 @@ export async function fetchTranscriptPanelSubtitles(
         scrollContainer.scrollHeight,
         scrollContainer.scrollTop + Math.max(220, scrollContainer.clientHeight * 0.8)
       );
-      await delay(130);
+      await delay(120);
     }
     collectRows(root, collected);
   } finally {
@@ -240,11 +313,11 @@ export async function fetchTranscriptPanelSubtitles(
 
   const segments = finalizeSegments(collected);
   if (segments.length === 0) {
-    throw new Error("Transcript panel đã mở nhưng không đọc được dòng phụ đề nào");
+    throw new Error("Transcript panel đã mở nhưng không đọc được dòng phụ đề nào.");
   }
   return {
     videoId,
-    language: "auto",
+    language: "ja",
     segments,
     fullText: segments.map((segment) => segment.text).join(" "),
     trackName: "YouTube Transcript",
@@ -257,3 +330,4 @@ export const transcriptDomTestables = {
   finalizeSegments,
   timestampToSeconds,
 };
+

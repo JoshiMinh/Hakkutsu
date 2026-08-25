@@ -27,25 +27,78 @@ const syncMethodsToPatch = [
   'unlinkSync'
 ];
 
+const sab = new SharedArrayBuffer(4);
+const int32 = new Int32Array(sab);
+
+function sleepSync(ms) {
+  try {
+    Atomics.wait(int32, 0, 0, ms);
+  } catch {
+    const stop = Date.now() + ms;
+    while (Date.now() < stop) {}
+  }
+}
+
+const nodeModulesFileCache = new Map();
+
 for (const method of syncMethodsToPatch) {
   if (typeof fs[method] === 'function') {
     const orig = fs[method];
-    fs[method] = function (...args) {
-      let retries = 0;
-      while (true) {
-        try {
-          return orig.apply(this, args);
-        } catch (err) {
-          if (err && (err.code === 'EMFILE' || err.code === 'ENFILE') && retries < 100) {
-            retries++;
-            const stop = Date.now() + Math.min(retries * 2, 20);
-            while (Date.now() < stop) {}
-          } else {
-            throw err;
+    if (method === 'readFileSync') {
+      fs[method] = function (file, options) {
+        // Only cache immutable node_modules files (never .plasmo or project source files)
+        if (typeof file === 'string' && file.includes('node_modules') && !file.includes('.plasmo')) {
+          const cacheKey = `${file}:${typeof options === 'object' ? JSON.stringify(options) : options}`;
+          if (nodeModulesFileCache.has(cacheKey)) {
+            return nodeModulesFileCache.get(cacheKey);
+          }
+          let retries = 0;
+          while (true) {
+            try {
+              const res = orig.call(this, file, options);
+              nodeModulesFileCache.set(cacheKey, res);
+              return res;
+            } catch (err) {
+              if (err && (err.code === 'EMFILE' || err.code === 'ENFILE' || err.code === 'EBUSY') && retries < 500) {
+                retries++;
+                sleepSync(10 + Math.floor(Math.random() * 20));
+              } else {
+                throw err;
+              }
+            }
           }
         }
-      }
-    };
+        let retries = 0;
+        while (true) {
+          try {
+            return orig.apply(this, arguments);
+          } catch (err) {
+            if (err && (err.code === 'EMFILE' || err.code === 'ENFILE' || err.code === 'EBUSY') && retries < 500) {
+              retries++;
+              sleepSync(10 + Math.floor(Math.random() * 20));
+            } else {
+              throw err;
+            }
+          }
+        }
+      };
+    } else {
+      fs[method] = function (...args) {
+        let retries = 0;
+        while (true) {
+          try {
+            return orig.apply(this, args);
+          } catch (err) {
+            if (err && (err.code === 'EMFILE' || err.code === 'ENFILE' || err.code === 'EBUSY') && retries < 500) {
+              retries++;
+              sleepSync(10 + Math.floor(Math.random() * 20));
+            } else {
+              throw err;
+            }
+          }
+        }
+      };
+    }
   }
 }
 
@@ -59,9 +112,9 @@ if (fs.promises) {
         try {
           return await fn.apply(this, args);
         } catch (err) {
-          if (err && (err.code === 'EMFILE' || err.code === 'ENFILE') && retries < 50) {
+          if (err && (err.code === 'EMFILE' || err.code === 'ENFILE' || err.code === 'EBUSY') && retries < 200) {
             retries++;
-            await new Promise((resolve) => setTimeout(resolve, 20 * retries));
+            await new Promise((resolve) => setTimeout(resolve, 10 + Math.floor(Math.random() * 20)));
           } else {
             throw err;
           }
@@ -116,9 +169,9 @@ for (const method of callbackMethodsToPatch) {
         const attempt = () => {
           const newArgs = [...args];
           newArgs[newArgs.length - 1] = function (err, ...res) {
-            if (err && (err.code === 'EMFILE' || err.code === 'ENFILE') && retries < 100) {
+            if (err && (err.code === 'EMFILE' || err.code === 'ENFILE' || err.code === 'EBUSY') && retries < 200) {
               retries++;
-              setTimeout(attempt, Math.min(retries * 5, 50));
+              setTimeout(attempt, 10 + Math.floor(Math.random() * 20));
             } else {
               cb.call(this, err, ...res);
             }

@@ -490,6 +490,9 @@ async function fetchTrackSegments(
     url: URL;
   }> = [];
 
+  // 1. Attempt original URL as provided first (preserves server-signed format and parameters)
+  attempts.push({ format: "json3", url: baseUrl });
+
   const json3Url = new URL(baseUrl);
   json3Url.searchParams.set("fmt", "json3");
   json3Url.searchParams.delete("callback");
@@ -514,7 +517,12 @@ async function fetchTrackSegments(
   for (const attempt of attempts) {
     try {
       const response = await fetch(attempt.url.toString(), {
-        credentials: "include",
+        headers: {
+          Accept: "application/json, text/plain, */*",
+          Referer: `https://www.youtube.com/watch?v=${videoId}`,
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        },
         cache: "no-store",
       });
       if (!response.ok) {
@@ -541,11 +549,15 @@ async function fetchTrackSegments(
     }
   }
 
-  const poTokenHint = baseUrl.searchParams.get("exp") === "xpe"
-    ? " This track requires a YouTube PO token."
-    : "";
+  const isPoToken = baseUrl.searchParams.get("exp") === "xpe" || failures.every((f) => f.includes("empty"));
+  if (isPoToken) {
+    throw new Error(
+      `YouTube PO token required for caption track "${track.languageCode}". Direct timedtext download blocked.`
+    );
+  }
+
   throw new Error(
-    `YouTube returned no usable data for caption track "${track.languageCode}" (${failures.join("; ")}).${poTokenHint}`
+    `Không thể đọc dữ liệu phụ đề cho track "${track.languageCode}" (${failures.join("; ")}).`
   );
 }
 

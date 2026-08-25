@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Copy, RotateCcw, Brain, Download, Upload, Plus, Minus, XCircle, Layers } from "lucide-react";
+import { Copy, RotateCcw, Brain, Download, Upload, Plus, Minus, XCircle, Layers, Globe, FileText, FolderOpen } from "lucide-react";
 import type { SubtitleSegment, SubtitleFetchResult, AnalyzeResponse, TokenAnalysis } from "~lib/types";
 import { readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
 import { useSettingsStore } from "~lib/utils/settings";
@@ -88,6 +88,7 @@ export interface SubtitleOverlayProps {
   onOffsetChange?: (offset: number) => void;
   onLoadCustomSubtitles?: (result: SubtitleFetchResult) => void;
   onUnloadCustomSubtitles?: () => void;
+  onTryTranscript?: () => Promise<void> | void;
   isFloatingButton?: boolean;
   videoTitle?: string;
   availableTracks?: SubtitleTrackOption[];
@@ -114,6 +115,7 @@ export const SubtitleOverlay = ({
   onOffsetChange,
   onLoadCustomSubtitles,
   onUnloadCustomSubtitles,
+  onTryTranscript,
   isFloatingButton = false,
   videoTitle = "",
   availableTracks = [],
@@ -134,6 +136,7 @@ export const SubtitleOverlay = ({
   });
   const [showSettings, setShowSettings] = useState(false);
   const [showSelectModal, setShowSelectModal] = useState(false);
+  const [modalInitialMode, setModalInitialMode] = useState<"select" | "jimaku">("select");
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [offsetToast, setOffsetToast] = useState<string | null>(null);
 
@@ -146,6 +149,20 @@ export const SubtitleOverlay = ({
   const ctrlPeekOpenRef = useRef(false);
   const ctrlHoldTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+
+  const handleFilePickerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onLoadCustomSubtitles) {
+      try {
+        const parsed = await readSubtitleFile(file);
+        const subResult = parsedToSubtitleFetchResult(parsed, currentUrl);
+        onLoadCustomSubtitles(subResult);
+      } catch (err) {
+        console.error("Hakkutsu: Failed to load selected subtitle file", err);
+      }
+    }
+    e.target.value = "";
+  };
 
   // Sync settings when global settings hydrate/change
   useEffect(() => {
@@ -699,10 +716,6 @@ export const SubtitleOverlay = ({
         className={`hk-yt-btn ${isEnabled ? "is-active" : "is-off"} ${error ? "is-error" : ""}`}
         onClick={(e) => {
           e.stopPropagation();
-          if (!subtitleData && error) {
-            setShowSelectModal(true);
-            return;
-          }
           onToggleEnabled();
         }}
         onContextMenu={(e) => {
@@ -712,10 +725,10 @@ export const SubtitleOverlay = ({
         }}
         title={
           error
-            ? `Hakkutsu: ${error} · Click to Select Subtitles`
+            ? `Hakkutsu: ${error} · Click để bật/tắt · Hover để chọn phụ đề`
             : subtitleData
-              ? `Hakkutsu (${subtitleData.trackName}) · Click to toggle · Right click for tracks`
-              : "Hakkutsu Subtitles · Click to Select"
+              ? `Hakkutsu (${subtitleData.trackName}) · ${isEnabled ? "Đang bật" : "Đang tắt"} · Click để bật/tắt · Hover để mở menu`
+              : `Hakkutsu Subtitles · ${isEnabled ? "Đang bật" : "Đang tắt"} · Click để bật/tắt · Hover để mở menu`
         }
       >
         <div className="hk-yt-btn__icon-wrapper">
@@ -1002,13 +1015,13 @@ export const SubtitleOverlay = ({
             bottom: "18%",
             transform: "translateX(-50%)",
             zIndex: 70,
-            maxWidth: "80%",
-            width: "440px",
+            maxWidth: "90%",
+            width: "480px",
             padding: "16px 20px",
-            border: "1px solid rgba(239, 68, 68, 0.35)",
+            border: "1px solid rgba(168, 85, 247, 0.4)",
             borderRadius: "14px",
             background: "#18181b",
-            boxShadow: "0 16px 36px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(239, 68, 68, 0.15)",
+            boxShadow: "0 16px 36px rgba(0, 0, 0, 0.8), 0 0 20px rgba(168, 85, 247, 0.15)",
             color: "#f4f4f5",
             fontSize: "13.5px",
             fontWeight: 500,
@@ -1016,27 +1029,33 @@ export const SubtitleOverlay = ({
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: "12px",
+            gap: "14px",
             pointerEvents: "auto",
           }}
         >
           <div style={{ lineHeight: 1.5, color: "#e4e4e7" }}>
             {error.startsWith("Tiện ích") || error.startsWith("Extension")
               ? t("sub_overlay_extension_updated")
-              : error.includes("không có phụ đề tiếng Nhật") || error.includes("No Japanese subtitles")
-                ? t("sub_overlay_no_ja")
-                : `${t("sub_overlay_error_prefix")}${error}`}
+              : error.includes("PO token") ||
+                error.includes("giới hạn bởi YouTube") ||
+                error.includes("không tải được phụ đề trực tiếp") ||
+                error.includes("YouTube direct failed")
+                ? t("sub_overlay_po_token_hint")
+                : error.includes("không có phụ đề tiếng Nhật") || error.includes("No Japanese subtitles")
+                  ? t("sub_overlay_no_ja")
+                  : `${t("sub_overlay_error_prefix")}${error}`}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "2px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: "8px", width: "100%" }}>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                setModalInitialMode("jimaku");
                 setShowSelectModal(true);
               }}
               style={{
-                padding: "8px 16px",
+                padding: "8px 14px",
                 background: "linear-gradient(135deg, #a855f7 0%, #7e22ce 100%)",
                 border: "none",
                 borderRadius: "8px",
@@ -1047,11 +1066,82 @@ export const SubtitleOverlay = ({
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "6px",
-                boxShadow: "0 2px 10px rgba(168, 85, 247, 0.45)",
-                pointerEvents: "auto",
+                boxShadow: "0 2px 10px rgba(168, 85, 247, 0.4)",
               }}
             >
-              <Layers size={14} /> Select Subtitles (Tracks & Jimaku)
+              <Globe size={14} /> {t("sub_overlay_btn_search_jimaku")}
+            </button>
+
+            {onTryTranscript && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTryTranscript();
+                }}
+                style={{
+                  padding: "8px 14px",
+                  background: "#27272a",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  borderRadius: "8px",
+                  color: "#f4f4f5",
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <FileText size={14} /> {t("sub_overlay_btn_transcript")}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setModalInitialMode("select");
+                setShowSelectModal(true);
+              }}
+              style={{
+                padding: "8px 14px",
+                background: "#27272a",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+                borderRadius: "8px",
+                color: "#f4f4f5",
+                fontSize: "12.5px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <Layers size={14} /> {t("sub_overlay_btn_select")}
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+              style={{
+                padding: "8px 12px",
+                background: "transparent",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                borderRadius: "8px",
+                color: "#a1a1aa",
+                fontSize: "12px",
+                fontWeight: 500,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+              }}
+            >
+              <FolderOpen size={13} /> {t("sub_overlay_btn_open_file")}
             </button>
 
             {requiresPageReload && (
@@ -1069,7 +1159,7 @@ export const SubtitleOverlay = ({
                   cursor: "pointer",
                 }}
               >
-                Tải lại trang
+                {t("sub_overlay_btn_reload")}
               </button>
             )}
           </div>
@@ -1223,6 +1313,15 @@ export const SubtitleOverlay = ({
         </div>
       )}
 
+      {/* Hidden file input for opening local subtitle files */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept=".srt,.vtt,.ass,.ssa"
+        style={{ display: "none" }}
+        onChange={handleFilePickerChange}
+      />
+
       {/* asbplayer-style Select Subtitles Modal */}
       <SelectSubtitlesModal
         isOpen={showSelectModal}
@@ -1231,6 +1330,7 @@ export const SubtitleOverlay = ({
         availableTracks={availableTracks}
         currentTrackId={currentTrackId || subtitleData?.trackName}
         secondaryTrackId={secondaryTrackId}
+        initialMode={modalInitialMode}
         onSelectTrack={async (track) => {
           if (onSelectTrack) {
             await onSelectTrack(track);

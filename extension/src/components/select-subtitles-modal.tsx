@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { X, Settings, Info, FolderOpen, Globe, Check, ChevronDown, Search, ArrowLeft, Loader2, Download } from "lucide-react";
 import { useTranslation } from "~lib/languages/locales";
 import { useSettingsStore } from "~lib/utils/settings";
@@ -23,10 +24,24 @@ export interface SelectSubtitlesModalProps {
   availableTracks: SubtitleTrackOption[];
   currentTrackId?: string;
   secondaryTrackId?: string;
+  initialMode?: "select" | "jimaku";
   onSelectTrack: (track: SubtitleTrackOption) => Promise<void> | void;
   onSelectSecondaryTrack?: (track: SubtitleTrackOption | null) => Promise<void> | void;
   onCustomSubtitleLoaded: (result: SubtitleFetchResult) => void;
   onOpenSettings?: () => void;
+}
+
+function cleanTitleForJimaku(title: string): string {
+  if (!title) return "";
+  const cleaned = title
+    .replace(/【[^】]*】/g, " ")
+    .replace(/\[[^\]]*\]/g, " ")
+    .replace(/\([^)]*(?:official|pv|mv|full|hd|1080p|4k|sub|dub|vietsub|engsub)[^)]*\)/gi, " ")
+    .replace(/(?:official\s*(?:video|mv|pv|audio)|1080p|720p|4k|full\s*hd|ep(?:isode)?\s*\d+|第\d+話)/gi, " ")
+    .replace(/[「」『』]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || title;
 }
 
 interface TrackSelectProps {
@@ -247,6 +262,7 @@ export function SelectSubtitlesModal({
   availableTracks,
   currentTrackId,
   secondaryTrackId,
+  initialMode = "select",
   onSelectTrack,
   onSelectSecondaryTrack,
   onCustomSubtitleLoaded,
@@ -255,7 +271,7 @@ export function SelectSubtitlesModal({
   const { t } = useTranslation();
   const { settings, updateSettings } = useSettingsStore();
 
-  const [mode, setMode] = useState<"select" | "jimaku">("select");
+  const [mode, setMode] = useState<"select" | "jimaku">(initialMode);
   const [showInfo, setShowInfo] = useState(true);
   const [rememberChoices, setRememberChoices] = useState(true);
   const [editableTitle, setEditableTitle] = useState(videoTitle);
@@ -263,7 +279,7 @@ export function SelectSubtitlesModal({
   const [selectedTrack2, setSelectedTrack2] = useState<string>(secondaryTrackId || "");
 
   // Jimaku search state
-  const [searchQuery, setSearchQuery] = useState(videoTitle);
+  const [searchQuery, setSearchQuery] = useState(cleanTitleForJimaku(videoTitle));
   const [apiKeyInput, setApiKeyInput] = useState(settings.jimakuApiKey || "");
   const [showApiKeyInput, setShowApiKeyInput] = useState(!settings.jimakuApiKey);
   const [searching, setSearching] = useState(false);
@@ -275,6 +291,12 @@ export function SelectSubtitlesModal({
   const [jimakuError, setJimakuError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+    }
+  }, [isOpen, initialMode]);
 
   // Dynamic track extraction fallback if availableTracks is empty
   const tracksToDisplay = useMemo(() => {
@@ -301,15 +323,18 @@ export function SelectSubtitlesModal({
   useEffect(() => {
     if (videoTitle) {
       setEditableTitle(videoTitle);
-      setSearchQuery(videoTitle);
+      setSearchQuery(cleanTitleForJimaku(videoTitle));
     }
   }, [videoTitle]);
 
   useEffect(() => {
     if (currentTrackId) {
       setSelectedTrack1(currentTrackId);
+    } else if (tracksToDisplay.length > 0 && (!selectedTrack1 || selectedTrack1 === "__empty__")) {
+      const ja = tracksToDisplay.find((t) => t.languageCode === "ja" || t.name.includes("Japanese") || t.name.includes("日本語")) || tracksToDisplay[0];
+      if (ja) setSelectedTrack1(ja.id);
     }
-  }, [currentTrackId]);
+  }, [currentTrackId, tracksToDisplay]);
 
   if (!isOpen) return null;
 
@@ -319,63 +344,56 @@ export function SelectSubtitlesModal({
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const parsed = await readSubtitleFile(file);
-      const result = parsedToSubtitleFetchResult(parsed, file.name);
-      onCustomSubtitleLoaded(result);
-      onClose();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Error reading subtitle file");
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
+    if (file) {
+      try {
+        const parsed = await readSubtitleFile(file);
+        const result = parsedToSubtitleFetchResult(parsed, window.location.href);
+        onCustomSubtitleLoaded(result);
+        onClose();
+      } catch (err) {
+        console.error("Hakkutsu: Failed to load file", err);
+      }
     }
+    e.target.value = "";
   };
 
-  const handleTrack1Change = async (val: string) => {
-    if (val === "__open_files__") {
-      handleOpenFilePicker();
-      return;
-    }
-    if (val === "__search_online__") {
-      setMode("jimaku");
-      return;
-    }
-    setSelectedTrack1(val);
-    const track = tracksToDisplay.find((t) => t.id === val);
+  const handleTrack1Change = async (trackId: string) => {
+    setSelectedTrack1(trackId);
+    const track = tracksToDisplay.find((t) => t.id === trackId);
     if (track) {
       await onSelectTrack(track);
     }
   };
 
-  const handleTrack2Change = (val: string) => {
-    setSelectedTrack2(val);
-    if (val === "" || val === "__empty__") {
-      onSelectSecondaryTrack?.(null);
+  const handleTrack2Change = async (trackId: string) => {
+    setSelectedTrack2(trackId);
+    if (trackId === "__empty__" || !trackId) {
+      if (onSelectSecondaryTrack) onSelectSecondaryTrack(null);
       return;
     }
-    const track = tracksToDisplay.find((t) => t.id === val);
-    if (track) {
-      onSelectSecondaryTrack?.(track);
+    const track = tracksToDisplay.find((t) => t.id === trackId);
+    if (track && onSelectSecondaryTrack) {
+      await onSelectSecondaryTrack(track);
     }
   };
 
-  const handleSearchJimaku = async () => {
-    if (!searchQuery.trim()) return;
+  const handleSearchJimaku = async (queryToSearch?: string) => {
+    const q = queryToSearch || searchQuery;
+    if (!q.trim()) return;
+
     setSearching(true);
     setJimakuError(null);
     setSelectedEntry(null);
     setEntryFiles([]);
 
     try {
-      const results = await jimakuService.searchEntries(searchQuery, apiKeyInput || settings.jimakuApiKey || "");
+      const results = await jimakuService.searchEntries(q, apiKeyInput || settings.jimakuApiKey || "");
       setEntries(results);
       if (results.length === 0) {
-        setJimakuError("Không tìm thấy phim/anime phù hợp trên Jimaku.cc.");
+        setJimakuError("Không tìm thấy phụ đề nào trên Jimaku.cc cho từ khóa này.");
       }
     } catch (err) {
-      setJimakuError(err instanceof Error ? err.message : "Jimaku search failed");
+      setJimakuError(err instanceof Error ? err.message : "Search failed");
     } finally {
       setSearching(false);
     }
@@ -389,11 +407,8 @@ export function SelectSubtitlesModal({
     try {
       const files = await jimakuService.getEntryFiles(entry.id, apiKeyInput || settings.jimakuApiKey || "");
       setEntryFiles(files);
-      if (files.length === 0) {
-        setJimakuError("Chưa có file phụ đề cho mục này trên Jimaku.cc.");
-      }
     } catch (err) {
-      setJimakuError(err instanceof Error ? err.message : "Failed to load files");
+      setJimakuError(err instanceof Error ? err.message : "Failed to load entry files");
     } finally {
       setLoadingFiles(false);
     }
@@ -419,7 +434,25 @@ export function SelectSubtitlesModal({
     setShowApiKeyInput(false);
   };
 
-  return (
+  const handleConfirmOk = async () => {
+    if (selectedTrack1 && selectedTrack1 !== "__empty__") {
+      const track = tracksToDisplay.find((t) => t.id === selectedTrack1);
+      if (track) {
+        await onSelectTrack(track);
+      }
+    }
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  const portalContainer = typeof document !== "undefined"
+    ? ((document.fullscreenElement as HTMLElement) || document.body)
+    : null;
+
+  if (!portalContainer) return null;
+
+  return createPortal(
     <div
       className="hk-modal-backdrop"
       onClick={(e) => {
@@ -433,8 +466,7 @@ export function SelectSubtitlesModal({
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.75)",
-        backdropFilter: "blur(6px)",
+        backgroundColor: "rgba(0, 0, 0, 0.82)",
         zIndex: 2147483647,
         display: "flex",
         alignItems: "center",
@@ -442,6 +474,7 @@ export function SelectSubtitlesModal({
         padding: "16px",
         fontFamily: "system-ui, -apple-system, sans-serif",
         pointerEvents: "auto",
+        isolation: "isolate",
       }}
     >
       <input
@@ -463,18 +496,21 @@ export function SelectSubtitlesModal({
           width: "100%",
           maxWidth: "480px",
           backgroundColor: "#18181b",
-          border: "1px solid rgba(255, 255, 255, 0.12)",
+          background: "#18181b",
+          border: "1px solid rgba(255, 255, 255, 0.16)",
           borderRadius: "14px",
-          boxShadow: "0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(168, 85, 247, 0.2)",
+          boxShadow: "0 25px 60px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(168, 85, 247, 0.25)",
           color: "#f4f4f5",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
           maxHeight: "90vh",
-          animation: "hk-fade-in 0.2s ease-out",
+          animation: "hk-fade-in 0.15s ease-out",
           pointerEvents: "auto",
           position: "relative",
           zIndex: 2147483647,
+          isolation: "isolate",
+          opacity: 1,
         }}
       >
         {/* Header */}
@@ -744,7 +780,7 @@ export function SelectSubtitlesModal({
                   }}
                 />
                 <button
-                  onClick={handleSearchJimaku}
+                  onClick={() => handleSearchJimaku()}
                   disabled={searching}
                   style={{
                     padding: "0 16px",
@@ -924,7 +960,7 @@ export function SelectSubtitlesModal({
               </button>
 
               <button
-                onClick={onClose}
+                onClick={handleConfirmOk}
                 style={{
                   padding: "8px 18px",
                   background: "#a855f7",
@@ -958,6 +994,7 @@ export function SelectSubtitlesModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    portalContainer
   );
 }

@@ -544,6 +544,19 @@ export const youtubeToolbarCss = `
     box-shadow: none !important;
   }
 
+  /* ── Modal Portal Root on document.body ──────────────────────── */
+  #hk-modal-portal-root {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 2147483647 !important;
+    pointer-events: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
   /* ── Native YouTube Player Control Button ─────────────────────── */
   .hk-toolbar-wrapper,
   .hk-toolbar-wrapper:hover {

@@ -193,18 +193,33 @@ async function playerResponseFromTab(
         return "";
       };
 
+      // 1. First priority: playerResponse or ytInitialPlayerResponse captionTracks (contains full signed baseUrl)
+      let captionTracks =
+        response.captions?.playerCaptionsTracklistRenderer?.captionTracks ||
+        response.captions?.playerCaptionsRenderer?.captionTracks;
+
+      // 2. If existing tracks have baseUrl, keep them
+      if (Array.isArray(captionTracks) && captionTracks.some((t: any) => t.baseUrl || t.url)) {
+        return {
+          videoDetails: response.videoDetails || { videoId: currentVideoId },
+          captions: response.captions,
+        };
+      }
+
       let runtimeTracks: any[] = [];
       if (typeof moviePlayer?.getOption === "function") {
         try {
           const list = moviePlayer.getOption("captions", "tracklist");
           if (Array.isArray(list) && list.length > 0) {
-            runtimeTracks = list.map((track: any) => ({
-              baseUrl: track.baseUrl || track.url || "",
-              languageCode: formatLanguageCode(track),
-              name: formatTrackName(track),
-              kind: track.kind || "",
-              vssId: track.vssId || "",
-            }));
+            runtimeTracks = list
+              .filter((track: any) => track.baseUrl || track.url)
+              .map((track: any) => ({
+                baseUrl: track.baseUrl || track.url || "",
+                languageCode: formatLanguageCode(track),
+                name: formatTrackName(track),
+                kind: track.kind || "",
+                vssId: track.vssId || "",
+              }));
           }
         } catch {
           // Ignore
@@ -215,20 +230,22 @@ async function playerResponseFromTab(
         try {
           const tracks = moviePlayer.getAudioTrack()?.captionTracks;
           if (Array.isArray(tracks)) {
-            runtimeTracks = tracks.map((track: any) => ({
-              baseUrl: track.baseUrl || track.url || "",
-              languageCode: formatLanguageCode(track),
-              name: formatTrackName(track),
-              kind: track.kind || "",
-              vssId: track.vssId || "",
-            }));
+            runtimeTracks = tracks
+              .filter((track: any) => track.baseUrl || track.url)
+              .map((track: any) => ({
+                baseUrl: track.baseUrl || track.url || "",
+                languageCode: formatLanguageCode(track),
+                name: formatTrackName(track),
+                kind: track.kind || "",
+                vssId: track.vssId || "",
+              }));
           }
         } catch {
           // Ignore
         }
       }
 
-      const captions = runtimeTracks.length
+      const captions = runtimeTracks.length > 0
         ? {
             playerCaptionsTracklistRenderer: {
               ...(response.captions?.playerCaptionsTracklistRenderer || {}),
@@ -505,7 +522,23 @@ async function handleMessage(
     case "FETCH_TIMEDTEXT_URL": {
       const { url } = message.payload as { url: string };
       try {
-        const res = await fetch(url, { credentials: "include" });
+        let res = await fetch(url, {
+          headers: {
+            Accept: "application/json, text/plain, */*",
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          },
+        });
+        if (!res.ok && !url.includes("fmt=")) {
+          const jsonUrl = url.includes("?") ? `${url}&fmt=json3` : `${url}?fmt=json3`;
+          res = await fetch(jsonUrl, {
+            headers: {
+              Accept: "application/json, text/plain, */*",
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            },
+          });
+        }
         if (res.ok) {
           const text = await res.text();
           return { type: "FETCH_TIMEDTEXT_RESULT", payload: { success: true, text } };
