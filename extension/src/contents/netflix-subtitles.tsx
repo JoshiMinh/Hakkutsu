@@ -2,11 +2,12 @@
  * Netflix Subtitles — Content Script Overlay
  *
  * Injects an interactive subtitle overlay into the Netflix player.
- * Reads native subtitles from the DOM observer (.player-timedtext) and
- * supports custom external subtitle files (.srt, .vtt, .ass) via drag-and-drop.
+ * Reads native subtitles from the DOM observer (.player-timedtext),
+ * hides native captions cleanly to prevent overlapping,
+ * and supports custom external subtitle files (.srt, .vtt, .ass) via drag-and-drop.
  */
 
-import type { PlasmoCSConfig, PlasmoGetOverlayAnchor, PlasmoGetStyle } from "plasmo";
+import type { PlasmoCSConfig, PlasmoGetOverlayAnchor, PlasmoGetStyle, PlasmoMountShadowHost } from "plasmo";
 import { useEffect, useState, useRef, useCallback } from "react";
 import type { SubtitleSegment, SubtitleFetchResult } from "~lib/types";
 import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/youtube-subtitle-styles";
@@ -15,44 +16,184 @@ import { useSettingsStore } from "~lib/utils/settings";
 import { findSmartCue } from "~lib/services/smart-cue";
 
 export const config: PlasmoCSConfig = {
-  matches: ["https://www.netflix.com/watch/*"],
+  matches: ["https://www.netflix.com/watch/*", "https://www.netflix.com/*"],
 };
 
 export const getOverlayAnchor: PlasmoGetOverlayAnchor = async () =>
-  document.querySelector(".watch-video");
+  document.querySelector(".watch-video") ||
+  document.querySelector(".VideoContainer") ||
+  document.querySelector("video");
+
+export const getShadowHostId = () => "hakkutsu-netflix-subtitles-host";
+
+export const mountShadowHost: PlasmoMountShadowHost = async ({
+  shadowHost,
+  mountState,
+}) => {
+  const mountToPlayer = () => {
+    const player =
+      (mountState?.overlayTargetList?.[0] as HTMLElement | undefined) ||
+      document.querySelector<HTMLElement>(".watch-video") ||
+      document.querySelector<HTMLElement>(".VideoContainer");
+
+    if (!player) return false;
+
+    const host = shadowHost as HTMLElement;
+    Object.assign(host.style, {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      display: "block",
+      overflow: "visible",
+      zIndex: "2147483647",
+      pointerEvents: "none",
+    });
+
+    if (!player.contains(host)) {
+      player.appendChild(host);
+    }
+
+    const shadowContainer = host.shadowRoot?.getElementById(
+      "plasmo-shadow-container"
+    );
+    if (shadowContainer) {
+      Object.assign(shadowContainer.style, {
+        position: "absolute",
+        inset: "0",
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+      });
+    }
+    return true;
+  };
+
+  if (!mountToPlayer()) {
+    const interval = setInterval(() => {
+      if (mountToPlayer()) clearInterval(interval);
+    }, 300);
+    setTimeout(() => clearInterval(interval), 15000);
+  }
+};
 
 import cssText from "data-text:~style.css";
 
+const netflixSpecificCss = `
+  /* ── Extra styles for Netflix ── */
+  .watch-video .hk-sub__container,
+  .VideoContainer .hk-sub__container {
+    bottom: 72px;
+    transition: bottom 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+  }
+
+  .watch-video.active .hk-sub__container,
+  .watch-video:hover .hk-sub__container,
+  .watch-video--bottom-controls-container:hover ~ * .hk-sub__container {
+    bottom: 126px;
+  }
+
+  .watch-video.inactive .hk-sub__container {
+    bottom: 50px;
+  }
+`;
+
 export const getStyle: PlasmoGetStyle = () => {
   const style = document.createElement("style");
-  style.textContent =
-    cssText +
-    youtubeSubtitleCss +
-    youtubeToolbarCss +
-    `
-    /* Extra styles for Netflix */
-    .hk-subs-active .player-timedtext {
-      opacity: 0 !important; /* Hide native subs visually but keep in DOM for observer */
-    }
-    
-    /* Fix alignment and clipping of our injected button in Netflix's control bar */
-    #hk-toolbar-portal {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      flex-shrink: 0;
-      margin-right: 8px;
-      overflow: visible !important;
-    }
-    
-    #hk-toolbar-portal .hk-toolbar-wrapper {
-      overflow: visible !important;
-      min-width: 48px;
-    }
-  `;
+  style.textContent = cssText + youtubeSubtitleCss + netflixSpecificCss;
   return style;
 };
+
+const NETFLIX_STYLE_ID = "hakkutsu-netflix-global-style";
+
+const netflixGlobalCss = `
+  /* ── Hide ALL possible native Netflix subtitles when Hakkutsu is active ── */
+  .watch-video.hk-subs-active .player-timedtext,
+  .watch-video.hk-subs-active .player-timedtext *,
+  .watch-video.hk-subs-active .timedtext-container,
+  .watch-video.hk-subs-active .timedtext-container *,
+  .watch-video.hk-subs-active [data-uia*="timedtext"],
+  .watch-video.hk-subs-active [data-uia*="timedtext"] *,
+  .watch-video.hk-subs-active .ltr-timedtext,
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
+  /* ── Fix alignment of injected button in Netflix control bar ── */
+  #hk-toolbar-portal,
+  #hk-toolbar-portal.hk-toolbar-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    margin: 0 4px !important;
+    padding: 0 !important;
+    position: relative !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    vertical-align: middle !important;
+    z-index: 10 !important;
+    flex-shrink: 0 !important;
+  }
+
+  #hk-toolbar-portal .hk-toolbar-wrapper {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  #hk-toolbar-portal .hk-yt-btn {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    color: #f4f4f5 !important;
+    transition: all 0.2s ease !important;
+  }
+
+  #hk-toolbar-portal .hk-yt-btn:hover {
+    background: rgba(168, 85, 247, 0.3) !important;
+    border-color: #a855f7 !important;
+    transform: scale(1.05) !important;
+  }
+
+  #hk-toolbar-portal .hk-yt-btn.is-active {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.4), rgba(236, 72, 153, 0.4)) !important;
+    border-color: #a855f7 !important;
+  }
+
+  #hk-toolbar-portal .hk-yt-btn__active-bar {
+    display: none !important;
+  }
+
+  ${youtubeToolbarCss}
+`;
+
+function injectNetflixGlobalStyle(enabled: boolean): void {
+  const player = document.querySelector(".watch-video") || document.querySelector(".VideoContainer");
+  if (player) {
+    if (enabled) {
+      player.classList.add("hk-subs-active");
+    } else {
+      player.classList.remove("hk-subs-active");
+    }
+  }
+
+  let styleEl = document.getElementById(NETFLIX_STYLE_ID) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = NETFLIX_STYLE_ID;
+    styleEl.textContent = netflixGlobalCss;
+    (document.head || document.documentElement).appendChild(styleEl);
+  }
+}
 
 const NetflixSubtitles = () => {
   const [customSubtitleData, setCustomSubtitleData] = useState<SubtitleFetchResult | null>(null);
@@ -67,34 +208,59 @@ const NetflixSubtitles = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rafIdRef = useRef<number | null>(null);
 
-  // ── Inject Toolbar CSS into Main Document ────────────────────────────
+  // ── Inject Global Style & Hide Native Captions ─────────────────────────────
   useEffect(() => {
-    let styleEl = document.getElementById("hk-netflix-toolbar-style") as HTMLStyleElement | null;
-    if (!styleEl) {
-      styleEl = document.createElement("style");
-      styleEl.id = "hk-netflix-toolbar-style";
-      styleEl.textContent = youtubeToolbarCss;
-      document.head.appendChild(styleEl);
-    }
-  }, []);
+    injectNetflixGlobalStyle(isEnabled);
 
-  // ── Native Toolbar Injection ──────────────────────────────────────────
+    const interval = setInterval(() => {
+      const player = document.querySelector(".watch-video") || document.querySelector(".VideoContainer");
+      if (player) {
+        if (isEnabled && !player.classList.contains("hk-subs-active")) {
+          player.classList.add("hk-subs-active");
+        } else if (!isEnabled && player.classList.contains("hk-subs-active")) {
+          player.classList.remove("hk-subs-active");
+        }
+      }
+    }, 800);
+
+    return () => {
+      clearInterval(interval);
+      injectNetflixGlobalStyle(false);
+    };
+  }, [isEnabled]);
+
+  // ── Native Toolbar Injection (Separated from Netflix audio button) ─────────
   useEffect(() => {
     const interval = setInterval(() => {
-      const controls =
+      const audioSubBtn = document.querySelector('[data-uia="control-audio-subtitle"]');
+      const fullscreenBtn = document.querySelector('[data-uia="control-fullscreen"]');
+      const speedBtn = document.querySelector('[data-uia="control-playback-speed"]');
+      const buttonRow =
         document.querySelector(".PlayerControlsNeo__button-control-row") ||
-        document.querySelector('[data-uia="control-fullscreen"]')?.parentElement ||
-        document.querySelector('[data-uia="control-audio-subtitle"]')?.parentElement;
+        audioSubBtn?.closest(".PlayerControlsNeo__button-control-row") ||
+        fullscreenBtn?.closest(".PlayerControlsNeo__button-control-row");
 
-      if (controls) {
-        let container = document.getElementById("hk-toolbar-portal");
-        if (!container || !controls.contains(container)) {
-          if (!container) {
-            container = document.createElement("div");
-            container.id = "hk-toolbar-portal";
-            container.className = "hk-toolbar-btn";
-          }
-          controls.prepend(container);
+      let container = document.getElementById("hk-toolbar-portal");
+      if (!container) {
+        container = document.createElement("div");
+        container.id = "hk-toolbar-portal";
+        container.className = "hk-toolbar-btn";
+      }
+
+      if (audioSubBtn && audioSubBtn.parentElement) {
+        // Insert as sibling right BEFORE audioSubBtn in the row
+        if (container.parentElement !== audioSubBtn.parentElement || container.nextElementSibling !== audioSubBtn) {
+          audioSubBtn.parentElement.insertBefore(container, audioSubBtn);
+          setToolbarContainer(container);
+        }
+      } else if (speedBtn && speedBtn.parentElement) {
+        if (container.parentElement !== speedBtn.parentElement) {
+          speedBtn.parentElement.insertBefore(container, speedBtn);
+          setToolbarContainer(container);
+        }
+      } else if (buttonRow) {
+        if (!buttonRow.contains(container)) {
+          buttonRow.appendChild(container);
           setToolbarContainer(container);
         }
       }
@@ -102,8 +268,7 @@ const NetflixSubtitles = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // ── SPA Navigation ──────────────────────────────────────────────────
-
+  // ── SPA Navigation ────────────────────────────────────────────────────────
   useEffect(() => {
     let lastUrl = window.location.href;
     const observer = new MutationObserver(() => {
@@ -125,21 +290,7 @@ const NetflixSubtitles = () => {
     return () => observer.disconnect();
   }, []);
 
-  // ── Hide Native Captions ─────────────────────────────────────────────
-
-  useEffect(() => {
-    const player = document.querySelector(".watch-video");
-    if (player) {
-      if (isEnabled) {
-        player.classList.add("hk-subs-active");
-      } else {
-        player.classList.remove("hk-subs-active");
-      }
-    }
-  }, [isEnabled]);
-
-  // ── Video Reference ──────────────────────────────────────────────────
-
+  // ── Video Reference ───────────────────────────────────────────────────────
   useEffect(() => {
     const interval = setInterval(() => {
       const video = document.querySelector("video");
@@ -148,8 +299,7 @@ const NetflixSubtitles = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // ── Track Custom File Sync (if loaded) ───────────────────────────────
-
+  // ── Custom File Time Sync (if loaded) ─────────────────────────────────────
   useEffect(() => {
     if (!isEnabled || !customSubtitleData) return;
 
@@ -181,10 +331,8 @@ const NetflixSubtitles = () => {
     };
   }, [isEnabled, customSubtitleData, offset]);
 
-  // ── MutationObserver for Native DOM Subtitles ────────────────────────
-
+  // ── MutationObserver for Native DOM Subtitles ─────────────────────────────
   useEffect(() => {
-    // If user loaded a custom file, skip DOM scraping
     if (!isEnabled || customSubtitleData) return;
 
     let lastText = "";
@@ -278,6 +426,7 @@ const NetflixSubtitles = () => {
       onOffsetChange={setOffset}
       onLoadCustomSubtitles={handleLoadCustomSubtitles}
       onUnloadCustomSubtitles={handleUnloadCustomSubtitles}
+      videoTitle={document.title.replace(/ - Netflix$/, "")}
     />
   );
 };

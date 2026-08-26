@@ -25,21 +25,6 @@ function timestampToSeconds(value: string): number | null {
   return hours * 3600 + minutes * 60 + seconds;
 }
 
-function transcriptRoot(): HTMLElement | null {
-  const selectors = [
-    'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]',
-    "#engagement-panel-searchable-transcript",
-    "ytd-transcript-search-panel-renderer",
-    "ytd-transcript-renderer",
-    "ytd-engagement-panel-section-list-renderer[target-id*='transcript']",
-  ];
-  for (const selector of selectors) {
-    const element = document.querySelector<HTMLElement>(selector);
-    if (element) return element;
-  }
-  return null;
-}
-
 function isVisible(element: HTMLElement): boolean {
   const rect = element.getBoundingClientRect();
   const style = window.getComputedStyle(element);
@@ -53,36 +38,72 @@ function isVisible(element: HTMLElement): boolean {
   );
 }
 
+function transcriptRoot(): HTMLElement | null {
+  // 1. Direct segment check
+  const anySegment = document.querySelector(
+    "ytd-transcript-segment-renderer, transcript-segment-view-model, [class*='transcript-segment']"
+  );
+  if (anySegment) {
+    return (
+      (anySegment.closest(
+        "ytd-engagement-panel-section-list-renderer, ytd-transcript-renderer, ytd-transcript-search-panel-renderer, #segments-container, #content"
+      ) as HTMLElement) || (anySegment.parentElement as HTMLElement) || document.body
+    );
+  }
+
+  const selectors = [
+    'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]',
+    "#engagement-panel-searchable-transcript",
+    "ytd-transcript-search-panel-renderer",
+    "ytd-transcript-renderer",
+    "ytd-transcript-segment-list-renderer",
+    "ytd-engagement-panel-section-list-renderer[target-id*='transcript']",
+    "ytd-engagement-panel-section-list-renderer[visibility='ENGAGEMENT_PANEL_VISIBILITY_EXPANDED']",
+    "#segments-container",
+  ];
+  for (const selector of selectors) {
+    const element = document.querySelector<HTMLElement>(selector);
+    if (element && isVisible(element)) return element;
+  }
+
+  return null;
+}
+
 function rowTimestamp(row: Element): number | null {
   const candidates = [
     row.querySelector(".segment-timestamp"),
+    row.querySelector(".segment-start-offset"),
     row.querySelector('[class*="segment-timestamp"]'),
     row.querySelector('[class*="timestamp"]'),
+    row.querySelector('[class*="start-offset"]'),
     row.querySelector("button"),
   ].filter((item): item is Element => Boolean(item));
 
   for (const element of candidates) {
-    const match = (element.textContent || "").trim().match(
-      /^\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?$/
-    );
-    if (match) return timestampToSeconds(match[0]);
+    const text = (element.textContent || "").trim();
+    const match = text.match(/\b(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)\b/);
+    if (match) return timestampToSeconds(match[1]);
   }
-  const inline = (row.textContent || "")
-    .trim()
-    .match(/^(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)\s+/);
+
+  const rowContent = (row.textContent || "").trim();
+  const inline = rowContent.match(/\b(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)\b/);
   return inline ? timestampToSeconds(inline[1]) : null;
 }
 
 function rowText(row: Element): string {
-  const element =
-    row.querySelector(".segment-text") ||
-    row.querySelector('[class*="segment-text"]') ||
-    row.querySelector(".yt-core-attributed-string") ||
-    row.querySelector("yt-formatted-string");
-  const direct = (element?.textContent || "").replace(/\s+/g, " ").trim();
-  if (direct && !/^\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?$/.test(direct)) {
-    return direct;
+  const elements = [
+    ...row.querySelectorAll(
+      ".segment-text, [class*='segment-text'], .yt-core-attributed-string, yt-formatted-string, [class*='attributed-string'], div[class*='text'], span"
+    ),
+  ];
+
+  for (const el of elements) {
+    const direct = (el.textContent || "").replace(/\s+/g, " ").trim();
+    if (direct && !/^\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?$/.test(direct) && direct.length > 0) {
+      return direct.replace(/^\s*\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?\s*/, "").trim();
+    }
   }
+
   return (row.textContent || "")
     .replace(/^\s*\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?\s*/, "")
     .replace(/\s+/g, " ")
@@ -93,12 +114,21 @@ function visibleRows(root: HTMLElement): Element[] {
   const selectors = [
     "ytd-transcript-segment-renderer",
     "transcript-segment-view-model",
+    "ytd-transcript-segment-list-renderer > *",
     "#segments-container > *",
     ".ytd-transcript-search-panel-renderer #body ytd-transcript-segment-renderer",
+    '[class*="transcript-segment"]',
   ];
   const rows = new Set<Element>();
   for (const selector of selectors) {
     root.querySelectorAll(selector).forEach((row) => rows.add(row));
+  }
+  if (rows.size === 0 && typeof document !== "undefined") {
+    document
+      .querySelectorAll(
+        "ytd-transcript-segment-renderer, transcript-segment-view-model, [class*='transcript-segment']"
+      )
+      .forEach((row) => rows.add(row));
   }
   return [...rows];
 }
@@ -141,8 +171,20 @@ function isTranscriptKeyword(raw: string): boolean {
 }
 
 async function openTranscriptPanel(): Promise<{ root: HTMLElement; opened: boolean }> {
+  // Check if segments are already present in DOM
+  const existingRows = document.querySelectorAll(
+    "ytd-transcript-segment-renderer, transcript-segment-view-model, [class*='transcript-segment']"
+  );
+  if (existingRows.length > 0) {
+    const root =
+      (existingRows[0].closest(
+        "ytd-engagement-panel-section-list-renderer, ytd-transcript-renderer, ytd-transcript-search-panel-renderer, #segments-container, #content"
+      ) as HTMLElement) || document.body;
+    return { root, opened: false };
+  }
+
   const existing = transcriptRoot();
-  if (existing && isVisible(existing) && visibleRows(existing).length > 0) {
+  if (existing && visibleRows(existing).length > 0) {
     return { root: existing, opened: false };
   }
 
@@ -161,17 +203,22 @@ async function openTranscriptPanel(): Promise<{ root: HTMLElement; opened: boole
       "ytd-video-description-transcript-section-renderer button, ytd-structured-description-content-renderer button, #structured-description button"
     ),
   ];
-  const descTranscriptBtn = descriptionButtons.find((btn) => {
-    const label = (btn.getAttribute("aria-label") || "").toLowerCase();
-    const text = (btn.textContent || "").toLowerCase();
-    return isTranscriptKeyword(label) || isTranscriptKeyword(text);
-  }) || document.querySelector<HTMLElement>("ytd-video-description-transcript-section-renderer");
+  const descTranscriptBtn =
+    descriptionButtons.find((btn) => {
+      const label = (btn.getAttribute("aria-label") || "").toLowerCase();
+      const text = (btn.textContent || "").toLowerCase();
+      return isTranscriptKeyword(label) || isTranscriptKeyword(text);
+    }) || document.querySelector<HTMLElement>("ytd-video-description-transcript-section-renderer");
 
   if (descTranscriptBtn) {
     descTranscriptBtn.click();
   } else {
     // 3. Look for direct transcript buttons anywhere in watch metadata
-    const directButtons = [...document.querySelectorAll<HTMLElement>("ytd-watch-metadata button, #top-level-buttons-computed button, ytd-menu-renderer button")];
+    const directButtons = [
+      ...document.querySelectorAll<HTMLElement>(
+        "ytd-watch-metadata button, #top-level-buttons-computed button, ytd-menu-renderer button"
+      ),
+    ];
     const direct = directButtons.find((button) => {
       const label = (button.getAttribute("aria-label") || "").toLowerCase();
       const text = (button.textContent || "").toLowerCase();
@@ -205,7 +252,6 @@ async function openTranscriptPanel(): Promise<{ root: HTMLElement; opened: boole
         if (transcriptItem) {
           transcriptItem.click();
         } else {
-          // Close menu if transcript not found
           document.body.click();
         }
       }
@@ -215,11 +261,20 @@ async function openTranscriptPanel(): Promise<{ root: HTMLElement; opened: boole
   const deadline = Date.now() + 6000;
   while (Date.now() < deadline) {
     const root = transcriptRoot();
-    if (root && isVisible(root) && visibleRows(root).length > 0) {
+    if (root && visibleRows(root).length > 0) {
       return { root, opened: true };
     }
     await delay(150);
   }
+
+  // Final check: any rows anywhere in document
+  const finalRows = document.querySelectorAll(
+    "ytd-transcript-segment-renderer, transcript-segment-view-model, [class*='transcript-segment']"
+  );
+  if (finalRows.length > 0) {
+    return { root: document.body, opened: true };
+  }
+
   throw new Error("Không thể mở Transcript trên trang YouTube hoặc video không có transcript.");
 }
 
@@ -282,7 +337,9 @@ export async function fetchTranscriptPanelSubtitles(
   const collected = new Map<string, SubtitleSegment>();
   const scrollContainer =
     root.querySelector<HTMLElement>("#segments-container") ||
+    root.querySelector<HTMLElement>("ytd-transcript-segment-list-renderer") ||
     root.querySelector<HTMLElement>("#content") ||
+    root.querySelector<HTMLElement>("#body") ||
     root;
   const originalScrollTop = scrollContainer.scrollTop;
 
@@ -330,4 +387,3 @@ export const transcriptDomTestables = {
   finalizeSegments,
   timestampToSeconds,
 };
-

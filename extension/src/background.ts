@@ -34,6 +34,7 @@ import { searchDictionary } from "~lib/services/local-lookup";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { lookupWord } from "~lib/services/dictionary-lookup";
 import { katakanaToHiragana } from "~lib/utils/japanese";
+import { predictJlpt } from "~lib/utils/jlpt-classifier";
 
 // Fallback logic for public dictionary lookups
 async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
@@ -77,7 +78,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
       const dictEntries = await searchDictionary(t.base_form);
       if (dictEntries && dictEntries.length > 0) {
         const mainEntry = dictEntries[0];
-        jlpt_level = mainEntry.jlpt || null;
+        jlpt_level = mainEntry.jlpt || predictJlpt(t.base_form || t.surface_form) || null;
         definitions = mainEntry.senses.map(s => ({
           dictionary: "JMdict",
           glosses: s.glosses,
@@ -85,6 +86,8 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
           field: null,
           misc: []
         }));
+      } else {
+        jlpt_level = predictJlpt(t.base_form || t.surface_form) || null;
       }
     }
     
@@ -274,19 +277,29 @@ async function handleMessage(
     case "ANALYZE_TEXT":
     case "ANALYZE_JAVI": {
       const request = message.payload as AnalyzeRequest;
+      // Fast path for subtitle overlay furigana prefetching
+      if (request.include_definitions === false) {
+        try {
+          const localResult = await analyzeLocal(request.text);
+          return { type: "ANALYZE_RESULT", payload: localResult };
+        } catch {
+          // fall through to apiClient
+        }
+      }
+
       try {
         const result = await apiClient.analyzePhrase(request);
         return { type: "ANALYZE_RESULT", payload: result };
       } catch (llmErr) {
-        console.warn("[Hakkutsu] LLM analysis unavailable, trying dictionary fallback:", llmErr);
+        console.warn("[Hakkutsu] LLM analysis unavailable, using local tokenizer:", llmErr);
         try {
-          const dictResult = await fetchDictionaryFallback(request.text);
-          return { type: "ANALYZE_RESULT", payload: dictResult };
+          const fallbackResult = await analyzeLocal(request.text);
+          return { type: "ANALYZE_RESULT", payload: fallbackResult };
         } catch (dictErr) {
-          console.warn("[Hakkutsu] Dictionary lookup failed, using local tokenizer:", dictErr);
+          console.warn("[Hakkutsu] Local tokenizer failed, using dictionary fallback:", dictErr);
           try {
-            const fallbackResult = await analyzeLocal(request.text);
-            return { type: "ANALYZE_RESULT", payload: fallbackResult };
+            const dictResult = await fetchDictionaryFallback(request.text);
+            return { type: "ANALYZE_RESULT", payload: dictResult };
           } catch {
             return {
               type: "ANALYZE_RESULT",

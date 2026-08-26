@@ -3,7 +3,7 @@
  *
  * Injects an interactive subtitle overlay into the YouTube player.
  * Supports auto-fetching Japanese subtitles, drag-and-drop subtitle files,
- * sync timing offset, and asbplayer-inspired navigation.
+ * sync timing offset, native caption replacement, and asbplayer-inspired navigation.
  */
 
 import type {
@@ -18,7 +18,10 @@ import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/youtube-subtitle-sty
 import { SubtitleOverlay, type SubtitleSettings } from "~components/subtitle-overlay";
 import type { SubtitleTrackOption } from "~components/select-subtitles-modal";
 import { useSettingsStore } from "~lib/utils/settings";
-import { fetchTranscriptPanelSubtitles } from "~lib/services/youtube-transcript-dom";
+import {
+  fetchTranscriptPanelSubtitles,
+  tryExtractFromVideoTextTracks,
+} from "~lib/services/youtube-transcript-dom";
 import {
   extractYouTubeTabTracks,
   fetchYouTubeTrackInTab,
@@ -26,10 +29,13 @@ import {
   type YouTubePlayerTrack,
 } from "~lib/services/youtube-tab-extractor";
 import {
-  buildSmartCues,
   findSmartCue,
   smartCueEnd,
 } from "~lib/services/smart-cue";
+import { injectMainWorldBridge } from "~lib/services/youtube-main-bridge-code";
+
+// Inject Main-World Bridge immediately (asbplayer mechanism)
+injectMainWorldBridge();
 
 export const config: PlasmoCSConfig = {
   matches: [
@@ -103,12 +109,10 @@ export const getStyle: PlasmoGetStyle = () => {
   return style;
 };
 
-// ── Cache ───────────────────────────────────────────────────────────────────
+// ── Cache & Global Native Subtitle Hiding ───────────────────────────────────
 
 const subtitleCache = new Map<string, SubtitleFetchResult>();
 const NATIVE_CAPTION_STYLE_ID = "hakkutsu-hide-youtube-captions";
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function getVideoId(url: string): string | null {
   const match = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
@@ -121,7 +125,9 @@ function isExtensionContextInvalidated(error: unknown): boolean {
 }
 
 function hideNativeCaptions(enabled: boolean): void {
-  const player = document.querySelector("#movie_player");
+  const player =
+    document.querySelector("#movie_player") ||
+    document.querySelector(".html5-video-player");
   if (player) {
     if (enabled) {
       player.classList.add("hk-subs-active");
@@ -133,7 +139,7 @@ function hideNativeCaptions(enabled: boolean): void {
   let style = document.getElementById(
     NATIVE_CAPTION_STYLE_ID
   ) as HTMLStyleElement | null;
-  
+
   if (!style) {
     style = document.createElement("style");
     style.id = NATIVE_CAPTION_STYLE_ID;
@@ -141,9 +147,14 @@ function hideNativeCaptions(enabled: boolean): void {
       #movie_player.hk-subs-active .ytp-caption-window-container,
       #movie_player.hk-subs-active .caption-window,
       #movie_player.hk-subs-active .captions-text,
-      #movie_player.hk-subs-active .ytp-caption-segment {
-        display: none !important;
-        visibility: hidden !important;
+      #movie_player.hk-subs-active .ytp-caption-segment,
+      .html5-video-player.hk-subs-active .ytp-caption-window-container,
+      .html5-video-player.hk-subs-active .caption-window,
+      .html5-video-player.hk-subs-active .captions-text,
+      .html5-video-player.hk-subs-active .ytp-caption-segment {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transform: translateY(-9999px) !important;
       }
 
       ${youtubeToolbarCss}
@@ -208,18 +219,43 @@ const YouTubeSubtitles = () => {
     [currentUrl]
   );
 
-  // ── Inject Main-World Bridge Script & Toolbar CSS ────────────────────────────
+  // ── Sync Native Caption Suppression (Replacing YouTube Subtitles) ──────────
+  useEffect(() => {
+    const shouldHide = isEnabled && Boolean(activeSubtitleData);
+    hideNativeCaptions(shouldHide);
+
+    // Keep class attached if YouTube re-renders the player element
+    const interval = setInterval(() => {
+      const player =
+        document.querySelector("#movie_player") ||
+        document.querySelector(".html5-video-player");
+      if (player) {
+        if (shouldHide && !player.classList.contains("hk-subs-active")) {
+          player.classList.add("hk-subs-active");
+        } else if (!shouldHide && player.classList.contains("hk-subs-active")) {
+          player.classList.remove("hk-subs-active");
+        }
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      hideNativeCaptions(false);
+    };
+  }, [isEnabled, activeSubtitleData]);
+
+  // ── Inject Main Toolbar Style ─────────────────────────────────────────────
   useEffect(() => {
     let styleEl = document.getElementById("hk-youtube-toolbar-style") as HTMLStyleElement | null;
     if (!styleEl) {
       styleEl = document.createElement("style");
       styleEl.id = "hk-youtube-toolbar-style";
       styleEl.textContent = youtubeToolbarCss;
-      document.head.appendChild(styleEl);
+      (document.head || document.documentElement).appendChild(styleEl);
     }
   }, []);
 
-  // ── Native Toolbar Injection ──────────────────────────────────────────
+  // ── Native Toolbar Injection ──────────────────────────────────────────────
   useEffect(() => {
     const interval = setInterval(() => {
       const rightControls = document.querySelector(".ytp-right-controls");
@@ -248,11 +284,13 @@ const YouTubeSubtitles = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // ── Track Navigation Sync ────────────────────────────────────────────
+  // ── SPA Navigation & Track Sync ───────────────────────────────────────────
   useEffect(() => {
     const handleUrlChange = () => {
-      if (window.location.href !== currentUrl) {
-        setCurrentUrl(window.location.href);
+      injectMainWorldBridge();
+      const newUrl = window.location.href;
+      if (newUrl !== currentUrl) {
+        setCurrentUrl(newUrl);
         setSubtitleData(null);
         setCustomSubtitleData(null);
         setSecondarySubtitleData(null);
@@ -266,12 +304,16 @@ const YouTubeSubtitles = () => {
       }
     };
 
-    const interval = setInterval(handleUrlChange, 1000);
+    const interval = setInterval(handleUrlChange, 800);
     window.addEventListener("popstate", handleUrlChange);
+    window.addEventListener("yt-navigate-finish", handleUrlChange);
+    window.addEventListener("yt-page-data-updated", handleUrlChange);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener("popstate", handleUrlChange);
+      window.removeEventListener("yt-navigate-finish", handleUrlChange);
+      window.removeEventListener("yt-page-data-updated", handleUrlChange);
     };
   }, [currentUrl]);
 
@@ -294,20 +336,26 @@ const YouTubeSubtitles = () => {
         type: "GET_CAPTION_TRACKS",
         payload: { videoUrl: currentUrl },
       });
-      if (resp?.type === "CAPTION_TRACKS_RESULT" && Array.isArray(resp.payload?.tracks) && resp.payload.tracks.length > 0) {
-        const bgTracks: SubtitleTrackOption[] = resp.payload.tracks.map((t: any, i: number) => ({
-          id: `bg_track_${i}_${t.languageCode}`,
-          name: t.name || t.languageCode,
-          languageCode: t.languageCode,
-          isAutoGenerated: !!t.isAutoGenerated,
-          rawTrack: {
+      if (
+        resp?.type === "CAPTION_TRACKS_RESULT" &&
+        Array.isArray(resp.payload?.tracks) &&
+        resp.payload.tracks.length > 0
+      ) {
+        const bgTracks: SubtitleTrackOption[] = resp.payload.tracks.map(
+          (t: any, i: number) => ({
             id: `bg_track_${i}_${t.languageCode}`,
             name: t.name || t.languageCode,
             languageCode: t.languageCode,
-            baseUrl: t.baseUrl,
             isAutoGenerated: !!t.isAutoGenerated,
-          },
-        }));
+            rawTrack: {
+              id: `bg_track_${i}_${t.languageCode}`,
+              name: t.name || t.languageCode,
+              languageCode: t.languageCode,
+              baseUrl: t.baseUrl,
+              isAutoGenerated: !!t.isAutoGenerated,
+            },
+          })
+        );
         setAvailableTracks(bgTracks);
         return bgTracks;
       }
@@ -334,14 +382,16 @@ const YouTubeSubtitles = () => {
     return () => window.removeEventListener("hakkutsu:bridge-tracks", onBridgeTracks);
   }, [refreshTracks]);
 
-  // ── Fetch Subtitles ───────────────────────────────────────────────────
+  // ── Multi-Tier Subtitle Fetcher (Bypasses YouTube Blocks) ──────────────────
 
   const loadSubtitles = useCallback(async () => {
     const videoId = getVideoId(currentUrl);
     if (!videoId || loadingRef.current) return;
 
     if (subtitleCache.has(videoId)) {
-      setSubtitleData(subtitleCache.get(videoId)!);
+      const cached = subtitleCache.get(videoId)!;
+      setSubtitleData(cached);
+      setCurrentTrackId(cached.language);
       return;
     }
 
@@ -350,8 +400,9 @@ const YouTubeSubtitles = () => {
       setLoading(true);
       setError(null);
       setRequiresPageReload(false);
+      let jaTrack: YouTubePlayerTrack | null = null;
 
-      // 1. Direct in-tab track extraction (Fast & reliable, bypasses CORS/PO-token)
+      // 1. Direct in-tab track extraction via Main-World Bridge (Fast & bypasses CORS/PO-token)
       let tabTracks = extractYouTubeTabTracks();
       if (tabTracks.length === 0) {
         try {
@@ -359,7 +410,11 @@ const YouTubeSubtitles = () => {
             type: "GET_CAPTION_TRACKS",
             payload: { videoUrl: currentUrl },
           });
-          if (resp?.type === "CAPTION_TRACKS_RESULT" && Array.isArray(resp.payload?.tracks) && resp.payload.tracks.length > 0) {
+          if (
+            resp?.type === "CAPTION_TRACKS_RESULT" &&
+            Array.isArray(resp.payload?.tracks) &&
+            resp.payload.tracks.length > 0
+          ) {
             tabTracks = resp.payload.tracks.map((t: any, i: number) => ({
               id: `bg_track_${i}_${t.languageCode}`,
               name: t.name || t.languageCode,
@@ -382,7 +437,7 @@ const YouTubeSubtitles = () => {
         setAvailableTracks(trackOptions);
 
         // Find Japanese track (manual first, then auto-generated, then auto-translated, then first track)
-        const jaTrack =
+        jaTrack =
           tabTracks.find(
             (t) =>
               (t.languageCode === "ja" ||
@@ -420,19 +475,31 @@ const YouTubeSubtitles = () => {
         if (resp && resp.segments && resp.segments.length > 0) {
           subtitleCache.set(videoId, resp);
           setSubtitleData(resp);
+          setCurrentTrackId(resp.language);
           hasAttemptedFetchRef.current = videoId;
           return;
         }
       } catch (bgErr) {
-        console.warn("Hakkutsu: Background fetch failed, trying transcript panel fallback", bgErr);
+        console.warn("Hakkutsu: Background fetch failed, trying HTML5 text tracks", bgErr);
       }
 
-      // 3. In-tab YouTube Transcript Panel Fallback (Handles PO-token / Protected videos)
+      // 3. HTML5 Video textTrack fallback
+      const textTrackResult = tryExtractFromVideoTextTracks(videoId);
+      if (textTrackResult && textTrackResult.segments.length > 0) {
+        subtitleCache.set(videoId, textTrackResult);
+        setSubtitleData(textTrackResult);
+        setCurrentTrackId(textTrackResult.language);
+        hasAttemptedFetchRef.current = videoId;
+        return;
+      }
+
+      // 4. In-tab YouTube Transcript Panel Fallback (Handles botguard/protected videos)
       try {
         const transcriptResult = await fetchTranscriptPanelSubtitles(videoId);
         if (transcriptResult && transcriptResult.segments.length > 0) {
           subtitleCache.set(videoId, transcriptResult);
           setSubtitleData(transcriptResult);
+          setCurrentTrackId("transcript");
           hasAttemptedFetchRef.current = videoId;
           return;
         }
@@ -440,7 +507,22 @@ const YouTubeSubtitles = () => {
         console.warn("Hakkutsu: Transcript panel fallback failed", transcriptErr);
       }
 
-      throw new Error("Video này không có phụ đề tiếng Nhật hoặc bị giới hạn bởi YouTube.");
+      if (jaTrack) {
+        try {
+          window.dispatchEvent(
+            new CustomEvent("hakkutsu:set-player-track", {
+              detail: { track: jaTrack },
+            })
+          );
+        } catch {}
+        setIsEnabled(true);
+        setCurrentTrackId(jaTrack.id);
+        setError(null);
+        hasAttemptedFetchRef.current = videoId;
+        return;
+      }
+
+      throw new Error("Video này không có phụ đề tiếng Nhật. Hãy tìm phụ đề trên Jimaku hoặc mở file phụ đề.");
     } catch (err: unknown) {
       let message = err instanceof Error ? err.message : "Failed to load subtitles";
       if (isExtensionContextInvalidated(err)) {
@@ -449,18 +531,19 @@ const YouTubeSubtitles = () => {
         setError("Tiện ích vừa được cập nhật nên tab YouTube này đang dùng mã cũ.");
       } else {
         console.error("Hakkutsu: Subtitle fetch failed", err);
-        
+
         if (
-          message.includes("No caption tracks found") || 
+          message.includes("No caption tracks found") ||
           message.includes("Video không có subtitle track") ||
           message.includes("no usable data") ||
           message.includes("PO token") ||
           message.includes("Tải phụ đề thất bại") ||
           message.includes("YouTube direct failed")
         ) {
-          message = "Video này không tải được phụ đề trực tiếp từ YouTube. Hãy thử bấm 'Đọc Transcript' hoặc tìm phụ đề trên Jimaku.";
+          message =
+            "Video này không tải được phụ đề trực tiếp từ YouTube. Hãy thử bấm 'Đọc Transcript' hoặc tìm phụ đề trên Jimaku.";
         }
-        
+
         setError(message);
       }
     } finally {
@@ -496,12 +579,12 @@ const YouTubeSubtitles = () => {
 
     const shouldAutoFetch = settings.autoFetchJapaneseSubtitles !== false;
     if (shouldAutoFetch && currentUrl.includes("watch")) {
-      const timer = window.setTimeout(loadSubtitles, 250);
+      const timer = window.setTimeout(loadSubtitles, 300);
       return () => window.clearTimeout(timer);
     }
   }, [currentUrl, loadSubtitles, subtitleData, settings.autoFetchJapaneseSubtitles]);
 
-  // ── Time Sync & Auto Pause ────────────────────────────────────────────
+  // ── Time Sync & Auto Pause ────────────────────────────────────────────────
 
   useEffect(() => {
     if (!isEnabled || (!activeSubtitleData && !secondarySubtitleData)) return;
@@ -544,7 +627,7 @@ const YouTubeSubtitles = () => {
       }
     };
 
-    // Update segment immediately on track change or initial mount (works even when paused)
+    // Update segment immediately on track change or initial mount
     updateSegment();
 
     const tick = () => {
@@ -562,6 +645,125 @@ const YouTubeSubtitles = () => {
       events.forEach((evt) => video.removeEventListener(evt, updateSegment));
     };
   }, [isEnabled, activeSubtitleData, secondarySubtitleData, autoPause, offset]);
+
+  // ── Live TextTrack & DOM Caption Sync Engine (100% Reliable Backup) ───────
+  useEffect(() => {
+    if (!isEnabled) return;
+    const video = document.querySelector("video");
+    if (!video) return;
+
+    const syncLiveCues = () => {
+      if (!video.textTracks || video.textTracks.length === 0) return;
+
+      for (let i = 0; i < video.textTracks.length; i++) {
+        const track = video.textTracks[i];
+        if (track.cues && track.cues.length > 0) {
+          // If we have full cues list and no activeSubtitleData yet, build full subtitle data
+          if (!activeSubtitleData || activeSubtitleData.segments.length < track.cues.length) {
+            const segs: SubtitleSegment[] = [];
+            for (let j = 0; j < track.cues.length; j++) {
+              const cue = track.cues[j] as VTTCue;
+              if (cue && cue.text && cue.text.trim()) {
+                segs.push({
+                  start: cue.startTime,
+                  duration: Math.max(0.1, cue.endTime - cue.startTime),
+                  text: cue.text.trim(),
+                });
+              }
+            }
+            if (segs.length > 0) {
+              const result: SubtitleFetchResult = {
+                videoId: getVideoId(currentUrl) || "yt_live",
+                language: track.language || "ja",
+                trackName: track.label || "YouTube Native Player",
+                segments: segs,
+                fullText: segs.map((s) => s.text).join(" "),
+                isAutoGenerated: false,
+                source: "player",
+              };
+              subtitleCache.set(result.videoId, result);
+              setSubtitleData(result);
+              setError(null);
+            }
+          }
+
+          // Also check activeCues for immediate display
+          if (track.activeCues && track.activeCues.length > 0) {
+            const activeCue = track.activeCues[0] as VTTCue;
+            if (activeCue && activeCue.text && activeCue.text.trim()) {
+              const liveSeg: SubtitleSegment = {
+                start: activeCue.startTime,
+                duration: Math.max(0.1, activeCue.endTime - activeCue.startTime),
+                text: activeCue.text.trim(),
+              };
+              currentSegmentRef.current = liveSeg;
+              setCurrentSegment(liveSeg);
+              setError(null);
+            }
+          }
+        }
+      }
+    };
+
+    // Attach to all textTracks
+    for (let i = 0; i < video.textTracks.length; i++) {
+      video.textTracks[i].oncuechange = syncLiveCues;
+      try {
+        video.textTracks[i].mode = "hidden";
+      } catch {}
+    }
+    video.textTracks.onaddtrack = (e) => {
+      if (e.track) {
+        e.track.oncuechange = syncLiveCues;
+        try {
+          e.track.mode = "hidden";
+        } catch {}
+      }
+    };
+
+    // Also observe .ytp-caption-segment text changes
+    const captionContainer =
+      document.querySelector(".ytp-caption-window-container") ||
+      document.querySelector("#movie_player") ||
+      document.querySelector(".html5-video-player");
+
+    let observer: MutationObserver | null = null;
+    if (captionContainer) {
+      observer = new MutationObserver(() => {
+        const segEls = document.querySelectorAll(".ytp-caption-segment");
+        if (segEls.length > 0) {
+          const fullText = Array.from(segEls)
+            .map((el) => el.textContent || "")
+            .join(" ")
+            .trim();
+          if (fullText) {
+            const time = video.currentTime - offset;
+            const liveSeg: SubtitleSegment = {
+              start: time,
+              duration: 3,
+              text: fullText,
+            };
+            currentSegmentRef.current = liveSeg;
+            setCurrentSegment(liveSeg);
+            setError(null);
+          }
+        }
+      });
+
+      observer.observe(captionContainer, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    }
+
+    const cueInterval = setInterval(syncLiveCues, 500);
+
+    return () => {
+      clearInterval(cueInterval);
+      if (observer) observer.disconnect();
+    };
+  }, [isEnabled, activeSubtitleData, currentUrl, offset]);
 
   const handleSettingsChange = useCallback((newSettings: SubtitleSettings) => {
     setAutoPause(newSettings.autoPause);
@@ -633,22 +835,25 @@ const YouTubeSubtitles = () => {
         }
 
         if (!result) {
-          result = await fetchTranscriptPanelSubtitles(videoId);
+          try {
+            result = await fetchTranscriptPanelSubtitles(videoId);
+          } catch {}
         }
 
-        if (!result || result.segments.length === 0) {
-          throw new Error(`Không thể tải nội dung cho track "${track.name}".`);
+        if (result && result.segments.length > 0) {
+          subtitleCache.set(videoId, result);
+          setSubtitleData(result);
         }
 
-        subtitleCache.set(videoId, result);
-        setSubtitleData(result);
         setCustomSubtitleData(null);
         setCurrentTrackId(track.id);
         setError(null);
         setIsEnabled(true);
       } catch (err) {
-        console.error("Hakkutsu: Error selecting track", err);
-        setError(err instanceof Error ? err.message : "Không thể tải track phụ đề này.");
+        console.warn("Hakkutsu: Full track download unavailable, live sync engine is active", err);
+        setError(null);
+        setIsEnabled(true);
+        setCurrentTrackId(track.id);
       } finally {
         setLoading(false);
       }

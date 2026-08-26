@@ -436,7 +436,7 @@ function parseXmlSubtitles(text: string): SubtitleSegment[] {
 }
 
 function parseVttTimestamp(value: string): number | null {
-  const clean = value.trim();
+  const clean = value.trim().replace(",", ".");
   const match = clean.match(/(?:(\d{1,2}):)?(\d{2}):(\d{2}(?:\.\d{1,3})?)/);
   if (!match) return null;
 

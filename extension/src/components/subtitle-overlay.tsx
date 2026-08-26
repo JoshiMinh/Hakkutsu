@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Copy, RotateCcw, Brain, Download, Upload, Plus, Minus, XCircle, Layers, Globe, FileText, FolderOpen } from "lucide-react";
+import { Copy, RotateCcw, Brain, Download, Upload, Plus, Minus, XCircle, X, Layers, Globe, FileText, FolderOpen } from "lucide-react";
 import type { SubtitleSegment, SubtitleFetchResult, AnalyzeResponse, TokenAnalysis } from "~lib/types";
 import { readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
 import { useSettingsStore } from "~lib/utils/settings";
@@ -149,6 +149,47 @@ export const SubtitleOverlay = ({
   const ctrlPeekOpenRef = useRef(false);
   const ctrlHoldTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+  const menuCloseTimerRef = useRef<number | null>(null);
+  const currentSegmentTextRef = useRef<string>("");
+
+  useEffect(() => {
+    currentSegmentTextRef.current = currentSegment?.text || "";
+  }, [currentSegment]);
+
+  const handleMenuMouseEnter = useCallback(() => {
+    if (menuCloseTimerRef.current !== null) {
+      window.clearTimeout(menuCloseTimerRef.current);
+      menuCloseTimerRef.current = null;
+    }
+    setShowSettings(true);
+  }, []);
+
+  const handleMenuMouseLeave = useCallback(() => {
+    if (menuCloseTimerRef.current !== null) {
+      window.clearTimeout(menuCloseTimerRef.current);
+    }
+    menuCloseTimerRef.current = window.setTimeout(() => {
+      setShowSettings(false);
+    }, 450);
+  }, []);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        !target.closest(".hk-toolbar-wrapper") &&
+        !target.closest(".hk-floating-pill") &&
+        !target.closest(".hk-toolbar-menu")
+      ) {
+        setShowSettings(false);
+      }
+    };
+    if (showSettings) {
+      document.addEventListener("click", handleOutsideClick);
+    }
+    return () => document.removeEventListener("click", handleOutsideClick);
+  }, [showSettings]);
 
   const handleFilePickerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -194,7 +235,7 @@ export const SubtitleOverlay = ({
       .then((response) => {
         if (response?.type === "ANALYZE_RESULT") {
           analysisCache.set(segment.text, (response.payload as AnalyzeResponse).tokens);
-          if (currentSegment?.text === segment.text) {
+          if (currentSegmentTextRef.current === segment.text) {
             setAnalyzedTokens(analysisCache.get(segment.text)!);
           }
         } else {
@@ -204,7 +245,7 @@ export const SubtitleOverlay = ({
       .catch(() => {
         analysisCache.delete(segment.text);
       });
-  }, [currentSegment]);
+  }, []);
 
   // Notify parent of settings change
   useEffect(() => {
@@ -702,11 +743,202 @@ export const SubtitleOverlay = ({
             ? "Embedded Track"
             : "Media Player Track";
 
+  const renderMenuContent = (isFloating: boolean = false) => (
+    <div
+      className="hk-toolbar-menu"
+      style={isFloating ? { top: "calc(100% + 8px)", bottom: "auto", right: 0 } : {}}
+      onClick={(e) => e.stopPropagation()}
+      onMouseEnter={handleMenuMouseEnter}
+      onMouseLeave={handleMenuMouseLeave}
+    >
+      <div className="hk-toolbar-menu-header">
+        <span>HAKKUTSU SUBTITLES</span>
+        <button
+          type="button"
+          onClick={() => setShowSettings(false)}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "rgba(255,255,255,0.6)",
+            cursor: "pointer",
+            padding: "2px",
+            display: "inline-flex",
+            alignItems: "center",
+          }}
+          title="Đóng"
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      {subtitleData && (
+        <div
+          style={{
+            padding: "0 12px 6px",
+            color: "rgba(255,255,255,.7)",
+            fontSize: 10.5,
+            lineHeight: 1.3,
+            wordBreak: "break-all",
+          }}
+        >
+          <strong>{subtitleData.trackName}</strong>
+          <div style={{ opacity: 0.75, marginTop: 2 }}>{subtitleSourceLabel}</div>
+        </div>
+      )}
+
+      {/* Sync Offset Controls */}
+      <div className="hk-sub__settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <label>Sync Offset</label>
+          <span className="hk-sub__offset-badge">
+            {offset >= 0 ? `+${(offset * 1000).toFixed(0)}` : (offset * 1000).toFixed(0)} ms
+          </span>
+        </div>
+        <div className="hk-sub__offset-controls">
+          <button
+            type="button"
+            className="hk-sub__offset-btn"
+            onClick={() => adjustOffset(-0.5)}
+            title="Shift -500ms (Shift+Z)"
+          >
+            -0.5s
+          </button>
+          <button
+            type="button"
+            className="hk-sub__offset-btn"
+            onClick={() => adjustOffset(-0.1)}
+            title="Shift -100ms (Z)"
+          >
+            -100ms
+          </button>
+          <button
+            type="button"
+            className="hk-sub__offset-btn"
+            onClick={() => {
+              if (onOffsetChange) onOffsetChange(0);
+              showOffsetNotification(0);
+            }}
+            title="Reset offset"
+          >
+            0
+          </button>
+          <button
+            type="button"
+            className="hk-sub__offset-btn"
+            onClick={() => adjustOffset(0.1)}
+            title="Shift +100ms (X)"
+          >
+            +100ms
+          </button>
+          <button
+            type="button"
+            className="hk-sub__offset-btn"
+            onClick={() => adjustOffset(0.5)}
+            title="Shift +500ms (Shift+X)"
+          >
+            +0.5s
+          </button>
+        </div>
+      </div>
+
+      {/* Select Subtitles Hub Button (asbplayer style) */}
+      <div style={{ margin: "6px 0 4px" }}>
+        <button
+          type="button"
+          className="hk-sub__file-btn"
+          style={{
+            background: "linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%)",
+            borderColor: "rgba(168, 85, 247, 0.6)",
+            color: "#fff",
+            fontWeight: 700,
+            boxShadow: "0 2px 8px rgba(168, 85, 247, 0.25)",
+          }}
+          onClick={() => {
+            setShowSettings(false);
+            setShowSelectModal(true);
+          }}
+        >
+          <Layers size={13} style={{ color: "#d8b4fe" }} /> Select Subtitles (Tracks & Jimaku)
+        </button>
+      </div>
+
+      {/* Subtitle File Loader */}
+      <div style={{ margin: "4px 0" }}>
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept=".srt,.vtt,.ass,.ssa"
+          style={{ display: "none" }}
+          onChange={handleFileInputChange}
+        />
+        <button
+          type="button"
+          className="hk-sub__file-btn"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Upload size={13} /> Load Subtitle File (.srt, .vtt, .ass)
+        </button>
+        {subtitleData?.source === "local_file" && onUnloadCustomSubtitles && (
+          <button
+            type="button"
+            className="hk-sub__file-btn"
+            style={{
+              marginTop: 6,
+              background: "rgba(239, 68, 68, 0.15)",
+              borderColor: "rgba(239, 68, 68, 0.3)",
+            }}
+            onClick={onUnloadCustomSubtitles}
+          >
+            <XCircle size={13} /> Reset to Default Track
+          </button>
+        )}
+      </div>
+
+      {/* Toggles */}
+      <div className="hk-sub__settings-row">
+        <label>Furigana</label>
+        <input
+          type="checkbox"
+          className="hk-sub__settings-checkbox"
+          checked={settings.showFurigana}
+          onChange={() => toggleSetting("showFurigana")}
+        />
+      </div>
+      <div className="hk-sub__settings-row">
+        <label>JLPT Colors</label>
+        <input
+          type="checkbox"
+          className="hk-sub__settings-checkbox"
+          checked={settings.showJlptColors}
+          onChange={() => toggleSetting("showJlptColors")}
+        />
+      </div>
+      <div className="hk-sub__settings-row">
+        <label>Auto-Pause</label>
+        <input
+          type="checkbox"
+          className="hk-sub__settings-checkbox"
+          checked={settings.autoPause}
+          onChange={() => toggleSetting("autoPause")}
+        />
+      </div>
+      <div className="hk-sub__settings-row">
+        <label>Transcript</label>
+        <input
+          type="checkbox"
+          className="hk-sub__settings-checkbox"
+          checked={settings.showTranscript}
+          onChange={() => toggleSetting("showTranscript")}
+        />
+      </div>
+    </div>
+  );
+
   const renderToolbarContent = () => (
     <div
       className="hk-toolbar-wrapper"
-      onMouseEnter={() => setShowSettings(true)}
-      onMouseLeave={() => setShowSettings(false)}
+      onMouseEnter={handleMenuMouseEnter}
+      onMouseLeave={handleMenuMouseLeave}
     >
       <button
         type="button"
@@ -725,10 +957,10 @@ export const SubtitleOverlay = ({
         }}
         title={
           error
-            ? `Hakkutsu: ${error} · Click để bật/tắt · Hover để chọn phụ đề`
+            ? `Hakkutsu: ${error} · Click để bật/tắt · Chuột phải để chọn phụ đề`
             : subtitleData
-              ? `Hakkutsu (${subtitleData.trackName}) · ${isEnabled ? "Đang bật" : "Đang tắt"} · Click để bật/tắt · Hover để mở menu`
-              : `Hakkutsu Subtitles · ${isEnabled ? "Đang bật" : "Đang tắt"} · Click để bật/tắt · Hover để mở menu`
+              ? `Hakkutsu (${subtitleData.trackName}) · ${isEnabled ? "Đang bật" : "Đang tắt"} · Click để bật/tắt · Di chuột để mở cài đặt`
+              : `Hakkutsu Subtitles · ${isEnabled ? "Đang bật" : "Đang tắt"} · Click để bật/tắt · Di chuột để mở cài đặt`
         }
       >
         <div className="hk-yt-btn__icon-wrapper">
@@ -745,168 +977,7 @@ export const SubtitleOverlay = ({
         <div className="hk-yt-btn__active-bar" />
       </button>
 
-      {showSettings && (
-        <div className="hk-toolbar-menu" onClick={(e) => e.stopPropagation()}>
-          <div className="hk-toolbar-menu-header">Hakkutsu Subtitles</div>
-          {subtitleData && (
-            <div
-              style={{
-                padding: "0 12px 6px",
-                color: "rgba(255,255,255,.6)",
-                fontSize: 10,
-                lineHeight: 1.3,
-                wordBreak: "break-all",
-              }}
-            >
-              <strong>{subtitleData.trackName}</strong>
-              <div style={{ opacity: 0.75, marginTop: 2 }}>{subtitleSourceLabel}</div>
-            </div>
-          )}
-
-          {/* Sync Offset Controls */}
-          <div className="hk-sub__settings-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <label>Sync Offset</label>
-              <span className="hk-sub__offset-badge">
-                {offset >= 0 ? `+${(offset * 1000).toFixed(0)}` : (offset * 1000).toFixed(0)} ms
-              </span>
-            </div>
-            <div className="hk-sub__offset-controls">
-              <button
-                type="button"
-                className="hk-sub__offset-btn"
-                onClick={() => adjustOffset(-0.5)}
-                title="Shift -500ms (Shift+Z)"
-              >
-                -0.5s
-              </button>
-              <button
-                type="button"
-                className="hk-sub__offset-btn"
-                onClick={() => adjustOffset(-0.1)}
-                title="Shift -100ms (Z)"
-              >
-                -100ms
-              </button>
-              <button
-                type="button"
-                className="hk-sub__offset-btn"
-                onClick={() => {
-                  if (onOffsetChange) onOffsetChange(0);
-                  showOffsetNotification(0);
-                }}
-                title="Reset offset"
-              >
-                0
-              </button>
-              <button
-                type="button"
-                className="hk-sub__offset-btn"
-                onClick={() => adjustOffset(0.1)}
-                title="Shift +100ms (X)"
-              >
-                +100ms
-              </button>
-              <button
-                type="button"
-                className="hk-sub__offset-btn"
-                onClick={() => adjustOffset(0.5)}
-                title="Shift +500ms (Shift+X)"
-              >
-                +0.5s
-              </button>
-            </div>
-          </div>
-
-          {/* Select Subtitles Hub Button (asbplayer style) */}
-          <div style={{ margin: "6px 0 4px" }}>
-            <button
-              type="button"
-              className="hk-sub__file-btn"
-              style={{
-                background: "linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%)",
-                borderColor: "rgba(168, 85, 247, 0.6)",
-                color: "#fff",
-                fontWeight: 700,
-                boxShadow: "0 2px 8px rgba(168, 85, 247, 0.25)",
-              }}
-              onClick={() => setShowSelectModal(true)}
-            >
-              <Layers size={13} style={{ color: "#d8b4fe" }} /> Select Subtitles (Tracks & Jimaku)
-            </button>
-          </div>
-
-          {/* Subtitle File Loader */}
-          <div style={{ margin: "4px 0" }}>
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept=".srt,.vtt,.ass,.ssa"
-              style={{ display: "none" }}
-              onChange={handleFileInputChange}
-            />
-            <button
-              type="button"
-              className="hk-sub__file-btn"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload size={13} /> Load Subtitle File (.srt, .vtt, .ass)
-            </button>
-            {subtitleData?.source === "local_file" && onUnloadCustomSubtitles && (
-              <button
-                type="button"
-                className="hk-sub__file-btn"
-                style={{
-                  marginTop: 6,
-                  background: "rgba(239, 68, 68, 0.15)",
-                  borderColor: "rgba(239, 68, 68, 0.3)",
-                }}
-                onClick={onUnloadCustomSubtitles}
-              >
-                <XCircle size={13} /> Reset to Default Track
-              </button>
-            )}
-          </div>
-
-          {/* Toggles */}
-          <div className="hk-sub__settings-row">
-            <label>Furigana</label>
-            <input
-              type="checkbox"
-              className="hk-sub__settings-checkbox"
-              checked={settings.showFurigana}
-              onChange={() => toggleSetting("showFurigana")}
-            />
-          </div>
-          <div className="hk-sub__settings-row">
-            <label>JLPT Colors</label>
-            <input
-              type="checkbox"
-              className="hk-sub__settings-checkbox"
-              checked={settings.showJlptColors}
-              onChange={() => toggleSetting("showJlptColors")}
-            />
-          </div>
-          <div className="hk-sub__settings-row">
-            <label>Auto-Pause</label>
-            <input
-              type="checkbox"
-              className="hk-sub__settings-checkbox"
-              checked={settings.autoPause}
-              onChange={() => toggleSetting("autoPause")}
-            />
-          </div>
-          <div className="hk-sub__settings-row">
-            <label>Transcript</label>
-            <input
-              type="checkbox"
-              className="hk-sub__settings-checkbox"
-              checked={settings.showTranscript}
-              onChange={() => toggleSetting("showTranscript")}
-            />
-          </div>
-        </div>
-      )}
+      {showSettings && renderMenuContent(false)}
     </div>
   );
 
@@ -916,15 +987,10 @@ export const SubtitleOverlay = ({
 
   const floatingBadge = isFloatingButton ? (
     <div
-      style={{
-        position: "absolute",
-        top: 14,
-        right: 14,
-        zIndex: 9999,
-        pointerEvents: "auto",
-      }}
+      className="hk-floating-pill"
+      onMouseEnter={handleMenuMouseEnter}
+      onMouseLeave={handleMenuMouseLeave}
     >
-      {renderToolbarContent()}
     </div>
   ) : null;
 

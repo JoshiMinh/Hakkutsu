@@ -1,8 +1,8 @@
 /**
  * CSS styles for the YouTube subtitle overlay.
  *
- * Returns a CSS string to be injected via Plasmo's getStyle().
- * Uses the Hakkutsu design tokens (--hk-*) for consistency.
+ * Injected via Plasmo's getStyle() into Shadow DOM and into document head
+ * for native YouTube caption suppression and player control styling.
  */
 
 export const youtubeSubtitleCss = /* css */ `
@@ -33,31 +33,33 @@ export const youtubeSubtitleCss = /* css */ `
     pointer-events: none !important;
   }
 
-  /* ── Hide native YouTube captions when Hakkutsu is active ── */
-  .hk-subs-active .ytp-caption-segment,
-  .hk-subs-active .caption-window,
-  .hk-subs-active .captions-text {
-    display: none !important;
-  }
-
   /* ── Subtitle Container ──────────────────────────────────── */
   .hk-sub__container {
     position: absolute;
-    bottom: 64px;
+    bottom: 68px;
     left: 50%;
     transform: translateX(-50%);
     text-align: center;
     z-index: 9999;
-    width: 88%;
-    max-width: 900px;
+    width: 90%;
+    max-width: 960px;
     pointer-events: auto;
-    transition: opacity 0.25s ease, transform 0.25s ease;
+    transition: bottom 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, transform 0.25s ease;
   }
 
   .hk-sub__container--hidden {
     opacity: 0;
     transform: translateX(-50%) translateY(8px);
     pointer-events: none;
+  }
+
+  /* Adjust position when YouTube controls are visible vs hidden */
+  .html5-video-player:not(.ytp-autohide) .hk-sub__container {
+    bottom: 78px;
+  }
+
+  .html5-video-player.ytp-autohide .hk-sub__container {
+    bottom: 42px;
   }
 
   /* ── Subtitle Bar ──────────────────────────────────────────── */
@@ -67,29 +69,53 @@ export const youtubeSubtitleCss = /* css */ `
     justify-content: center;
     align-items: flex-end;
     gap: 1px;
-    background: rgba(9, 9, 11, 0.82);
+    background: rgba(9, 9, 11, 0.88);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     padding: 10px 24px 14px;
     border-radius: 14px;
     box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.5),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      0 10px 36px rgba(0, 0, 0, 0.65),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
     cursor: text;
     line-height: 1.8;
     font-size: 26px;
-    font-family: 'Noto Sans JP', 'Yu Gothic', sans-serif;
+    font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', sans-serif;
     color: #f4f4f5;
     user-select: text;
     -webkit-user-select: text;
-    transition: background 0.2s ease;
-    animation: hk-sub-fade-in 0.2s ease-out;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    animation: hk-sub-fade-in 0.18s ease-out;
   }
 
   .hk-sub__bar:hover {
-    background: rgba(9, 9, 11, 0.95);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(9, 9, 11, 0.96);
+    border-color: rgba(168, 85, 247, 0.4);
+  }
+
+  /* ── Secondary Subtitle Bar (Dual Subtitles) ──────────────── */
+  .hk-sub__secondary-bar {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 6px;
+    padding: 6px 16px;
+    background: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    color: #e2e8f0;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.4;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    text-align: center;
+    pointer-events: auto;
+    user-select: text;
+    animation: hk-sub-fade-in 0.15s ease-out;
   }
 
   /* ── Individual Token ────────────────────────────────────── */
@@ -98,27 +124,27 @@ export const youtubeSubtitleCss = /* css */ `
     flex-direction: column;
     align-items: center;
     position: relative;
-    padding: 0 1px;
+    padding: 0 2px;
     cursor: pointer;
     border-radius: 4px;
     transition: background 0.15s ease, transform 0.15s ease;
   }
 
   .hk-sub__token:hover {
-    background: rgba(168, 85, 247, 0.15);
-    transform: scale(1.03);
+    background: rgba(168, 85, 247, 0.22);
+    transform: scale(1.04);
   }
 
   .hk-sub__token:active {
-    background: rgba(168, 85, 247, 0.25);
+    background: rgba(168, 85, 247, 0.35);
   }
 
   .hk-sub__token--particle {
-    color: rgba(244, 244, 245, 0.5);
+    color: rgba(244, 244, 245, 0.55);
   }
 
   .hk-sub__token--particle:hover {
-    color: rgba(244, 244, 245, 0.85);
+    color: rgba(244, 244, 245, 0.9);
   }
 
   /* JLPT level color coding */
@@ -132,7 +158,7 @@ export const youtubeSubtitleCss = /* css */ `
   .hk-sub__furigana {
     font-size: 0.42em;
     line-height: 1;
-    opacity: 0.7;
+    opacity: 0.78;
     margin-bottom: -2px;
     letter-spacing: 0.02em;
     white-space: nowrap;
@@ -159,191 +185,29 @@ export const youtubeSubtitleCss = /* css */ `
   .hk-sub__brand {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 5px;
     margin-bottom: 6px;
-    padding: 2px 10px;
+    padding: 3px 12px;
     border-radius: 999px;
-    background: rgba(9, 9, 11, 0.75);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.45);
-    font: 600 9px/1.4 'Inter', 'Segoe UI', sans-serif;
-    letter-spacing: 0.06em;
+    background: rgba(9, 9, 11, 0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.6);
+    font: 600 10px/1.4 'Inter', system-ui, -apple-system, sans-serif;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
+    white-space: nowrap;
     pointer-events: none;
     transition: opacity 0.2s ease;
+    user-select: none;
   }
 
   .hk-sub__overlay-wrapper:hover .hk-sub__brand {
-    opacity: 0.3;
+    opacity: 0.2;
   }
 
-  .hk-sub__overlay-wrapper:hover .hk-sub__action-bar {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-    pointer-events: auto;
-  }
-
-  .hk-sub__action-bar {
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%) translateY(6px);
-    display: flex;
-    gap: 4px;
-    margin-bottom: 6px;
-    background: rgba(9, 9, 11, 0.92);
-    backdrop-filter: blur(16px);
-    padding: 4px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    opacity: 0;
-    pointer-events: none;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    z-index: 10;
-  }
-
-  .hk-sub__action-btn {
-    background: transparent;
-    border: 1px solid transparent;
-    color: rgba(244, 244, 245, 0.6);
-    cursor: pointer;
-    width: 30px;
-    height: 30px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    transition: all 0.15s ease;
-  }
-
-  .hk-sub__action-btn:hover {
-    background: rgba(168, 85, 247, 0.15);
-    border-color: rgba(168, 85, 247, 0.25);
-    color: #c084fc;
-    transform: translateY(-1px);
-  }
-
-  .hk-sub__action-btn:active {
-    transform: translateY(0);
-    background: rgba(168, 85, 247, 0.25);
-  }
-
-  .hk-sub__action-btn--sentence {
-    width: auto;
-    min-width: 100px;
-    padding: 0 10px;
-    color: rgba(244, 244, 245, 0.8);
-    font-size: 11px;
-    font-weight: 600;
-    font-family: 'Inter', 'Segoe UI', sans-serif;
-    white-space: nowrap;
-    gap: 4px;
-    border-radius: 6px;
-  }
-
-  .hk-sub__action-btn--sentence:hover {
-    color: #e9d5ff;
-    background: rgba(168, 85, 247, 0.2);
-    border-color: rgba(168, 85, 247, 0.3);
-  }
-
-  /* ── Transcript Panel ────────────────────────────────────── */
-  .hk-sub__transcript {
-    position: absolute;
-    top: 0;
-    right: -280px;
-    width: 260px;
-    height: 100%;
-    background: rgba(9, 9, 11, 0.92);
-    backdrop-filter: blur(16px);
-    border-left: 1px solid rgba(255, 255, 255, 0.06);
-    overflow-y: auto;
-    z-index: 9998;
-    padding: 12px 8px;
-    pointer-events: auto;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.1) transparent;
-  }
-
-  .hk-sub__transcript::-webkit-scrollbar {
-    width: 4px;
-  }
-
-    line-height: 1.8;
-    font-size: 26px;
-    font-family: 'Noto Sans JP', 'Yu Gothic', sans-serif;
-    color: #f4f4f5;
-    user-select: text;
-    -webkit-user-select: text;
-    transition: background 0.2s ease;
-    animation: hk-sub-fade-in 0.2s ease-out;
-  }
-
-  .hk-sub__bar:hover {
-    background: rgba(9, 9, 11, 0.95);
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  /* ── Individual Token ────────────────────────────────────── */
-  .hk-sub__token {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    position: relative;
-    padding: 0 1px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background 0.15s ease, transform 0.15s ease;
-  }
-
-  .hk-sub__token:hover {
-    background: rgba(168, 85, 247, 0.15);
-    transform: scale(1.03);
-  }
-
-  .hk-sub__token:active {
-    background: rgba(168, 85, 247, 0.25);
-  }
-
-  .hk-sub__token--particle {
-    color: rgba(244, 244, 245, 0.5);
-  }
-
-  .hk-sub__token--particle:hover {
-    color: rgba(244, 244, 245, 0.85);
-  }
-
-  /* JLPT level color coding */
-  .hk-sub__token--n5 { color: #4ade80; }
-  .hk-sub__token--n4 { color: #60a5fa; }
-  .hk-sub__token--n3 { color: #fbbf24; }
-  .hk-sub__token--n2 { color: #f87171; }
-  .hk-sub__token--n1 { color: #c084fc; }
-
-  /* ── Furigana (Ruby) ─────────────────────────────────────── */
-  .hk-sub__furigana {
-    font-size: 0.42em;
-    line-height: 1;
-    opacity: 0.7;
-    margin-bottom: -2px;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-    color: inherit;
-    pointer-events: none;
-  }
-
-  .hk-sub__furigana--hidden {
-    opacity: 0;
-  }
-
-  .hk-sub__surface {
-    white-space: nowrap;
-  }
-
-  /* ── Overlay Wrapper & Action Bar ────────────────────────── */
   .hk-sub__overlay-wrapper:hover .hk-sub__action-bar,
   .hk-sub__action-bar:hover {
     opacity: 1;
@@ -357,17 +221,20 @@ export const youtubeSubtitleCss = /* css */ `
     left: 50%;
     transform: translateX(-50%) translateY(4px);
     display: flex;
+    align-items: center;
     gap: 6px;
     background: rgba(9, 9, 11, 0.95);
     backdrop-filter: blur(16px);
-    padding: 4px 6px;
+    -webkit-backdrop-filter: blur(16px);
+    padding: 4px 8px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     opacity: 0;
     pointer-events: none;
     transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
     z-index: 99999;
+    white-space: nowrap;
   }
 
   .hk-sub__action-bar::after {
@@ -427,37 +294,38 @@ export const youtubeSubtitleCss = /* css */ `
   .hk-sub__transcript {
     position: absolute;
     top: 0;
-    right: -280px;
-    width: 260px;
+    right: 0;
+    width: 280px;
     height: 100%;
-    background: rgba(9, 9, 11, 0.92);
-    backdrop-filter: blur(16px);
-    border-left: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(9, 9, 11, 0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
     overflow-y: auto;
     z-index: 9998;
-    padding: 12px 8px;
+    padding: 14px 10px;
     pointer-events: auto;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.1) transparent;
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
   }
 
   .hk-sub__transcript::-webkit-scrollbar {
-    width: 4px;
+    width: 5px;
   }
 
   .hk-sub__transcript::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
   }
 
   .hk-sub__transcript-item {
     display: flex;
     gap: 8px;
-    padding: 6px 8px;
+    padding: 7px 10px;
     border-radius: 6px;
     cursor: pointer;
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.6);
     transition: background 0.15s ease, color 0.15s ease;
     line-height: 1.5;
     font-family: 'Noto Sans JP', sans-serif;
@@ -465,27 +333,52 @@ export const youtubeSubtitleCss = /* css */ `
   }
 
   .hk-sub__transcript-item:hover {
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.95);
   }
 
   .hk-sub__transcript-item--active {
-    background: rgba(168, 85, 247, 0.08);
+    background: rgba(168, 85, 247, 0.12);
     color: #c084fc;
     border-left-color: #a855f7;
   }
 
   .hk-sub__transcript-time {
-    font-size: 10px;
-    opacity: 0.5;
+    font-size: 11px;
+    opacity: 0.6;
     white-space: nowrap;
     padding-top: 2px;
-    font-family: 'Inter', 'JetBrains Mono', monospace;
-    min-width: 36px;
+    font-family: 'Inter', monospace;
+    min-width: 38px;
   }
 
   .hk-sub__transcript-text {
     flex: 1;
+  }
+
+  /* ── Font Size Presets ─────────────────────────────────────── */
+  .hk-sub--small .hk-sub__bar {
+    font-size: 20px !important;
+    padding: 8px 18px 10px !important;
+  }
+  .hk-sub--small .hk-sub__secondary-bar {
+    font-size: 13px !important;
+  }
+
+  .hk-sub--medium .hk-sub__bar {
+    font-size: 26px !important;
+    padding: 10px 24px 14px !important;
+  }
+  .hk-sub--medium .hk-sub__secondary-bar {
+    font-size: 15px !important;
+  }
+
+  .hk-sub--large .hk-sub__bar {
+    font-size: 32px !important;
+    padding: 12px 28px 16px !important;
+  }
+  .hk-sub--large .hk-sub__secondary-bar {
+    font-size: 18px !important;
   }
 
   /* ── Fade animation ─────────────────────────────────────── */
@@ -501,7 +394,24 @@ export const youtubeSubtitleCss = /* css */ `
   }
 `;
 
+/** Global styles injected directly into YouTube page DOM (Head) */
 export const youtubeToolbarCss = `
+  /* ── Hide native YouTube captions when Hakkutsu is active ── */
+  #movie_player.hk-subs-active .ytp-caption-window-container,
+  #movie_player.hk-subs-active .caption-window,
+  #movie_player.hk-subs-active .captions-text,
+  #movie_player.hk-subs-active .ytp-caption-segment,
+  .html5-video-player.hk-subs-active .ytp-caption-window-container,
+  .html5-video-player.hk-subs-active .caption-window,
+  .html5-video-player.hk-subs-active .captions-text,
+  .html5-video-player.hk-subs-active .ytp-caption-segment {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  /* ── Native YouTube Player Control Button ─────────────────────── */
   #hk-toolbar-portal,
   #hk-toolbar-portal.ytp-button,
   #hk-toolbar-portal:hover,
@@ -544,20 +454,6 @@ export const youtubeToolbarCss = `
     box-shadow: none !important;
   }
 
-  /* ── Modal Portal Root on document.body ──────────────────────── */
-  #hk-modal-portal-root {
-    position: fixed !important;
-    inset: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    z-index: 2147483647 !important;
-    pointer-events: none !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
-
-  /* ── Native YouTube Player Control Button ─────────────────────── */
   .hk-toolbar-wrapper,
   .hk-toolbar-wrapper:hover {
     position: relative !important;
@@ -612,8 +508,7 @@ export const youtubeToolbarCss = `
     outline: none !important;
   }
 
-  .hk-yt-btn__icon-wrapper,
-  .hk-yt-btn__icon-wrapper:hover {
+  .hk-yt-btn__icon-wrapper {
     position: relative !important;
     display: flex !important;
     align-items: center !important;
@@ -705,42 +600,8 @@ export const youtubeToolbarCss = `
     animation: hk-spin 0.75s linear infinite !important;
   }
 
-  .hk-yt-switch.is-on .hk-yt-switch-icon {
-    color: #a855f7 !important;
-  }
-
-  .hk-spinner-small {
-    width: 12px !important;
-    height: 12px !important;
-    border: 2px solid rgba(0, 0, 0, 0.1) !important;
-    border-top-color: rgba(0, 0, 0, 0.5) !important;
-    border-radius: 50% !important;
-    animation: hk-spin 0.6s linear infinite !important;
-  }
-
-  .hk-error-mark-small {
-    font-size: 13px;
-    font-weight: 900;
-    color: #ef4444;
-    line-height: 1;
-  }
-
   @keyframes hk-spin {
     to { transform: rotate(360deg); }
-  }
-
-  /* ── Font Size Presets ─────────────────────────────────────── */
-  .hk-sub--small .hk-sub__bar {
-    font-size: 20px !important;
-    padding: 8px 18px 10px !important;
-  }
-  .hk-sub--medium .hk-sub__bar {
-    font-size: 26px !important;
-    padding: 10px 24px 14px !important;
-  }
-  .hk-sub--large .hk-sub__bar {
-    font-size: 32px !important;
-    padding: 12px 28px 16px !important;
   }
 
   /* ── Drag & Drop Subtitle Dropzone ──────────────────────────── */
@@ -839,43 +700,6 @@ export const youtubeToolbarCss = `
   .hk-sub__file-btn:hover {
     background: rgba(168, 85, 247, 0.28);
     border-color: #a855f7;
-  }
-
-  /* ── Universal Floating Toggle Badge for HTML5 Media Players ─ */
-  .hk-floating-video-btn {
-    position: absolute !important;
-    top: 14px !important;
-    right: 14px !important;
-    z-index: 9999 !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 6px !important;
-    background: rgba(9, 9, 11, 0.88) !important;
-    backdrop-filter: blur(16px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-radius: 20px !important;
-    padding: 5px 12px !important;
-    color: #f4f4f5 !important;
-    font-family: 'Inter', system-ui, sans-serif !important;
-    font-size: 12px !important;
-    font-weight: 700 !important;
-    cursor: pointer !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    pointer-events: auto !important;
-    user-select: none !important;
-  }
-
-  .hk-floating-video-btn:hover {
-    background: rgba(168, 85, 247, 0.25) !important;
-    border-color: #a855f7 !important;
-    transform: scale(1.03) !important;
-  }
-
-  .hk-floating-video-btn.is-active {
-    background: linear-gradient(135deg, rgba(168, 85, 247, 0.45), rgba(236, 72, 153, 0.45)) !important;
-    border-color: #a855f7 !important;
-    box-shadow: 0 0 16px rgba(168, 85, 247, 0.45) !important;
   }
 
   /* ── Settings Menu ─────────────────────────────────────────── */
