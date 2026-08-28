@@ -208,6 +208,8 @@ export const translations = {
     settings_furigana_desc: "Hiển thị cách đọc Hiragana phía trên chữ Hán",
     settings_jlpt_colors: "Đổi màu theo cấp độ JLPT",
     settings_jlpt_colors_desc: "Tô màu từ vựng theo cấp độ N5 đến N1 để dễ nhận diện",
+    settings_hover_key: "Phím phím tắt di chuột tra từ (Hover Key)",
+    settings_hover_key_desc: "Giữ phím này và di chuột qua từ tiếng Nhật để tra từ không cần click",
 
     settings_video_section: "Phụ đề & Video Streaming",
     settings_autofetch_sub: "Tự động tải phụ đề tiếng Nhật",
@@ -461,6 +463,8 @@ export const translations = {
     settings_furigana_desc: "Display phonetic reading above Japanese Kanji",
     settings_jlpt_colors: "JLPT Level Colors",
     settings_jlpt_colors_desc: "Colorize vocabulary tokens based on JLPT N5-N1 levels",
+    settings_hover_key: "Hover Modifier Key (Without Click)",
+    settings_hover_key_desc: "Hold this key while hovering mouse over Japanese text to look up words without clicking",
 
     settings_video_section: "Subtitles & Video Immersion",
     settings_autofetch_sub: "Auto-fetch Japanese Subtitles",

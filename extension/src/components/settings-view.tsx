@@ -1,10 +1,11 @@
-import { Bot, Database, Film, GraduationCap, Languages, Sparkles, Settings as SettingsIcon } from "lucide-react";
+import { Bot, Database, GraduationCap, Languages, Sparkles, Settings as SettingsIcon } from "lucide-react";
 import type { ExtensionSettings } from "~lib/types";
 import { t } from "~lib/languages/locales";
 import { SUPPORTED_LANGUAGES } from "~lib/languages";
 import geminiSvg from "data-base64:~assets/logo/gemini.svg";
 import openaiSvg from "data-base64:~assets/logo/openai.svg";
 import ankiSvg from "data-base64:~assets/logo/anki.svg";
+import kofiSvg from "data-base64:~assets/logo/kofi.svg";
 import usFlag from "data-base64:~assets/language/en.png";
 import vnFlag from "data-base64:~assets/language/vi.png";
 
@@ -249,119 +250,7 @@ export function SettingsView({
           </div>
         </section>
 
-        {/* Video & Subtitles Card */}
-        <section className="hk-settings-card">
-          <header className="hk-settings-card__header">
-            <div className="hk-settings-card__icon">
-              <Film size={18} />
-            </div>
-            <h3 className="hk-settings-card__title">{t("settings_video_section", currentLang)}</h3>
-          </header>
-          
-          <div className="hk-settings-card__body">
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="autoFetchJapaneseSubtitles" className="hk-settings-row__label">{t("settings_autofetch_sub", currentLang)}</label>
-                <div id="autoFetchJapaneseSubtitles-desc" className="hk-settings-row__desc">{t("settings_autofetch_sub_desc", currentLang)}</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="autoFetchJapaneseSubtitles">
-                  <input
-                    id="autoFetchJapaneseSubtitles"
-                    aria-describedby="autoFetchJapaneseSubtitles-desc"
-                    type="checkbox"
-                    checked={settings.autoFetchJapaneseSubtitles !== false}
-                    onChange={(e) => onUpdate({ autoFetchJapaneseSubtitles: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
 
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="universalVideoEnabled" className="hk-settings-row__label">{t("settings_universal_video", currentLang)}</label>
-                <div id="universalVideoEnabled-desc" className="hk-settings-row__desc">{t("settings_universal_video_desc", currentLang)}</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="universalVideoEnabled">
-                  <input
-                    id="universalVideoEnabled"
-                    aria-describedby="universalVideoEnabled-desc"
-                    type="checkbox"
-                    checked={settings.universalVideoEnabled !== false}
-                    onChange={(e) => onUpdate({ universalVideoEnabled: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="autoPauseSubtitles" className="hk-settings-row__label">{t("settings_sub_autopause", currentLang)}</label>
-                <div id="autoPauseSubtitles-desc" className="hk-settings-row__desc">{t("settings_sub_autopause_desc", currentLang)}</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="autoPauseSubtitles">
-                  <input
-                    id="autoPauseSubtitles"
-                    aria-describedby="autoPauseSubtitles-desc"
-                    type="checkbox"
-                    checked={!!settings.autoPauseSubtitles}
-                    onChange={(e) => onUpdate({ autoPauseSubtitles: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="subtitleFontSize" className="hk-settings-row__label">{t("settings_sub_fontsize", currentLang)}</label>
-                <div id="subtitleFontSize-desc" className="hk-settings-row__desc">{t("settings_sub_fontsize_desc", currentLang)}</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <select
-                  id="subtitleFontSize"
-                  className="hk-settings-input hk-settings-select"
-                  value={settings.subtitleFontSize || "medium"}
-                  onChange={(e) => onUpdate({ subtitleFontSize: e.target.value as "small" | "medium" | "large" })}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "8px",
-                    background: "var(--hk-bg-tertiary)",
-                    color: "var(--hk-text-primary)",
-                    border: "1px solid var(--hk-border)",
-                    cursor: "pointer"
-                  }}
-                >
-                  <option value="small">Small (80%)</option>
-                  <option value="medium">Medium (100%)</option>
-                  <option value="large">Large (125%)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="jimakuApiKey" className="hk-settings-row__label">{t("settings_jimaku_key", currentLang)}</label>
-                <div id="jimakuApiKey-desc" className="hk-settings-row__desc">{t("settings_jimaku_key_desc", currentLang)}</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <input
-                  id="jimakuApiKey"
-                  aria-describedby="jimakuApiKey-desc"
-                  className="hk-settings-input hk-settings-input--text"
-                  type="password"
-                  placeholder="Bearer or user token..."
-                  value={settings.jimakuApiKey || ""}
-                  onChange={(e) => onUpdate({ jimakuApiKey: e.target.value })}
-                />
-              </div>
-            </div>
-          </div>
-        </section>
 
         {/* Immersion & Study Preferences Card */}
         <section className="hk-settings-card">
@@ -516,13 +405,45 @@ export function SettingsView({
           </div>
         </section>
 
+        {/* Ko-fi Support Card */}
+        <section className="hk-settings-card" style={{ border: "1px solid rgba(255, 94, 91, 0.3)", background: "rgba(255, 94, 91, 0.06)" }}>
+          <div style={{ padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#ff5e5b" }}>Support Hakkutsu Development</h3>
+              <p style={{ margin: "4px 0 0", fontSize: "12px", color: "var(--hk-text-muted)" }}>If you enjoy using Hakkutsu, consider buying me a coffee on Ko-fi!</p>
+            </div>
+            <a
+              href="https://ko-fi.com/joshiminh"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                background: "#ff5e5b",
+                color: "#ffffff",
+                fontWeight: 700,
+                fontSize: "12px",
+                textDecoration: "none",
+                flexShrink: 0,
+                boxShadow: "0 4px 12px rgba(255, 94, 91, 0.3)"
+              }}
+            >
+              <img src={kofiSvg} alt="Ko-fi" style={{ width: 16, height: 16, objectFit: "contain" }} />
+              Support on Ko-fi
+            </a>
+          </div>
+        </section>
+
       </form>
 
       <div className="hk-settings-footer">
         <strong className="hk-settings-footer__title">Hakkutsu v0.1.2</strong>
         <p className="hk-settings-footer__desc">
           {t("settings_footer_built", currentLang)}<br />
-          Built with Plasmo, React, TypeScript.
+          Built with Plasmo, React, TypeScript. • <a href="https://ko-fi.com/joshiminh" target="_blank" rel="noopener noreferrer" style={{ color: "#ff5e5b", textDecoration: "none" }}>Support on Ko-fi</a>
         </p>
       </div>
     </div>

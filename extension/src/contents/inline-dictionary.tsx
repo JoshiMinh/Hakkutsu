@@ -105,6 +105,50 @@ function cleanJapaneseText(raw: string): string {
     .trim();
 }
 
+function getWordAtPoint(x: number, y: number): { text: string; rect: DOMRect } | null {
+  let range: Range | null = null;
+  if (document.caretRangeFromPoint) {
+    range = document.caretRangeFromPoint(x, y);
+  } else if ((document as any).caretPositionFromPoint) {
+    const pos = (document as any).caretPositionFromPoint(x, y);
+    if (pos && pos.offsetNode) {
+      range = document.createRange();
+      range.setStart(pos.offsetNode, pos.offset);
+      range.setEnd(pos.offsetNode, pos.offset);
+    }
+  }
+
+  if (!range || !range.startContainer || range.startContainer.nodeType !== Node.TEXT_NODE) {
+    return null;
+  }
+
+  const textNode = range.startContainer;
+  const content = textNode.textContent || "";
+  const offset = range.startOffset;
+
+  if (!content || offset < 0 || offset >= content.length) return null;
+
+  let start = offset;
+  let end = offset;
+
+  while (start > 0 && containsJapanese(content[start - 1])) {
+    start--;
+  }
+  while (end < content.length && containsJapanese(content[end])) {
+    end++;
+  }
+
+  const word = content.substring(start, end).trim();
+  if (!word || !containsJapanese(word)) return null;
+
+  const wordRange = document.createRange();
+  wordRange.setStart(textNode, start);
+  wordRange.setEnd(textNode, end);
+  const rect = wordRange.getBoundingClientRect();
+
+  return { text: word, rect };
+}
+
 const InlineDictionary = () => {
   const [position, setPosition] = useState<{
     x: number;
@@ -144,6 +188,7 @@ const InlineDictionary = () => {
       .catch(() => setAnkiConnected(false));
   }, []);
 
+  const lastHoverWordRef = useRef<string | null>(null);
   const selectionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -161,6 +206,51 @@ const InlineDictionary = () => {
           el?.id === "hakkutsu-inline-dictionary" ||
           el?.classList?.contains?.("hk-popup")
       );
+    };
+
+    const checkModifierKey = (e: MouseEvent, keyMode: string): boolean => {
+      if (keyMode === "alt") return e.altKey;
+      if (keyMode === "ctrl") return e.ctrlKey;
+      if (keyMode === "shift") return e.shiftKey;
+      if (keyMode === "meta") return e.metaKey;
+      return false;
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (isClickInsidePopup(e)) return;
+      if (isHydratedRef.current && settingsRef.current.textAnalysisEnabled === false) return;
+
+      const keyMode = settingsRef.current.hoverModifierKey || "alt";
+      if (keyMode === "none") return;
+
+      if (checkModifierKey(e, keyMode)) {
+        const res = getWordAtPoint(e.clientX, e.clientY);
+        if (res && res.text) {
+          if (lastHoverWordRef.current === res.text && positionRef.current) {
+            return;
+          }
+          lastHoverWordRef.current = res.text;
+
+          const rect = res.rect;
+          const x = Math.max(16, Math.min(rect.left, window.innerWidth - 340));
+          const targetY = rect.bottom + 8;
+          const placeAbove = window.innerHeight - rect.bottom < 360 && rect.top > 360;
+          const y = placeAbove ? Math.max(16, rect.top - 368) : targetY;
+
+          setPosition({
+            x,
+            y: Math.max(16, y),
+            placement: "anchor",
+          });
+          setInputText(res.text);
+          setPhraseMode(false);
+          setSentenceMode(false);
+          setTransientMode(true);
+          analyzeText(res.text, false, true);
+        }
+      } else {
+        lastHoverWordRef.current = null;
+      }
     };
 
     const handleSelection = (e: MouseEvent, isDoubleClick: boolean) => {
@@ -314,6 +404,7 @@ const InlineDictionary = () => {
       window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
     };
 
+    document.addEventListener("mousemove", onMouseMove, true);
     document.addEventListener("mouseup", onMouseUp, true);
     document.addEventListener("dblclick", onDoubleClick, true);
     document.addEventListener("keydown", onKeyDown);
@@ -322,9 +413,7 @@ const InlineDictionary = () => {
     window.addEventListener("hakkutsu:token-hover", onTokenHover);
 
     return () => {
-      if (selectionTimerRef.current) {
-        clearTimeout(selectionTimerRef.current);
-      }
+      document.removeEventListener("mousemove", onMouseMove, true);
       document.removeEventListener("mouseup", onMouseUp, true);
       document.removeEventListener("dblclick", onDoubleClick, true);
       document.removeEventListener("keydown", onKeyDown);

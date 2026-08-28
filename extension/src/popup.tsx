@@ -37,6 +37,7 @@ import type {
 
 import "./style.css";
 import appLogo from "data-base64:~assets/icon/icon-rounded.png";
+import kofiSvg from "data-base64:~assets/logo/kofi.svg";
 
 const SrsReview = lazy(() => import("~components/srs-review").then(m => ({ default: m.SrsReview })));
 
@@ -542,6 +543,29 @@ function Popup() {
           >
             <Scissors size={12} /> {t("popup_btn_ocr")}
           </button>
+
+          <a 
+            href="https://ko-fi.com/joshiminh"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hk-btn hk-btn--secondary hk-btn--sm"
+            title="Support on Ko-fi"
+            style={{
+              padding: "4px 8px",
+              fontSize: "11.5px",
+              background: "rgba(255, 94, 91, 0.15)",
+              color: "#ff5e5b",
+              border: "1px solid rgba(255, 94, 91, 0.3)",
+              borderRadius: "6px",
+              gap: "5px",
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center"
+            }}
+          >
+            <img src={kofiSvg} alt="Ko-fi" style={{ width: 14, height: 14, objectFit: "contain" }} />
+            Ko-fi
+          </a>
 
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"

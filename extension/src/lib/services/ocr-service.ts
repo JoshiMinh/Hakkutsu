@@ -1,47 +1,77 @@
-import { env, pipeline, type PipelineType } from "@xenova/transformers";
-
-// Configure transformers.js for browser environment
-env.allowLocalModels = false;
-env.useBrowserCache = true;
-// WebGPU is preferred if available, but WASM is fallback
-env.backends.onnx.wasm.numThreads = 1; // Required for MV3 service workers
+import { createWorker } from "tesseract.js";
 
 class LocalOcrService {
-  private ocrPipeline: any = null;
-  private detectorPipeline: any = null;
-  private isLoaded = false;
+  private worker: any = null;
 
-  async loadModels() {
-    if (this.isLoaded) return;
-    try {
-      // Load manga-ocr ONNX model (vision2seq)
-      this.ocrPipeline = await pipeline("image-to-text", "onnx-community/manga-ocr-base-ONNX", {
-        quantized: true
-      });
-      // Optionally we could load a text detector model if needed. 
-      // For basic usage where the user already cropped the image, 
-      // we can just run MangaOCR on the cropped image directly.
-      this.isLoaded = true;
-    } catch (e) {
-      console.error("Failed to load local OCR models:", e);
-      throw e;
+  private async loadWorker() {
+    if (!this.worker) {
+      this.worker = await createWorker(["jpn", "jpn_vert"]);
     }
+    return this.worker;
   }
 
   async recognizeImage(dataUrl: string): Promise<string> {
-    if (!this.isLoaded) {
-      await this.loadModels();
+    try {
+      // 1. If running inside Service Worker with offscreen document API available
+      if (typeof chrome !== "undefined" && chrome.offscreen?.createDocument) {
+        return await this.recognizeViaOffscreen(dataUrl);
+      }
+
+      // 2. Direct Tesseract worker (content script or DOM window context)
+      const worker = await this.loadWorker();
+      const { data } = await worker.recognize(dataUrl);
+      return (data.text || "").trim();
+    } catch (e: any) {
+      console.error("[LocalOcrService] OCR Error:", e);
+      throw new Error(`Failed to recognize text: ${e?.message || e}`);
     }
+  }
+
+  private async recognizeViaOffscreen(dataUrl: string): Promise<string> {
+    const offscreenUrl = chrome.runtime.getURL("offscreen.html");
     
-    // Convert dataUrl to blob/image for transformers.js
-    // For service workers, we might need to pass the raw dataURL or fetch it
-    const result = await this.ocrPipeline(dataUrl);
-    
-    // Result is usually an array of generated text
-    if (Array.isArray(result) && result.length > 0) {
-      return result[0].generated_text || result[0].text || "";
+    // Check if offscreen document exists
+    if (typeof (chrome.runtime as any).getContexts === "function") {
+      const existingContexts = await (chrome.runtime as any).getContexts({
+        contextTypes: ["OFFSCREEN_DOCUMENT"],
+        documentUrls: [offscreenUrl],
+      });
+      if (existingContexts.length === 0) {
+        await chrome.offscreen.createDocument({
+          url: "offscreen.html",
+          reasons: ["BLOBS" as any],
+          justification: "Run Tesseract.js OCR in offscreen DOM environment for local Japanese text recognition",
+        });
+      }
+    } else {
+      try {
+        await chrome.offscreen.createDocument({
+          url: "offscreen.html",
+          reasons: ["BLOBS" as any],
+          justification: "Run Tesseract.js OCR in offscreen DOM environment for local Japanese text recognition",
+        });
+      } catch (err: any) {
+        // Document might already exist
+        if (!err.message?.includes("Only a single offscreen document may be created")) {
+          throw err;
+        }
+      }
     }
-    return "";
+
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { type: "RUN_OFFSCREEN_OCR", payload: { dataUrl } },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            return reject(new Error(chrome.runtime.lastError.message));
+          }
+          if (response?.type === "OFFSCREEN_OCR_ERROR") {
+            return reject(new Error(response.payload?.error || "Offscreen OCR error"));
+          }
+          resolve(response?.payload?.text || "");
+        }
+      );
+    });
   }
 }
 

@@ -24,6 +24,7 @@
     "plasmo": "0.90.5",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "tesseract.js": "^5.1.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -48,7 +49,8 @@
       "scripting",
       "tabs",
       "storage",
-      "activeTab"
+      "activeTab",
+      "offscreen"
     ],
     "commands": {
       "start-ocr": {

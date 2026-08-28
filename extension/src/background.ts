@@ -10,27 +10,16 @@ import { apiClient } from "~lib/services/api-client";
 import { localSrs } from "~lib/services/local-srs";
 import { ankiClient } from "~lib/services/anki-connect";
 import { localOcrService } from "~lib/services/ocr-service";
-import {
-  fetchCaptionTracks,
-  fetchSubtitles,
-  fetchSubtitlesFromPlayerResponse,
-  extractCaptionTracks,
-  extractVideoId,
-} from "~lib/services/subtitle-fetcher";
 import type {
   ExtensionMessage,
   AnalyzeRequest,
   AnkiExportData,
   AnalyzeResponse,
-  SubtitleResponse,
   TokenAnalysis,
   DictionaryEntry
 } from "~lib/types";
 import { tokenize } from "~lib/services/local-tokenizer";
 import { searchDictionary } from "~lib/services/local-lookup";
-
-// Removed backend fallback logic since backend is now deprecated
-
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { lookupWord } from "~lib/services/dictionary-lookup";
 import { katakanaToHiragana } from "~lib/utils/japanese";
@@ -121,8 +110,6 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
   };
 }
 
-
-
 // Listen for messages from popup and content scripts
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, sender, sendResponse) => {
@@ -140,135 +127,6 @@ chrome.runtime.onMessage.addListener(
   }
 );
 
-async function playerResponseFromTab(
-  tabId: number
-): Promise<Record<string, unknown> | null> {
-  const results = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: "MAIN",
-    func: () => {
-      const url = window.location.href;
-      const vMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/) || url.match(/(?:embed|shorts|live|v)\/([a-zA-Z0-9_-]{11})/);
-      const currentVideoId = vMatch ? vMatch[1] : null;
-      if (!currentVideoId) return null;
-
-      const candidates: any[] = [];
-      const moviePlayer = document.querySelector("#movie_player") as any;
-      if (typeof moviePlayer?.getPlayerResponse === "function") {
-        try {
-          candidates.push(moviePlayer.getPlayerResponse());
-        } catch {
-          // Player can be between states during YouTube SPA navigation.
-        }
-      }
-      candidates.push((window as any).ytInitialPlayerResponse);
-      const raw = (window as any).ytplayer?.config?.args?.raw_player_response;
-      if (raw) {
-        try {
-          candidates.push(JSON.parse(raw));
-        } catch {
-          // Ignore malformed legacy player config.
-        }
-      }
-
-      const response = candidates.find(
-        (candidate) => candidate?.videoDetails?.videoId === currentVideoId
-      ) || candidates[0];
-      if (!response) return null;
-
-      const formatTrackName = (t: any): string => {
-        if (typeof t.name === "string") return t.name;
-        if (t.name?.simpleText) return t.name.simpleText;
-        if (Array.isArray(t.name?.runs)) return t.name.runs.map((r: any) => r.text || "").join("");
-        if (typeof t.displayName === "string") return t.displayName;
-        if (typeof t.languageName === "string") return t.languageName;
-        if (typeof t.languageCode === "string") return t.languageCode;
-        return "";
-      };
-
-      const formatLanguageCode = (t: any): string => {
-        if (typeof t.languageCode === "string" && t.languageCode) {
-          return t.languageCode.toLowerCase().replace(/^\./, "").replace(/^a\./, "");
-        }
-        if (typeof t.vssId === "string" && t.vssId) {
-          return t.vssId.toLowerCase().replace(/^\.?[a-z0-9_-]*\./i, "").replace(/^\./, "");
-        }
-        return "";
-      };
-
-      // 1. First priority: playerResponse or ytInitialPlayerResponse captionTracks (contains full signed baseUrl)
-      let captionTracks =
-        response.captions?.playerCaptionsTracklistRenderer?.captionTracks ||
-        response.captions?.playerCaptionsRenderer?.captionTracks;
-
-      // 2. If existing tracks have baseUrl, keep them
-      if (Array.isArray(captionTracks) && captionTracks.some((t: any) => t.baseUrl || t.url)) {
-        return {
-          videoDetails: response.videoDetails || { videoId: currentVideoId },
-          captions: response.captions,
-        };
-      }
-
-      let runtimeTracks: any[] = [];
-      if (typeof moviePlayer?.getOption === "function") {
-        try {
-          const list = moviePlayer.getOption("captions", "tracklist");
-          if (Array.isArray(list) && list.length > 0) {
-            runtimeTracks = list
-              .filter((track: any) => track.baseUrl || track.url)
-              .map((track: any) => ({
-                baseUrl: track.baseUrl || track.url || "",
-                languageCode: formatLanguageCode(track),
-                name: formatTrackName(track),
-                kind: track.kind || "",
-                vssId: track.vssId || "",
-              }));
-          }
-        } catch {
-          // Ignore
-        }
-      }
-
-      if (runtimeTracks.length === 0 && typeof moviePlayer?.getAudioTrack === "function") {
-        try {
-          const tracks = moviePlayer.getAudioTrack()?.captionTracks;
-          if (Array.isArray(tracks)) {
-            runtimeTracks = tracks
-              .filter((track: any) => track.baseUrl || track.url)
-              .map((track: any) => ({
-                baseUrl: track.baseUrl || track.url || "",
-                languageCode: formatLanguageCode(track),
-                name: formatTrackName(track),
-                kind: track.kind || "",
-                vssId: track.vssId || "",
-              }));
-          }
-        } catch {
-          // Ignore
-        }
-      }
-
-      const captions = runtimeTracks.length > 0
-        ? {
-            playerCaptionsTracklistRenderer: {
-              ...(response.captions?.playerCaptionsTracklistRenderer || {}),
-              captionTracks: runtimeTracks,
-            },
-          }
-        : response.captions;
-
-      return {
-        videoDetails: response.videoDetails || { videoId: currentVideoId },
-        captions,
-      };
-    },
-  });
-  const result = results[0]?.result;
-  return result && typeof result === "object"
-    ? (result as Record<string, unknown>)
-    : null;
-}
-
 async function handleMessage(
   message: ExtensionMessage,
   sender?: chrome.runtime.MessageSender
@@ -277,7 +135,6 @@ async function handleMessage(
     case "ANALYZE_TEXT":
     case "ANALYZE_JAVI": {
       const request = message.payload as AnalyzeRequest;
-      // Fast path for subtitle overlay furigana prefetching
       if (request.include_definitions === false) {
         try {
           const localResult = await analyzeLocal(request.text);
@@ -355,97 +212,7 @@ async function handleMessage(
       }
     }
 
-
-    case "GET_SUBTITLES": {
-      const { videoUrl, language, playerResponse, strategy = "all" } = message.payload as {
-        videoUrl: string;
-        language?: string;
-        playerResponse?: Record<string, unknown> | null;
-        strategy?: "youtube" | "backend" | "all";
-      };
-      const targetLanguage = language || "ja";
-      const youtubeFailures: string[] = [];
-      let currentPlayerResponse = playerResponse;
-      let sourceTabId = sender?.tab?.id;
-
-      if (strategy !== "backend" && !currentPlayerResponse && sourceTabId == null) {
-        const [activeTab] = await chrome.tabs.query({
-          active: true,
-          currentWindow: true,
-        });
-        if (
-          activeTab?.id != null &&
-          activeTab.url &&
-          extractVideoId(activeTab.url) === extractVideoId(videoUrl)
-        ) {
-          sourceTabId = activeTab.id;
-        }
-      }
-
-      if (strategy !== "backend" && !currentPlayerResponse && sourceTabId != null) {
-        try {
-          currentPlayerResponse = await playerResponseFromTab(sourceTabId);
-        } catch (error) {
-          youtubeFailures.push(
-            `read current player: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-      }
-
-      if (strategy !== "backend" && currentPlayerResponse) {
-        try {
-          const videoId = new URL(videoUrl).searchParams.get("v");
-          if (!videoId) throw new Error("Current YouTube URL has no video id.");
-          const subtitleResult = await fetchSubtitlesFromPlayerResponse(
-            currentPlayerResponse,
-            videoId,
-            targetLanguage
-          );
-          return { type: "SUBTITLES_RESULT", payload: subtitleResult };
-        } catch (error) {
-          youtubeFailures.push(
-            `current player: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-      }
-
-      if (strategy !== "backend") {
-        try {
-          const subtitleResult = await fetchSubtitles(videoUrl, targetLanguage);
-          return { type: "SUBTITLES_RESULT", payload: subtitleResult };
-        } catch (error) {
-          youtubeFailures.push(
-            `fresh YouTube page: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-      }
-
-      if (strategy === "youtube") {
-        throw new Error(`YouTube direct failed (${youtubeFailures.join("; ")})`);
-      }
-
-      throw new Error(`YouTube direct failed (${youtubeFailures.join("; ")})`);
-    }
-
-    case "GET_CAPTION_TRACKS": {
-      const { videoUrl: trackUrl } = message.payload as { videoUrl: string };
-      if (sender?.tab?.id != null) {
-        try {
-          const currentPlayerResponse = await playerResponseFromTab(sender.tab.id);
-          if (currentPlayerResponse) {
-            const tracks = extractCaptionTracks(currentPlayerResponse);
-            return { type: "CAPTION_TRACKS_RESULT", payload: { tracks } };
-          }
-        } catch {
-          // Fall through to a fresh YouTube page request.
-        }
-      }
-      const tracks = await fetchCaptionTracks(trackUrl);
-      return { type: "CAPTION_TRACKS_RESULT", payload: { tracks } };
-    }
-
     case "TEXT_SELECTED":
-      // Handled by popup if open. We just return success to avoid background errors.
       return { type: "IGNORED", payload: {} };
 
     case "EXPORT_ANKI": {
@@ -460,12 +227,10 @@ async function handleMessage(
     }
 
     case "ADD_SRS_CARD": {
-      // In a real app we'd get user_id from auth, for now we hardcode "user_1"
       const data = message.payload as { word: string; reading?: string; meaning?: string; sentence?: string };
       const card = await localSrs.addSrsCard(data);
       return { type: "SRS_RESULT", payload: card };
     }
-
 
     case "CHECK_ANKI": {
       const connected = await ankiClient.isConnected();
@@ -532,40 +297,8 @@ async function handleMessage(
       }
     }
 
-    case "FETCH_TIMEDTEXT_URL": {
-      const { url } = message.payload as { url: string };
-      try {
-        let res = await fetch(url, {
-          headers: {
-            Accept: "application/json, text/plain, */*",
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-          },
-        });
-        if (!res.ok && !url.includes("fmt=")) {
-          const jsonUrl = url.includes("?") ? `${url}&fmt=json3` : `${url}?fmt=json3`;
-          res = await fetch(jsonUrl, {
-            headers: {
-              Accept: "application/json, text/plain, */*",
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            },
-          });
-        }
-        if (res.ok) {
-          const text = await res.text();
-          return { type: "FETCH_TIMEDTEXT_RESULT", payload: { success: true, text } };
-        }
-        return { type: "FETCH_TIMEDTEXT_RESULT", payload: { success: false, error: `HTTP ${res.status}` } };
-      } catch (err: any) {
-        return { type: "FETCH_TIMEDTEXT_RESULT", payload: { success: false, error: String(err) } };
-      }
-    }
-
     case "TRANSLATE_TEXT": {
       const { texts } = message.payload as { texts: string[] };
-
-      // Infallible fallback: Free Google Translate
       const translations = await Promise.all(
         texts.map(async (t) => {
           try {
@@ -602,25 +335,19 @@ async function handleMessage(
 
     case "OCR_IMAGE": {
       const { image_data, language } = message.payload as { image_data: string; language?: string };
-      const settings = await getSettings();
-      
-      if (settings.localOcrEnabled) {
-        try {
-          const text = await localOcrService.recognizeImage(image_data);
-          return {
-            type: "OCR_RESULT",
-            payload: {
-              full_text: text,
-              regions: [{ text, confidence: 1.0, bbox: null }],
-              language: language || "jpn"
-            }
-          };
-        } catch (error: any) {
-          throw new Error(`Local OCR failed: ${error.message}`);
-        }
+      try {
+        const text = await localOcrService.recognizeImage(image_data);
+        return {
+          type: "OCR_RESULT",
+          payload: {
+            full_text: text,
+            regions: [{ text, confidence: 1.0, bbox: null }],
+            language: language || "jpn"
+          }
+        };
+      } catch (error: any) {
+        throw new Error(`Local OCR failed: ${error.message}`);
       }
-
-      throw new Error(`Bạn cần bật tính năng 'Local OCR' trong Cài đặt để sử dụng.`);
     }
 
     case "OPEN_APP": {

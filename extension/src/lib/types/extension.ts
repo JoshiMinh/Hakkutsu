@@ -17,16 +17,10 @@ export interface ExtensionSettings {
   localOcrEnabled: boolean;
   showFurigana: boolean;
   showJlptColors: boolean;
-  autoFetchJapaneseSubtitles: boolean;
-  universalVideoEnabled: boolean;
-  subtitleFontSize: "small" | "medium" | "large";
-  autoPauseSubtitles: boolean;
-  jimakuApiKey?: string;
+  hoverModifierKey: "alt" | "ctrl" | "shift" | "meta" | "none";
   theme: "dark" | "light" | "auto";
   fontSize: "small" | "medium" | "large";
   srsEnabled: boolean;
-  youtubeEnabled: boolean;
-  netflixEnabled: boolean;
   textAnalysisEnabled: boolean;
 }
 
@@ -42,16 +36,10 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   localOcrEnabled: false,
   showFurigana: true,
   showJlptColors: true,
-  autoFetchJapaneseSubtitles: true,
-  universalVideoEnabled: true,
-  subtitleFontSize: "medium",
-  autoPauseSubtitles: false,
-  jimakuApiKey: "",
+  hoverModifierKey: "alt",
   theme: "dark",
   fontSize: "medium",
   srsEnabled: true,
-  youtubeEnabled: true,
-  netflixEnabled: true,
   textAnalysisEnabled: true,
 };
 
@@ -82,10 +70,6 @@ export type MessageType =
   | "ANALYZE_JAVI"
   | "ANALYZE_PHRASE"
   | "ANALYZE_PHRASE_RESULT"
-  | "GET_SUBTITLES"
-  | "SUBTITLES_RESULT"
-  | "GET_CAPTION_TRACKS"
-  | "CAPTION_TRACKS_RESULT"
   | "EXPORT_ANKI"
   | "ANKI_RESULT"
   | "CHECK_ANKI"
@@ -109,8 +93,6 @@ export type MessageType =
   | "INPAINT_RESULT"
   | "FETCH_TTS_AUDIO"
   | "TTS_AUDIO_RESULT"
-  | "FETCH_TIMEDTEXT_URL"
-  | "FETCH_TIMEDTEXT_RESULT"
   | "IGNORED"
   | "ERROR";
 
