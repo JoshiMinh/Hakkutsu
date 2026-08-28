@@ -112,25 +112,6 @@ export interface SubtitleResponse {
   full_text: string;
 }
 
-// ── OCR ─────────────────────────────────────────────────────────────────────
-
-export interface OcrRegion {
-  text: string;
-  confidence: number;
-  bbox: number[] | null;
-}
-
-export interface OcrRequest {
-  image_data: string;
-  language?: string;
-}
-
-export interface OcrResponse {
-  full_text: string;
-  regions: OcrRegion[];
-  language: string;
-}
-
 // ── YouTube Caption Tracks ──────────────────────────────────────────────────
 
 export interface CaptionTrack {

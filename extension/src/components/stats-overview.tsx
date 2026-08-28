@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { localSrs, type SrsStats } from "~lib/services/local-srs";
+import { localSrs } from "~lib/services/local-srs";
+import type { SrsStats } from "~lib/services/local-srs";
 import { 
   Play,
   Volume2, 

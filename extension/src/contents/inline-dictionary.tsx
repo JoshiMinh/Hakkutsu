@@ -545,40 +545,25 @@ const InlineDictionary = () => {
     }
     setSelectedToken(index);
   };
-  const panelWidth = Math.min(460, Math.max(320, window.innerWidth - 24));
+  const cardWidth = Math.min(420, Math.max(320, window.innerWidth - 32));
   const usePlayerOverlay = position.placement === "player-overlay";
-  const playerRect = document
-    .querySelector("#movie_player")
-    ?.getBoundingClientRect();
-  const playerPanelWidth = playerRect
-    ? Math.min(panelWidth, Math.max(340, playerRect.width * 0.42))
-    : panelWidth;
 
-  // Position nicely relative to the click coordinates or subtitle bar
-  const panelLeft = usePlayerOverlay
-    ? Math.max(
-        16,
-        Math.min(
-          window.innerWidth - playerPanelWidth - 16,
-          position.x > window.innerWidth / 2
-            ? (playerRect?.right ?? window.innerWidth) - playerPanelWidth - 20
-            : (playerRect?.left ?? 0) + 20
-        )
-      )
-    : Math.max(
-        16,
-        Math.min(window.innerWidth - panelWidth - 16, position.x - panelWidth / 2)
-      );
+  // Center horizontally directly over the hovered/clicked word
+  const panelLeft = Math.max(
+    16,
+    Math.min(window.innerWidth - cardWidth - 16, position.x - cardWidth / 2)
+  );
 
-  const panelTop = usePlayerOverlay
-    ? Math.max(
-        16,
-        Math.min(
-          window.innerHeight - 380,
-          (playerRect?.top ?? 0) + Math.max(20, position.y - 120)
-        )
-      )
-    : Math.max(16, position.y + 12);
+  // Position vertically:
+  // For subtitles or if the word is in the lower half of viewport,
+  // float the definition card directly ABOVE the word!
+  const estimatedHeight = 340;
+  const isLower = position.y > window.innerHeight * 0.42;
+  const placeAbove = usePlayerOverlay || isLower;
+
+  const panelTop = placeAbove
+    ? Math.max(16, position.y - estimatedHeight - 12)
+    : Math.min(window.innerHeight - estimatedHeight - 16, position.y + 16);
 
   const panelMaxHeight = Math.min(window.innerHeight - 32, 540);
 
@@ -590,8 +575,8 @@ const InlineDictionary = () => {
         position: "fixed",
         top: `${panelTop}px`,
         left: `${panelLeft}px`,
-        width: `${playerPanelWidth}px`,
-        maxHeight: usePlayerOverlay ? "min(360px, calc(100vh - 40px))" : "min(460px, calc(100vh - 40px))",
+        width: `${cardWidth}px`,
+        maxHeight: "min(380px, calc(100vh - 40px))",
         zIndex: 2147483647,
         display: "flex",
         flexDirection: "column"

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { localSrs, type SrsCard, type SrsStats } from "~lib/services/local-srs";
+import { localSrs } from "~lib/services/local-srs";
+import type { SrsCard, SrsStats } from "~lib/services/local-srs";
 import { PartyPopper, Volume2 } from "lucide-react";
 import { useTranslation } from "~lib/languages/locales";
 import { ttsService } from "~lib/services/tts-service";

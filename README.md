@@ -5,14 +5,12 @@
   **AI Japanese Immersion & Mining Tool for Chrome**
 </div>
 
-Hakkutsu (発掘) is a fast, privacy-first browser extension designed for Japanese immersion, reading comprehension, and sentence mining. It runs directly in your browser, analyzing Japanese text from web pages and images, breaking down grammar, providing furigana readings, and syncing vocabulary to Anki.
-
+Hakkutsu (発掘) is a fast, privacy-first browser extension designed for Japanese immersion, reading comprehension, and sentence mining. It runs directly in your browser, analyzing Japanese text from web pages, breaking down grammar, providing furigana readings, and syncing vocabulary to Anki.
 ---
 
 ## Key Features
 
 - **Smart Inline Dictionary & Parser**: Instant morphological analysis with Sudachi and Kuromoji tokenizers. Displays pitch accents, furigana, JLPT levels (N5 to N1), and Sino-Vietnamese (Hán-Việt) readings.
-- **Offline Screenshot OCR**: Crop any region of your screen (`Ctrl + Shift + X`) to extract Japanese kanji and vertical text offline using Tesseract OCR (`jpn` & `jpn_vert`) inside a Chrome MV3 Offscreen Document.
 - **AI Grammar & Sentence Breakdown**: Connect your own Gemini or OpenAI API key for contextual translations, idiom explanations, and sentence structure breakdown.
 - **AnkiConnect Sync**: One-click flashcard export directly to your local Anki deck via AnkiConnect (`http://localhost:8765`), including words, readings, audio, definitions, and sentence context.
 - **Built-in SRS Dashboard**: Review saved vocabulary anytime using the local Spaced Repetition System dashboard built directly into the extension.

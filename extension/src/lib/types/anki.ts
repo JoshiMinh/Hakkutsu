@@ -41,4 +41,6 @@ export interface AnkiExportData {
   jlptLevel: string;
   pos: string;
   screenshot?: string;
+  sourceUrl?: string;
+  audio?: string;
 }

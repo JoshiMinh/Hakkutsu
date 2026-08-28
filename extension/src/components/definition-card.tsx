@@ -7,7 +7,8 @@ import { JlptBadge, PosBadge, FrequencyBadge } from "./Badges";
 import { Volume2, BookmarkPlus, Copy, Check, Sparkles, BookOpen, MessageSquareText, Loader2 } from "lucide-react";
 import { useTranslation } from "~lib/languages/locales";
 import { ttsService } from "~lib/services/tts-service";
-import { fetchExampleSentences, fetchWordVariants, type ExampleSentence, type WordVariant } from "~lib/services/dictionary-lookup";
+import { fetchExampleSentences, fetchWordVariants } from "~lib/services/dictionary-lookup";
+import type { ExampleSentence, WordVariant } from "~lib/services/dictionary-lookup";
 
 function highlightJapaneseSentence(sentence: string, targetWords: string[]): React.ReactNode {
   if (!sentence) return "";

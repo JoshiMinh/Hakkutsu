@@ -11,7 +11,6 @@ export interface ExtensionSettings {
   ankiDeck: string;
   ankiModel: string;
   autoDetect: boolean;
-  localOcrEnabled: boolean;
   showFurigana: boolean;
   showJlptColors: boolean;
   hoverModifierKey: "alt" | "ctrl" | "shift" | "meta" | "none";
@@ -19,6 +18,11 @@ export interface ExtensionSettings {
   fontSize: "small" | "medium" | "large";
   srsEnabled: boolean;
   textAnalysisEnabled: boolean;
+  subtitlesEnabled: boolean;
+  subtitlesFontSize: number;
+  subtitlesSecondaryEnabled: boolean;
+  subtitlesAutoPause: boolean;
+  subtitlesOffset: number;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -28,7 +32,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   ankiDeck: "Hakkutsu",
   ankiModel: "Hakkutsu Japanese",
   autoDetect: true,
-  localOcrEnabled: false,
   showFurigana: true,
   showJlptColors: true,
   hoverModifierKey: "alt",
@@ -36,6 +39,11 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   fontSize: "medium",
   srsEnabled: true,
   textAnalysisEnabled: true,
+  subtitlesEnabled: true,
+  subtitlesFontSize: 26,
+  subtitlesSecondaryEnabled: true,
+  subtitlesAutoPause: false,
+  subtitlesOffset: 0,
 };
 
 export interface VocabularyEntry {
@@ -74,22 +82,22 @@ export type MessageType =
   | "TEXT_SELECTED"
   | "ADD_SRS_CARD"
   | "SRS_RESULT"
-  | "CAPTURE_SCREENSHOT"
-  | "SCREENSHOT_RESULT"
-  | "FETCH_IMAGE"
-  | "FETCH_IMAGE_RESULT"
   | "OPEN_APP"
   | "OPEN_APP_RESULT"
   | "TRANSLATE_TEXT"
   | "TRANSLATE_RESULT"
-  | "OCR_IMAGE"
-  | "OCR_RESULT"
-  | "START_OCR_FLOW"
-  | "START_OCR_FLOW_RESULT"
-  | "INPAINT_IMAGE"
-  | "INPAINT_RESULT"
   | "FETCH_TTS_AUDIO"
   | "TTS_AUDIO_RESULT"
+  | "START_OCR_FLOW"
+  | "START_OCR_FLOW_RESULT"
+  | "CAPTURE_SCREENSHOT"
+  | "SCREENSHOT_RESULT"
+  | "FETCH_IMAGE"
+  | "FETCH_IMAGE_RESULT"
+  | "FETCH_TIMEDTEXT_URL"
+  | "FETCH_TIMEDTEXT_URL_RESULT"
+  | "OCR_IMAGE"
+  | "OCR_RESULT"
   | "IGNORED"
   | "ERROR";
 

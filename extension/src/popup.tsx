@@ -9,7 +9,6 @@ import {
   Brain, 
   Languages, 
   BookMarked, 
-  Scissors, 
   ExternalLink,
   Search,
   Wifi,
@@ -502,30 +501,6 @@ function Popup() {
         </div>
 
         <div className="hk-header__actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          <button 
-            className="hk-btn hk-btn--secondary hk-btn--sm"
-            onClick={() => {
-              chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs[0]?.id) {
-                  chrome.runtime.sendMessage({ type: "START_OCR_FLOW", payload: { tabId: tabs[0].id } });
-                  setTimeout(() => window.close(), 150);
-                }
-              });
-            }}
-            title={t("popup_btn_ocr")}
-            style={{
-              padding: "4px 8px",
-              fontSize: "11.5px",
-              background: "rgba(168, 85, 247, 0.12)",
-              color: "#d8b4fe",
-              border: "1px solid rgba(168, 85, 247, 0.25)",
-              borderRadius: "6px",
-              gap: "4px"
-            }}
-          >
-            <Scissors size={12} /> {t("popup_btn_ocr")}
-          </button>
-
           <a 
             href="https://ko-fi.com/joshiminh"
             target="_blank"

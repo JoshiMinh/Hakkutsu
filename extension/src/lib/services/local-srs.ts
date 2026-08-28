@@ -1,4 +1,5 @@
-import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import { openDB } from "idb";
+import type { DBSchema, IDBPDatabase } from "idb";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { lookupWord } from "./dictionary-lookup";
 import { googleTranslateService } from "./google-translate";

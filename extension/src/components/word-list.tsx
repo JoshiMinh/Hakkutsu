@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { localSrs, type SrsCard } from "~lib/services/local-srs";
+import { localSrs } from "~lib/services/local-srs";
+import type { SrsCard } from "~lib/services/local-srs";
 import { 
   Search, 
   Download, 

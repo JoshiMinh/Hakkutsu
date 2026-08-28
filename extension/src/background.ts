@@ -60,60 +60,39 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
   const tokens = await tokenize(text);
   
   const tokenAnalyses: TokenAnalysis[] = await Promise.all(tokens.map(async (t) => {
-    const is_japanese = /[ぁ-んァ-ン一-龯]/.test(t.surface_form);
-    let definitions: DictionaryEntry[] = [];
+    const surface = t.surface_form;
     let jlpt_level: string | null = null;
-    
-    if (is_japanese && t.base_form) {
-      const dictEntries = await searchDictionary(t.base_form);
-      if (dictEntries && dictEntries.length > 0) {
-        const mainEntry = dictEntries[0];
-        jlpt_level = mainEntry.jlpt || predictJlpt(t.base_form || t.surface_form) || null;
-        definitions = mainEntry.senses.map(s => ({
-          dictionary: "JMdict",
-          glosses: s.glosses,
-          pos: s.partOfSpeech,
-          field: null,
-          misc: []
-        }));
-      } else {
-        jlpt_level = predictJlpt(t.base_form || t.surface_form) || null;
-      }
+    let hiraganaReading = "";
+    if (!is_japanese) {
+      return {
+        surface,
+        dictionary_form: surface,
+        pos: t.pos,
+        pos_detail: [],
+        reading: { hiragana: "", romaji: "" },
+        is_japanese: false,
+        jlpt_level: null,
+        frequency_rank: null,
+        definitions: []
+      };
     }
-    
-    const hiraganaReading = t.reading ? katakanaToHiragana(t.reading) : (is_japanese ? t.surface_form : "");
 
-    return {
-      surface: t.surface_form,
-      dictionary_form: t.base_form,
-      pos: t.pos,
-      pos_detail: [],
-      reading: {
-        hiragana: hiraganaReading,
-        romaji: ""
-      },
-      is_japanese,
-      jlpt_level,
-      frequency_rank: null,
-      definitions
-    };
-  }));
-
-  const sentence_reading = tokenAnalyses.map((t) => t.reading.hiragana || t.surface).join("");
+    if (/^[ぁ-んー\s\u3000]+$/.test(surface)) {
+            glosses: [info.meaning],
+            pos: ["Word"],
+            field: null,
+            misc: []
+          }];
 
   return {
     text,
-    tokens: tokenAnalyses,
-    sentence_reading,
     token_count: tokens.length,
     difficulty_score: null,
     difficulty_label: null
   };
-}
 
 // Listen for messages from popup and content scripts
 chrome.runtime.onMessage.addListener(
-  (message: ExtensionMessage, sender, sendResponse) => {
     handleMessage(message, sender)
       .then(sendResponse)
       .catch((error) =>
@@ -311,12 +290,35 @@ async function handleMessage(
       }
     }
 
+    case "FETCH_TIMEDTEXT_URL": {
+      const { url } = message.payload as { url: string };
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          const text = await res.text();
+          return { type: "FETCH_TIMEDTEXT_URL_RESULT", payload: { success: true, text } };
+        }
+        return { type: "FETCH_TIMEDTEXT_URL_RESULT", payload: { success: false, error: `HTTP ${res.status}` } };
+      } catch (err: any) {
+        return { type: "FETCH_TIMEDTEXT_URL_RESULT", payload: { success: false, error: err.message || String(err) } };
+      }
+    }
+
     case "TRANSLATE_TEXT": {
-      const { texts } = message.payload as { texts: string[] };
+      const payload = message.payload as any;
+      const settings = await getSettings();
+      const targetLang = payload?.targetLang || settings.targetLanguage || "vi";
+
+      const textList: string[] = Array.isArray(payload?.texts)
+        ? payload.texts
+        : typeof payload?.text === "string"
+          ? [payload.text]
+          : [];
+
       const translations = await Promise.all(
-        texts.map(async (t) => {
+        textList.map(async (t) => {
           try {
-            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=vi&dt=t&q=${encodeURIComponent(t.trim())}`;
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(t.trim())}`;
             const res = await fetch(url);
             if (res.ok) {
               const data = await res.json();
@@ -335,9 +337,10 @@ async function handleMessage(
         type: "TRANSLATE_RESULT",
         payload: {
           source_language: "ja",
-          target_language: "vi",
+          target_language: targetLang,
+          translation: translations[0] || "",
           translations,
-          items: texts.map((t, idx) => ({
+          items: textList.map((t, idx) => ({
             index: idx,
             source: t,
             translation: translations[idx] || "",

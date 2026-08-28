@@ -109,6 +109,8 @@ class AnkiConnectClient {
   <div class="pos">${data.pos}</div>
   ${data.sentence ? `<div class="sentence">${data.sentence}</div>` : ""}
   ${data.sentenceReading ? `<div class="sentence-reading">${data.sentenceReading}</div>` : ""}
+  ${data.sourceUrl ? `<div class="source-link" style="margin-top: 8px; font-size: 11px;"><a href="${data.sourceUrl}" target="_blank">Video Context</a></div>` : ""}
+  ${data.screenshot ? `<div class="screenshot" style="margin-top: 10px;"><img src="${data.screenshot}" style="max-width: 100%; border-radius: 8px;" /></div>` : ""}
 </div>`;
 
     const note: AnkiNote = {

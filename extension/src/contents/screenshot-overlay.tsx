@@ -372,7 +372,7 @@ const ScreenshotOverlay = () => {
         }
     } catch (err: any) {
       console.error("Crop processing error", err);
-      setOcrText(`❌ Lỗi OCR: ${err?.message || String(err)}`);
+      setOcrText(`Lỗi OCR: ${err?.message || String(err)}`);
     } finally {
       setLoading(false);
     }

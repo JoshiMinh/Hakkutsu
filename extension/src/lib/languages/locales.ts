@@ -29,7 +29,6 @@ export const translations = {
     popup_empty_state: "Nhập hoặc bôi đen văn bản tiếng Nhật trên trang web để tra từ và phân tích ngữ pháp.",
     popup_fallback_badge: "Dịch bằng Google Translate",
     popup_llm_badge: "Phân tích Cú pháp",
-    popup_btn_ocr: "Chụp OCR",
     popup_btn_app: "Mở App",
     popup_ready: "Sẵn sàng phân tích.",
     
@@ -200,8 +199,6 @@ export const translations = {
     settings_study_section: "General",
     settings_srs: "Bật ôn tập SRS",
     settings_srs_desc: "Bật tính năng lưu từ vựng và tạo phiên ôn tập lặp lại ngắt quãng cục bộ",
-    settings_ocr: "Bật OCR",
-    settings_ocr_desc: "Nhận diện chữ trên ảnh bằng Tesseract OCR (chụp màn hình Ctrl+Shift+X hoặc bấm vào ảnh)",
     settings_autodetect: "Tự động phát hiện tiếng Nhật",
     settings_autodetect_desc: "Tự động quét và hỗ trợ trên các trang có văn bản tiếng Nhật",
     settings_furigana: "Hiện Furigana",
@@ -284,7 +281,6 @@ export const translations = {
     popup_empty_state: "Type or select Japanese text on web pages to look up words and grammatical breakdown.",
     popup_fallback_badge: "Translated via Google Translate",
     popup_llm_badge: "Text Analysis",
-    popup_btn_ocr: "OCR",
     popup_btn_app: "App",
     popup_ready: "Ready to translate.",
     
@@ -455,8 +451,6 @@ export const translations = {
     settings_study_section: "General",
     settings_srs: "Enable Spaced Repetition (SRS)",
     settings_srs_desc: "Enable local vocabulary saving and automatic spaced repetition review sessions",
-    settings_ocr: "Enable OCR",
-    settings_ocr_desc: "Recognize text on screenshots (Ctrl+Shift+X) or image clicks using Tesseract OCR",
     settings_autodetect: "Auto-detect Japanese",
     settings_autodetect_desc: "Automatically detect and assist on Japanese web pages",
     settings_furigana: "Show Furigana",

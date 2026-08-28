@@ -12,8 +12,6 @@ import type {
   PhraseAnalyzeResponse,
   SubtitleRequest,
   SubtitleResponse,
-  OcrRequest,
-  OcrResponse,
   HealthResponse,
   ApiError,
   WebTranslateResponse,
