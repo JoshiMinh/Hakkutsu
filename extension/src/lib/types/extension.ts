@@ -7,9 +7,6 @@ export type ExtensionView = "translate" | "srs" | "anki";
 export interface ExtensionSettings {
   targetLanguage: "vi" | "en";
   showHanViet: boolean;
-  llmProvider: "gemini" | "openai" | "custom";
-  llmApiKey: string;
-  llmCustomUrl?: string;
   ankiEnabled: boolean;
   ankiDeck: string;
   ankiModel: string;
@@ -27,8 +24,6 @@ export interface ExtensionSettings {
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   targetLanguage: "vi",
   showHanViet: true,
-  llmProvider: "gemini",
-  llmApiKey: "",
   ankiEnabled: true,
   ankiDeck: "Hakkutsu",
   ankiModel: "Hakkutsu Japanese",
@@ -89,6 +84,8 @@ export type MessageType =
   | "TRANSLATE_RESULT"
   | "OCR_IMAGE"
   | "OCR_RESULT"
+  | "START_OCR_FLOW"
+  | "START_OCR_FLOW_RESULT"
   | "INPAINT_IMAGE"
   | "INPAINT_RESULT"
   | "FETCH_TTS_AUDIO"

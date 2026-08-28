@@ -79,7 +79,8 @@ export function DefinitionCard({
 
   const wordQuery = token.dictionary_form || token.surface;
   const wordHasKanji = hasKanji(token.dictionary_form) || hasKanji(token.surface);
-  const rubySegments = distributeFurigana(token.dictionary_form, token.reading?.hiragana);
+  const readingStr = typeof token.reading === "string" ? token.reading : (token.reading?.hiragana || "");
+  const rubySegments = distributeFurigana(token.dictionary_form || token.surface, readingStr);
 
   // Strictly only show Han-Viet when enabled and target language is Vietnamese and word has Kanji
   const hanViet = showHanViet && wordHasKanji

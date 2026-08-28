@@ -5,7 +5,18 @@ class LocalOcrService {
 
   private async loadWorker() {
     if (!this.worker) {
-      this.worker = await createWorker(["jpn", "jpn_vert"]);
+      const workerPath = typeof chrome !== "undefined" && chrome.runtime?.getURL
+        ? chrome.runtime.getURL("assets/tesseract/worker.min.js")
+        : undefined;
+      const corePath = typeof chrome !== "undefined" && chrome.runtime?.getURL
+        ? chrome.runtime.getURL("assets/tesseract/core/")
+        : undefined;
+      this.worker = await createWorker("jpn", 1, {
+        workerPath,
+        corePath,
+        langPath: "https://tessdata.projectnaptha.com/4.0.0",
+        workerBlobURL: false,
+      });
     }
     return this.worker;
   }

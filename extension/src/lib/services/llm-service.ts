@@ -1,5 +1,5 @@
 import { useSettingsStore } from "~lib/utils/settings";
-import type { AnalyzeResponse, PhraseAnalyzeResponse, WebTranslateResponse } from "~lib/types";
+import type { ExtensionSettings, WebTranslateResponse } from "~lib/types";
 import { googleTranslateService } from "./google-translate";
 import { lookupWord } from "./dictionary-lookup";
 
@@ -11,137 +11,27 @@ export class LlmServiceError extends Error {
 }
 
 /**
- * Handles LLM API requests directly from the browser extension,
- * with automatic Google Translate fallback when LLM is unavailable.
+ * High-performance text analysis and translation service using 
+ * local Kuromoji tokenizer, offline JMDict, and Google Translate.
  */
 class LlmService {
-  private getSettings() {
+  private async getSettings(providedSettings?: ExtensionSettings): Promise<ExtensionSettings> {
+    if (providedSettings) return providedSettings;
+    if (typeof chrome !== "undefined" && chrome.storage?.sync) {
+      try {
+        const { getSettings } = await import("./storage");
+        return await getSettings();
+      } catch {}
+    }
     const state = useSettingsStore.getState();
     return state.settings;
   }
 
-  private async callApi(systemPrompt: string, userPrompt: string, responseFormat?: object): Promise<string> {
-    const settings = this.getSettings();
-    if (settings.llmProvider === "gemini") {
-      return this.callGemini(settings.llmApiKey, systemPrompt, userPrompt, responseFormat);
-    } else if (settings.llmProvider === "openai") {
-      return this.callOpenAI(settings.llmApiKey, "https://api.openai.com/v1", systemPrompt, userPrompt, responseFormat);
-    } else if (settings.llmProvider === "custom") {
-      if (!settings.llmCustomUrl) throw new LlmServiceError("Custom LLM URL is not configured");
-      return this.callOpenAI(settings.llmApiKey, settings.llmCustomUrl, systemPrompt, userPrompt, responseFormat);
-    }
-    throw new LlmServiceError("LLM Provider is not configured");
-  }
-
-  private async callGemini(apiKey: string, systemPrompt: string, userPrompt: string, responseFormat?: object): Promise<string> {
-    if (!apiKey) throw new LlmServiceError("Gemini API Key is missing");
-    
-    const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
-    let lastError: Error | null = null;
-
-    for (const model of models) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const payload: any = {
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-          generationConfig: {
-            temperature: 0.1,
-          }
-        };
-        
-        if (responseFormat) {
-          payload.generationConfig.responseMimeType = "application/json";
-        }
-
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) {
-          const err = await res.text();
-          throw new LlmServiceError(`Gemini API (${model}) Error: ${err}`);
-        }
-
-        const data = await res.json();
-        return data.candidates[0].content.parts[0].text;
-      } catch (err) {
-        lastError = err instanceof Error ? err : new LlmServiceError(String(err));
-      }
-    }
-
-    throw lastError || new LlmServiceError("Gemini API call failed");
-  }
-
-  private async callOpenAI(apiKey: string, baseUrl: string, systemPrompt: string, userPrompt: string, responseFormat?: object): Promise<string> {
-    if (!apiKey) throw new LlmServiceError("API Key is missing");
-    
-    const url = `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
-    
-    const payload: any = {
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      temperature: 0.1
-    };
-
-    if (responseFormat) {
-      payload.response_format = responseFormat;
-    }
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      throw new LlmServiceError(`OpenAI API Error: ${err}`);
-    }
-
-    const data = await res.json();
-    return data.choices[0].message.content;
-  }
-
   async analyzeText(text: string, isPhrase: boolean = false, targetLang: string = "vi"): Promise<any> {
-    const langName = targetLang === "en" ? "English" : "Vietnamese";
-    const settings = this.getSettings();
-
-    // Check if we have an API key configured. If not, bypass to Google Translate fallback directly.
-    if (settings.llmApiKey && settings.llmApiKey.trim()) {
-      try {
-        const systemPrompt = `You are an expert Japanese to ${langName} translator and linguist.
-Analyze the following Japanese text. Break it down into tokens.
-Return a JSON object with:
-- "translation": The ${langName} translation of the text.
-- "tokens": A list of token objects, each containing:
-  - "surface": The exact Japanese word/token snippet.
-  - "reading": Kana reading (Hiragana).
-  - "pos": Part of speech in English.
-  - "meaning": ${langName} meaning of the token.
-  - "dictionary_form": Dictionary form / lemma of the word.
-`;
-        const userPrompt = text;
-        const format = { type: "json_object" };
-        const resultText = await this.callApi(systemPrompt, userPrompt, format);
-        const parsed = JSON.parse(resultText);
-        return { ...parsed, usedFallback: false };
-      } catch (err) {
-        console.warn("[Hakkutsu] LLM text analysis failed, falling back to Google Translate:", err);
-      }
-    }
-
-    // Google Translate + Local Tokenizer & Dictionary fallback
-    const translation = await googleTranslateService.translate(text, targetLang, "ja");
+    // 1. Start Google Translate for sentence translation in parallel
+    const translationPromise = googleTranslateService.translate(text, targetLang, "ja");
     
+    // 2. Local Kuromoji Tokenizer + Dictionary Lookup
     try {
       const { katakanaToHiragana, containsJapanese, hasKanji, segmentJapaneseTokens } = await import("~lib/utils/japanese");
       const { getHanViet } = await import("~lib/utils/hanviet-dict");
@@ -153,10 +43,15 @@ Return a JSON object with:
         const { tokenize } = await import("./local-tokenizer");
         const kTokens = await tokenize(text);
         if (kTokens && kTokens.length > 0) {
-          tokenList = kTokens.map(t => ({ surface: t.surface_form, base_form: t.base_form || t.surface_form, reading: t.reading, pos: t.pos }));
+          tokenList = kTokens.map(t => ({
+            surface: t.surface_form,
+            base_form: t.base_form || t.surface_form,
+            reading: t.reading,
+            pos: t.pos
+          }));
         }
       } catch {
-        // Kuromoji not ready or offline
+        // Kuromoji offline / segmenter fallback
       }
 
       if (tokenList.length === 0) {
@@ -170,22 +65,14 @@ Return a JSON object with:
             const surface = t.surface;
             const baseForm = t.base_form || surface;
             const isJp = containsJapanese(surface);
+            const { romajiToHiragana } = await import("~lib/utils/japanese");
+            const hiraganaFromRomaji = !isJp ? romajiToHiragana(surface) : "";
+            const searchKey = isJp ? baseForm : (hiraganaFromRomaji !== surface ? hiraganaFromRomaji : baseForm);
 
-            if (!isJp) {
-              return {
-                surface,
-                reading: surface,
-                pos: t.pos || "Symbol",
-                meaning: "",
-                dictionary_form: baseForm,
-                is_japanese: false,
-              };
-            }
-
-            const dict = await lookupWord(baseForm, targetLang);
+            const dict = await lookupWord(searchKey, targetLang);
             const readingKana = t.reading
               ? katakanaToHiragana(t.reading)
-              : (hasKanji(baseForm) ? (dict.reading || surface) : surface);
+              : (hasKanji(baseForm) ? (dict.reading || surface) : (dict.reading || hiraganaFromRomaji || surface));
 
             return {
               surface,
@@ -195,10 +82,12 @@ Return a JSON object with:
               dictionary_form: baseForm,
               jlpt: dict.jlpt || predictJlpt(baseForm),
               vietnamese_sound: targetLang === "vi" && hasKanji(baseForm) ? (dict.hanviet || getHanViet(baseForm || surface)) : undefined,
-              is_japanese: true,
+              is_japanese: isJp || Boolean(dict.meaning),
             };
           })
         );
+
+        const translation = await translationPromise;
 
         return {
           translation,
@@ -207,10 +96,11 @@ Return a JSON object with:
         };
       }
     } catch (e) {
-      console.warn("[Hakkutsu] Fallback local tokenization error:", e);
+      console.warn("[Hakkutsu] Local tokenization error:", e);
     }
 
     const dictLookup = await lookupWord(text, targetLang);
+    const translation = await translationPromise;
 
     return {
       translation,
@@ -235,27 +125,6 @@ Return a JSON object with:
     pageTitle: string,
     targetLang: string = "vi"
   ): Promise<WebTranslateResponse> {
-    const langName = targetLang === "en" ? "English" : "Vietnamese";
-    const settings = this.getSettings();
-
-    if (settings.llmApiKey && settings.llmApiKey.trim()) {
-      try {
-        const systemPrompt = `You are a Japanese to ${langName} translator.
-Translate the following array of texts.
-Return a JSON object with a "translations" array, containing objects with "id" (matching the input index) and "text" (the translation).`;
-        
-        const userPrompt = JSON.stringify({ texts: texts.map((t, i) => ({ id: i, text: t })) });
-        const format = { type: "json_object" };
-        
-        const resultText = await this.callApi(systemPrompt, userPrompt, format);
-        const parsed = JSON.parse(resultText);
-        return parsed;
-      } catch (err) {
-        console.warn("[Hakkutsu] LLM webpage translation failed, falling back to Google Translate:", err);
-      }
-    }
-
-    // Google Translate batch fallback
     const translations = await googleTranslateService.translateBatch(texts, targetLang, "ja");
     return { translations };
   }

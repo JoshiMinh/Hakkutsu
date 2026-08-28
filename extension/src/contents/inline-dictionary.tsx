@@ -9,7 +9,6 @@ import { GrammarExplanations } from "~components/grammar-explanations";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/languages/locales";
 import logoUrl from "data-base64:~assets/icon/icon-rounded.png";
-import geminiSvg from "data-base64:~assets/logo/gemini.svg";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],

@@ -61,6 +61,62 @@ export const JAPANESE_REGEX =
 /**
  * Convert katakana string to hiragana.
  */
+const ROMAJI_MAP: Record<string, string> = {
+  "kya": "きゃ", "kyu": "きゅ", "kyo": "きょ",
+  "sha": "しゃ", "shu": "しゅ", "sho": "しょ",
+  "cha": "ちゃ", "chu": "ちゅ", "cho": "ちょ",
+  "nya": "にゃ", "nyu": "にゅ", "nyo": "にょ",
+  "hya": "ひゃ", "hyu": "ひゅ", "hyo": "ひょ",
+  "mya": "みゃ", "myu": "みゅ", "myo": "みょ",
+  "rya": "りゃ", "ryu": "りゅ", "ryo": "りょ",
+  "gya": "ぎゃ", "gyu": "ぎゅ", "gyo": "ぎょ",
+  "ja": "じゃ", "ju": "じゅ", "jo": "じょ", "jya": "じゃ", "jyu": "じゅ", "jyo": "じょ",
+  "bya": "びゃ", "byu": "びゅ", "byo": "びょ",
+  "pya": "ぴゃ", "pyu": "ぴゅ", "pyo": "ぴょ",
+  "ka": "か", "ki": "き", "ku": "く", "ke": "け", "ko": "こ",
+  "sa": "さ", "shi": "し", "si": "し", "su": "す", "se": "せ", "so": "そ",
+  "ta": "た", "chi": "ち", "ti": "ち", "tsu": "つ", "tu": "つ", "te": "て", "to": "と",
+  "na": "な", "ni": "に", "nu": "ぬ", "ne": "ね", "no": "の",
+  "ha": "は", "hi": "ひ", "fu": "ふ", "hu": "ふ", "he": "へ", "ho": "ほ",
+  "ma": "ま", "mi": "み", "mu": "む", "me": "め", "mo": "も",
+  "ya": "や", "yu": "ゆ", "yo": "よ",
+  "ra": "ら", "ri": "り", "ru": "る", "re": "れ", "ro": "ろ",
+  "wa": "わ", "wo": "を", "nn": "ん", "n'": "ん",
+  "ga": "が", "gi": "ぎ", "gu": "ぐ", "ge": "げ", "go": "ご",
+  "za": "ざ", "ji": "じ", "zi": "じ", "zu": "ず", "ze": "ぜ", "zo": "ぞ",
+  "da": "だ", "di": "ぢ", "du": "づ", "de": "で", "do": "ど",
+  "ba": "ば", "bi": "び", "bu": "ぶ", "be": "べ", "bo": "ぼ",
+  "pa": "ぱ", "pi": "ぴ", "pu": "ぷ", "pe": "ぺ", "po": "ぽ",
+  "a": "あ", "i": "い", "u": "う", "e": "え", "o": "お"
+};
+
+export function romajiToHiragana(text: string): string {
+  if (!text) return "";
+  let str = text.toLowerCase();
+  str = str.replace(/([bcdfghjklmpqrstvwxyz])\1/g, 'っ$1');
+  let result = "";
+  let i = 0;
+  while (i < str.length) {
+    let matched = false;
+    for (let len = 4; len >= 1; len--) {
+      if (i + len <= str.length) {
+        const sub = str.slice(i, i + len);
+        if (ROMAJI_MAP[sub]) {
+          result += ROMAJI_MAP[sub];
+          i += len;
+          matched = true;
+          break;
+        }
+      }
+    }
+    if (!matched) {
+      result += str[i];
+      i++;
+    }
+  }
+  return result;
+}
+
 export function katakanaToHiragana(text: string): string {
   return [...text]
     .map((char) => {

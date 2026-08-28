@@ -1,9 +1,7 @@
-import { Bot, Database, GraduationCap, Languages, Sparkles, Settings as SettingsIcon } from "lucide-react";
+import { Database, GraduationCap, Languages, Settings as SettingsIcon } from "lucide-react";
 import type { ExtensionSettings } from "~lib/types";
 import { t } from "~lib/languages/locales";
 import { SUPPORTED_LANGUAGES } from "~lib/languages";
-import geminiSvg from "data-base64:~assets/logo/gemini.svg";
-import openaiSvg from "data-base64:~assets/logo/openai.svg";
 import ankiSvg from "data-base64:~assets/logo/anki.svg";
 import kofiSvg from "data-base64:~assets/logo/kofi.svg";
 import usFlag from "data-base64:~assets/language/en.png";
@@ -111,144 +109,7 @@ export function SettingsView({
           </div>
         </section>
 
-        {/* Translation LLM Card */}
-        <section className="hk-settings-card">
-          <header className="hk-settings-card__header">
-            <div className="hk-settings-card__icon">
-              <Bot size={18} />
-            </div>
-            <h3 className="hk-settings-card__title">{t("settings_llm_section", currentLang)}</h3>
-          </header>
-          
-          <div className="hk-settings-card__body">
-            <div style={{ padding: "16px 18px", borderBottom: "1px solid rgba(255, 255, 255, 0.04)" }}>
-              <label className="hk-settings-row__label" style={{ marginBottom: "4px", display: "block" }}>
-                {t("settings_llm_provider", currentLang)}
-              </label>
-              <div className="hk-settings-row__desc" style={{ marginBottom: "14px" }}>
-                {t("settings_llm_provider_desc", currentLang)}
-              </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-                {/* Google Gemini */}
-                <button
-                  type="button"
-                  onClick={() => onUpdate({ llmProvider: "gemini" })}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "14px 12px",
-                    borderRadius: "10px",
-                    border: settings.llmProvider === "gemini" ? "2px solid #a855f7" : "1px solid var(--hk-border)",
-                    background: settings.llmProvider === "gemini" ? "rgba(168, 85, 247, 0.14)" : "var(--hk-bg-tertiary)",
-                    color: "var(--hk-text-primary)",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    boxShadow: settings.llmProvider === "gemini" ? "0 4px 16px rgba(168, 85, 247, 0.25)" : "none"
-                  }}
-                >
-                  <img src={geminiSvg} alt="Gemini" style={{ width: 22, height: 22, marginBottom: "6px" }} />
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: "13.5px", fontWeight: 700 }}>Google Gemini</div>
-                    <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", marginTop: "2px" }}>Flash 2.0 / 1.5</div>
-                  </div>
-                </button>
-
-                {/* OpenAI */}
-                <button
-                  type="button"
-                  onClick={() => onUpdate({ llmProvider: "openai" })}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "14px 12px",
-                    borderRadius: "10px",
-                    border: settings.llmProvider === "openai" ? "2px solid #10a37f" : "1px solid var(--hk-border)",
-                    background: settings.llmProvider === "openai" ? "rgba(16, 163, 127, 0.14)" : "var(--hk-bg-tertiary)",
-                    color: "var(--hk-text-primary)",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    boxShadow: settings.llmProvider === "openai" ? "0 4px 16px rgba(16, 163, 127, 0.25)" : "none"
-                  }}
-                >
-                  <img src={openaiSvg} alt="OpenAI" style={{ width: 22, height: 22, marginBottom: "6px" }} />
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: "13.5px", fontWeight: 700 }}>OpenAI</div>
-                    <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", marginTop: "2px" }}>GPT-4o / mini</div>
-                  </div>
-                </button>
-
-                {/* Custom */}
-                <button
-                  type="button"
-                  onClick={() => onUpdate({ llmProvider: "custom" })}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "14px 12px",
-                    borderRadius: "10px",
-                    border: settings.llmProvider === "custom" ? "2px solid #3b82f6" : "1px solid var(--hk-border)",
-                    background: settings.llmProvider === "custom" ? "rgba(59, 130, 246, 0.14)" : "var(--hk-bg-tertiary)",
-                    color: "var(--hk-text-primary)",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    boxShadow: settings.llmProvider === "custom" ? "0 4px 16px rgba(59, 130, 246, 0.25)" : "none"
-                  }}
-                >
-                  <Sparkles size={20} style={{ color: "#3b82f6", marginBottom: "6px" }} />
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: "13.5px", fontWeight: 700 }}>Custom API</div>
-                    <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", marginTop: "2px" }}>OpenRouter / Ollama</div>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {settings.llmProvider === "custom" && (
-              <div className="hk-settings-row">
-                <div className="hk-settings-row__info">
-                  <label htmlFor="llmCustomUrl" className="hk-settings-row__label">{t("settings_llm_custom_url", currentLang)}</label>
-                  <div id="llmCustomUrl-desc" className="hk-settings-row__desc">{t("settings_llm_custom_url_desc", currentLang)}</div>
-                </div>
-                <div className="hk-settings-row__control">
-                  <input
-                    id="llmCustomUrl"
-                    aria-describedby="llmCustomUrl-desc"
-                    className="hk-settings-input hk-settings-input--text"
-                    type="text"
-                    placeholder="https://openrouter.ai/api/v1"
-                    value={settings.llmCustomUrl || ""}
-                    onChange={(e) => onUpdate({ llmCustomUrl: e.target.value })}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="llmApiKey" className="hk-settings-row__label">{t("settings_llm_key", currentLang)}</label>
-                <div id="llmApiKey-desc" className="hk-settings-row__desc">{t("settings_llm_key_desc", currentLang)}</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <input
-                  id="llmApiKey"
-                  aria-describedby="llmApiKey-desc"
-                  className="hk-settings-input hk-settings-input--text"
-                  type="password"
-                  placeholder="AIzaSy... or sk-..."
-                  value={settings.llmApiKey || ""}
-                  onChange={(e) => onUpdate({ llmApiKey: e.target.value })}
-                />
-              </div>
-            </div>
-          </div>
-        </section>
 
 
 

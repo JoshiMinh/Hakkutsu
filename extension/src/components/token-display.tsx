@@ -13,11 +13,15 @@ export function TokenDisplay({
   return (
     <div className="hk-tokens">
       {tokens.map((token, i) => {
+        const readingStr = typeof token.reading === "string"
+          ? token.reading
+          : (token.reading?.hiragana || "");
+
         const showFurigana =
           token.is_japanese &&
           hasKanji(token.surface) &&
-          token.reading?.hiragana &&
-          token.reading.hiragana !== token.surface;
+          readingStr &&
+          readingStr !== token.surface;
 
         return (
           <div
@@ -31,7 +35,7 @@ export function TokenDisplay({
             title={token.is_japanese ? `${token.dictionary_form} — ${token.pos}` : token.surface}
           >
             <span className="hk-token__reading">
-              {showFurigana ? token.reading.hiragana : "\u00A0"}
+              {showFurigana ? readingStr : "\u00A0"}
             </span>
             <span className="hk-token__surface">
               {token.surface}

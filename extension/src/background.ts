@@ -10,6 +10,7 @@ import { apiClient } from "~lib/services/api-client";
 import { localSrs } from "~lib/services/local-srs";
 import { ankiClient } from "~lib/services/anki-connect";
 import { localOcrService } from "~lib/services/ocr-service";
+import { llmService } from "~lib/services/llm-service";
 import type {
   ExtensionMessage,
   AnalyzeRequest,
@@ -242,10 +243,23 @@ async function handleMessage(
       return { type: "GET_SETTINGS", payload: settings };
     }
 
+    case "START_OCR_FLOW": {
+      const { tabId } = (message.payload as { tabId?: number }) || {};
+      if (tabId) {
+        await triggerOcrFlow(tabId);
+      } else {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs[0]?.id) triggerOcrFlow(tabs[0].id);
+        });
+      }
+      return { type: "START_OCR_FLOW_RESULT", payload: {} };
+    }
+
     case "CAPTURE_SCREENSHOT": {
       return new Promise((resolve, reject) => {
+        const windowId = sender.tab?.windowId;
         chrome.tabs.captureVisibleTab(
-          chrome.windows.WINDOW_ID_CURRENT,
+          windowId !== undefined ? windowId : null,
           { format: "png" },
           (dataUrl) => {
             if (chrome.runtime.lastError) {
@@ -335,19 +349,39 @@ async function handleMessage(
 
     case "OCR_IMAGE": {
       const { image_data, language } = message.payload as { image_data: string; language?: string };
+      const settings = await getSettings();
+      const targetLang = settings.targetLanguage || "vi";
+
+      let rawText = "";
       try {
-        const text = await localOcrService.recognizeImage(image_data);
-        return {
-          type: "OCR_RESULT",
-          payload: {
-            full_text: text,
-            regions: [{ text, confidence: 1.0, bbox: null }],
-            language: language || "jpn"
-          }
-        };
+        rawText = await localOcrService.recognizeImage(image_data);
       } catch (error: any) {
-        throw new Error(`Local OCR failed: ${error.message}`);
+        throw new Error(`Nhận diện OCR thất bại: ${error.message || error}`);
       }
+
+      if (!rawText || !rawText.trim()) {
+        throw new Error("Không tìm thấy chữ tiếng Nhật trong vùng ảnh được chọn.");
+      }
+
+      // Automatically analyze recognized text through Hakkutsu dictionary & translation pipeline
+      let analysis: any = null;
+      try {
+        analysis = await llmService.analyzeText(rawText, false, targetLang);
+      } catch (analErr) {
+        console.warn("[Hakkutsu] OCR text analysis warning:", analErr);
+      }
+
+      return {
+        type: "OCR_RESULT",
+        payload: {
+          full_text: rawText,
+          engine: "local",
+          tokens: analysis?.tokens || null,
+          translation: analysis?.translation || "",
+          regions: [{ text: rawText, confidence: 1.0, bbox: null }],
+          language: language || "jpn"
+        }
+      };
     }
 
     case "OPEN_APP": {
@@ -360,11 +394,32 @@ async function handleMessage(
   }
 }
 
+async function triggerOcrFlow(tabId: number) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "START_SCREENSHOT_FLOW" });
+  } catch (err) {
+    console.warn("[Hakkutsu Background] Content script not responding on tab, attempting injection:", tabId, err);
+    try {
+      if (chrome.scripting) {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ["contents/screenshot-overlay.js"]
+        });
+        setTimeout(() => {
+          chrome.tabs.sendMessage(tabId, { type: "START_SCREENSHOT_FLOW" });
+        }, 250);
+      }
+    } catch (injErr) {
+      console.error("[Hakkutsu Background] Script injection error:", injErr);
+    }
+  }
+}
+
 chrome.commands.onCommand.addListener((command) => {
   if (command === "start-ocr") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]?.id) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: "START_SCREENSHOT_FLOW" });
+        triggerOcrFlow(tabs[0].id);
       }
     });
   }

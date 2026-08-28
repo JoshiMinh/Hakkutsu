@@ -34,7 +34,7 @@ function mapRawTokenToAnalysis(t: any): TokenAnalysis {
   const definitions: DictionaryEntry[] = Array.isArray(t.definitions) && t.definitions.length > 0
     ? t.definitions
     : (meaning ? [{
-        dictionary: "LLM",
+        dictionary: "Dict",
         glosses: Array.isArray(meaning) ? meaning : [meaning],
         pos: t.pos ? [t.pos] : [],
         field: null,

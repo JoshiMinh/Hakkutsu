@@ -59,12 +59,12 @@ export class GoogleTranslateService {
     targetLang: string = "vi",
     sourceLang: string = "ja"
   ): Promise<{ id: number; text: string }[]> {
-    const results: { id: number; text: string }[] = [];
-    for (let i = 0; i < texts.length; i++) {
-      const trans = await this.translate(texts[i], targetLang, sourceLang);
-      results.push({ id: i, text: trans });
-    }
-    return results;
+    return Promise.all(
+      texts.map(async (text, i) => {
+        const trans = await this.translate(text, targetLang, sourceLang);
+        return { id: i, text: trans };
+      })
+    );
   }
 }
 

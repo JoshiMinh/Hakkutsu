@@ -351,8 +351,9 @@ const ScreenshotOverlay = () => {
         setOcrText(fullText);
         setTokens(data?.tokens || null);
 
-        // Also fetch translation
-        if (fullText) {
+        if (data?.translation) {
+          setTranslation(data.translation);
+        } else if (fullText) {
           try {
             const transData = await new Promise<any>((resolve, reject) => {
               chrome.runtime.sendMessage(
@@ -369,8 +370,9 @@ const ScreenshotOverlay = () => {
             console.error("Translation error", tErr);
           }
         }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Crop processing error", err);
+      setOcrText(`❌ Lỗi OCR: ${err?.message || String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -500,6 +502,7 @@ const ScreenshotOverlay = () => {
                       <div className="hk-translation-box" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <RefreshCw size={14} className="hk-spin" />
                         <span>Đang tạo bản dịch Gemini...</span>
+                        <span>Đang tạo bản dịch...</span>
                       </div>
                     ) : translation ? (
                       <div className="hk-translation-box">

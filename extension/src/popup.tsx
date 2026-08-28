@@ -80,10 +80,6 @@ function TranslateQuickView({
   const handleTranslate = async (text?: string) => {
     const textToAnalyze = text || inputText;
     if (!textToAnalyze.trim()) return;
-    if (!containsJapanese(textToAnalyze)) {
-      setError(t("popup_error_no_japanese"));
-      return;
-    }
 
     setLoading(true);
     setError(null);
@@ -97,20 +93,6 @@ function TranslateQuickView({
       });
       setResult(response);
     } catch (e) {
-      try {
-        const bgResponse = await chrome.runtime.sendMessage({
-          type: "ANALYZE_PHRASE",
-          payload: { text: textToAnalyze, include_definitions: true }
-        });
-
-        if (bgResponse?.payload) {
-          setResult(bgResponse.payload);
-          setUsedFallback(true);
-          return;
-        }
-      } catch {
-        // Fallthrough
-      }
       setError(e instanceof Error ? e.message : t("popup_error_generic"));
     } finally {
       setLoading(false);
@@ -232,8 +214,8 @@ function TranslateQuickView({
               transition: "all 0.2s ease"
             }}
           >
-            {loading ? <RefreshCw size={13} className="hk-spin" /> : <Sparkles size={13} />} 
-            {t("popup_btn_analyze")}
+            {loading ? <RefreshCw size={13} className="hk-spin" style={{ marginRight: "4px" }} /> : null} 
+            {t("popup_btn_translate")}
           </button>
         </div>
       </div>
@@ -525,8 +507,8 @@ function Popup() {
             onClick={() => {
               chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
                 if (tabs[0]?.id) {
-                  chrome.tabs.sendMessage(tabs[0].id, { type: "START_SCREENSHOT_FLOW" });
-                  window.close();
+                  chrome.runtime.sendMessage({ type: "START_OCR_FLOW", payload: { tabId: tabs[0].id } });
+                  setTimeout(() => window.close(), 150);
                 }
               });
             }}

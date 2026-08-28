@@ -291,24 +291,28 @@ const ImageOcr = () => {
         setOcrText(text);
         setTokens(data.tokens || null);
 
-        // Fetch translation
-        setTransLoading(true);
-        try {
-          const transData = await new Promise<any>((resolve, reject) => {
-            chrome.runtime.sendMessage(
-              { type: "TRANSLATE_TEXT", payload: { texts: [text] } },
-              (res) => {
-                if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
-                if (res?.type === "ERROR") return reject(new Error(res.payload.error));
-                resolve(res?.payload);
-              }
-            );
-          });
-          setTranslation(transData.translations?.[0] || transData.items?.[0]?.translation || "");
-        } catch (tErr) {
-          console.error("Translation error", tErr);
-        } finally {
-          setTransLoading(false);
+        if (data?.translation) {
+          setTranslation(data.translation);
+        } else {
+          // Fetch translation fallback
+          setTransLoading(true);
+          try {
+            const transData = await new Promise<any>((resolve, reject) => {
+              chrome.runtime.sendMessage(
+                { type: "TRANSLATE_TEXT", payload: { texts: [text] } },
+                (res) => {
+                  if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+                  if (res?.type === "ERROR") return reject(new Error(res.payload.error));
+                  resolve(res?.payload);
+                }
+              );
+            });
+            setTranslation(transData.translations?.[0] || transData.items?.[0]?.translation || "");
+          } catch (tErr) {
+            console.error("Translation error", tErr);
+          } finally {
+            setTransLoading(false);
+          }
         }
       }
     } catch (err: any) {
@@ -450,7 +454,7 @@ const ImageOcr = () => {
               {transLoading ? (
                 <div style={{ background: "rgba(20, 184, 166, 0.1)", borderLeft: "3px solid #14b8a6", padding: "8px 12px", borderRadius: "6px", fontSize: "13px", color: "#ccfbf1", display: "flex", alignItems: "center", gap: "8px" }}>
                   <RefreshCw size={13} className="hk-spin" />
-                  <span>Đang dịch với Gemini...</span>
+                  <span>Đang dịch...</span>
                 </div>
               ) : translation ? (
                 <div style={{ background: "rgba(20, 184, 166, 0.1)", borderLeft: "3px solid #14b8a6", padding: "8px 12px", borderRadius: "6px", fontSize: "13px", color: "#ccfbf1" }}>
