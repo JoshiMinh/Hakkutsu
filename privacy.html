@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Hakkutsu (発掘)</title>
+  <link rel="icon" type="image/png" href="extension/assets/icon/icon-rounded.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { background-color: #09090b; color: #f4f4f5; font-family: 'Plus Jakarta Sans', sans-serif; }
+    .glass-card { background: rgba(18, 18, 21, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+  </style>
+</head>
+<body class="antialiased py-16 px-6 max-w-4xl mx-auto">
+
+  <div class="glass-card p-8 md:p-12 rounded-2xl">
+    <div class="flex items-center gap-3 mb-8">
+      <img src="extension/assets/icon/icon-rounded.png" alt="Hakkutsu Logo" class="w-10 h-10 rounded-lg shadow" />
+      <div>
+        <h1 class="text-2xl font-bold">Privacy Policy for Hakkutsu (発掘)</h1>
+        <p class="text-xs text-zinc-400">Effective Date: August 28, 2026</p>
+      </div>
+    </div>
+
+    <div class="space-y-6 text-zinc-300 text-sm leading-relaxed">
+      <section>
+        <h2 class="text-lg font-semibold text-white mb-2">1. Introduction</h2>
+        <p>Hakkutsu ("we", "our", or "the extension") is an AI-powered Japanese immersion browser extension designed to assist learners with reading Japanese text, inline dictionary lookups, offline screen OCR, and Anki card mining. We are committed to protecting user privacy and ensuring transparency regarding data handling.</p>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-white mb-2">2. Zero Personal Data Collection</h2>
+        <p>Hakkutsu does <strong>NOT</strong> collect, store, transmit, or sell any personally identifiable information (PII), including your name, email address, IP address, location, browsing history, or payment details. We run no telemetry or tracking analytics servers.</p>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-white mb-2">3. Local Data Storage & Processing</h2>
+        <ul class="list-disc list-inside space-y-1 text-zinc-400">
+          <li><strong>Dictionary & Tokenizer:</strong> Morphological analysis (Sudachi & Kuromoji) and dictionary lookups are processed 100% locally in your browser.</li>
+          <li><strong>Offline Screenshot OCR:</strong> Screen crop image data is processed entirely on your local machine using Tesseract OCR Web Workers running inside a Chrome MV3 Offscreen Worker. No crop images are uploaded to any external server.</li>
+          <li><strong>User Settings & SRS Cards:</strong> Your preference settings and saved vocabulary items are stored strictly on your device using local extension storage (`chrome.storage.local`).</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-white mb-2">4. Optional External API Services</h2>
+        <p>If you choose to enable AI sentence analysis or Anki synchronization:</p>
+        <ul class="list-disc list-inside space-y-1 text-zinc-400">
+          <li><strong>Gemini / OpenAI API:</strong> Only the specific Japanese text snippet you request to analyze is sent directly to your configured AI provider using your personal API key.</li>
+          <li><strong>AnkiConnect:</strong> Flashcard data is transferred directly to your local Anki application (`http://localhost:8765`).</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-white mb-2">5. Single Purpose & Policy Disclosures</h2>
+        <p>Hakkutsu adheres strictly to Chrome Web Store Developer Program Policies:</p>
+        <ul class="list-disc list-inside space-y-1 text-zinc-400">
+          <li>We do not sell or transfer user data to third parties.</li>
+          <li>We do not use or transfer user data for purposes unrelated to the extension's single purpose.</li>
+          <li>We do not use user data for creditworthiness or lending purposes.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-white mb-2">6. Contact & Open Support</h2>
+        <p>If you have any questions regarding this Privacy Policy, please visit <a href="https://ko-fi.com/joshiminh" target="_blank" class="text-purple-400 underline">ko-fi.com/joshiminh</a> or contact the extension author on GitHub.</p>
+      </section>
+    </div>
+
+    <div class="mt-10 pt-6 border-t border-white/10 text-center">
+      <a href="index.html" class="text-sm text-purple-400 hover:underline">← Back to Hakkutsu Home Page</a>
+    </div>
+  </div>
+
+</body>
+</html>
