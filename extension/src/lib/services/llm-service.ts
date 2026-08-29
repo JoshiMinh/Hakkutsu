@@ -1,7 +1,10 @@
 import { useSettingsStore } from "~lib/utils/settings";
 import type { ExtensionSettings, WebTranslateResponse } from "~lib/types";
 import { googleTranslateService } from "./google-translate";
-import { lookupWord } from "./dictionary-lookup";
+import { lookupWord, type LookupResult } from "./dictionary-lookup";
+import { katakanaToHiragana, containsJapanese, hasKanji, romajiToHiragana, segmentJapaneseTokens } from "~lib/utils/japanese";
+import { getHanViet } from "~lib/utils/hanviet-dict";
+import { predictJlpt } from "~lib/utils/jlpt-classifier";
 
 export class LlmServiceError extends Error {
   constructor(message: string) {
@@ -33,10 +36,6 @@ class LlmService {
     
     // 2. Local Kuromoji Tokenizer + Dictionary Lookup
     try {
-      const { katakanaToHiragana, containsJapanese, hasKanji, segmentJapaneseTokens } = await import("~lib/utils/japanese");
-      const { getHanViet } = await import("~lib/utils/hanviet-dict");
-      const { predictJlpt } = await import("~lib/utils/jlpt-classifier");
-
       let tokenList: Array<{ surface: string; base_form: string; reading?: string; pos?: string }> = [];
 
       try {
@@ -60,16 +59,24 @@ class LlmService {
       }
 
       if (tokenList && tokenList.length > 0) {
+        // Deduplicate dictionary lookups for tokens in the same request
+        const tokenLookupCache = new Map<string, Promise<LookupResult>>();
+
         const tokens = await Promise.all(
           tokenList.map(async (t) => {
             const surface = t.surface;
             const baseForm = t.base_form || surface;
             const isJp = containsJapanese(surface);
-            const { romajiToHiragana } = await import("~lib/utils/japanese");
             const hiraganaFromRomaji = !isJp ? romajiToHiragana(surface) : "";
             const searchKey = isJp ? baseForm : (hiraganaFromRomaji !== surface ? hiraganaFromRomaji : baseForm);
 
-            const dict = await lookupWord(searchKey, targetLang);
+            let lookupPromise = tokenLookupCache.get(searchKey);
+            if (!lookupPromise) {
+              lookupPromise = lookupWord(searchKey, targetLang);
+              tokenLookupCache.set(searchKey, lookupPromise);
+            }
+            const dict = await lookupPromise;
+
             const readingKana = t.reading
               ? katakanaToHiragana(t.reading)
               : (hasKanji(baseForm) ? (dict.reading || surface) : (dict.reading || hiraganaFromRomaji || surface));

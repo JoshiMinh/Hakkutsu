@@ -68,8 +68,8 @@ export function deduplicateCueText(text: string): string {
     const sub = cleaned.slice(0, len).trim();
     const rest = cleaned.slice(len).trim();
 
-    const subNorm = sub.replace(/[.,!?。！？]+$/, "").trim();
-    const restNorm = rest.replace(/[.,!?。！？]+$/, "").trim();
+    const subNorm = sub.replace(/^[\s.,!?。！？:;\-\/]+|[\s.,!?。！？:;\-\/]+$/g, "").trim();
+    const restNorm = rest.replace(/^[\s.,!?。！？:;\-\/]+|[\s.,!?。！？:;\-\/]+$/g, "").trim();
 
     if (subNorm && restNorm && (subNorm === restNorm || rest.startsWith(sub + " ") || rest === sub)) {
       cleaned = sub;
@@ -83,7 +83,7 @@ export function deduplicateCueText(text: string): string {
     const uniqueSentences: string[] = [];
     const seen = new Set<string>();
     for (const s of sentences) {
-      const norm = s.trim().toLowerCase().replace(/[.,!?。！？]+$/, "");
+      const norm = s.trim().toLowerCase().replace(/^[\s.,!?。！？:;\-\/]+|[\s.,!?。！？:;\-\/]+$/g, "");
       if (norm && !seen.has(norm)) {
         seen.add(norm);
         uniqueSentences.push(s.trim());
@@ -94,16 +94,25 @@ export function deduplicateCueText(text: string): string {
     }
   }
 
-  // 3. Remove overlapping word sequence repetition
-  const tokens = cleaned.split(" ");
-  if (tokens.length >= 4) {
-    const half = Math.floor(tokens.length / 2);
-    const firstPart = tokens.slice(0, half).join(" ");
-    const secondPart = tokens.slice(half).join(" ");
-    if (secondPart.startsWith(firstPart) || firstPart === secondPart) {
-      cleaned = secondPart;
+  // 3. Token-based adjacent duplicate sequence removal e.g. "Directly behind Directly behind"
+  let words = cleaned.split(" ");
+  let changed = true;
+  while (changed && words.length >= 2) {
+    changed = false;
+    const maxLen = Math.floor(words.length / 2);
+    for (let k = maxLen; k >= 1; k--) {
+      const leftPart = words.slice(0, k).join(" ");
+      const rightPart = words.slice(k, k * 2).join(" ");
+      const leftNorm = leftPart.toLowerCase().replace(/^[\s.,!?。！？:;\-\/]+|[\s.,!?。！？:;\-\/]+$/g, "");
+      const rightNorm = rightPart.toLowerCase().replace(/^[\s.,!?。！？:;\-\/]+|[\s.,!?。！？:;\-\/]+$/g, "");
+      if (leftNorm && rightNorm && leftNorm === rightNorm) {
+        words = [...words.slice(0, k), ...words.slice(k * 2)];
+        changed = true;
+        break;
+      }
     }
   }
+  cleaned = words.join(" ");
 
   return cleaned;
 }

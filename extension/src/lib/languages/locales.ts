@@ -43,7 +43,7 @@ export const translations = {
     dict_loading_phrase: "Đang phân tích cú pháp...",
     dict_loading_syntax: "Đang phân tích...",
     dict_label_original: "CÂU GỐC (BẤM TỪ ĐỂ TRA CỤ THỂ)",
-    dict_btn_deep_ai: "AI phân tích sâu",
+    dict_btn_deep_ai: "Phân tích ngữ pháp",
     dict_label_translation: "BẢN DỊCH TIẾNG VIỆT",
     dict_empty_transient: "Rê chuột qua một từ trong phụ đề để xem chi tiết.",
     dict_empty_select: "Chọn một từ tiếng Nhật trong câu để tra từ điển.",
@@ -177,7 +177,7 @@ export const translations = {
 
     // Settings
     settings_title: "Cài đặt ứng dụng",
-    settings_subtitle: "Tùy chỉnh ngôn ngữ, AI, từ điển và tiện ích Hakkutsu",
+    settings_subtitle: "Tùy chỉnh ngôn ngữ, từ điển và tiện ích Hakkutsu",
     
     settings_lang_section: "Ngôn ngữ",
     settings_lang_label: "Ngôn ngữ đích",
@@ -188,9 +188,9 @@ export const translations = {
     settings_hanviet: "Hiển thị âm Hán-Việt",
     settings_hanviet_desc: "Hiển thị phiên âm Hán-Việt cho các chữ Hán (Kanji)",
     
-    settings_llm_section: "Dịch & Phân tích AI",
-    settings_llm_provider: "Nhà cung cấp LLM",
-    settings_llm_provider_desc: "Chọn mô hình AI phân tích câu và bóc tách ngữ pháp",
+    settings_llm_section: "Dịch & Phân tích ngữ pháp",
+    settings_llm_provider: "Công cụ phân tích",
+    settings_llm_provider_desc: "Chọn công cụ phân tích câu và bóc tách ngữ pháp (cục bộ hoặc tùy chọn)",
     settings_llm_key: "Khóa API Key",
     settings_llm_key_desc: "Khóa API lưu cục bộ trên trình duyệt (Nếu trống, sẽ tự động dùng Google Translate)",
     settings_llm_custom_url: "Địa chỉ Custom API",
@@ -208,8 +208,7 @@ export const translations = {
     settings_hover_key: "Phím phím tắt di chuột tra từ (Hover Key)",
     settings_hover_key_desc: "Giữ phím này và di chuột qua từ tiếng Nhật để tra từ không cần click",
 
-    settings_video_section: "Phụ đề & Video Streaming",
-    settings_autofetch_sub: "Tự động tải phụ đề tiếng Nhật",
+    settings_video_section: "Phụ đề & Immersion",
     settings_autofetch_sub_desc: "Tự động tìm kiếm phụ đề tiếng Nhật (gốc hoặc dịch máy) khi phát video",
     settings_universal_video: "Bật hỗ trợ video trên mọi trang web",
     settings_universal_video_desc: "Hiển thị công cụ phụ đề trên tất cả các trang web có phát video HTML5",
@@ -324,7 +323,7 @@ export const translations = {
     dict_loading_phrase: "Analyzing syntax...",
     dict_loading_syntax: "Analyzing syntax & grammar...",
     dict_label_original: "ORIGINAL SENTENCE (CLICK TO INSPECT)",
-    dict_btn_deep_ai: "Deep AI Breakdown",
+    dict_btn_deep_ai: "Grammar Breakdown",
     dict_label_translation: "ENGLISH TRANSLATION",
     dict_empty_transient: "Hover over a word in the subtitles to inspect.",
     dict_empty_select: "Select a Japanese word from the sentence to inspect.",
@@ -458,7 +457,7 @@ export const translations = {
 
     // Settings
     settings_title: "App Settings",
-    settings_subtitle: "Configure target language, AI, dictionaries, and immersion tools",
+    settings_subtitle: "Configure target language, dictionaries, and immersion tools",
     
     settings_lang_section: "Language",
     settings_lang_label: "Target Language",
@@ -469,9 +468,9 @@ export const translations = {
     settings_hanviet: "Show Sino-Vietnamese (Hán-Việt)",
     settings_hanviet_desc: "Display Sino-Vietnamese readings for Kanji characters",
     
-    settings_llm_section: "Translation & Analysis AI",
-    settings_llm_provider: "LLM Provider",
-    settings_llm_provider_desc: "Select AI engine used for text breakdown and translation",
+    settings_llm_section: "Translation & Analysis Engine",
+    settings_llm_provider: "Analysis Engine",
+    settings_llm_provider_desc: "Select engine used for text breakdown and translation (local or optional endpoint)",
     settings_llm_key: "API Key",
     settings_llm_key_desc: "Stored securely locally (If left blank, Google Translate will be used automatically)",
     settings_llm_custom_url: "Custom Endpoint URL",
@@ -489,7 +488,7 @@ export const translations = {
     settings_hover_key: "Hover Modifier Key (Without Click)",
     settings_hover_key_desc: "Hold this key while hovering mouse over Japanese text to look up words without clicking",
 
-    settings_video_section: "Subtitles & Video Immersion",
+    settings_video_section: "Subtitles & Immersion",
     settings_autofetch_sub: "Auto-fetch Japanese Subtitles",
     settings_autofetch_sub_desc: "Automatically fetch Japanese tracks (native or auto-translated) upon video playback",
     settings_universal_video: "Universal HTML5 Video Support",
@@ -527,7 +526,7 @@ export const translations = {
     sub_modal_remember: "Remember track selection for this site",
     
     settings_anki_section: "AnkiConnect",
-    settings_anki_deck: "Anki Deck Name",
+    settings_anki_deck: "Deck Name",
     settings_anki_deck_desc: "Target deck name for card exports",
     settings_anki_model: "Note Type",
     settings_anki_model_desc: "Anki note model type for new cards",
@@ -536,7 +535,7 @@ export const translations = {
     settings_anki_ready: "Ready to export flashcards.",
     settings_anki_start_prompt: "Please start Anki and ensure AnkiConnect is installed.",
     
-    settings_footer_built: "AI-powered Japanese immersion browser extension.",
+    settings_footer_built: "Local-first open-source Japanese immersion browser extension.",
 
     // OCR & Image Scanning
     ocr_title: "Hakkutsu OCR",

@@ -1,8 +1,8 @@
 {
   "name": "hakkutsu",
   "displayName": "Hakkutsu — Japanese Immersion",
-  "version": "0.1.2",
-  "description": "AI-powered Japanese immersion browser extension. Learn Japanese while browsing the web.",
+  "version": "0.1.3",
+  "description": "Local-first open-source Japanese immersion browser extension. Learn Japanese while browsing the web with offline dictionary, local Kuromoji parsing, SRS, and dual subtitles.",
   "author": "Hakkutsu Team",
   "private": true,
   "license": "UNLICENSED",

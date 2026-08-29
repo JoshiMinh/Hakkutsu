@@ -97,6 +97,26 @@ export function romajiToHiragana(text: string): string {
   let result = "";
   let i = 0;
   while (i < str.length) {
+    // Single 'n' before consonants, apostrophe, or at end of string becomes 'ん'
+    if (str[i] === "n") {
+      const next = str[i + 1];
+      if (!next) {
+        result += "ん";
+        i++;
+        continue;
+      }
+      if (next === "'" || next === "n") {
+        result += "ん";
+        i += 2;
+        continue;
+      }
+      if (!/[aeiouy]/.test(next)) {
+        result += "ん";
+        i++;
+        continue;
+      }
+    }
+
     let matched = false;
     for (let len = 4; len >= 1; len--) {
       if (i + len <= str.length) {

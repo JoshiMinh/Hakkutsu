@@ -201,7 +201,7 @@ export function SettingsView({
           </div>
         </section>
 
-        {/* Subtitles & Video Immersion Card */}
+        {/* Subtitles & Immersion Card */}
         <section className="hk-settings-card">
           <header className="hk-settings-card__header">
             <div className="hk-settings-card__icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -386,7 +386,7 @@ export function SettingsView({
       </form>
 
       <div className="hk-settings-footer">
-        <strong className="hk-settings-footer__title">Hakkutsu v0.1.2</strong>
+        <strong className="hk-settings-footer__title">Hakkutsu v0.1.3</strong>
         <p className="hk-settings-footer__desc">
           {t("settings_footer_built", currentLang)}<br />
           Built with Plasmo, React, TypeScript. • <a href="https://ko-fi.com/joshiminh" target="_blank" rel="noopener noreferrer" style={{ color: "#ff5e5b", textDecoration: "none" }}>Support on Ko-fi</a>

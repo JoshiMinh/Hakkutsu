@@ -5,6 +5,7 @@
 
 import { googleTranslateService } from "./google-translate";
 import { getHanViet } from "~lib/utils/hanviet-dict";
+import { containsJapanese, romajiToHiragana } from "~lib/utils/japanese";
 
 export interface LookupResult {
   meaning: string;
@@ -80,38 +81,52 @@ const exampleCache = new Map<string, ExampleSentence[]>();
  */
 export async function lookupWordEnglish(word: string): Promise<LookupResult> {
   if (!word || word.trim() === "") return { meaning: "" };
-  const key = word.trim();
-  const cacheKey = `en:${key}`;
-  
+  const rawKey = word.trim();
+  const isJp = containsJapanese(rawKey);
+  const hiraganaKey = !isJp ? romajiToHiragana(rawKey) : rawKey;
+  const key = hiraganaKey || rawKey;
+
+  const cacheKey = `en:${rawKey}`;
   if (lookupCache.has(cacheKey)) {
     return lookupCache.get(cacheKey)!;
   }
 
+  if (COMMON_EN_DICT[rawKey]) {
+    lookupCache.set(cacheKey, COMMON_EN_DICT[rawKey]);
+    return COMMON_EN_DICT[rawKey];
+  }
   if (COMMON_EN_DICT[key]) {
     lookupCache.set(cacheKey, COMMON_EN_DICT[key]);
     return COMMON_EN_DICT[key];
   }
 
   try {
-    const res = await fetch(`https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(key)}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+    const res = await fetch(`https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(key)}`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
     if (res.ok) {
       const json = await res.json();
       if (json.data && json.data.length > 0) {
-        // Find match that actually corresponds to the search word
-        const exactMatch = json.data.find((entry: any) =>
+        const match = json.data.find((entry: any) =>
           entry.slug === key ||
-          entry.japanese?.some((j: any) => j.word === key || j.reading === key)
-        );
+          entry.slug === rawKey ||
+          entry.japanese?.some((j: any) => j.word === key || j.word === rawKey || j.reading === key || j.reading === rawKey)
+        ) || json.data[0];
 
-        if (exactMatch) {
-          const englishDefs: string[] = exactMatch.senses
-            .flatMap((s: any) => s.english_definitions || [])
-            .slice(0, 3);
+        if (match) {
+          const englishDefs: string[] = match.senses
+            ?.flatMap((s: any) => s.english_definitions || [])
+            .slice(0, 3) || [];
           
           const meaning = englishDefs.join("; ");
-          const matchedJp = exactMatch.japanese?.find((j: any) => j.word === key || j.reading === key);
-          const reading = matchedJp?.reading || exactMatch.japanese?.[0]?.reading || "";
-          const jlpt = exactMatch.jlpt?.length ? exactMatch.jlpt[0].replace(/jlpt-/i, "").toUpperCase() : undefined;
+          const matchedJp = match.japanese?.find((j: any) => j.word === key || j.reading === key) || match.japanese?.[0];
+          const reading = matchedJp?.reading || match.japanese?.[0]?.reading || "";
+          const jlpt = match.jlpt?.length ? match.jlpt[0].replace(/jlpt-/i, "").toUpperCase() : undefined;
 
           if (meaning) {
             const result: LookupResult = { meaning, jlpt, reading: reading || undefined, source: "jisho" };
@@ -126,8 +141,8 @@ export async function lookupWordEnglish(word: string): Promise<LookupResult> {
   }
 
   // Fallback to Google Translate
-  const gtMeaning = await googleTranslateService.translate(key, "en", "ja");
-  const fallbackResult: LookupResult = { meaning: gtMeaning, source: "google" };
+  const gtMeaning = await googleTranslateService.translate(rawKey, "en", "ja");
+  const fallbackResult: LookupResult = { meaning: gtMeaning, reading: key !== rawKey ? key : undefined, source: "google" };
   lookupCache.set(cacheKey, fallbackResult);
   return fallbackResult;
 }
@@ -137,15 +152,23 @@ export async function lookupWordEnglish(word: string): Promise<LookupResult> {
  */
 export async function lookupWordVietnamese(word: string): Promise<LookupResult> {
   if (!word || word.trim() === "") return { meaning: "" };
-  const key = word.trim();
-  const cacheKey = `vi:${key}`;
+  const rawKey = word.trim();
+  const isJp = containsJapanese(rawKey);
+  const hiraganaKey = !isJp ? romajiToHiragana(rawKey) : rawKey;
+  const key = hiraganaKey || rawKey;
 
+  const cacheKey = `vi:${rawKey}`;
   if (lookupCache.has(cacheKey)) {
     return lookupCache.get(cacheKey)!;
   }
 
-  const hanviet = getHanViet(key);
+  const hanviet = getHanViet(rawKey) || getHanViet(key);
 
+  if (COMMON_VI_DICT[rawKey]) {
+    const res = { ...COMMON_VI_DICT[rawKey], hanviet: hanviet || COMMON_VI_DICT[rawKey].hanviet };
+    lookupCache.set(cacheKey, res);
+    return res;
+  }
   if (COMMON_VI_DICT[key]) {
     const res = { ...COMMON_VI_DICT[key], hanviet: hanviet || COMMON_VI_DICT[key].hanviet };
     lookupCache.set(cacheKey, res);
@@ -153,9 +176,13 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+
     const res = await fetch("https://mazii.net/api/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         dict: "javi",
         type: "word",
@@ -163,19 +190,20 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
         page: 1,
       }),
     });
+    clearTimeout(timeoutId);
 
     if (res.ok) {
       const json = await res.json();
       if (json.status === 200 && json.data && json.data.length > 0) {
-        const exactMatch = json.data.find((item: any) => item.word === key || item.phonetic === key);
-        if (exactMatch) {
-          const means = (exactMatch.means || [])
+        const match = json.data.find((item: any) => item.word === key || item.phonetic === key || item.word === rawKey) || json.data[0];
+        if (match) {
+          const means = (match.means || [])
             .map((m: any) => m.mean || "")
             .filter(Boolean)
             .slice(0, 3);
 
           const meaning = means.join("; ");
-          const reading = exactMatch.phonetic || "";
+          const reading = match.phonetic || key;
           const result: LookupResult = {
             meaning: meaning || "",
             reading,
@@ -194,9 +222,10 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
   }
 
   // Fallback to Google Translate + Han-Viet
-  const gtMeaning = await googleTranslateService.translate(key, "vi", "ja");
+  const gtMeaning = await googleTranslateService.translate(rawKey, "vi", "ja");
   const fallbackResult: LookupResult = {
     meaning: gtMeaning,
+    reading: key !== rawKey ? key : undefined,
     hanviet: hanviet || undefined,
     source: "google",
   };
