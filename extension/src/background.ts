@@ -25,6 +25,7 @@ import { getHanViet } from "~lib/utils/hanviet-dict";
 import { containsJapanese, katakanaToHiragana } from "~lib/utils/japanese";
 import { lookupWord } from "~lib/services/dictionary-lookup";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
+import { deduplicateCueText } from "~lib/services/subtitle-parsers";
 
 // Fallback logic for public dictionary lookups
 async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
@@ -158,8 +159,20 @@ async function translateWithGoogle(text: string, targetLang: string): Promise<st
     });
     if (res1.ok) {
       const data = await res1.json();
-      if (Array.isArray(data) && data[0]) {
-        const trans = data[0].map((item: any) => item[0]).filter(Boolean).join("");
+      if (Array.isArray(data) && Array.isArray(data[0])) {
+        const uniquePieces: string[] = [];
+        const seen = new Set<string>();
+        for (const item of data[0]) {
+          if (Array.isArray(item) && typeof item[0] === "string" && item[0].trim()) {
+            const piece = item[0].trim();
+            const key = piece.toLowerCase().replace(/^[\s.,!?。！？:;\-\/]+|[\s.,!?。！？:;\-\/]+$/g, "");
+            if (key && !seen.has(key)) {
+              seen.add(key);
+              uniquePieces.push(piece);
+            }
+          }
+        }
+        const trans = deduplicateCueText(uniquePieces.join(" "));
         if (trans) return trans;
       }
     }
@@ -177,9 +190,9 @@ async function translateWithGoogle(text: string, targetLang: string): Promise<st
     if (res2.ok) {
       const data = await res2.json();
       if (Array.isArray(data) && data[0]) {
-        return String(data[0]);
+        return deduplicateCueText(String(data[0]));
       } else if (typeof data === "string") {
-        return data;
+        return deduplicateCueText(data);
       }
     }
   } catch {}
@@ -420,10 +433,11 @@ async function handleMessage(
       const { image_data, language } = message.payload as { image_data: string; language?: string };
       const settings = await getSettings();
       const targetLang = settings.targetLanguage || "vi";
+      const ocrLang = language || settings.ocrDefaultOrientation || "auto";
 
       let rawText = "";
       try {
-        rawText = await localOcrService.recognizeImage(image_data);
+        rawText = await localOcrService.recognizeImage(image_data, ocrLang);
       } catch (error: any) {
         throw new Error(`Nhận diện OCR thất bại: ${error.message || error}`);
       }
@@ -448,7 +462,7 @@ async function handleMessage(
           tokens: analysis?.tokens || null,
           translation: analysis?.translation || "",
           regions: [{ text: rawText, confidence: 1.0, bbox: null }],
-          language: language || "jpn"
+          language: ocrLang
         }
       };
     }
@@ -482,6 +496,27 @@ async function triggerOcrFlow(tabId: number) {
       console.error("[Hakkutsu Background] Script injection error:", injErr);
     }
   }
+}
+
+// Context Menu Setup
+if (typeof chrome !== "undefined" && chrome.contextMenus) {
+  chrome.runtime.onInstalled.addListener(() => {
+    try {
+      chrome.contextMenus.create({
+        id: "hakkutsu-ocr-selection",
+        title: "Hakkutsu OCR (Coming Soon)",
+        contexts: ["image", "selection", "page"]
+      });
+    } catch {
+      // menu item might already exist
+    }
+  });
+
+  chrome.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === "hakkutsu-ocr-selection" && tab?.id) {
+      triggerOcrFlow(tab.id);
+    }
+  });
 }
 
 chrome.commands.onCommand.addListener((command) => {

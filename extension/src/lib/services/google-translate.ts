@@ -4,6 +4,8 @@
  * configured with explicit target language routing.
  */
 
+import { deduplicateCueText } from "~lib/services/subtitle-parsers";
+
 export class GoogleTranslateService {
   private cache: Map<string, string> = new Map();
   private maxCacheSize = 150;
@@ -33,9 +35,19 @@ export class GoogleTranslateService {
       const json = await res.json();
       // Google translate returns an array of segments: [[["translated", "source", ...], ...], ...]
       if (Array.isArray(json) && Array.isArray(json[0])) {
-        const translated = json[0]
-          .map((segment: any) => (Array.isArray(segment) && segment[0] ? segment[0] : ""))
-          .join("");
+        const uniquePieces: string[] = [];
+        const seen = new Set<string>();
+        for (const segment of json[0]) {
+          if (Array.isArray(segment) && typeof segment[0] === "string" && segment[0].trim()) {
+            const piece = segment[0].trim();
+            const key = piece.toLowerCase().replace(/^[\s.,!?。！？:;\-\/]+|[\s.,!?。！？:;\-\/]+$/g, "");
+            if (key && !seen.has(key)) {
+              seen.add(key);
+              uniquePieces.push(piece);
+            }
+          }
+        }
+        const translated = uniquePieces.join(" ");
 
         if (this.cache.size >= this.maxCacheSize) {
           const firstKey = this.cache.keys().next().value;

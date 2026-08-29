@@ -136,7 +136,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
     // If a native secondary segment is provided, use it directly
     if (secondarySegment?.text) {
-      setTranslatedText(secondarySegment.text);
+      setTranslatedText(deduplicateCueText(secondarySegment.text));
       return;
     }
 
@@ -153,7 +153,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     const cacheKey = `${targetLang}:${text}`;
 
     if (translationCache.has(cacheKey)) {
-      setTranslatedText(translationCache.get(cacheKey)!);
+      setTranslatedText(deduplicateCueText(translationCache.get(cacheKey)!));
       return;
     }
 
@@ -166,7 +166,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       .then((res) => {
         if (!isMounted) return;
         if (res?.type === "TRANSLATE_RESULT" && res.payload?.translation) {
-          const trans = String(res.payload.translation);
+          const trans = deduplicateCueText(String(res.payload.translation));
           translationCache.set(cacheKey, trans);
           setTranslatedText(trans);
         }
@@ -635,10 +635,10 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                 analyzedTokens.map((token, idx) => {
                   const isKanji = /[\u4e00-\u9faf]/.test(token.surface);
                   const hasFurigana =
-                    settings.showFurigana &&
+                    settings.showFurigana !== false &&
                     isKanji &&
                     Boolean(token.reading?.hiragana) &&
-                    token.reading.hiragana !== token.surface;
+                    token.reading!.hiragana !== token.surface;
                   const jlptClass = token.jlpt_level && settings.showJlptColors ? `hk-sub__token--${token.jlpt_level.toLowerCase()}` : "";
 
                   return (
@@ -652,11 +652,11 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                     >
                       {hasFurigana ? (
                         <ruby>
-                          {token.surface}
-                          <rt>{token.reading?.hiragana}</rt>
+                          <span className="hk-sub__surface">{token.surface}</span>
+                          <rt className="hk-sub__furigana">{token.reading?.hiragana}</rt>
                         </ruby>
                       ) : (
-                        token.surface
+                        <span className="hk-sub__surface">{token.surface}</span>
                       )}
                     </span>
                   );
@@ -667,7 +667,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
             </div>
 
             {/* Secondary Subtitle Bar (Bilingual / Translation) */}
-            {settings.subtitlesSecondaryEnabled !== false && translatedText && (
+            {settings.subtitlesSecondaryEnabled !== false && (secondarySegment?.text || translatedText) && (
               <div
                 className="hk-sub__secondary-bar"
                 style={{
@@ -678,7 +678,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                   lineHeight: 1.4,
                 }}
               >
-                {translatedText}
+                {deduplicateCueText(secondarySegment?.text || translatedText)}
               </div>
             )}
           </div>

@@ -32,8 +32,31 @@ const result = spawnSync(
   }
 )
 
+const fs = require("node:fs")
+
+function copyAssets() {
+  const assetsSrc = path.resolve(__dirname, "assets")
+  const buildProd = path.resolve(__dirname, "build/chrome-mv3-prod/assets")
+  const buildDev = path.resolve(__dirname, "build/chrome-mv3-dev/assets")
+
+  if (fs.existsSync(assetsSrc)) {
+    if (fs.existsSync(path.resolve(__dirname, "build/chrome-mv3-prod"))) {
+      fs.cpSync(assetsSrc, buildProd, { recursive: true, force: true })
+      console.log("[run-plasmo] Copied assets to build/chrome-mv3-prod/assets")
+    }
+    if (fs.existsSync(path.resolve(__dirname, "build/chrome-mv3-dev"))) {
+      fs.cpSync(assetsSrc, buildDev, { recursive: true, force: true })
+      console.log("[run-plasmo] Copied assets to build/chrome-mv3-dev/assets")
+    }
+  }
+}
+
 if (result.error) {
   throw result.error
+}
+
+if (result.status === 0) {
+  copyAssets()
 }
 
 process.exit(result.status ?? 1)

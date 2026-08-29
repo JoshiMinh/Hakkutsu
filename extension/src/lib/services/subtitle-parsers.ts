@@ -62,18 +62,39 @@ export function deduplicateCueText(text: string): string {
   let cleaned = text.replace(/\s+/g, " ").trim();
   if (!cleaned) return "";
 
-  // 1. Remove exact full repetition e.g. "X X"
+  // 1. Remove exact full repetition e.g. "X X" or "X. X." or "X. X"
   const mid = Math.floor(cleaned.length / 2);
   for (let len = mid; len >= 3; len--) {
     const sub = cleaned.slice(0, len).trim();
     const rest = cleaned.slice(len).trim();
-    if (rest === sub || rest.startsWith(sub + " ") || rest.startsWith(sub)) {
+
+    const subNorm = sub.replace(/[.,!?。！？]+$/, "").trim();
+    const restNorm = rest.replace(/[.,!?。！？]+$/, "").trim();
+
+    if (subNorm && restNorm && (subNorm === restNorm || rest.startsWith(sub + " ") || rest === sub)) {
       cleaned = sub;
       break;
     }
   }
 
-  // 2. Remove overlapping suffix/prefix repetition (e.g. "俺たち５人は 100人の警官をまいた 俺たち５人は")
+  // 2. Sentence-level deduplication e.g. "Sentence A. Sentence A."
+  const sentences = cleaned.split(/(?<=[.!?。！？])\s+/);
+  if (sentences.length > 1) {
+    const uniqueSentences: string[] = [];
+    const seen = new Set<string>();
+    for (const s of sentences) {
+      const norm = s.trim().toLowerCase().replace(/[.,!?。！？]+$/, "");
+      if (norm && !seen.has(norm)) {
+        seen.add(norm);
+        uniqueSentences.push(s.trim());
+      }
+    }
+    if (uniqueSentences.length < sentences.length) {
+      cleaned = uniqueSentences.join(" ");
+    }
+  }
+
+  // 3. Remove overlapping word sequence repetition
   const tokens = cleaned.split(" ");
   if (tokens.length >= 4) {
     const half = Math.floor(tokens.length / 2);
@@ -81,21 +102,6 @@ export function deduplicateCueText(text: string): string {
     const secondPart = tokens.slice(half).join(" ");
     if (secondPart.startsWith(firstPart) || firstPart === secondPart) {
       cleaned = secondPart;
-    }
-  }
-
-  // 3. Remove trailing duplicate phrase if end repeats start
-  const words = cleaned.split(" ");
-  if (words.length > 2) {
-    const firstWord = words[0];
-    const lastWord = words[words.length - 1];
-    if (firstWord === lastWord && words.length % 2 === 1) {
-      const halfLen = (words.length - 1) / 2;
-      const leftWords = words.slice(0, halfLen).join(" ");
-      const rightWords = words.slice(halfLen, words.length - 1).join(" ");
-      if (leftWords === rightWords) {
-        cleaned = leftWords;
-      }
     }
   }
 

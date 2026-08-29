@@ -105,6 +105,53 @@ const netflixSpecificCss = `
   .watch-video.inactive .hk-sub__container {
     bottom: 50px;
   }
+
+  /* ── Netflix Toolbar Button Alignment & Sizing ── */
+  .hk-netflix-btn {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+    border-radius: 50% !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    margin: 0 6px !important;
+    align-self: center !important;
+    vertical-align: middle !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    z-index: 1000 !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+    outline: none !important;
+    padding: 0 !important;
+    position: relative !important;
+    line-height: 1 !important;
+  }
+
+  .hk-netflix-btn.is-active {
+    background: rgba(168, 85, 247, 0.35) !important;
+    border: 1px solid #a855f7 !important;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.4) !important;
+  }
+
+  .hk-netflix-btn.is-off {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    box-shadow: none !important;
+  }
+
+  .hk-netflix-btn:hover {
+    transform: scale(1.08) !important;
+    background: rgba(168, 85, 247, 0.5) !important;
+    border-color: #c084fc !important;
+  }
+
+  .hk-netflix-btn.is-off:hover {
+    background: rgba(255, 255, 255, 0.22) !important;
+    border-color: rgba(255, 255, 255, 0.4) !important;
+  }
 `;
 
 export const getStyle: PlasmoGetStyle = () => {
@@ -558,7 +605,10 @@ export default function NetflixSubtitlesOverlay() {
       menuHideTimeout = window.setTimeout(hideHoverMenuImmediate, 280);
     };
 
-    const injectToolbarButton = () => {
+    const findNetflixControlRowAndTarget = (): {
+      buttonRow: HTMLElement | null;
+      targetChild: HTMLElement | null;
+    } => {
       const audioSubBtn =
         document.querySelector('[data-uia="control-audio-subtitle"]') ||
         document.querySelector('[data-uia*="subtitle"]') ||
@@ -568,49 +618,58 @@ export default function NetflixSubtitlesOverlay() {
       const speedBtn = document.querySelector('[data-uia="control-speed"]');
       const fullscreenBtn = document.querySelector('[data-uia="control-fullscreen"]');
 
-      const targetControlEl =
-        audioSubBtn?.closest('[data-uia*="control"]') ||
-        audioSubBtn?.closest('button') ||
-        speedBtn?.closest('[data-uia*="control"]') ||
-        speedBtn?.closest('button') ||
-        fullscreenBtn?.closest('[data-uia*="control"]');
+      const refBtn = (audioSubBtn || speedBtn || fullscreenBtn) as HTMLElement | null;
+      if (!refBtn) return { buttonRow: null, targetChild: null };
 
-      const buttonRow =
+      // Standard Netflix right-side controls row container
+      let buttonRow: HTMLElement | null =
         document.querySelector(".PlayerControlsNeo__button-control-row") ||
         document.querySelector('[data-uia="controls-standard"]') ||
-        document.querySelector('.controls-full-view') ||
-        document.querySelector('[class*="button-control-row"]') ||
-        targetControlEl?.parentElement ||
-        audioSubBtn?.parentElement;
+        document.querySelector(".controls-full-view") ||
+        document.querySelector('[class*="button-control-row"]');
 
-      if (!buttonRow && !audioSubBtn && !speedBtn) return;
+      // If buttonRow is not found by selector, walk up from refBtn to find the multi-item flex row container
+      if (!buttonRow) {
+        let curr: HTMLElement | null = refBtn.parentElement;
+        while (curr && curr !== document.body) {
+          if (curr.children.length > 1) {
+            const hasOtherControls =
+              curr.querySelector('[data-uia="control-speed"]') ||
+              curr.querySelector('[data-uia="control-fullscreen"]') ||
+              curr.querySelectorAll('button').length > 1;
+            if (hasOtherControls) {
+              buttonRow = curr;
+              break;
+            }
+          }
+          curr = curr.parentElement;
+        }
+      }
 
-      let btn = document.getElementById("hk-netflix-toolbar-btn");
+      if (!buttonRow) return { buttonRow: null, targetChild: null };
+
+      // Find the direct child of buttonRow that contains refBtn so we insert as a sibling, NOT inside a single button's wrapper
+      let targetChild: HTMLElement | null = null;
+      let curr: HTMLElement | null = refBtn;
+      while (curr && curr.parentElement !== buttonRow && curr !== document.body) {
+        curr = curr.parentElement;
+      }
+      if (curr && curr.parentElement === buttonRow) {
+        targetChild = curr;
+      }
+
+      return { buttonRow, targetChild };
+    };
+
+    const injectToolbarButton = () => {
+      const { buttonRow, targetChild } = findNetflixControlRowAndTarget();
+      if (!buttonRow) return;
+
+      let btn = document.getElementById("hk-netflix-toolbar-btn") as HTMLButtonElement | null;
       if (!btn) {
         btn = document.createElement("button");
         btn.id = "hk-netflix-toolbar-btn";
-        btn.className = "hk-yt-btn hk-netflix-btn";
         btn.title = "Hakkutsu Subtitles (発掘) · Click to Toggle · Hover for Shortcuts";
-        btn.style.cssText = `
-          width: 38px;
-          height: 38px;
-          min-width: 38px;
-          min-height: 38px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.12);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          margin: auto 6px;
-          align-self: center;
-          vertical-align: middle;
-          transition: all 0.2s ease;
-          z-index: 1000;
-          flex-shrink: 0;
-          box-sizing: border-box;
-        `;
 
         btn.onclick = (e) => {
           e.stopPropagation();
@@ -621,12 +680,17 @@ export default function NetflixSubtitlesOverlay() {
             return next;
           });
         };
+      }
 
-        if (targetControlEl && targetControlEl.parentElement) {
-          targetControlEl.parentElement.insertBefore(btn, targetControlEl);
-        } else if (buttonRow) {
-          buttonRow.appendChild(btn);
+      btn.className = `hk-netflix-btn ${isEnabled ? "is-active" : "is-off"}`;
+
+      // Insert or re-attach btn to buttonRow right before targetChild (or append if targetChild is end)
+      if (targetChild && targetChild.parentElement === buttonRow) {
+        if (btn.nextElementSibling !== targetChild || btn.parentElement !== buttonRow) {
+          buttonRow.insertBefore(btn, targetChild);
         }
+      } else if (btn.parentElement !== buttonRow) {
+        buttonRow.appendChild(btn);
       }
 
       // Re-bind hover handlers to active closure every run so state updates never stale-out handlers
@@ -636,16 +700,8 @@ export default function NetflixSubtitlesOverlay() {
       btn.onmouseleave = scheduleHide;
 
       btn.innerHTML = `
-        <span style="font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 16px; font-weight: 800; color: ${isEnabled ? "#c084fc" : "#a1a1aa"}; line-height: 1; text-shadow: ${isEnabled ? "0 0 8px rgba(192, 132, 252, 0.4)" : "none"};">発</span>
+        <span style="font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 15px; font-weight: 800; color: ${isEnabled ? "#e9d5ff" : "#d4d4d8"}; line-height: 1; text-shadow: ${isEnabled ? "0 0 6px rgba(192, 132, 252, 0.6)" : "none"}; pointer-events: none;">発</span>
       `;
-
-      if (isEnabled) {
-        btn.style.backgroundColor = "rgba(168, 85, 247, 0.35)";
-        btn.style.borderColor = "#a855f7";
-      } else {
-        btn.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
-        btn.style.borderColor = "rgba(255, 255, 255, 0.15)";
-      }
     };
 
     injectToolbarButton();

@@ -50,7 +50,23 @@
       "tabs",
       "storage",
       "activeTab",
-      "offscreen"
+      "offscreen",
+      "contextMenus"
+    ],
+    "web_accessible_resources": [
+      {
+        "resources": [
+          "assets/*",
+          "assets/tesseract/*",
+          "assets/tesseract/worker.min.js",
+          "assets/tesseract/core/*",
+          "assets/tesseract/tessdata/*",
+          "offscreen.html"
+        ],
+        "matches": [
+          "<all_urls>"
+        ]
+      }
     ],
     "commands": {
       "start-ocr": {

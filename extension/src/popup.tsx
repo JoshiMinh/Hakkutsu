@@ -19,7 +19,8 @@ import {
   Trash2,
   CornerDownLeft,
   ChevronRight,
-  Volume2
+  Volume2,
+  Scan
 } from "lucide-react";
 
 import { apiClient } from "~lib/services/api-client";
@@ -523,6 +524,27 @@ function Popup() {
             <img src={kofiSvg} alt="Ko-fi" style={{ width: 14, height: 14, objectFit: "contain" }} />
             Ko-fi
           </a>
+
+          <button 
+            className="hk-btn hk-btn--secondary hk-btn--sm"
+            onClick={() => {
+              alert(t("ocr_coming_soon"));
+            }}
+            title={t("ocr_coming_soon")}
+            style={{
+              padding: "4px 8px",
+              fontSize: "11.5px",
+              background: "rgba(255, 255, 255, 0.05)",
+              color: "var(--hk-text-muted)",
+              border: "1px solid var(--hk-border)",
+              borderRadius: "6px",
+              gap: "4px",
+              cursor: "pointer",
+              opacity: 0.75
+            }}
+          >
+            <Scan size={12} /> OCR <span style={{ fontSize: "9px", background: "rgba(168, 85, 247, 0.2)", color: "#c084fc", padding: "1px 4px", borderRadius: "3px" }}>Soon</span>
+          </button>
 
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"

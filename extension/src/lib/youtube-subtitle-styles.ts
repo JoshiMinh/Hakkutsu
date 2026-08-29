@@ -68,18 +68,18 @@ export const youtubeSubtitleCss = /* css */ `
     flex-wrap: wrap;
     justify-content: center;
     align-items: flex-end;
-    gap: 1px;
+    gap: 0;
     background: rgba(13, 13, 17, 0.92);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.14);
-    padding: 6px 18px 8px;
+    padding: 4px 16px 5px;
     border-radius: 12px;
     box-shadow:
       0 20px 48px -8px rgba(0, 0, 0, 0.85),
       0 0 0 1px rgba(255, 255, 255, 0.08);
     cursor: text;
-    line-height: 1.8;
+    line-height: 1.35;
     font-size: 26px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic Pro", "Yu Gothic", sans-serif;
     color: #f4f4f5;
@@ -120,11 +120,11 @@ export const youtubeSubtitleCss = /* css */ `
 
   /* ── Individual Token ────────────────────────────────────── */
   .hk-sub__token {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
+    display: inline-block;
+    vertical-align: bottom;
     position: relative;
-    padding: 0 2px;
+    padding: 0 0.5px;
+    margin: 0;
     cursor: pointer;
     border-radius: 4px;
     transition: background 0.15s ease, transform 0.15s ease;
@@ -155,14 +155,24 @@ export const youtubeSubtitleCss = /* css */ `
   .hk-sub__token--n1 { color: #c084fc; }
 
   /* ── Furigana (Ruby) ─────────────────────────────────────── */
+  .hk-sub__token ruby {
+    display: inline-ruby;
+    ruby-position: over;
+    ruby-align: center;
+  }
+
+  .hk-sub__token rt,
   .hk-sub__furigana {
-    font-size: 0.42em;
-    line-height: 1;
-    opacity: 0.78;
-    margin-bottom: -2px;
-    letter-spacing: 0.02em;
+    display: ruby-text;
+    font-size: 0.46em;
+    line-height: 1.1;
+    opacity: 0.9;
+    color: #c084fc;
+    font-weight: 600;
+    text-align: center;
+    letter-spacing: 0.01em;
     white-space: nowrap;
-    color: inherit;
+    user-select: none;
     pointer-events: none;
   }
 
@@ -359,7 +369,7 @@ export const youtubeSubtitleCss = /* css */ `
   /* ── Font Size Presets ─────────────────────────────────────── */
   .hk-sub--small .hk-sub__bar {
     font-size: 20px !important;
-    padding: 8px 18px 10px !important;
+    padding: 3px 12px 4px !important;
   }
   .hk-sub--small .hk-sub__secondary-bar {
     font-size: 13px !important;
@@ -367,7 +377,7 @@ export const youtubeSubtitleCss = /* css */ `
 
   .hk-sub--medium .hk-sub__bar {
     font-size: 26px !important;
-    padding: 10px 24px 14px !important;
+    padding: 4px 16px 5px !important;
   }
   .hk-sub--medium .hk-sub__secondary-bar {
     font-size: 15px !important;
@@ -375,7 +385,7 @@ export const youtubeSubtitleCss = /* css */ `
 
   .hk-sub--large .hk-sub__bar {
     font-size: 32px !important;
-    padding: 12px 28px 16px !important;
+    padding: 6px 20px 7px !important;
   }
   .hk-sub--large .hk-sub__secondary-bar {
     font-size: 18px !important;
