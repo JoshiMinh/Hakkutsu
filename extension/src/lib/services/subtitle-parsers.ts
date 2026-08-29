@@ -57,9 +57,54 @@ export function parseAssTimestamp(timeStr: string): number {
 }
 
 /** Clean HTML, ASS tags, and formatting codes from subtitle text */
+export function deduplicateCueText(text: string): string {
+  if (!text) return "";
+  let cleaned = text.replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+
+  // 1. Remove exact full repetition e.g. "X X"
+  const mid = Math.floor(cleaned.length / 2);
+  for (let len = mid; len >= 3; len--) {
+    const sub = cleaned.slice(0, len).trim();
+    const rest = cleaned.slice(len).trim();
+    if (rest === sub || rest.startsWith(sub + " ") || rest.startsWith(sub)) {
+      cleaned = sub;
+      break;
+    }
+  }
+
+  // 2. Remove overlapping suffix/prefix repetition (e.g. "俺たち５人は 100人の警官をまいた 俺たち５人は")
+  const tokens = cleaned.split(" ");
+  if (tokens.length >= 4) {
+    const half = Math.floor(tokens.length / 2);
+    const firstPart = tokens.slice(0, half).join(" ");
+    const secondPart = tokens.slice(half).join(" ");
+    if (secondPart.startsWith(firstPart) || firstPart === secondPart) {
+      cleaned = secondPart;
+    }
+  }
+
+  // 3. Remove trailing duplicate phrase if end repeats start
+  const words = cleaned.split(" ");
+  if (words.length > 2) {
+    const firstWord = words[0];
+    const lastWord = words[words.length - 1];
+    if (firstWord === lastWord && words.length % 2 === 1) {
+      const halfLen = (words.length - 1) / 2;
+      const leftWords = words.slice(0, halfLen).join(" ");
+      const rightWords = words.slice(halfLen, words.length - 1).join(" ");
+      if (leftWords === rightWords) {
+        cleaned = leftWords;
+      }
+    }
+  }
+
+  return cleaned;
+}
+
 export function cleanSubtitleText(text: string): string {
   if (!text) return "";
-  return text
+  const cleaned = text
     // Replace ASS line breaks \N or \n
     .replace(/\\N/gi, " ")
     .replace(/\\n/gi, " ")
@@ -76,9 +121,13 @@ export function cleanSubtitleText(text: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, " ")
-    // Normalize extra whitespace
+    // Normalize extra whitespace and strip empty space between CJK Japanese characters
+    .replace(/\u3000/g, " ")
     .replace(/\s+/g, " ")
+    .replace(/([\u3040-\u30ff\u3400-\u9fff])\s+([\u3040-\u30ff\u3400-\u9fff])/g, "$1$2")
     .trim();
+
+  return deduplicateCueText(cleaned);
 }
 
 // ── YouTube SRV3 (XML) & JSON3 Parsers ────────────────────────────────────────
@@ -118,7 +167,7 @@ export function parseYouTubeTimedTextXml(xmlContent: string): SubtitleSegment[] 
           rawText = p.textContent || "";
         }
 
-        const text = cleanSubtitleText(rawText);
+        const text = deduplicateCueText(cleanSubtitleText(rawText));
         if (text) {
           segments.push({ text, start, duration });
         }

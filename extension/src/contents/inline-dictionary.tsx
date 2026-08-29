@@ -104,7 +104,13 @@ function cleanJapaneseText(raw: string): string {
     .trim();
 }
 
-function getWordAtPoint(x: number, y: number): { text: string; rect: DOMRect } | null {
+interface WordPointResult {
+  text: string;
+  rect: DOMRect;
+  rects: DOMRect[];
+}
+
+function getWordAtPoint(x: number, y: number): WordPointResult | null {
   let range: Range | null = null;
   if (document.caretRangeFromPoint) {
     range = document.caretRangeFromPoint(x, y);
@@ -127,25 +133,54 @@ function getWordAtPoint(x: number, y: number): { text: string; rect: DOMRect } |
 
   if (!content || offset < 0 || offset >= content.length) return null;
 
-  let start = offset;
-  let end = offset;
+  let start = -1;
+  let end = -1;
+  let matchedWord = "";
 
-  while (start > 0 && containsJapanese(content[start - 1])) {
-    start--;
-  }
-  while (end < content.length && containsJapanese(content[end])) {
-    end++;
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const segmenter = new (Intl as any).Segmenter("ja-JP", { granularity: "word" });
+    const segments = Array.from(segmenter.segment(content)) as Array<{
+      segment: string;
+      index: number;
+      input: string;
+      isWordLike?: boolean;
+    }>;
+
+    const targetSegment = segments.find(
+      (s) => offset >= s.index && offset < s.index + s.segment.length
+    );
+
+    if (targetSegment && targetSegment.segment && containsJapanese(targetSegment.segment)) {
+      matchedWord = targetSegment.segment.trim();
+      start = targetSegment.index;
+      end = targetSegment.index + targetSegment.segment.length;
+    }
   }
 
-  const word = content.substring(start, end).trim();
-  if (!word || !containsJapanese(word)) return null;
+  if (!matchedWord || start < 0 || end < 0) {
+    let s = offset;
+    let e = offset;
+    while (s > 0 && containsJapanese(content[s - 1])) {
+      s--;
+    }
+    while (e < content.length && containsJapanese(content[e])) {
+      e++;
+    }
+    matchedWord = content.substring(s, e).trim();
+    start = s;
+    end = e;
+  }
+
+  if (!matchedWord || !containsJapanese(matchedWord)) return null;
 
   const wordRange = document.createRange();
   wordRange.setStart(textNode, start);
   wordRange.setEnd(textNode, end);
   const rect = wordRange.getBoundingClientRect();
+  const rawRects = Array.from(wordRange.getClientRects());
+  const rects = rawRects.filter((r) => r.width > 0 && r.height > 0);
 
-  return { text: word, rect };
+  return { text: matchedWord, rect, rects: rects.length > 0 ? rects : [rect] };
 }
 
 const InlineDictionary = () => {
@@ -163,7 +198,11 @@ const InlineDictionary = () => {
   const [phraseMode, setPhraseMode] = useState(false);
   const [sentenceMode, setSentenceMode] = useState(false);
   const [transientMode, setTransientMode] = useState(false);
+  const transientModeRef = useRef(transientMode);
+  transientModeRef.current = transientMode;
+  const isMouseOverPopupRef = useRef(false);
   const [srsAdded, setSrsAdded] = useState(false);
+  const [hoverHighlightRects, setHoverHighlightRects] = useState<DOMRect[] | null>(null);
   const { settings, isHydrated } = useSettingsStore();
   const { t, isVietnamese, lang } = useTranslation();
 
@@ -225,6 +264,7 @@ const InlineDictionary = () => {
       if (checkModifierKey(e, keyMode)) {
         const res = getWordAtPoint(e.clientX, e.clientY);
         if (res && res.text) {
+          setHoverHighlightRects(res.rects);
           if (lastHoverWordRef.current === res.text && positionRef.current) {
             return;
           }
@@ -246,10 +286,34 @@ const InlineDictionary = () => {
           setSentenceMode(false);
           setTransientMode(true);
           analyzeText(res.text, false, true);
+        } else {
+          lastHoverWordRef.current = null;
+          setHoverHighlightRects(null);
         }
       } else {
         lastHoverWordRef.current = null;
+        setHoverHighlightRects(null);
       }
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      const keyMode = settingsRef.current.hoverModifierKey || "alt";
+      if (keyMode === "none") return;
+
+      const isMatchingKey =
+        (keyMode === "alt" && e.key === "Alt") ||
+        (keyMode === "ctrl" && e.key === "Control") ||
+        (keyMode === "shift" && e.key === "Shift") ||
+        (keyMode === "meta" && e.key === "Meta");
+
+      if (isMatchingKey) {
+        lastHoverWordRef.current = null;
+        setHoverHighlightRects(null);
+      }
+    };
+
+    const onScroll = () => {
+      setHoverHighlightRects(null);
     };
 
     const handleSelection = (e: MouseEvent, isDoubleClick: boolean) => {
@@ -351,6 +415,7 @@ const InlineDictionary = () => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setPosition(null);
+        setHoverHighlightRects(null);
         window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
       }
     };
@@ -396,9 +461,16 @@ const InlineDictionary = () => {
         setSelectedToken(index);
       }
     };
-    const onDismissAnalysis = () => {
+    const onDismissAnalysis = (e?: any) => {
+      if (isMouseOverPopupRef.current && !e?.detail?.force) {
+        return;
+      }
+      if (!transientModeRef.current && !e?.detail?.force) {
+        return;
+      }
       analysisRequestRef.current += 1;
       setPosition(null);
+      setHoverHighlightRects(null);
       setTransientMode(false);
       window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
     };
@@ -407,6 +479,8 @@ const InlineDictionary = () => {
     document.addEventListener("mouseup", onMouseUp, true);
     document.addEventListener("dblclick", onDoubleClick, true);
     document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keyup", onKeyUp, true);
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("hakkutsu:analyze", onCustomAnalyze);
     window.addEventListener("hakkutsu:analysis-dismiss", onDismissAnalysis);
     window.addEventListener("hakkutsu:token-hover", onTokenHover);
@@ -416,6 +490,8 @@ const InlineDictionary = () => {
       document.removeEventListener("mouseup", onMouseUp, true);
       document.removeEventListener("dblclick", onDoubleClick, true);
       document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("hakkutsu:analyze", onCustomAnalyze);
       window.removeEventListener("hakkutsu:analysis-dismiss", onDismissAnalysis);
       window.removeEventListener("hakkutsu:token-hover", onTokenHover);
@@ -524,7 +600,7 @@ const InlineDictionary = () => {
     }
   };
 
-  if (!position) return null;
+  if (!position && (!hoverHighlightRects || hoverHighlightRects.length === 0)) return null;
 
   const selectedTokenData =
     result && selectedToken !== null ? result.tokens[selectedToken] : null;
@@ -546,57 +622,93 @@ const InlineDictionary = () => {
     setSelectedToken(index);
   };
   const cardWidth = Math.min(420, Math.max(320, window.innerWidth - 32));
-  const usePlayerOverlay = position.placement === "player-overlay";
+  const usePlayerOverlay = position?.placement === "player-overlay";
 
-  // Center horizontally directly over the hovered/clicked word
-  const panelLeft = Math.max(
-    16,
-    Math.min(window.innerWidth - cardWidth - 16, position.x - cardWidth / 2)
-  );
+  const panelLeft = position
+    ? Math.max(16, Math.min(window.innerWidth - cardWidth - 16, position.x - cardWidth / 2))
+    : 0;
 
-  // Position vertically:
-  // For subtitles or if the word is in the lower half of viewport,
-  // float the definition card directly ABOVE the word!
-  const estimatedHeight = 340;
-  const isLower = position.y > window.innerHeight * 0.42;
+  const isLower = position ? position.y > window.innerHeight * 0.42 : false;
   const placeAbove = usePlayerOverlay || isLower;
 
-  const panelTop = placeAbove
-    ? Math.max(16, position.y - estimatedHeight - 12)
-    : Math.min(window.innerHeight - estimatedHeight - 16, position.y + 16);
-
-  const panelMaxHeight = Math.min(window.innerHeight - 32, 540);
+  const popupStyle: React.CSSProperties = position
+    ? placeAbove
+      ? {
+          position: "fixed",
+          bottom: `${Math.max(16, window.innerHeight - position.y + 16)}px`,
+          left: `${panelLeft}px`,
+          width: `${cardWidth}px`,
+          maxHeight: "min(380px, calc(100vh - 40px))",
+          zIndex: 2147483647,
+          display: "flex",
+          flexDirection: "column",
+        }
+      : {
+          position: "fixed",
+          top: `${Math.max(16, position.y + 16)}px`,
+          left: `${panelLeft}px`,
+          width: `${cardWidth}px`,
+          maxHeight: "min(380px, calc(100vh - 40px))",
+          zIndex: 2147483647,
+          display: "flex",
+          flexDirection: "column",
+        }
+    : {};
 
   return (
-    <div
-      ref={containerRef}
-      className="hk-popup hk-fade-in"
-      style={{
-        position: "fixed",
-        top: `${panelTop}px`,
-        left: `${panelLeft}px`,
-        width: `${cardWidth}px`,
-        maxHeight: "min(380px, calc(100vh - 40px))",
-        zIndex: 2147483647,
-        display: "flex",
-        flexDirection: "column"
-      }}
-    >
-      {/* Header */}
-      <header className="hk-header">
-        <div className="hk-header__logo">
-          <img src={logoUrl} alt="Hakkutsu" style={{ width: 18, height: 18, borderRadius: "4px" }} />
-          <h2 className="hk-header__title">Hakkutsu Lookup</h2>
-        </div>
-        <button
-          className="hk-btn-icon-subtle"
-          onClick={() => setPosition(null)}
-          title={t("dict_btn_close")}
-          style={{ width: "24px", height: "24px" }}
+    <>
+      {/* Yomichan-style soft blue hover highlight overlay */}
+      {hoverHighlightRects &&
+        hoverHighlightRects.map((rect, idx) => (
+          <div
+            key={`hk-hl-${idx}`}
+            style={{
+              position: "fixed",
+              top: `${rect.top}px`,
+              left: `${rect.left}px`,
+              width: `${rect.width}px`,
+              height: `${rect.height}px`,
+              backgroundColor: "rgba(59, 130, 246, 0.3)",
+              border: "1px solid rgba(59, 130, 246, 0.6)",
+              borderRadius: "3px",
+              pointerEvents: "none",
+              zIndex: 2147483646,
+              boxSizing: "border-box",
+              transition: "all 0.05s ease-out",
+            }}
+          />
+        ))}
+
+      {position && (
+        <div
+          ref={containerRef}
+          className="hk-popup hk-fade-in"
+          style={popupStyle}
+          onMouseEnter={() => {
+            isMouseOverPopupRef.current = true;
+          }}
+          onMouseLeave={() => {
+            isMouseOverPopupRef.current = false;
+          }}
         >
-          <X size={15} />
-        </button>
-      </header>
+          {/* Header */}
+          <header className="hk-header">
+            <div className="hk-header__logo">
+              <img src={logoUrl} alt="Hakkutsu" style={{ width: 18, height: 18, borderRadius: "4px" }} />
+              <h2 className="hk-header__title">Hakkutsu Lookup</h2>
+            </div>
+            <button
+              className="hk-btn-icon-subtle"
+              onClick={() => {
+                setPosition(null);
+                setHoverHighlightRects(null);
+              }}
+              title={t("dict_btn_close")}
+              style={{ width: "24px", height: "24px" }}
+            >
+              <X size={15} />
+            </button>
+          </header>
 
       {/* Main Scrollable Content */}
       <div className="hk-content" style={{ overflowY: "auto", flex: 1 }}>
@@ -719,6 +831,8 @@ const InlineDictionary = () => {
         </div>
       )}
     </div>
+    )}
+    </>
   );
 };
 

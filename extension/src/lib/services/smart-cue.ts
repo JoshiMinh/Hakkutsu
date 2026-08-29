@@ -114,8 +114,13 @@ export function buildSmartCues(
       gap <= 0.75 &&
       !SENTENCE_END_RE.test(previous.text) &&
       combined.length <= MAX_AUTO_CUE_CHARS;
+    const isSubstringOverlap =
+      previous.text.includes(cue.text) ||
+      cue.text.includes(previous.text) ||
+      combined === previous.text ||
+      combined === cue.text;
 
-    if (rollingReplacement || explicitAppend || shortSemanticGap) {
+    if (rollingReplacement || explicitAppend || shortSemanticGap || isSubstringOverlap) {
       smart[smart.length - 1] = mergeCue(previous, cue);
     } else {
       smart.push(cue);

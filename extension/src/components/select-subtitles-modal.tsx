@@ -24,6 +24,8 @@ export interface SelectSubtitlesModalProps {
   onOffsetChange: (newOffset: number) => void;
   autoPause: boolean;
   onAutoPauseChange: (autoPause: boolean) => void;
+  showFurigana?: boolean;
+  onFuriganaChange?: (showFurigana: boolean) => void;
   fontSize: number;
   onFontSizeChange: (size: number) => void;
   onSelectTrack: (track: SubtitleTrackOption) => Promise<void> | void;
@@ -59,7 +61,12 @@ function CustomTrackDropdown({
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const path = (e.composedPath && e.composedPath()) || [];
+      if (
+        dropdownRef.current &&
+        !path.includes(dropdownRef.current) &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -217,6 +224,8 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
   onOffsetChange,
   autoPause,
   onAutoPauseChange,
+  showFurigana = true,
+  onFuriganaChange,
   fontSize,
   onFontSizeChange,
   onSelectTrack,
@@ -468,6 +477,38 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
                 style={{ accentColor: "#a855f7", pointerEvents: "none" }}
               />
             </div>
+          </div>
+
+          {/* Furigana Toggle Row */}
+          <div
+            onClick={() => {
+              if (onFuriganaChange) onFuriganaChange(!showFurigana);
+            }}
+            style={{
+              marginTop: "10px",
+              padding: "12px",
+              backgroundColor: showFurigana ? "rgba(168, 85, 247, 0.15)" : "#18181c",
+              border: showFurigana ? "1px solid #a855f7" : "1px solid transparent",
+              borderRadius: "10px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              transition: "all 0.15s",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: showFurigana ? "#a855f7" : "#fff" }}>
+                Show Furigana (ふりがな)
+              </div>
+              <div style={{ fontSize: "10px", color: "#a1a1aa" }}>Display Hiragana readings above Japanese Kanji</div>
+            </div>
+            <input
+              type="checkbox"
+              checked={showFurigana}
+              readOnly
+              style={{ accentColor: "#a855f7", pointerEvents: "none" }}
+            />
           </div>
 
           {/* Local File Picker Button */}

@@ -69,19 +69,19 @@ export const youtubeSubtitleCss = /* css */ `
     justify-content: center;
     align-items: flex-end;
     gap: 1px;
-    background: rgba(9, 9, 11, 0.88);
+    background: rgba(13, 13, 17, 0.92);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 10px 24px 14px;
-    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    padding: 6px 18px 8px;
+    border-radius: 12px;
     box-shadow:
-      0 10px 36px rgba(0, 0, 0, 0.65),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      0 20px 48px -8px rgba(0, 0, 0, 0.85),
+      0 0 0 1px rgba(255, 255, 255, 0.08);
     cursor: text;
     line-height: 1.8;
     font-size: 26px;
-    font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic Pro", "Yu Gothic", sans-serif;
     color: #f4f4f5;
     user-select: text;
     -webkit-user-select: text;
@@ -90,8 +90,8 @@ export const youtubeSubtitleCss = /* css */ `
   }
 
   .hk-sub__bar:hover {
-    background: rgba(9, 9, 11, 0.96);
-    border-color: rgba(168, 85, 247, 0.4);
+    background: rgba(13, 13, 17, 0.98);
+    border-color: rgba(168, 85, 247, 0.5);
   }
 
   /* ── Secondary Subtitle Bar (Dual Subtitles) ──────────────── */
@@ -101,17 +101,17 @@ export const youtubeSubtitleCss = /* css */ `
     align-items: center;
     margin-top: 6px;
     padding: 6px 16px;
-    background: rgba(15, 23, 42, 0.9);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: rgba(13, 13, 17, 0.88);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    color: #e2e8f0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    color: #e4e4e7;
     font-size: 15px;
     font-weight: 500;
     line-height: 1.4;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     text-align: center;
     pointer-events: auto;
     user-select: text;

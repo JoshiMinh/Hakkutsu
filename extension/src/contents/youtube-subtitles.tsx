@@ -586,95 +586,64 @@ export default function YouTubeSubtitlesOverlay() {
   useEffect(() => {
     let hoverMenu = document.getElementById("hk-yt-hover-menu") as HTMLDivElement | null;
     let menuHideTimeout: number | null = null;
-
     const renderMenuContent = () => {
       if (!hoverMenu) return;
-      const secondaryOn = settings.subtitlesSecondaryEnabled !== false;
-      const autoPauseOn = Boolean(settings.subtitlesAutoPause);
-
       hoverMenu.innerHTML = `
-        <div style="padding: 8px 12px 6px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: space-between;">
-          <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; color: #fff;">
-            <span style="color: #c084fc; font-weight: 900; font-size: 15px;">発</span>
-            <span>Hakkutsu Subtitles</span>
+        <div style="padding: 10px 14px 8px; border-bottom: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: #fff;">
+            <span style="color: #c084fc; font-weight: 900; font-size: 16px;">発</span>
+            <span>Shortcuts Manual</span>
           </div>
-          <span style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: ${isEnabled ? "rgba(168,85,247,0.25)" : "rgba(255,255,255,0.1)"}; color: ${isEnabled ? "#c084fc" : "#a1a1aa"};">
-            ${isEnabled ? "ON" : "OFF"}
-          </span>
+          <button id="hk-menu-open-modal" style="font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(168,85,247,0.25); border: 1px solid rgba(168,85,247,0.4); color: #c084fc; cursor: pointer; transition: all 0.15s ease;">
+            SETTINGS ⚙
+          </button>
         </div>
 
-        <div style="padding: 6px;">
-          <!-- Select Subtitles Modal Button -->
-          <button id="hk-menu-open-tracks" style="width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 8px; border: none; background: rgba(168, 85, 247, 0.15); color: #c084fc; font-size: 12px; font-weight: 600; cursor: pointer; margin-bottom: 4px; text-align: left;">
-            <span>Tracks &amp; Settings...</span>
-            <span style="font-size: 11px; opacity: 0.8;">Open &gt;</span>
-          </button>
-
-          <!-- Toggle Translation -->
-          <button id="hk-menu-toggle-secondary" style="width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: 6px; border: none; background: transparent; color: #f4f4f5; font-size: 12px; cursor: pointer; text-align: left;">
-            <span>Secondary Translation</span>
-            <span style="color: ${secondaryOn ? "#4ade80" : "#71717a"}; font-weight: 600;">${secondaryOn ? "ON" : "OFF"}</span>
-          </button>
-
-          <!-- Toggle Auto-Pause -->
-          <button id="hk-menu-toggle-autopause" style="width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: 6px; border: none; background: transparent; color: #f4f4f5; font-size: 12px; cursor: pointer; text-align: left;">
-            <span>Auto-Pause on Cue (E)</span>
-            <span style="color: ${autoPauseOn ? "#4ade80" : "#71717a"}; font-weight: 600;">${autoPauseOn ? "ON" : "OFF"}</span>
-          </button>
-
-          <!-- Sync Offset Nudge -->
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 4px; font-size: 11px; color: #a1a1aa;">
-            <span>Sync: ${offset >= 0 ? "+" : ""}${offset.toFixed(1)}s</span>
+        <div style="padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #a1a1aa;">Seek Prev / Next Cue</span>
             <div style="display: flex; gap: 4px;">
-              <button id="hk-menu-offset-minus" style="padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #fff; cursor: pointer; font-size: 10px;">-0.1s</button>
-              <button id="hk-menu-offset-reset" style="padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #fff; cursor: pointer; font-size: 10px;">0s</button>
-              <button id="hk-menu-offset-plus" style="padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #fff; cursor: pointer; font-size: 10px;">+0.1s</button>
+              <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">A</kbd>
+              <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">D</kbd>
             </div>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #a1a1aa;">Repeat Current Cue</span>
+            <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">R</kbd>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #a1a1aa;">Toggle Auto-Pause</span>
+            <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">E</kbd>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #a1a1aa;">Toggle Translation</span>
+            <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">V</kbd>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #a1a1aa;">Open Settings / Tracks</span>
+            <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">C</kbd>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px; margin-top: 2px;">
+            <span style="color: #a1a1aa;">Word Lookup</span>
+            <span style="color: #c084fc; font-weight: 600;">Hover / Click Token</span>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #a1a1aa;">Load Subtitles</span>
+            <span style="color: #c084fc; font-weight: 600;">Drag &amp; Drop .srt/.vtt</span>
           </div>
         </div>
       `;
 
-      document.getElementById("hk-menu-open-tracks")?.addEventListener("click", (ev) => {
+      document.getElementById("hk-menu-open-modal")?.addEventListener("click", (ev) => {
         ev.stopPropagation();
         hideHoverMenuImmediate();
         setIsModalOpen(true);
-      });
-
-      document.getElementById("hk-menu-toggle-secondary")?.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        const next = !secondaryOn;
-        updateSettings({ subtitlesSecondaryEnabled: next });
-        renderMenuContent();
-      });
-
-      document.getElementById("hk-menu-toggle-autopause")?.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        const next = !autoPauseOn;
-        updateSettings({ subtitlesAutoPause: next });
-        renderMenuContent();
-      });
-
-      document.getElementById("hk-menu-offset-minus")?.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        const newOffset = Math.round((offset - 0.1) * 10) / 10;
-        setOffset(newOffset);
-        updateSettings({ subtitlesOffset: newOffset });
-        renderMenuContent();
-      });
-
-      document.getElementById("hk-menu-offset-reset")?.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        setOffset(0);
-        updateSettings({ subtitlesOffset: 0 });
-        renderMenuContent();
-      });
-
-      document.getElementById("hk-menu-offset-plus")?.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        const newOffset = Math.round((offset + 0.1) * 10) / 10;
-        setOffset(newOffset);
-        updateSettings({ subtitlesOffset: newOffset });
-        renderMenuContent();
       });
     };
 
@@ -684,13 +653,13 @@ export default function YouTubeSubtitlesOverlay() {
         menuHideTimeout = null;
       }
 
-      if (!hoverMenu) {
+      if (!hoverMenu || !hoverMenu.parentElement) {
         hoverMenu = document.createElement("div");
         hoverMenu.id = "hk-yt-hover-menu";
         hoverMenu.style.cssText = `
           position: absolute;
-          width: 224px;
-          background: rgba(18, 18, 22, 0.96);
+          width: 260px;
+          background: rgba(13, 13, 17, 0.96);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
           border: 1px solid rgba(255, 255, 255, 0.14);
@@ -769,7 +738,7 @@ export default function YouTubeSubtitlesOverlay() {
         btn = document.createElement("button");
         btn.id = "hk-yt-toolbar-btn";
         btn.className = "ytp-button hk-yt-btn";
-        btn.title = "Hakkutsu Subtitles (発掘) · Click to Toggle · Hover for Options";
+        btn.title = "Hakkutsu Subtitles (発掘) · Click to Toggle · Hover for Shortcuts";
 
         btn.onclick = (e) => {
           e.stopPropagation();
@@ -781,13 +750,14 @@ export default function YouTubeSubtitlesOverlay() {
           });
         };
 
-        btn.onmouseenter = () => {
-          if (btn) showHoverMenu(btn);
-        };
-        btn.onmouseleave = scheduleHide;
-
         rightControls.insertBefore(btn, rightControls.firstChild);
       }
+
+      // Re-bind hover handlers to active closure every run so state updates never stale-out handlers
+      btn.onmouseenter = () => {
+        if (btn) showHoverMenu(btn);
+      };
+      btn.onmouseleave = scheduleHide;
 
       btn.innerHTML = `
         <div class="hk-toolbar-wrapper" style="display: flex; align-items: center; justify-content: center; height: 100%; position: relative; width: 100%;">

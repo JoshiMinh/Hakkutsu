@@ -22,8 +22,8 @@ import type {
 import { tokenize } from "~lib/services/local-tokenizer";
 import { searchDictionary } from "~lib/services/local-lookup";
 import { getHanViet } from "~lib/utils/hanviet-dict";
+import { containsJapanese, katakanaToHiragana } from "~lib/utils/japanese";
 import { lookupWord } from "~lib/services/dictionary-lookup";
-import { katakanaToHiragana } from "~lib/utils/japanese";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 
 // Fallback logic for public dictionary lookups
@@ -58,54 +58,134 @@ async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
 
 async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
   const tokens = await tokenize(text);
-  
-  const tokenAnalyses: TokenAnalysis[] = await Promise.all(tokens.map(async (t) => {
-    const surface = t.surface_form;
-    let jlpt_level: string | null = null;
-    let hiraganaReading = "";
-    if (!is_japanese) {
+  const settings = await getSettings();
+  const targetLang = settings.targetLanguage || "vi";
+  const isVietnamese = targetLang === "vi";
+
+  const tokenAnalyses: TokenAnalysis[] = await Promise.all(
+    tokens.map(async (t) => {
+      const surface = t.surface_form;
+      const is_jp = containsJapanese(surface);
+      if (!is_jp) {
+        return {
+          surface,
+          dictionary_form: surface,
+          pos: t.pos,
+          pos_detail: [],
+          reading: { hiragana: "", romaji: "" },
+          is_japanese: false,
+          jlpt_level: null,
+          frequency_rank: null,
+          definitions: [],
+        };
+      }
+
+      const dictEntries = await searchDictionary(surface);
+      const firstEntry = dictEntries[0];
+      const kanjiForm = firstEntry?.kanjiElements?.[0] || surface;
+      const rawReading = firstEntry?.readingElements?.[0] || (t as any).reading || "";
+      const reading = katakanaToHiragana(rawReading);
+
       return {
         surface,
-        dictionary_form: surface,
+        dictionary_form: kanjiForm,
         pos: t.pos,
         pos_detail: [],
-        reading: { hiragana: "", romaji: "" },
-        is_japanese: false,
-        jlpt_level: null,
+        reading: { hiragana: reading, romaji: "" },
+        is_japanese: true,
+        jlpt_level: firstEntry?.jlpt || predictJlpt(surface),
         frequency_rank: null,
-        definitions: []
-      };
-    }
-
-    if (/^[ぁ-んー\s\u3000]+$/.test(surface)) {
-            glosses: [info.meaning],
-            pos: ["Word"],
+        vietnamese_sound: isVietnamese ? getHanViet(surface) : undefined,
+        definitions: dictEntries.flatMap((d) =>
+          d.senses.map((s) => ({
+            dictionary: "JMdict",
+            glosses: s.glosses,
+            pos: s.partOfSpeech || ["Word"],
             field: null,
-            misc: []
-          }];
+            misc: [],
+          }))
+        ),
+      };
+    })
+  );
 
   return {
     text,
+    sentence_reading: text,
+    tokens: tokenAnalyses,
     token_count: tokens.length,
     difficulty_score: null,
-    difficulty_label: null
+    difficulty_label: null,
   };
+}
 
 // Listen for messages from popup and content scripts
-chrome.runtime.onMessage.addListener(
-    handleMessage(message, sender)
-      .then(sendResponse)
-      .catch((error) =>
-        sendResponse({
-          type: "ERROR" as const,
-          payload: { error: error.message },
-        })
-      );
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  handleMessage(message, sender)
+    .then(sendResponse)
+    .catch((error) =>
+      sendResponse({
+        type: "ERROR" as const,
+        payload: { error: error.message },
+      })
+    );
 
-    // Return true to indicate we'll respond asynchronously
-    return true;
-  }
-);
+  // Return true to indicate we'll respond asynchronously
+  return true;
+});
+
+async function translateWithGoogle(text: string, targetLang: string): Promise<string> {
+  const clean = text.trim();
+  if (!clean) return "";
+
+  const tl = targetLang.startsWith("vi")
+    ? "vi"
+    : targetLang.startsWith("en")
+      ? "en"
+      : targetLang.startsWith("ja")
+        ? "ja"
+        : targetLang;
+
+  // 1. Primary: gtx single endpoint with browser headers
+  try {
+    const url1 = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(tl)}&dt=t&q=${encodeURIComponent(clean)}`;
+    const res1 = await fetch(url1, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Referer: "https://translate.google.com/",
+      },
+    });
+    if (res1.ok) {
+      const data = await res1.json();
+      if (Array.isArray(data) && data[0]) {
+        const trans = data[0].map((item: any) => item[0]).filter(Boolean).join("");
+        if (trans) return trans;
+      }
+    }
+  } catch {}
+
+  // 2. Secondary fallback: dict-chrome-ex client
+  try {
+    const url2 = `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl=${encodeURIComponent(tl)}&q=${encodeURIComponent(clean)}`;
+    const res2 = await fetch(url2, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    });
+    if (res2.ok) {
+      const data = await res2.json();
+      if (Array.isArray(data) && data[0]) {
+        return String(data[0]);
+      } else if (typeof data === "string") {
+        return data;
+      }
+    }
+  } catch {}
+
+  return "";
+}
 
 async function handleMessage(
   message: ExtensionMessage,
@@ -316,27 +396,13 @@ async function handleMessage(
           : [];
 
       const translations = await Promise.all(
-        textList.map(async (t) => {
-          try {
-            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ja&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(t.trim())}`;
-            const res = await fetch(url);
-            if (res.ok) {
-              const data = await res.json();
-              if (Array.isArray(data) && data[0]) {
-                return data[0].map((item: any) => item[0]).filter(Boolean).join("");
-              }
-            }
-          } catch {
-            // ignore
-          }
-          return "";
-        })
+        textList.map((t) => translateWithGoogle(t, targetLang))
       );
 
       return {
         type: "TRANSLATE_RESULT",
         payload: {
-          source_language: "ja",
+          source_language: "auto",
           target_language: targetLang,
           translation: translations[0] || "",
           translations,

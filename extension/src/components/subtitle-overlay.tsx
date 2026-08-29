@@ -12,6 +12,7 @@ import { useTranslation } from "~lib/languages/locales";
 import { SelectSubtitlesModal } from "./select-subtitles-modal";
 import type { SubtitleTrackOption } from "./select-subtitles-modal";
 import { smartCueEnd } from "~lib/services/smart-cue";
+import { deduplicateCueText } from "~lib/services/subtitle-parsers";
 
 // ── In-Memory Caches ─────────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       return;
     }
 
-    const text = currentSegment.text.trim();
+    const text = deduplicateCueText(currentSegment.text);
     if (!text) {
       setAnalyzedTokens(null);
       return;
@@ -232,24 +233,35 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   }, [currentSegment, offset, subtitleData, videoRef]);
 
   const seekPreviousCue = useCallback(() => {
-    if (!videoRef.current || !subtitleData) return;
-    const currentTime = videoRef.current.currentTime - offset;
-    const prevCues = subtitleData.segments.filter((s) => s.start < currentTime - 0.3);
-    if (prevCues.length > 0) {
-      const target = prevCues[prevCues.length - 1];
-      videoRef.current.currentTime = Math.max(0, target.start + offset);
-      if (onSeekToCue) onSeekToCue(target);
+    if (!videoRef.current) return;
+    if (subtitleData && subtitleData.segments.length > 0) {
+      const currentTime = videoRef.current.currentTime - offset;
+      const prevCues = subtitleData.segments.filter((s) => s.start < currentTime - 0.3);
+      if (prevCues.length > 0) {
+        const target = prevCues[prevCues.length - 1];
+        videoRef.current.currentTime = Math.max(0, target.start + offset);
+        if (onSeekToCue) onSeekToCue(target);
+        return;
+      }
     }
+    videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 2.5);
   }, [offset, subtitleData, videoRef, onSeekToCue]);
 
   const seekNextCue = useCallback(() => {
-    if (!videoRef.current || !subtitleData) return;
-    const currentTime = videoRef.current.currentTime - offset;
-    const nextCue = subtitleData.segments.find((s) => s.start > currentTime + 0.1);
-    if (nextCue) {
-      videoRef.current.currentTime = Math.max(0, nextCue.start + offset);
-      if (onSeekToCue) onSeekToCue(nextCue);
+    if (!videoRef.current) return;
+    if (subtitleData && subtitleData.segments.length > 0) {
+      const currentTime = videoRef.current.currentTime - offset;
+      const nextCue = subtitleData.segments.find((s) => s.start > currentTime + 0.1);
+      if (nextCue) {
+        videoRef.current.currentTime = Math.max(0, nextCue.start + offset);
+        if (onSeekToCue) onSeekToCue(nextCue);
+        return;
+      }
     }
+    videoRef.current.currentTime = Math.min(
+      videoRef.current.duration || 999999,
+      videoRef.current.currentTime + 2.5
+    );
   }, [offset, subtitleData, videoRef, onSeekToCue]);
 
   // ── 5. Offset Adjustments & Toast ──────────────────────────────────────────
@@ -355,6 +367,12 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       lookupDismissTimerRef.current = null;
     }
 
+    if (videoRef.current && !videoRef.current.paused) {
+      try {
+        videoRef.current.pause();
+      } catch {}
+    }
+
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = rect.left + rect.width / 2;
     const y = rect.top;
@@ -366,7 +384,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
           x,
           y,
           placement: "player-overlay",
-          mode: "quick",
+          mode: "dictionary",
           transient: false,
         },
       })
@@ -390,18 +408,30 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
           x,
           y,
           placement: "player-overlay",
-          mode: "quick",
+          mode: "dictionary",
           transient: true,
         },
       })
     );
   };
 
-  const handleTokenMouseLeave = () => {
+  const handleTokenMouseLeave = (e: React.MouseEvent) => {
+    const relatedTarget = e.relatedTarget as HTMLElement | null;
+    const shadowHost = document.getElementById("hakkutsu-inline-dictionary-host") || document.getElementById("hakkutsu-inline-dictionary");
+    if (
+      relatedTarget &&
+      (relatedTarget.closest?.(".hk-popup") ||
+       relatedTarget.closest?.("#hakkutsu-inline-dictionary") ||
+       relatedTarget === shadowHost ||
+       shadowHost?.contains(relatedTarget))
+    ) {
+      return;
+    }
+
     if (lookupDismissTimerRef.current) window.clearTimeout(lookupDismissTimerRef.current);
     lookupDismissTimerRef.current = window.setTimeout(() => {
       window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss"));
-    }, 320);
+    }, 450);
   };
 
   // ── 8. Immersion Keyboard Shortcuts ─────────────────────────────────────────
@@ -445,6 +475,23 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         updateSettings({ subtitlesAutoPause: next });
         showOffsetNotification(next ? 1 : 0);
         setOffsetToast(`Auto-Pause: ${next ? "ON" : "OFF"}`);
+        return;
+      }
+
+      // Open Select Subtitles / Settings Modal: 'C'
+      if (e.key === "c" || e.key === "C") {
+        e.preventDefault();
+        if (onOpenModal) onOpenModal();
+        return;
+      }
+
+      // Toggle secondary subtitles: 'V'
+      if (e.key === "v" || e.key === "V") {
+        e.preventDefault();
+        const next = settings.subtitlesSecondaryEnabled === false ? true : false;
+        updateSettings({ subtitlesSecondaryEnabled: next });
+        showOffsetNotification(next ? 1 : 0);
+        setOffsetToast(`Secondary Subtitles: ${next ? "ON" : "OFF"}`);
         return;
       }
 
@@ -615,7 +662,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                   );
                 })
               ) : (
-                <span>{currentSegment.text}</span>
+                <span>{deduplicateCueText(currentSegment.text)}</span>
               )}
             </div>
 
@@ -653,6 +700,8 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         }}
         autoPause={settings.subtitlesAutoPause}
         onAutoPauseChange={(ap) => updateSettings({ subtitlesAutoPause: ap })}
+        showFurigana={settings.showFurigana !== false}
+        onFuriganaChange={(fg) => updateSettings({ showFurigana: fg })}
         fontSize={fontSize}
         onFontSizeChange={(size) => updateSettings({ subtitlesFontSize: size })}
         onSelectTrack={(track) => {

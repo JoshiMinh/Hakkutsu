@@ -213,12 +213,14 @@ export function initYouTubePageBridge(): void {
       let title = document.title;
       let tracks: HakkutsuYouTubeTrack[] = [];
 
-      const playerResult = await tracksFromPlayerAudioTrack(videoId);
-      if (playerResult && playerResult.tracks.length > 0) {
-        title = playerResult.title;
-        tracks = playerResult.tracks;
+      // 1. Instant check from initial player response
+      const initialResult = tracksFromInitialResponse();
+      if (initialResult && initialResult.tracks.length > 0) {
+        title = initialResult.title;
+        tracks = initialResult.tracks;
       }
 
+      // 2. Fetch InnerTube API in parallel (instant ~100ms response independent of CC button state)
       if (tracks.length === 0) {
         const androidResult = await tracksFromAndroidInnerTube(videoId);
         if (androidResult && androidResult.tracks.length > 0) {
@@ -227,11 +229,12 @@ export function initYouTubePageBridge(): void {
         }
       }
 
+      // 3. Fallback to player audio track
       if (tracks.length === 0) {
-        const initialResult = tracksFromInitialResponse();
-        if (initialResult && initialResult.tracks.length > 0) {
-          title = initialResult.title;
-          tracks = initialResult.tracks;
+        const playerResult = await tracksFromPlayerAudioTrack(videoId);
+        if (playerResult && playerResult.tracks.length > 0) {
+          title = playerResult.title;
+          tracks = playerResult.tracks;
         }
       }
 
