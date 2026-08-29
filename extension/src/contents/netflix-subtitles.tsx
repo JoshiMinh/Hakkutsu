@@ -106,51 +106,65 @@ const netflixSpecificCss = `
     bottom: 50px;
   }
 
-  /* ── Netflix Toolbar Button Alignment & Sizing ── */
+  /* ── Floating Overlay Netflix Toolbar Button ── */
+  button#hk-netflix-toolbar-btn.hk-netflix-btn,
   .hk-netflix-btn {
+    position: absolute !important;
+    right: 28px !important;
+    bottom: 72px !important;
     width: 36px !important;
     height: 36px !important;
-    min-width: 36px !important;
-    min-height: 36px !important;
-    border-radius: 50% !important;
+    border-radius: 10px !important;
+    background: rgba(18, 18, 22, 0.85) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     cursor: pointer !important;
-    margin: 0 6px !important;
-    align-self: center !important;
-    vertical-align: middle !important;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    z-index: 1000 !important;
-    flex-shrink: 0 !important;
-    box-sizing: border-box !important;
-    outline: none !important;
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, opacity 0.25s ease !important;
+    z-index: 2147483647 !important;
+    pointer-events: auto !important;
+    margin: 0 !important;
     padding: 0 !important;
-    position: relative !important;
-    line-height: 1 !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
   }
 
+  button#hk-netflix-toolbar-btn.hk-netflix-btn.is-active,
   .hk-netflix-btn.is-active {
-    background: rgba(168, 85, 247, 0.35) !important;
-    border: 1px solid #a855f7 !important;
-    box-shadow: 0 0 10px rgba(168, 85, 247, 0.4) !important;
+    background: rgba(24, 18, 36, 0.92) !important;
+    border-color: rgba(192, 132, 252, 0.5) !important;
+    box-shadow: 0 4px 18px rgba(168, 85, 247, 0.35) !important;
+    opacity: 1 !important;
   }
 
+  button#hk-netflix-toolbar-btn.hk-netflix-btn.is-off,
   .hk-netflix-btn.is-off {
-    background: rgba(255, 255, 255, 0.1) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    box-shadow: none !important;
+    background: rgba(18, 18, 22, 0.75) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    opacity: 0.8 !important;
   }
 
+  button#hk-netflix-toolbar-btn.hk-netflix-btn:hover,
   .hk-netflix-btn:hover {
-    transform: scale(1.08) !important;
-    background: rgba(168, 85, 247, 0.5) !important;
-    border-color: #c084fc !important;
+    transform: scale(1.12) !important;
+    background: rgba(36, 26, 54, 0.96) !important;
+    border-color: rgba(192, 132, 252, 0.7) !important;
+    opacity: 1 !important;
   }
 
+  button#hk-netflix-toolbar-btn.hk-netflix-btn.is-off:hover,
   .hk-netflix-btn.is-off:hover {
-    background: rgba(255, 255, 255, 0.22) !important;
-    border-color: rgba(255, 255, 255, 0.4) !important;
+    opacity: 0.95 !important;
+  }
+
+  .watch-video.inactive button#hk-netflix-toolbar-btn.hk-netflix-btn,
+  .VideoContainer.inactive button#hk-netflix-toolbar-btn.hk-netflix-btn {
+    opacity: 0 !important;
+    pointer-events: none !important;
   }
 `;
 
@@ -182,7 +196,13 @@ function injectNetflixGlobalStyle(hideNative: boolean): void {
       .timedtext-container *,
       [data-uia*="timedtext"],
       [data-uia*="timedtext"] *,
-      .ltr-timedtext {
+      .ltr-timedtext,
+      .ltr-timedtext *,
+      [class*="timedtext"],
+      [class*="timedtext"] *,
+      .player-timedtext-text-container,
+      .player-timedtext-text-container * {
+        display: none !important;
         opacity: 0 !important;
         visibility: hidden !important;
         pointer-events: none !important;
@@ -523,6 +543,8 @@ export default function NetflixSubtitlesOverlay() {
       });
     };
 
+    injectNetflixGlobalStyle(isEnabled);
+
     const showHoverMenu = (btnEl: HTMLElement) => {
       if (menuHideTimeout) {
         clearTimeout(menuHideTimeout);
@@ -573,11 +595,14 @@ export default function NetflixSubtitlesOverlay() {
         document.querySelector<HTMLElement>(".VideoContainer") ||
         document.body;
       const playerRect = playerEl.getBoundingClientRect();
-      const bottomOffset = playerRect.bottom - btnRect.top + 8;
-      const rightOffset = Math.max(8, playerRect.right - btnRect.right - 10);
+
+      const bottomOffset = Math.max(50, playerRect.bottom - btnRect.top + 10);
+      const rightOffset = Math.max(12, playerRect.right - btnRect.right);
 
       hoverMenu.style.bottom = `${bottomOffset}px`;
       hoverMenu.style.right = `${rightOffset}px`;
+      hoverMenu.style.top = "auto";
+      hoverMenu.style.left = "auto";
       hoverMenu.style.display = "block";
 
       requestAnimationFrame(() => {
@@ -605,65 +630,13 @@ export default function NetflixSubtitlesOverlay() {
       menuHideTimeout = window.setTimeout(hideHoverMenuImmediate, 280);
     };
 
-    const findNetflixControlRowAndTarget = (): {
-      buttonRow: HTMLElement | null;
-      targetChild: HTMLElement | null;
-    } => {
-      const audioSubBtn =
-        document.querySelector('[data-uia="control-audio-subtitle"]') ||
-        document.querySelector('[data-uia*="subtitle"]') ||
-        document.querySelector('.touchable-audio-subtitle') ||
-        document.querySelector('[class*="audio-subtitle"]');
-
-      const speedBtn = document.querySelector('[data-uia="control-speed"]');
-      const fullscreenBtn = document.querySelector('[data-uia="control-fullscreen"]');
-
-      const refBtn = (audioSubBtn || speedBtn || fullscreenBtn) as HTMLElement | null;
-      if (!refBtn) return { buttonRow: null, targetChild: null };
-
-      // Standard Netflix right-side controls row container
-      let buttonRow: HTMLElement | null =
-        document.querySelector(".PlayerControlsNeo__button-control-row") ||
-        document.querySelector('[data-uia="controls-standard"]') ||
-        document.querySelector(".controls-full-view") ||
-        document.querySelector('[class*="button-control-row"]');
-
-      // If buttonRow is not found by selector, walk up from refBtn to find the multi-item flex row container
-      if (!buttonRow) {
-        let curr: HTMLElement | null = refBtn.parentElement;
-        while (curr && curr !== document.body) {
-          if (curr.children.length > 1) {
-            const hasOtherControls =
-              curr.querySelector('[data-uia="control-speed"]') ||
-              curr.querySelector('[data-uia="control-fullscreen"]') ||
-              curr.querySelectorAll('button').length > 1;
-            if (hasOtherControls) {
-              buttonRow = curr;
-              break;
-            }
-          }
-          curr = curr.parentElement;
-        }
-      }
-
-      if (!buttonRow) return { buttonRow: null, targetChild: null };
-
-      // Find the direct child of buttonRow that contains refBtn so we insert as a sibling, NOT inside a single button's wrapper
-      let targetChild: HTMLElement | null = null;
-      let curr: HTMLElement | null = refBtn;
-      while (curr && curr.parentElement !== buttonRow && curr !== document.body) {
-        curr = curr.parentElement;
-      }
-      if (curr && curr.parentElement === buttonRow) {
-        targetChild = curr;
-      }
-
-      return { buttonRow, targetChild };
-    };
-
     const injectToolbarButton = () => {
-      const { buttonRow, targetChild } = findNetflixControlRowAndTarget();
-      if (!buttonRow) return;
+      const player =
+        document.querySelector<HTMLElement>(".watch-video") ||
+        document.querySelector<HTMLElement>(".VideoContainer") ||
+        document.querySelector<HTMLVideoElement>("video")?.parentElement;
+
+      if (!player) return;
 
       let btn = document.getElementById("hk-netflix-toolbar-btn") as HTMLButtonElement | null;
       if (!btn) {
@@ -684,23 +657,18 @@ export default function NetflixSubtitlesOverlay() {
 
       btn.className = `hk-netflix-btn ${isEnabled ? "is-active" : "is-off"}`;
 
-      // Insert or re-attach btn to buttonRow right before targetChild (or append if targetChild is end)
-      if (targetChild && targetChild.parentElement === buttonRow) {
-        if (btn.nextElementSibling !== targetChild || btn.parentElement !== buttonRow) {
-          buttonRow.insertBefore(btn, targetChild);
-        }
-      } else if (btn.parentElement !== buttonRow) {
-        buttonRow.appendChild(btn);
+      if (btn.parentElement !== player) {
+        player.appendChild(btn);
       }
 
-      // Re-bind hover handlers to active closure every run so state updates never stale-out handlers
+      // Re-bind hover handlers to active closure every run
       btn.onmouseenter = () => {
         if (btn) showHoverMenu(btn);
       };
       btn.onmouseleave = scheduleHide;
 
       btn.innerHTML = `
-        <span style="font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 15px; font-weight: 800; color: ${isEnabled ? "#e9d5ff" : "#d4d4d8"}; line-height: 1; text-shadow: ${isEnabled ? "0 0 6px rgba(192, 132, 252, 0.6)" : "none"}; pointer-events: none;">発</span>
+        <span style="font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 15px; font-weight: 800; color: ${isEnabled ? "#c084fc" : "rgba(255,255,255,0.75)"}; line-height: 1; text-shadow: ${isEnabled ? "0 0 10px rgba(192, 132, 252, 0.85)" : "none"}; pointer-events: none; display: inline-block;">発</span>
       `;
     };
 
