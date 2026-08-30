@@ -13,11 +13,53 @@ import { SelectSubtitlesModal } from "./select-subtitles-modal";
 import type { SubtitleTrackOption } from "./select-subtitles-modal";
 import { smartCueEnd } from "~lib/services/smart-cue";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
+import { distributeFurigana, containsJapanese } from "~lib/utils/japanese";
+import { predictJlpt } from "~lib/utils/jlpt-classifier";
 
 // ── In-Memory Caches ─────────────────────────────────────────────────────────
 
 const tokenCache = new Map<string, TokenAnalysis[]>();
 const translationCache = new Map<string, string>();
+
+function createImmediateTokens(text: string): TokenAnalysis[] {
+  try {
+    if (typeof Intl !== "undefined" && (Intl as any).Segmenter) {
+      const segmenter = new (Intl as any).Segmenter("ja-JP", { granularity: "word" });
+      const segments = Array.from(segmenter.segment(text)) as any[];
+      return segments.map((s) => {
+        const segText = s.segment;
+        const isJp = containsJapanese(segText);
+        return {
+          surface: segText,
+          dictionary_form: segText,
+          pos: s.isWordLike ? "Word" : "Punctuation",
+          pos_detail: [],
+          reading: { hiragana: "", romaji: "" },
+          is_japanese: isJp,
+          jlpt_level: isJp ? predictJlpt(segText) : null,
+          frequency_rank: null,
+          definitions: [],
+        };
+      });
+    }
+  } catch {}
+
+  const parts = text.match(/[\u4e00-\u9faf]+|[\u3040-\u309f]+|[\u30a0-\u30ff]+|[a-zA-Z0-9]+|[^\s\w]/g) || [text];
+  return parts.map((part) => {
+    const isJp = containsJapanese(part);
+    return {
+      surface: part,
+      dictionary_form: part,
+      pos: isJp ? "Word" : "Other",
+      pos_detail: [],
+      reading: { hiragana: "", romaji: "" },
+      is_japanese: isJp,
+      jlpt_level: isJp ? predictJlpt(part) : null,
+      frequency_rank: null,
+      definitions: [],
+    };
+  });
+}
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -97,6 +139,12 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     if (tokenCache.has(text)) {
       setAnalyzedTokens(tokenCache.get(text)!);
       return;
+    }
+
+    // Immediately provide instant tokens on frame 0 so hover lookup works right away
+    const immediateTokens = createImmediateTokens(text);
+    if (immediateTokens.length > 0) {
+      setAnalyzedTokens(immediateTokens);
     }
 
     let isMounted = true;
@@ -392,6 +440,12 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   };
 
   const handleTokenMouseEnter = (e: React.MouseEvent, token: TokenAnalysis, index: number) => {
+    if (!token?.surface || !token.surface.trim()) return;
+    // Don't trigger lookup on punctuation or non-word symbols
+    if (!token.is_japanese && /^[\s.,!?。！？、…:;\-–—/\\()[\]{}""''「」『』【】（）]+$/.test(token.surface)) {
+      return;
+    }
+
     if (lookupDismissTimerRef.current) {
       window.clearTimeout(lookupDismissTimerRef.current);
       lookupDismissTimerRef.current = null;
@@ -417,11 +471,11 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
   const handleTokenMouseLeave = (e: React.MouseEvent) => {
     const relatedTarget = e.relatedTarget as HTMLElement | null;
-    const shadowHost = document.getElementById("hakkutsu-inline-dictionary-host") || document.getElementById("hakkutsu-inline-dictionary");
+    const shadowHost = document.getElementById("hakkutsu-inline-dictionary-host");
     if (
       relatedTarget &&
       (relatedTarget.closest?.(".hk-popup") ||
-       relatedTarget.closest?.("#hakkutsu-inline-dictionary") ||
+       relatedTarget.id === "hakkutsu-inline-dictionary-host" ||
        relatedTarget === shadowHost ||
        shadowHost?.contains(relatedTarget))
     ) {
@@ -431,7 +485,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     if (lookupDismissTimerRef.current) window.clearTimeout(lookupDismissTimerRef.current);
     lookupDismissTimerRef.current = window.setTimeout(() => {
       window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss"));
-    }, 450);
+    }, 600);
   };
 
   // ── 8. Immersion Keyboard Shortcuts ─────────────────────────────────────────
@@ -481,7 +535,21 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       // Open Select Subtitles / Settings Modal: 'C'
       if (e.key === "c" || e.key === "C") {
         e.preventDefault();
-        if (onOpenModal) onOpenModal();
+        if (onOpenModal) {
+          onOpenModal();
+        } else {
+          setShowSelectModal(true);
+        }
+        return;
+      }
+
+      // Toggle Kanji Furigana: 'F' or 'W'
+      if (e.key === "f" || e.key === "F" || e.key === "w" || e.key === "W") {
+        e.preventDefault();
+        const next = settings.showFurigana === false;
+        updateSettings({ showFurigana: next });
+        showOffsetNotification(next ? 1 : 0);
+        setOffsetToast(`Furigana: ${next ? "ON" : "OFF"}`);
         return;
       }
 
@@ -634,12 +702,15 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
               {analyzedTokens && analyzedTokens.length > 0 ? (
                 analyzedTokens.map((token, idx) => {
                   const isKanji = /[\u4e00-\u9faf]/.test(token.surface);
-                  const hasFurigana =
+                  const showRuby =
                     settings.showFurigana !== false &&
                     isKanji &&
                     Boolean(token.reading?.hiragana) &&
                     token.reading!.hiragana !== token.surface;
                   const jlptClass = token.jlpt_level && settings.showJlptColors ? `hk-sub__token--${token.jlpt_level.toLowerCase()}` : "";
+                  const rubySegments = showRuby
+                    ? distributeFurigana(token.surface, token.reading?.hiragana)
+                    : [{ text: token.surface }];
 
                   return (
                     <span
@@ -650,11 +721,17 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                       onMouseLeave={handleTokenMouseLeave}
                       title={token.definitions?.[0]?.glosses?.join("; ") || token.reading?.hiragana || token.surface}
                     >
-                      {hasFurigana ? (
-                        <ruby>
-                          <span className="hk-sub__surface">{token.surface}</span>
-                          <rt className="hk-sub__furigana">{token.reading?.hiragana}</rt>
-                        </ruby>
+                      {showRuby && rubySegments.some((s) => s.ruby) ? (
+                        rubySegments.map((seg, sIdx) =>
+                          seg.ruby ? (
+                            <ruby key={sIdx}>
+                              <span className="hk-sub__surface">{seg.text}</span>
+                              <rt className="hk-sub__furigana">{seg.ruby}</rt>
+                            </ruby>
+                          ) : (
+                            <span key={sIdx} className="hk-sub__surface">{seg.text}</span>
+                          )
+                        )
                       ) : (
                         <span className="hk-sub__surface">{token.surface}</span>
                       )}

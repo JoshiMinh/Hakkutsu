@@ -22,7 +22,7 @@ import type {
 import { tokenize } from "~lib/services/local-tokenizer";
 import { searchDictionary } from "~lib/services/local-lookup";
 import { getHanViet } from "~lib/utils/hanviet-dict";
-import { containsJapanese, katakanaToHiragana } from "~lib/utils/japanese";
+import { containsJapanese, katakanaToHiragana, hasKanji } from "~lib/utils/japanese";
 import { lookupWord } from "~lib/services/dictionary-lookup";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
@@ -85,7 +85,44 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
       const firstEntry = dictEntries[0];
       const kanjiForm = firstEntry?.kanjiElements?.[0] || surface;
       const rawReading = firstEntry?.readingElements?.[0] || (t as any).reading || "";
-      const reading = katakanaToHiragana(rawReading);
+      let reading = katakanaToHiragana(rawReading);
+      let jlptLevel = firstEntry?.jlpt || predictJlpt(surface);
+      let definitions = dictEntries.flatMap((d) =>
+        d.senses.map((s) => ({
+          dictionary: "JMdict",
+          glosses: s.glosses,
+          pos: s.partOfSpeech || ["Word"],
+          field: null,
+          misc: [],
+        }))
+      );
+
+      // Fallback for kanji words without IndexedDB entry: query common & cached dict for reading
+      if (!reading && hasKanji(surface)) {
+        try {
+          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 400));
+          const dictInfo = await Promise.race([lookupWord(surface, targetLang), timeoutPromise]);
+          if (dictInfo) {
+            if (dictInfo.reading) {
+              reading = katakanaToHiragana(dictInfo.reading);
+            }
+            if (dictInfo.jlpt) {
+              jlptLevel = dictInfo.jlpt;
+            }
+            if (dictInfo.meaning && definitions.length === 0) {
+              definitions = [
+                {
+                  dictionary: dictInfo.source || "Dict",
+                  glosses: [dictInfo.meaning],
+                  pos: [t.pos || "Word"],
+                  field: null,
+                  misc: [],
+                },
+              ];
+            }
+          }
+        } catch {}
+      }
 
       return {
         surface,
@@ -94,18 +131,10 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
         pos_detail: [],
         reading: { hiragana: reading, romaji: "" },
         is_japanese: true,
-        jlpt_level: firstEntry?.jlpt || predictJlpt(surface),
+        jlpt_level: jlptLevel,
         frequency_rank: null,
         vietnamese_sound: isVietnamese ? getHanViet(surface) : undefined,
-        definitions: dictEntries.flatMap((d) =>
-          d.senses.map((s) => ({
-            dictionary: "JMdict",
-            glosses: s.glosses,
-            pos: s.partOfSpeech || ["Word"],
-            field: null,
-            misc: [],
-          }))
-        ),
+        definitions,
       };
     })
   );

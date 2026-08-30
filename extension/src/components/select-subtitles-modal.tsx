@@ -226,6 +226,8 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
   onAutoPauseChange,
   fontSize,
   onFontSizeChange,
+  showFurigana = true,
+  onFuriganaChange,
   onSelectTrack,
   onSelectSecondaryTrack,
   onCustomSubtitleLoaded,
@@ -477,6 +479,35 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
             </div>
           </div>
 
+          <div
+            onClick={() => onFuriganaChange && onFuriganaChange(!showFurigana)}
+            style={{
+              marginTop: "10px",
+              padding: "12px",
+              backgroundColor: showFurigana ? "rgba(168, 85, 247, 0.15)" : "#18181c",
+              border: showFurigana ? "1px solid #a855f7" : "1px solid transparent",
+              borderRadius: "10px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              transition: "all 0.15s",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: showFurigana ? "#a855f7" : "#fff" }}>
+                Kanji Furigana (F / W)
+              </div>
+              <div style={{ fontSize: "10px", color: "#a1a1aa" }}>Show readings above kanji characters</div>
+            </div>
+            <input
+              type="checkbox"
+              checked={showFurigana}
+              readOnly
+              style={{ accentColor: "#a855f7", pointerEvents: "none" }}
+            />
+          </div>
+
           {/* Local File Picker Button */}
           <div style={{ marginTop: "16px" }}>
             <input
@@ -533,7 +564,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
             color: "#71717a",
           }}
         >
-          <span>Tip: Press <b>R</b> to replay cue, <b>A</b>/<b>D</b> to skip cues</span>
+          <span>Tip: Press <b>R</b> replay, <b>A</b>/<b>D</b> skip, <b>F</b>/<b>W</b> furigana</span>
           <button
             type="button"
             onClick={onClose}

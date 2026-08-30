@@ -793,3 +793,100 @@ export const youtubeToolbarCss = `
     font-weight: bold;
   }
 `;
+
+/** CSS for the universal generic video player floating button */
+export const genericPlayerCss = `
+  /* ── Generic Player Draggable Button ──────────────────────────── */
+  .hk-generic-fab {
+    position: fixed !important;
+    z-index: 2147483646 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 6px 12px 6px 9px !important;
+    border-radius: 20px !important;
+    background: rgba(13, 13, 17, 0.92) !important;
+    backdrop-filter: blur(14px) !important;
+    -webkit-backdrop-filter: blur(14px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.06) !important;
+    cursor: pointer !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    color: rgba(255, 255, 255, 0.75) !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, opacity 0.2s ease !important;
+    touch-action: none !important;
+    pointer-events: auto !important;
+  }
+
+  .hk-generic-fab:hover {
+    border-color: rgba(192, 132, 252, 0.4) !important;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.7), 0 0 0 1px rgba(168,85,247,0.2) !important;
+    color: #fff !important;
+  }
+
+  .hk-generic-fab.is-active {
+    border-color: rgba(168, 85, 247, 0.45) !important;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.7), 0 0 0 1px rgba(168,85,247,0.25), 0 0 16px rgba(168,85,247,0.18) !important;
+    color: #fff !important;
+  }
+
+  .hk-generic-fab.is-off {
+    opacity: 0.75 !important;
+  }
+
+  .hk-generic-fab.is-dragging {
+    opacity: 0.9 !important;
+    cursor: grabbing !important;
+    transition: none !important;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.85), 0 0 0 1px rgba(168,85,247,0.3) !important;
+    border-color: rgba(192, 132, 252, 0.5) !important;
+  }
+
+  .hk-generic-fab__kanji {
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif !important;
+    font-size: 15px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.5px !important;
+    pointer-events: none !important;
+  }
+
+  .hk-generic-fab.is-active .hk-generic-fab__kanji {
+    color: #c084fc !important;
+    text-shadow: 0 0 10px rgba(192, 132, 252, 0.7) !important;
+  }
+
+  .hk-generic-fab.is-off .hk-generic-fab__kanji {
+    color: rgba(255, 255, 255, 0.6) !important;
+  }
+
+  .hk-generic-fab__label {
+    pointer-events: none !important;
+    white-space: nowrap !important;
+    font-size: 11px !important;
+    letter-spacing: 0.02em !important;
+  }
+
+  .hk-generic-fab__dot {
+    width: 6px !important;
+    height: 6px !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+    pointer-events: none !important;
+    transition: background 0.2s ease !important;
+  }
+
+  .hk-generic-fab.is-active .hk-generic-fab__dot {
+    background: #a855f7 !important;
+    box-shadow: 0 0 6px rgba(168,85,247,0.8) !important;
+  }
+
+  .hk-generic-fab.is-off .hk-generic-fab__dot {
+    background: rgba(255, 255, 255, 0.25) !important;
+    box-shadow: none !important;
+  }
+`;

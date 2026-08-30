@@ -12,4 +12,4 @@ allowBuilds:
   msgpackr-extract: true
   protobufjs: true
   sharp: true
-  tesseract.js: set this to true or false
+  tesseract.js: true

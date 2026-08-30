@@ -847,6 +847,8 @@ export default function YouTubeSubtitlesOverlay() {
         }}
         autoPause={settings.subtitlesAutoPause}
         onAutoPauseChange={(ap) => updateSettings({ subtitlesAutoPause: ap })}
+        showFurigana={settings.showFurigana !== false}
+        onFuriganaChange={(fg) => updateSettings({ showFurigana: fg })}
         fontSize={settings.subtitlesFontSize || 26}
         onFontSizeChange={(size) => updateSettings({ subtitlesFontSize: size })}
         onSelectTrack={handleSelectPrimaryTrack}

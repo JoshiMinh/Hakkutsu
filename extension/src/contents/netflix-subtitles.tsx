@@ -89,7 +89,7 @@ export const mountShadowHost: PlasmoMountShadowHost = async ({
 };
 
 const netflixSpecificCss = `
-  /* ── Extra styles for Netflix ── */
+  /* ── Subtitle container position on Netflix ── */
   .watch-video .hk-sub__container,
   .VideoContainer .hk-sub__container {
     bottom: 72px;
@@ -104,67 +104,6 @@ const netflixSpecificCss = `
 
   .watch-video.inactive .hk-sub__container {
     bottom: 50px;
-  }
-
-  /* ── Floating Overlay Netflix Toolbar Button ── */
-  button#hk-netflix-toolbar-btn.hk-netflix-btn,
-  .hk-netflix-btn {
-    position: absolute !important;
-    right: 28px !important;
-    bottom: 72px !important;
-    width: 36px !important;
-    height: 36px !important;
-    border-radius: 10px !important;
-    background: rgba(18, 18, 22, 0.85) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.16) !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, opacity 0.25s ease !important;
-    z-index: 2147483647 !important;
-    pointer-events: auto !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    appearance: none !important;
-    -webkit-appearance: none !important;
-  }
-
-  button#hk-netflix-toolbar-btn.hk-netflix-btn.is-active,
-  .hk-netflix-btn.is-active {
-    background: rgba(24, 18, 36, 0.92) !important;
-    border-color: rgba(192, 132, 252, 0.5) !important;
-    box-shadow: 0 4px 18px rgba(168, 85, 247, 0.35) !important;
-    opacity: 1 !important;
-  }
-
-  button#hk-netflix-toolbar-btn.hk-netflix-btn.is-off,
-  .hk-netflix-btn.is-off {
-    background: rgba(18, 18, 22, 0.75) !important;
-    border-color: rgba(255, 255, 255, 0.12) !important;
-    opacity: 0.8 !important;
-  }
-
-  button#hk-netflix-toolbar-btn.hk-netflix-btn:hover,
-  .hk-netflix-btn:hover {
-    transform: scale(1.12) !important;
-    background: rgba(36, 26, 54, 0.96) !important;
-    border-color: rgba(192, 132, 252, 0.7) !important;
-    opacity: 1 !important;
-  }
-
-  button#hk-netflix-toolbar-btn.hk-netflix-btn.is-off:hover,
-  .hk-netflix-btn.is-off:hover {
-    opacity: 0.95 !important;
-  }
-
-  .watch-video.inactive button#hk-netflix-toolbar-btn.hk-netflix-btn,
-  .VideoContainer.inactive button#hk-netflix-toolbar-btn.hk-netflix-btn {
-    opacity: 0 !important;
-    pointer-events: none !important;
   }
 `;
 
@@ -186,6 +125,64 @@ function injectNetflixGlobalStyle(hideNative: boolean): void {
 
   styleEl.textContent = `
     ${youtubeToolbarCss}
+
+    /* ── Hakkutsu Netflix Player Button & Wrapper (page DOM) ── */
+    #hk-netflix-btn-wrapper {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      vertical-align: middle !important;
+      position: relative !important;
+      flex-shrink: 0 !important;
+      margin: 0 12px 0 2px !important;
+      padding: 0 !important;
+      height: 100% !important;
+      box-sizing: border-box !important;
+    }
+
+    button#hk-netflix-toolbar-btn {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      position: relative !important;
+      width: 44px !important;
+      height: 44px !important;
+      min-width: 44px !important;
+      min-height: 44px !important;
+      background: transparent !important;
+      border: none !important;
+      border-radius: 50% !important;
+      box-shadow: none !important;
+      outline: none !important;
+      cursor: pointer !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      appearance: none !important;
+      -webkit-appearance: none !important;
+      flex-shrink: 0 !important;
+      transition: background 0.15s ease, transform 0.15s ease !important;
+      pointer-events: auto !important;
+    }
+
+    button#hk-netflix-toolbar-btn:hover {
+      background: rgba(255, 255, 255, 0.15) !important;
+      transform: scale(1.06) !important;
+    }
+
+    button#hk-netflix-toolbar-btn:active {
+      transform: scale(0.94) !important;
+    }
+
+    /* Fade button when Netflix hides controls */
+    .watch-video.inactive #hk-netflix-btn-wrapper,
+    .VideoContainer.inactive #hk-netflix-btn-wrapper,
+    .watch-video.inactive button#hk-netflix-toolbar-btn,
+    .VideoContainer.inactive button#hk-netflix-toolbar-btn {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transition: opacity 0.5s ease !important;
+    }
+
     ${
       hideNative
         ? `
@@ -236,6 +233,10 @@ export default function NetflixSubtitlesOverlay() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const currentUrlRef = useRef(window.location.href);
+
+  const selectedTrackIdRef = useRef<string>("");
+  const isCustomTrackRef = useRef<boolean>(false);
+  const selectedSecondaryTrackIdRef = useRef<string>("__auto_translate__");
 
   // ── Initialize Main-World Bridge ───────────────────────────────────────────
 
@@ -293,11 +294,47 @@ export default function NetflixSubtitlesOverlay() {
         url: t.url,
       }));
 
-      setAvailableTracks(options);
+      // Preserve any custom subtitle track loaded by the user
+      setAvailableTracks((prev) => {
+        const customTracks = prev.filter((t) => t.id.startsWith("custom-"));
+        return [...customTracks, ...options];
+      });
 
-      // Look for Japanese track
+      // If user is playing a custom local file, never overwrite with bridge TTML
+      if (isCustomTrackRef.current) {
+        return;
+      }
+
+      // If the user already selected a specific track:
+      if (selectedTrackIdRef.current) {
+        const selected = options.find((t) => t.id === selectedTrackIdRef.current);
+        if (selected && selected.url) {
+          try {
+            setLoading(true);
+            const segments = await loadTrackContent(selected);
+            setSubtitleData({
+              videoId: "netflix",
+              language: selected.languageCode,
+              trackName: selected.name,
+              segments,
+              fullText: segments.map((s) => s.text).join(" "),
+              isAutoGenerated: false,
+              source: "player",
+            });
+            setError(null);
+          } catch (err) {
+            console.warn("[Hakkutsu Subtitles] Failed to fetch selected Netflix TTML:", err);
+          } finally {
+            setLoading(false);
+          }
+        }
+        return;
+      }
+
+      // Initial auto-detection: Look for Japanese track
       const jaTrack = options.find((t) => t.languageCode.startsWith("ja"));
       if (jaTrack) {
+        selectedTrackIdRef.current = jaTrack.id;
         setCurrentTrackId(jaTrack.id);
 
         if (jaTrack.url) {
@@ -330,31 +367,54 @@ export default function NetflixSubtitlesOverlay() {
         }
       }
 
-      // Check for native secondary track matching targetLanguage
-      const targetLang = settings.targetLanguage || "en";
-      const secondaryMatch = options.find(
-        (t) => t.languageCode === targetLang || t.languageCode.startsWith(`${targetLang}-`) || t.languageCode.startsWith(targetLang)
-      );
-
-      if (secondaryMatch && secondaryMatch.url) {
-        setSecondaryTrackId(secondaryMatch.id);
-        try {
-          const secSegments = await loadTrackContent(secondaryMatch);
-          setSecondaryData({
-            videoId: "netflix",
-            language: secondaryMatch.languageCode,
-            trackName: secondaryMatch.name,
-            segments: secSegments,
-            fullText: secSegments.map((s) => s.text).join(" "),
-            isAutoGenerated: false,
-            source: "player",
-          });
-        } catch {
-          // keep fallback
-        }
-      } else {
+      // Initial secondary track handling
+      if (selectedSecondaryTrackIdRef.current === "__auto_translate__") {
         setSecondaryTrackId("__auto_translate__");
         setSecondaryData(null);
+      } else if (selectedSecondaryTrackIdRef.current) {
+        const secondary = options.find((t) => t.id === selectedSecondaryTrackIdRef.current);
+        if (secondary && secondary.url) {
+          try {
+            const secSegments = await loadTrackContent(secondary);
+            setSecondaryData({
+              videoId: "netflix",
+              language: secondary.languageCode,
+              trackName: secondary.name,
+              segments: secSegments,
+              fullText: secSegments.map((s) => s.text).join(" "),
+              isAutoGenerated: false,
+              source: "player",
+            });
+          } catch {}
+        }
+      } else {
+        // Check for native secondary track matching targetLanguage
+        const targetLang = settings.targetLanguage || "en";
+        const secondaryMatch = options.find(
+          (t) => t.languageCode === targetLang || t.languageCode.startsWith(`${targetLang}-`) || t.languageCode.startsWith(targetLang)
+        );
+
+        if (secondaryMatch && secondaryMatch.url) {
+          selectedSecondaryTrackIdRef.current = secondaryMatch.id;
+          setSecondaryTrackId(secondaryMatch.id);
+          try {
+            const secSegments = await loadTrackContent(secondaryMatch);
+            setSecondaryData({
+              videoId: "netflix",
+              language: secondaryMatch.languageCode,
+              trackName: secondaryMatch.name,
+              segments: secSegments,
+              fullText: secSegments.map((s) => s.text).join(" "),
+              isAutoGenerated: false,
+              source: "player",
+            });
+          } catch {
+            // keep fallback
+          }
+        } else {
+          setSecondaryTrackId("__auto_translate__");
+          setSecondaryData(null);
+        }
       }
     },
     [loadTrackContent, settings.targetLanguage]
@@ -515,6 +575,14 @@ export default function NetflixSubtitlesOverlay() {
           </div>
 
           <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #a1a1aa;">Toggle Furigana</span>
+            <div style="display: flex; gap: 4px;">
+              <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">F</kbd>
+              <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">W</kbd>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between;">
             <span style="color: #a1a1aa;">Toggle Translation</span>
             <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">V</kbd>
           </div>
@@ -589,20 +657,17 @@ export default function NetflixSubtitlesOverlay() {
 
       renderMenuContent();
 
+      // Position the menu centered directly above the button
       const btnRect = btnEl.getBoundingClientRect();
-      const playerEl =
-        document.querySelector<HTMLElement>(".watch-video") ||
-        document.querySelector<HTMLElement>(".VideoContainer") ||
-        document.body;
-      const playerRect = playerEl.getBoundingClientRect();
+      const menuWidth = 230;
 
-      const bottomOffset = Math.max(50, playerRect.bottom - btnRect.top + 10);
-      const rightOffset = Math.max(12, playerRect.right - btnRect.right);
-
-      hoverMenu.style.bottom = `${bottomOffset}px`;
-      hoverMenu.style.right = `${rightOffset}px`;
+      hoverMenu.style.position = "fixed";
       hoverMenu.style.top = "auto";
-      hoverMenu.style.left = "auto";
+      hoverMenu.style.bottom = `${window.innerHeight - btnRect.top + 10}px`;
+      const btnCenter = btnRect.left + btnRect.width / 2;
+      const menuLeft = Math.max(12, Math.min(window.innerWidth - menuWidth - 12, btnCenter - menuWidth / 2));
+      hoverMenu.style.left = `${menuLeft}px`;
+      hoverMenu.style.right = "auto";
       hoverMenu.style.display = "block";
 
       requestAnimationFrame(() => {
@@ -631,12 +696,98 @@ export default function NetflixSubtitlesOverlay() {
     };
 
     const injectToolbarButton = () => {
-      const player =
-        document.querySelector<HTMLElement>(".watch-video") ||
-        document.querySelector<HTMLElement>(".VideoContainer") ||
-        document.querySelector<HTMLVideoElement>("video")?.parentElement;
+      // 1. Find the buttons in Netflix's right-controls area
+      const subSelectors = [
+        '[data-uia="control-audio-subtitle"]',
+        '[data-uia="controls-subtitle-selector"]',
+        '[data-uia="control-audio-subtitles"]',
+        'button[data-uia*="subtitle" i]',
+        'button[data-uia*="audio" i]',
+        '.button-nfplayerSubtitles',
+        'button[aria-label*="subtitle" i]',
+        'button[aria-label*="audio" i]',
+        'button[aria-label*="字幕" i]',
+        'button[aria-label*="音声" i]',
+      ];
 
-      if (!player) return;
+      let subBtn: HTMLElement | null = null;
+      for (const sel of subSelectors) {
+        const el = document.querySelector<HTMLElement>(sel);
+        if (el) {
+          subBtn = el;
+          break;
+        }
+      }
+
+      const speedBtn = document.querySelector<HTMLElement>(
+        '[data-uia="control-speed"], button[data-uia*="speed" i]'
+      );
+      const fsBtn = document.querySelector<HTMLElement>(
+        '[data-uia="control-fullscreen-enter"], [data-uia="control-fullscreen-exit"], button[data-uia*="fullscreen" i]'
+      );
+
+      // Find lowest common ancestor (the true controls flex-row)
+      const btnA = subBtn || speedBtn;
+      const btnB = fsBtn || speedBtn;
+
+      let row: HTMLElement | null = null;
+      if (btnA && btnB && btnA !== btnB) {
+        let curr: HTMLElement | null = btnA.parentElement;
+        while (curr && curr !== document.body) {
+          if (curr.contains(btnB)) {
+            row = curr;
+            break;
+          }
+          curr = curr.parentElement;
+        }
+      }
+
+      if (!row && (subBtn || speedBtn || fsBtn)) {
+        const anyBtn = subBtn || speedBtn || fsBtn;
+        let curr: HTMLElement | null = anyBtn?.parentElement || null;
+        while (curr && curr !== document.body && !curr.classList.contains("watch-video")) {
+          const display = window.getComputedStyle(curr).display;
+          if (display === "flex" || display === "inline-flex") {
+            row = curr;
+            break;
+          }
+          curr = curr.parentElement;
+        }
+      }
+
+      // If still no row, try well-known Netflix controls row selectors
+      if (!row) {
+        row = document.querySelector<HTMLElement>(
+          ".watch-video--bottom-controls-container .controls-container-right, .controls-right, .watch-video--bottom-controls-container"
+        );
+      }
+
+      if (!row) return;
+
+      // Find the direct child of `row` that contains subBtn, speedBtn, or fsBtn
+      const getDirectChildOfRow = (descendant: HTMLElement | null): HTMLElement | null => {
+        if (!descendant || !row) return null;
+        let curr: HTMLElement | null = descendant;
+        while (curr && curr.parentElement !== row) {
+          curr = curr.parentElement;
+        }
+        return curr;
+      };
+
+      const subChild = getDirectChildOfRow(subBtn);
+      const speedChild = getDirectChildOfRow(speedBtn);
+      const fsChild = getDirectChildOfRow(fsBtn);
+
+      // We want to insert BEFORE the subtitle control in the row
+      const targetChild = subChild || speedChild || fsChild;
+
+      // 2. Create or get wrapper and button
+      let wrapper = document.getElementById("hk-netflix-btn-wrapper") as HTMLDivElement | null;
+      if (!wrapper) {
+        wrapper = document.createElement("div");
+        wrapper.id = "hk-netflix-btn-wrapper";
+        wrapper.className = "hk-nf-control-wrapper";
+      }
 
       let btn = document.getElementById("hk-netflix-toolbar-btn") as HTMLButtonElement | null;
       if (!btn) {
@@ -655,21 +806,74 @@ export default function NetflixSubtitlesOverlay() {
         };
       }
 
-      btn.className = `hk-netflix-btn ${isEnabled ? "is-active" : "is-off"}`;
-
-      if (btn.parentElement !== player) {
-        player.appendChild(btn);
+      if (btn.parentElement !== wrapper) {
+        wrapper.appendChild(btn);
       }
 
-      // Re-bind hover handlers to active closure every run
+      // Insert wrapper into row as a direct sibling BEFORE targetChild
+      if (targetChild && targetChild !== wrapper) {
+        if (wrapper.parentElement !== row || wrapper.nextSibling !== targetChild) {
+          row.insertBefore(wrapper, targetChild);
+        }
+      } else if (wrapper.parentElement !== row) {
+        row.appendChild(wrapper);
+      }
+
+      // Re-bind hover handlers
       btn.onmouseenter = () => {
         if (btn) showHoverMenu(btn);
       };
       btn.onmouseleave = scheduleHide;
 
+      // Clean borderless kanji icon (no box border) with active indicator bar
       btn.innerHTML = `
-        <span style="font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 15px; font-weight: 800; color: ${isEnabled ? "#c084fc" : "rgba(255,255,255,0.75)"}; line-height: 1; text-shadow: ${isEnabled ? "0 0 10px rgba(192, 132, 252, 0.85)" : "none"}; pointer-events: none; display: inline-block;">発</span>
+        <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; position: relative;">
+          <span style="
+            font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
+            font-size: 20px;
+            font-weight: 800;
+            color: ${isEnabled ? "#c084fc" : "#ffffff"};
+            line-height: 1;
+            letter-spacing: -0.5px;
+            text-shadow: ${isEnabled ? "0 0 10px rgba(192, 132, 252, 0.75)" : "0 1px 2px rgba(0,0,0,0.5)"};
+            pointer-events: none;
+            display: inline-block;
+            user-select: none;
+            -webkit-user-select: none;
+            opacity: ${isEnabled ? "1" : "0.85"};
+            transition: color 0.15s ease, opacity 0.15s ease;
+          ">発</span>
+          <div style="
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 18px;
+            height: 3px;
+            background: #a855f7;
+            border-radius: 2px;
+            box-shadow: 0 0 6px rgba(168, 85, 247, 0.8);
+            opacity: ${isEnabled ? "1" : "0"};
+            transition: opacity 0.2s ease;
+          "></div>
+        </div>
       `;
+
+      // Precision vertical alignment: align vertical center to exact pixel of subBtn
+      if (subBtn) {
+        const subRect = subBtn.getBoundingClientRect();
+        const btnRect = btn.getBoundingClientRect();
+        if (subRect.height > 0 && btnRect.height > 0) {
+          const subCenter = subRect.top + subRect.height / 2;
+          const btnCenter = btnRect.top + btnRect.height / 2;
+          const diff = Math.round(subCenter - btnCenter);
+          if (Math.abs(diff) >= 1 && Math.abs(diff) <= 20) {
+            btn.style.transform = `translateY(${diff}px)`;
+          } else if (diff === 0) {
+            btn.style.transform = "";
+          }
+        }
+      }
     };
 
     injectToolbarButton();
@@ -681,18 +885,29 @@ export default function NetflixSubtitlesOverlay() {
       if (hoverMenu && hoverMenu.parentElement) {
         hoverMenu.parentElement.removeChild(hoverMenu);
       }
+      const existingWrapper = document.getElementById("hk-netflix-btn-wrapper");
+      if (existingWrapper?.parentElement) {
+        existingWrapper.parentElement.removeChild(existingWrapper);
+      }
     };
   }, [isEnabled, offset, settings.subtitlesSecondaryEnabled, settings.subtitlesAutoPause, updateSettings]);
 
   // ── Track Selection & Custom File Handlers ─────────────────────────────────
 
   const handleSelectPrimaryTrack = async (track: SubtitleTrackOption) => {
+    selectedTrackIdRef.current = track.id;
     setCurrentTrackId(track.id);
+
     if (track.fetchResult) {
+      isCustomTrackRef.current = true;
       setSubtitleData(track.fetchResult);
+      setIsEnabled(true);
       return;
     }
+
+    isCustomTrackRef.current = false;
     if (!track.url) {
+      setLoading(true);
       document.dispatchEvent(
         new CustomEvent("hakkutsu:netflix-lazy-load-track", {
           detail: { trackId: track.id },
@@ -712,6 +927,7 @@ export default function NetflixSubtitlesOverlay() {
         isAutoGenerated: false,
         source: "player",
       });
+      setIsEnabled(true);
     } catch (err) {
       console.error("Failed to switch Netflix track:", err);
     } finally {
@@ -721,16 +937,19 @@ export default function NetflixSubtitlesOverlay() {
 
   const handleSelectSecondaryTrack = async (track: SubtitleTrackOption | null) => {
     if (!track) {
+      selectedSecondaryTrackIdRef.current = "";
       setSecondaryTrackId("");
       setSecondaryData(null);
       return;
     }
     if (track.id === "__auto_translate__") {
+      selectedSecondaryTrackIdRef.current = "__auto_translate__";
       setSecondaryTrackId("__auto_translate__");
       setSecondaryData(null);
       return;
     }
 
+    selectedSecondaryTrackIdRef.current = track.id;
     setSecondaryTrackId(track.id);
     if (track.fetchResult) {
       setSecondaryData(track.fetchResult);
@@ -761,6 +980,8 @@ export default function NetflixSubtitlesOverlay() {
       languageCode: result.language || "ja",
       fetchResult: result,
     };
+    isCustomTrackRef.current = true;
+    selectedTrackIdRef.current = customOption.id;
     setAvailableTracks((prev) => [customOption, ...prev]);
     setCurrentTrackId(customOption.id);
     setSubtitleData(result);
@@ -816,6 +1037,8 @@ export default function NetflixSubtitlesOverlay() {
         }}
         autoPause={settings.subtitlesAutoPause}
         onAutoPauseChange={(ap) => updateSettings({ subtitlesAutoPause: ap })}
+        showFurigana={settings.showFurigana !== false}
+        onFuriganaChange={(fg) => updateSettings({ showFurigana: fg })}
         fontSize={settings.subtitlesFontSize || 26}
         onFontSizeChange={(size) => updateSettings({ subtitlesFontSize: size })}
         onSelectTrack={handleSelectPrimaryTrack}

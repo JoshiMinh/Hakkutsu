@@ -16,6 +16,8 @@ export const config: PlasmoCSConfig = {
   all_frames: true,
 };
 
+export const getShadowHostId = () => "hakkutsu-inline-dictionary-host";
+
 import cssText from "data-text:~style.css";
 
 export const getStyle: PlasmoGetStyle = () => {
@@ -23,9 +25,13 @@ export const getStyle: PlasmoGetStyle = () => {
   style.textContent = cssText + `
     :host {
       all: initial;
-      z-index: 2147483647;
+      z-index: 2147483647 !important;
+      position: absolute !important;
+      inset: 0 !important;
+      pointer-events: none !important;
     }
     .hk-popup {
+      pointer-events: auto !important;
       background: #0d0d11 !important;
       border: 1px solid rgba(255, 255, 255, 0.14) !important;
       border-radius: 12px !important;
@@ -224,6 +230,37 @@ const InlineDictionary = () => {
         }
       })
       .catch(() => setAnkiConnected(false));
+  }, []);
+
+  // Ensure shadow host is placed inside the active fullscreen or player element
+  useEffect(() => {
+    const syncHostPlacement = () => {
+      const host = document.getElementById("hakkutsu-inline-dictionary-host");
+      if (!host) return;
+
+      const fsEl = document.fullscreenElement as HTMLElement | null;
+      if (fsEl) {
+        if (!fsEl.contains(host)) {
+          fsEl.appendChild(host);
+        }
+      } else {
+        const netflixPlayer = document.querySelector<HTMLElement>(".watch-video");
+        const ytPlayer = document.querySelector<HTMLElement>("#movie_player");
+        const target = netflixPlayer || ytPlayer || document.body;
+        if (target && !target.contains(host)) {
+          target.appendChild(host);
+        }
+      }
+    };
+
+    document.addEventListener("fullscreenchange", syncHostPlacement);
+    window.addEventListener("hakkutsu:analyze", syncHostPlacement);
+    syncHostPlacement();
+
+    return () => {
+      document.removeEventListener("fullscreenchange", syncHostPlacement);
+      window.removeEventListener("hakkutsu:analyze", syncHostPlacement);
+    };
   }, []);
 
   const lastHoverWordRef = useRef<string | null>(null);
