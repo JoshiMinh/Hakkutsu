@@ -29,6 +29,12 @@ export const getStyle: PlasmoGetStyle = () => {
       position: absolute !important;
       inset: 0 !important;
       pointer-events: none !important;
+      /* Re-declare JLPT vars erased by all:initial */
+      --hk-jlpt-n5: #22c55e;
+      --hk-jlpt-n4: #3b82f6;
+      --hk-jlpt-n3: #f59e0b;
+      --hk-jlpt-n2: #ef4444;
+      --hk-jlpt-n1: #a855f7;
     }
     .hk-popup {
       pointer-events: auto !important;
@@ -194,6 +200,7 @@ const InlineDictionary = () => {
     x: number;
     y: number;
     placement?: "anchor" | "player-overlay";
+    above?: boolean;
   } | null>(null);
   const [inputText, setInputText] = useState("");
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -309,17 +316,15 @@ const InlineDictionary = () => {
 
           const rect = res.rect;
           const x = Math.max(16, Math.min(rect.left, window.innerWidth - 340));
-          const targetY = rect.bottom + 8;
           const placeAbove = window.innerHeight - rect.bottom < 360 && rect.top > 360;
-          const y = placeAbove ? Math.max(16, rect.top - 368) : targetY;
 
           setPosition({
             x,
-            y: Math.max(16, y),
+            y: placeAbove ? rect.top : rect.bottom,
             placement: "anchor",
+            above: placeAbove,
           });
           setInputText(res.text);
-          setPhraseMode(false);
           setSentenceMode(false);
           setTransientMode(true);
           analyzeText(res.text, false, true);
@@ -414,34 +419,24 @@ const InlineDictionary = () => {
         const hasValidRect = rect && (rect.width > 0 || rect.height > 0);
         const x = hasValidRect ? rect.left : clientX;
 
-        // Position smartly: place below selection by default, or above if near bottom of viewport
         const estimatedPanelHeight = 360;
-        const targetY = hasValidRect ? rect.bottom + 8 : clientY + 12;
+        const y = hasValidRect ? rect!.bottom : clientY + 12;
         const placeAbove =
           hasValidRect &&
-          window.innerHeight - rect.bottom < estimatedPanelHeight &&
-          rect.top > estimatedPanelHeight;
-        const y = placeAbove
-          ? Math.max(16, rect.top - estimatedPanelHeight - 8)
-          : targetY;
-
+          window.innerHeight - rect!.bottom < estimatedPanelHeight &&
+          rect!.top > estimatedPanelHeight;
         setPosition({
           x: Math.max(16, Math.min(x, window.innerWidth - 340)),
-          y: Math.max(16, y),
+          y: placeAbove ? rect!.top : y,
           placement: "anchor",
+          above: placeAbove,
         });
         setInputText(selectedText);
-        setPhraseMode(false);
-        setSentenceMode(false);
         analyzeText(selectedText, false, true);
         window.dispatchEvent(new CustomEvent("hakkutsu:analysis-opened"));
       };
 
       if (isDoubleClick) {
-        // Immediate processing for double click
-        processSelection();
-      } else {
-        // Slight debounce on normal mouseup to allow drag-selection or double-click to resolve
         selectionTimerRef.current = setTimeout(processSelection, 120);
       }
     };
@@ -666,26 +661,24 @@ const InlineDictionary = () => {
     : 0;
 
   const isLower = position ? position.y > window.innerHeight * 0.42 : false;
-  const placeAbove = usePlayerOverlay || isLower;
+  const placeAbove = usePlayerOverlay || (position?.above ?? isLower);
 
   const popupStyle: React.CSSProperties = position
     ? placeAbove
       ? {
           position: "fixed",
-          bottom: `${Math.max(16, window.innerHeight - position.y + 16)}px`,
+          bottom: `${Math.max(16, window.innerHeight - position.y + 8)}px`,
           left: `${panelLeft}px`,
           width: `${cardWidth}px`,
           maxHeight: "min(380px, calc(100vh - 40px))",
           zIndex: 2147483647,
           display: "flex",
-          flexDirection: "column",
         }
       : {
           position: "fixed",
-          top: `${Math.max(16, position.y + 16)}px`,
+          top: `${Math.max(16, position.y + 8)}px`,
           left: `${panelLeft}px`,
           width: `${cardWidth}px`,
-          maxHeight: "min(380px, calc(100vh - 40px))",
           zIndex: 2147483647,
           display: "flex",
           flexDirection: "column",
@@ -698,7 +691,6 @@ const InlineDictionary = () => {
       {hoverHighlightRects &&
         hoverHighlightRects.map((rect, idx) => (
           <div
-            key={`hk-hl-${idx}`}
             style={{
               position: "fixed",
               top: `${rect.top}px`,
@@ -815,11 +807,11 @@ const InlineDictionary = () => {
               {selectedTokenData && selectedTokenData.is_japanese ? (
                 <DefinitionCard
                   token={selectedTokenData}
-                  onExport={transientMode ? undefined : handleExport}
+                  onExport={handleExport}
                   ankiConnected={ankiConnected}
                   originalText={result.text}
                   sentenceReading={result.sentence_reading}
-                  onSrsAdd={transientMode ? undefined : handleSrsAdd}
+                  onSrsAdd={handleSrsAdd}
                   hideBottomAction={true}
                 />
               ) : (
@@ -842,7 +834,7 @@ const InlineDictionary = () => {
       </div>
 
       {/* Pinned Bottom Footer Action (Outside the meaning scroll container) */}
-      {selectedTokenData && selectedTokenData.is_japanese && !transientMode && (
+      {selectedTokenData && selectedTokenData.is_japanese && (
         <div className="hk-popup__footer" style={{
           padding: "10px 14px",
           background: "#141418",

@@ -13,7 +13,7 @@ import { SelectSubtitlesModal } from "./select-subtitles-modal";
 import type { SubtitleTrackOption } from "./select-subtitles-modal";
 import { smartCueEnd } from "~lib/services/smart-cue";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
-import { distributeFurigana, containsJapanese } from "~lib/utils/japanese";
+import { distributeFurigana, containsJapanese, sanitizeReading } from "~lib/utils/japanese";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 
 // ── In-Memory Caches ─────────────────────────────────────────────────────────
@@ -463,7 +463,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
           y,
           placement: "player-overlay",
           mode: "dictionary",
-          transient: true,
+          transient: false,
         },
       })
     );
@@ -702,15 +702,17 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
               {analyzedTokens && analyzedTokens.length > 0 ? (
                 analyzedTokens.map((token, idx) => {
                   const isKanji = /[\u4e00-\u9faf]/.test(token.surface);
+                  const cleanReading = sanitizeReading(token.reading?.hiragana || "", token.surface);
                   const showRuby =
                     settings.showFurigana !== false &&
                     isKanji &&
-                    Boolean(token.reading?.hiragana) &&
-                    token.reading!.hiragana !== token.surface;
+                    Boolean(cleanReading) &&
+                    cleanReading !== token.surface;
                   const jlptClass = token.jlpt_level && settings.showJlptColors ? `hk-sub__token--${token.jlpt_level.toLowerCase()}` : "";
                   const rubySegments = showRuby
-                    ? distributeFurigana(token.surface, token.reading?.hiragana)
-                    : [{ text: token.surface }];
+                    ? distributeFurigana(token.surface, cleanReading)
+                    : null;
+                  const hasRuby = showRuby && rubySegments !== null && rubySegments.some((s) => s.ruby);
 
                   return (
                     <span
@@ -721,19 +723,19 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                       onMouseLeave={handleTokenMouseLeave}
                       title={token.definitions?.[0]?.glosses?.join("; ") || token.reading?.hiragana || token.surface}
                     >
-                      {showRuby && rubySegments.some((s) => s.ruby) ? (
+                      {hasRuby && rubySegments ? (
                         rubySegments.map((seg, sIdx) =>
                           seg.ruby ? (
                             <ruby key={sIdx}>
-                              <span className="hk-sub__surface">{seg.text}</span>
+                              {seg.text}
                               <rt className="hk-sub__furigana">{seg.ruby}</rt>
                             </ruby>
                           ) : (
-                            <span key={sIdx} className="hk-sub__surface">{seg.text}</span>
+                            <span key={sIdx}>{seg.text}</span>
                           )
                         )
                       ) : (
-                        <span className="hk-sub__surface">{token.surface}</span>
+                        token.surface
                       )}
                     </span>
                   );

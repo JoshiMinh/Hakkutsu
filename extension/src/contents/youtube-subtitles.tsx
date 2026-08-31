@@ -26,6 +26,7 @@ import {
   parseYouTubeJson3,
   readSubtitleFile,
   parsedToSubtitleFetchResult,
+  deduplicateCueText,
 } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";
 import {
@@ -250,10 +251,17 @@ export default function YouTubeSubtitlesOverlay() {
     // 1. Check DOM caption elements
     const segEls = document.querySelectorAll(".ytp-caption-segment");
     if (segEls.length > 0) {
-      const text = Array.from(segEls)
-        .map((el) => el.textContent || "")
-        .join(" ")
-        .trim();
+      const uniqueTexts: string[] = [];
+      const seen = new Set<string>();
+      segEls.forEach((el) => {
+        const t = (el.textContent || "").trim();
+        if (t && !seen.has(t)) {
+          seen.add(t);
+          uniqueTexts.push(t);
+        }
+      });
+      const rawText = uniqueTexts.join(" ").trim();
+      const text = deduplicateCueText(rawText);
       if (text) {
         const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
         const time = video ? Math.max(0, video.currentTime - offset) : 0;
@@ -594,7 +602,7 @@ export default function YouTubeSubtitlesOverlay() {
             <span style="color: #c084fc; font-weight: 900; font-size: 16px;">発</span>
             <span>Shortcuts Manual</span>
           </div>
-          <button id="hk-menu-open-modal" style="font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(168,85,247,0.25); border: 1px solid rgba(168,85,247,0.4); color: #c084fc; cursor: pointer; transition: all 0.15s ease;">
+          <button data-hk-action="open-modal" style="font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(168,85,247,0.25); border: 1px solid rgba(168,85,247,0.4); color: #c084fc; cursor: pointer; transition: all 0.15s ease;">
             SETTINGS ⚙
           </button>
         </div>
@@ -639,12 +647,6 @@ export default function YouTubeSubtitlesOverlay() {
           </div>
         </div>
       `;
-
-      document.getElementById("hk-menu-open-modal")?.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        hideHoverMenuImmediate();
-        setIsModalOpen(true);
-      });
     };
 
     const showHoverMenu = (btnEl: HTMLElement) => {
@@ -681,6 +683,16 @@ export default function YouTubeSubtitlesOverlay() {
           }
         };
         hoverMenu.onmouseleave = scheduleHide;
+
+        // Delegate SETTINGS button click — survives innerHTML re-renders
+        hoverMenu.addEventListener("click", (ev) => {
+          const target = ev.target as HTMLElement;
+          if (target.closest("[data-hk-action='open-modal']")) {
+            ev.stopPropagation();
+            hideHoverMenuImmediate();
+            setIsModalOpen(true);
+          }
+        });
 
         const player =
           document.querySelector("#movie_player") ||

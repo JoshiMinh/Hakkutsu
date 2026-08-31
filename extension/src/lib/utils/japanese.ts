@@ -150,6 +150,38 @@ export function katakanaToHiragana(text: string): string {
 }
 
 /**
+ * Sanitizes reading strings that contain multiple variants (e.g. "おれ、おら、うら" or "がち、かち").
+ * Extracts a single clean hiragana reading, matching surface okurigana/suffix when applicable.
+ */
+export function sanitizeReading(rawReading: string, surface?: string): string {
+  if (!rawReading) return "";
+  const variants = rawReading
+    .split(/[\u3001,;\/\s\u3000]+/)
+    .map((v) => katakanaToHiragana(v.trim()))
+    .filter(Boolean);
+
+  if (variants.length === 0) return "";
+  if (variants.length === 1) return variants[0];
+
+  if (surface) {
+    const cleanSurface = katakanaToHiragana(surface.trim());
+    const exactMatch = variants.find((v) => v === cleanSurface);
+    if (exactMatch) return exactMatch;
+
+    // Match by trailing kana suffix (e.g. 勝ち -> かち instead of がち)
+    const endMatch = variants.find((v) => {
+      const sEnd = cleanSurface.slice(-1);
+      const vEnd = v.slice(-1);
+      return sEnd && vEnd && sEnd === vEnd;
+    });
+    if (endMatch) return endMatch;
+  }
+
+  return variants[0];
+}
+
+
+/**
  * Convert hiragana string to katakana.
  */
 export function hiraganaToKatakana(text: string): string {

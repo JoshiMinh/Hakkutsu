@@ -5,7 +5,7 @@
 
 import { googleTranslateService } from "./google-translate";
 import { getHanViet } from "~lib/utils/hanviet-dict";
-import { containsJapanese, romajiToHiragana } from "~lib/utils/japanese";
+import { containsJapanese, romajiToHiragana, sanitizeReading } from "~lib/utils/japanese";
 
 export interface LookupResult {
   meaning: string;
@@ -125,7 +125,8 @@ export async function lookupWordEnglish(word: string): Promise<LookupResult> {
           
           const meaning = englishDefs.join("; ");
           const matchedJp = match.japanese?.find((j: any) => j.word === key || j.reading === key) || match.japanese?.[0];
-          const reading = matchedJp?.reading || match.japanese?.[0]?.reading || "";
+          const rawReading = matchedJp?.reading || match.japanese?.[0]?.reading || "";
+          const reading = sanitizeReading(rawReading, rawKey);
           const jlpt = match.jlpt?.length ? match.jlpt[0].replace(/jlpt-/i, "").toUpperCase() : undefined;
 
           if (meaning) {
@@ -203,7 +204,7 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
             .slice(0, 3);
 
           const meaning = means.join("; ");
-          const reading = match.phonetic || key;
+          const reading = sanitizeReading(match.phonetic || key, rawKey);
           const result: LookupResult = {
             meaning: meaning || "",
             reading,

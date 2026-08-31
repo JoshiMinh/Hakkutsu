@@ -22,7 +22,7 @@ import type {
 import { tokenize } from "~lib/services/local-tokenizer";
 import { searchDictionary } from "~lib/services/local-lookup";
 import { getHanViet } from "~lib/utils/hanviet-dict";
-import { containsJapanese, katakanaToHiragana, hasKanji } from "~lib/utils/japanese";
+import { containsJapanese, katakanaToHiragana, hasKanji, sanitizeReading } from "~lib/utils/japanese";
 import { lookupWord } from "~lib/services/dictionary-lookup";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
@@ -33,10 +33,11 @@ async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
   const targetLang = settings.targetLanguage || "vi";
   const info = await lookupWord(text, targetLang);
   const isVietnamese = targetLang === "vi";
+  const cleanReading = sanitizeReading(info.reading || "", text);
 
   return {
     text,
-    sentence_reading: info.reading || text,
+    sentence_reading: cleanReading || text,
     token_count: 1,
     difficulty_score: null,
     difficulty_label: null,
@@ -46,7 +47,7 @@ async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
         dictionary_form: text,
         pos: "Word",
         pos_detail: [],
-        reading: { hiragana: info.reading || "", romaji: "" },
+        reading: { hiragana: cleanReading, romaji: "" },
         is_japanese: true,
         jlpt_level: info.jlpt || null,
         frequency_rank: null,
@@ -85,7 +86,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
       const firstEntry = dictEntries[0];
       const kanjiForm = firstEntry?.kanjiElements?.[0] || surface;
       const rawReading = firstEntry?.readingElements?.[0] || (t as any).reading || "";
-      let reading = katakanaToHiragana(rawReading);
+      let reading = sanitizeReading(rawReading, surface);
       let jlptLevel = firstEntry?.jlpt || predictJlpt(surface);
       let definitions = dictEntries.flatMap((d) =>
         d.senses.map((s) => ({
@@ -104,7 +105,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
           const dictInfo = await Promise.race([lookupWord(surface, targetLang), timeoutPromise]);
           if (dictInfo) {
             if (dictInfo.reading) {
-              reading = katakanaToHiragana(dictInfo.reading);
+              reading = sanitizeReading(dictInfo.reading, surface);
             }
             if (dictInfo.jlpt) {
               jlptLevel = dictInfo.jlpt;
