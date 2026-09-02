@@ -219,14 +219,10 @@ export interface RubySegment {
  */
 export function distributeFurigana(text: string, reading?: string): RubySegment[] {
   if (!text) return [];
-  if (!reading || !hasKanji(text) || text === reading) {
-    return [{ text }];
-  }
 
   const cleanText = text.trim();
-  const cleanReading = reading.trim();
 
-  // If text has bracket format like 漢[かん]字[じ]
+  // If text has bracket format like 漢[かん]字[じ] or 彼女[かのじょ]
   if (cleanText.includes("[") && cleanText.includes("]")) {
     const segments: RubySegment[] = [];
     const bracketRe = /([\u4E00-\u9FFF\u3400-\u4DBF]+)\[([^\]]+)\]|([^\u4E00-\u9FFF\u3400-\u4DBF\[\]]+)/g;
@@ -240,6 +236,12 @@ export function distributeFurigana(text: string, reading?: string): RubySegment[
     }
     if (segments.length > 0) return segments;
   }
+
+  if (!reading || !hasKanji(cleanText) || cleanText === reading.trim()) {
+    return [{ text: cleanText }];
+  }
+
+  const cleanReading = reading.trim();
 
   // Step 1: Strip common kana prefixes
   let start = 0;

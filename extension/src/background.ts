@@ -498,7 +498,7 @@ async function handleMessage(
     }
 
     case "OPEN_APP": {
-      chrome.tabs.create({ url: chrome.runtime.getURL("app.html") });
+      chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") });
       return { type: "OPEN_APP_RESULT", payload: {} };
     }
 

@@ -576,16 +576,14 @@ export function t(key: TranslationKey, langCode?: string): string {
 }
 
 export function useTranslation() {
-  const { settings } = useSettingsStore();
-  const lang = (settings.targetLanguage === "en" || settings.targetLanguage === "vi") 
-    ? settings.targetLanguage 
-    : "vi";
-
-  // Han-Viet is enabled whenever settings.showHanViet is true (supports both EN and VI)
-  const showHanViet = settings.showHanViet !== false;
+  const store = useSettingsStore();
+  const settings = store?.settings;
+  const targetLang = settings?.targetLanguage;
+  const lang = (targetLang === "en" || targetLang === "vi") ? targetLang : "vi";
+  const showHanViet = settings?.showHanViet !== false;
 
   return {
-    t: (key: TranslationKey) => translations[lang][key] || translations.en[key] || key,
+    t: (key: TranslationKey) => (translations[lang] && translations[lang][key]) || translations.en[key] || key,
     lang,
     isVietnamese: lang === "vi",
     showHanViet,

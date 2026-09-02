@@ -1,9 +1,30 @@
 import { useEffect, useState, useCallback } from "react";
 import { localSrs } from "~lib/services/local-srs";
 import type { SrsCard, SrsStats } from "~lib/services/local-srs";
-import { PartyPopper, Volume2 } from "lucide-react";
+import { PartyPopper, Volume2, RotateCcw } from "lucide-react";
 import { useTranslation } from "~lib/languages/locales";
 import { ttsService } from "~lib/services/tts-service";
+import { distributeFurigana } from "~lib/utils/japanese";
+
+function RenderFurigana({ text, reading, className }: { text: string; reading?: string; className?: string }) {
+  if (!text) return null;
+  const segments = distributeFurigana(text, reading);
+  if (!segments || segments.length === 0) return <span className={className}>{text}</span>;
+  return (
+    <span className={className}>
+      {segments.map((seg, idx) =>
+        seg.ruby ? (
+          <ruby key={idx} className="hk-ruby" style={{ margin: "0 1px" }}>
+            {seg.text}
+            <rt>{seg.ruby}</rt>
+          </ruby>
+        ) : (
+          <span key={idx}>{seg.text}</span>
+        )
+      )}
+    </span>
+  );
+}
 
 export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   const { t, isVietnamese, showHanViet } = useTranslation();
@@ -12,32 +33,42 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [isPracticeMode, setIsPracticeMode] = useState(false);
 
-  useEffect(() => {
-    loadDueCards();
-  }, [userId]);
-
-  const loadDueCards = async () => {
+  const loadDueCards = useCallback(async (includeAll = false) => {
     setLoading(true);
     setError(null);
     try {
-      const dueCards = await localSrs.getDueCards();
+      const dueCards = includeAll 
+        ? await localSrs.getAllSrsCards()
+        : await localSrs.getDueCards();
       const currentStats = await localSrs.getSrsStats();
       setCards(dueCards);
       setStats(currentStats);
+      setIsPracticeMode(includeAll);
     } catch (err: any) {
       setError(err.message || "Failed to load due cards");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadDueCards(false);
+  }, [userId, loadDueCards]);
 
   const handleReview = useCallback(async (quality: number) => {
     if (cards.length === 0) return;
     const currentCard = cards[0];
     
-    // Optimistically remove from queue
-    setCards(prev => prev.slice(1));
+    // Re-queue card to end of session if quality is 1 (Again)
+    setCards(prev => {
+      const remaining = prev.slice(1);
+      if (quality === 1) {
+        return [...remaining, currentCard];
+      }
+      return remaining;
+    });
     setShowAnswer(false);
     
     try {
@@ -55,7 +86,9 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   }, [cards, stats]);
 
   const speakText = (text: string) => {
-    ttsService.playJapanese(text);
+    if (text) {
+      ttsService.playJapanese(text);
+    }
   };
 
   useEffect(() => {
@@ -78,6 +111,12 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
         }
       } else {
         switch (e.key) {
+          case "Enter":
+          case " ":
+          case "3":
+            e.preventDefault();
+            handleReview(4);
+            break;
           case "1":
             e.preventDefault();
             handleReview(1);
@@ -85,10 +124,6 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
           case "2":
             e.preventDefault();
             handleReview(3);
-            break;
-          case "3":
-            e.preventDefault();
-            handleReview(4);
             break;
           case "4":
             e.preventDefault();
@@ -104,7 +139,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
 
   if (loading) {
     return (
-      <div className="hk-srs-container hk-flex-center" style={{ minHeight: "350px" }}>
+      <div className="hk-srs-container hk-flex-center" style={{ minHeight: "350px", justifyContent: "center", alignItems: "center" }}>
         <div className="hk-loading-spinner" />
       </div>
     );
@@ -112,9 +147,9 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
 
   if (error) {
     return (
-      <div className="hk-srs-container hk-flex-center" style={{ minHeight: "350px", color: "var(--hk-text-muted)" }}>
+      <div className="hk-srs-container hk-flex-center" style={{ minHeight: "350px", justifyContent: "center", alignItems: "center", color: "var(--hk-text-muted)" }}>
         <p>{error}</p>
-        <button className="hk-btn hk-btn--secondary" onClick={loadDueCards} style={{ marginTop: "12px" }}>
+        <button className="hk-btn hk-btn--secondary" onClick={() => loadDueCards(false)} style={{ marginTop: "12px" }}>
           Retry
         </button>
       </div>
@@ -125,12 +160,20 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
     return (
       <div className="hk-srs-empty">
         <div className="hk-srs-empty__icon">
-          <PartyPopper size={40} />
+          <PartyPopper size={44} style={{ color: "var(--hk-accent-primary, #a855f7)" }} />
         </div>
         <h3 className="hk-srs-empty__title">{t("srs_no_cards_title")}</h3>
-        <p className="hk-srs-empty__desc">
+        <p className="hk-srs-empty__desc" style={{ marginBottom: "16px" }}>
           {t("srs_no_cards_desc")}
         </p>
+        <button 
+          className="hk-btn hk-btn--secondary"
+          onClick={() => loadDueCards(true)}
+          style={{ gap: "8px" }}
+        >
+          <RotateCcw size={16} />
+          {isVietnamese ? "Luyện tập tất cả các từ" : "Practice All Vocabulary"}
+        </button>
       </div>
     );
   }
@@ -142,7 +185,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
       {/* Top Session Progress Bar */}
       <div className="hk-srs-header">
         <div className="hk-srs-badge">
-          <span className="hk-srs-badge__count">{cards.length}</span> {t("srs_card_count")}
+          <span className="hk-srs-badge__count">{cards.length}</span> {isPracticeMode ? (isVietnamese ? "thẻ luyện tập" : "practice cards") : t("srs_card_count")}
         </div>
         {stats && (
           <div className="hk-srs-stats-micro">
@@ -152,18 +195,23 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
       </div>
 
       <div className="hk-srs-card">
-        <div className="hk-srs-card__word" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-          {card.word}
-          {showAnswer && (
-            <button 
-              onClick={() => speakText(card.word)}
-              className="hk-btn hk-btn--ghost hk-btn--icon"
-              style={{ padding: "4px", marginTop: "4px" }}
-              title={t("def_play_audio_jp")}
-            >
-              <Volume2 size={20} style={{ color: "var(--hk-text-secondary)" }} />
-            </button>
+        <div className="hk-srs-card__word" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", flexWrap: "wrap" }}>
+          {showAnswer ? (
+            <RenderFurigana text={card.word_furigana || card.word} reading={card.reading} />
+          ) : (
+            <span>{card.word}</span>
           )}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              speakText(card.word);
+            }}
+            className="hk-btn hk-btn--ghost hk-btn--icon"
+            style={{ padding: "6px", borderRadius: "50%", cursor: "pointer" }}
+            title={t("def_play_audio_jp")}
+          >
+            <Volume2 size={22} style={{ color: "var(--hk-text-secondary)" }} />
+          </button>
         </div>
         
         {showAnswer && (
@@ -178,10 +226,10 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
               </div>
             )}
 
-            {/* Primary Reading */}
-            {(card.word_furigana || card.reading) && (
+            {/* Primary Reading fallback if furigana not present */}
+            {card.reading && card.reading !== card.word && !card.word_furigana?.includes("[") && (
               <div className="hk-srs-card__reading">
-                {card.word_furigana || card.reading}
+                {card.reading}
               </div>
             )}
 
@@ -198,7 +246,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
                 <hr className="hk-srs-context-divider" />
                 <div className="hk-srs-card__sentence-group">
                   <div className="hk-srs-card__sentence">
-                    {card.sentence_furigana || card.sentence}
+                    <RenderFurigana text={card.sentence_furigana || card.sentence} />
                   </div>
                   {card.sentence_meaning && (
                     <div className="hk-srs-card__sentence-meaning">
@@ -232,7 +280,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
             </button>
             <button className="hk-btn hk-srs-btn--grade hk-srs-grade--4" onClick={() => handleReview(4)}>
               <div className="hk-srs-grade__label">{t("srs_btn_good")}</div>
-              <div className="hk-shortcut-hint" style={{ fontSize: "11px", marginTop: "4px" }}>Press 3</div>
+              <div className="hk-shortcut-hint" style={{ fontSize: "11px", marginTop: "4px" }}>Space / 3</div>
             </button>
             <button className="hk-btn hk-srs-btn--grade hk-srs-grade--5" onClick={() => handleReview(5)}>
               <div className="hk-srs-grade__label">{t("srs_btn_easy")}</div>
@@ -244,3 +292,4 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
     </div>
   );
 }
+

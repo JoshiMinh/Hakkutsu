@@ -4,7 +4,8 @@
  * Single-view design combining Japanese text analysis, translation, and SRS reviews.
  */
 
-import { useCallback, useEffect, useState, Suspense, lazy } from "react";
+import { useCallback, useEffect, useState, Suspense, lazy, Component } from "react";
+import type { ReactNode, ErrorInfo } from "react";
 import { 
   Brain, 
   Languages, 
@@ -40,6 +41,53 @@ import appLogo from "data-base64:~assets/icon/icon-rounded.png";
 import kofiSvg from "data-base64:~assets/logo/kofi.svg";
 
 const SrsReview = lazy(() => import("~components/srs-review").then(m => ({ default: m.SrsReview })));
+
+interface PopupErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface PopupErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<PopupErrorBoundaryProps, PopupErrorBoundaryState> {
+  constructor(props: PopupErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): PopupErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Popup Error Boundary caught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: "24px 16px", textAlign: "center", color: "#ef4444" }}>
+          <div style={{ fontSize: "14px", fontWeight: "bold", marginBottom: "8px" }}>
+            View Error
+          </div>
+          <p style={{ fontSize: "12px", color: "#a1a1aa", marginBottom: "12px" }}>
+            {this.state.error?.message || "An error occurred"}
+          </p>
+          <button
+            type="button"
+            className="hk-btn hk-btn--secondary hk-btn--sm"
+            onClick={() => this.setState({ hasError: false, error: null })}
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ── Helper Components ───────────────────────────────────────────────
 
@@ -424,7 +472,7 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
         <button
           className="hk-btn hk-btn--secondary"
           style={{ width: '100%', justifyContent: 'center' }}
-          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("app.html") })}
+          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") })}
         >
           <ExternalLink size={16} /> Open Full App
         </button>
@@ -491,10 +539,8 @@ function Popup() {
   };
 
   return (
-    <div className="hk-popup" style={{ width: "420px", minHeight: "480px", background: "#09090b", color: "#ffffff", boxSizing: "border-box" }}>
-      <header className="hk-header" style={{ padding: "12px 14px" }}>
-        <div className="hk-header__logo" style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
-          <img src={appLogo} alt="Hakkutsu" style={{ width: 28, height: 28, borderRadius: "6px", flexShrink: 0 }} />
+    <div className="hk-popup" style={{ width: "420px", maxWidth: "420px", minHeight: "480px", background: "#09090b", color: "#ffffff", boxSizing: "border-box", overflowX: "hidden" }}>
+      <header className="hk-header" style={{ padding: "12px 14px", overflowX: "hidden" }}>
           <div>
             <div className="hk-header__title" style={{ fontSize: "15px", lineHeight: "1.2", fontWeight: 700 }}>Hakkutsu</div>
             <div style={{ fontSize: "10px", color: "var(--hk-text-muted)" }}>{t("popup_subtitle")}</div>
@@ -589,23 +635,25 @@ function Popup() {
         ))}
       </nav>
 
-      <Suspense fallback={<LoadingSpinner text="Loading view..." />}>
-        {activeView === "translate" && (
-          <TranslateQuickView
-            ankiConnected={ankiConnected}
-          />
-        )}
-        {activeView === "srs" && (
-          <SrsReview />
-        )}
-        {activeView === "anki" && (
-          <AnkiView 
-            settings={settings} 
-            onUpdate={handleUpdateSettings}
-            ankiConnected={ankiConnected}
-          />
-        )}
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingSpinner text="Loading view..." />}>
+          {activeView === "translate" && (
+            <TranslateQuickView
+              ankiConnected={ankiConnected}
+            />
+          )}
+          {activeView === "srs" && (
+            <SrsReview />
+          )}
+          {activeView === "anki" && (
+            <AnkiView 
+              settings={settings} 
+              onUpdate={handleUpdateSettings}
+              ankiConnected={ankiConnected}
+            />
+          )}
+        </Suspense>
+      </ErrorBoundary>
     </div>
   );
 }
