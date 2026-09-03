@@ -1,19 +1,29 @@
-# Node
+# Node & Dependencies
 node_modules/
-dist/
-build/
+/.pnp
+.pnp.js
 
-# Logs
+# Build Outputs & Packaging
+build/
+dist/
+out/
+
+# Plasmo & TypeScript build cache
+.plasmo/
+*.tsbuildinfo
+
+# Environment & Local Secrets
+.env*
+keys.json
+
+# Logs & Debugging
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Plasmo & TypeScript build cache
-.plasmo/
-*.tsbuildinfo
-
-# OS
+# OS & Misc
 .DS_Store
 Thumbs.db
+*.pem
