@@ -24,7 +24,6 @@
     "plasmo": "0.90.5",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "tesseract.js": "^5.1.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -50,32 +49,17 @@
       "tabs",
       "storage",
       "activeTab",
-      "offscreen",
       "contextMenus"
     ],
     "web_accessible_resources": [
       {
         "resources": [
-          "assets/*",
-          "assets/tesseract/*",
-          "assets/tesseract/worker.min.js",
-          "assets/tesseract/core/*",
-          "assets/tesseract/tessdata/*",
-          "offscreen.html"
+          "assets/*"
         ],
         "matches": [
           "<all_urls>"
         ]
       }
-    ],
-    "commands": {
-      "start-ocr": {
-        "suggested_key": {
-          "default": "Ctrl+Shift+X",
-          "mac": "Command+Shift+X"
-        },
-        "description": "Start OCR Screenshot"
-      }
-    }
+    ]
   }
 }

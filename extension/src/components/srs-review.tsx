@@ -293,3 +293,4 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   );
 }
 
+export default SrsReview;

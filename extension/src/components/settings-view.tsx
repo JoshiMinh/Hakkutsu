@@ -395,3 +395,6 @@ export function SettingsView({
     </div>
   );
 }
+
+export default SettingsView;
+

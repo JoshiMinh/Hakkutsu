@@ -1,10 +1,10 @@
 import React, { Component, useState, useEffect } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { Brain, BookOpen, LayoutDashboard, Settings as SettingsIcon, AlertTriangle, RefreshCw } from "lucide-react";
-import { SrsReview } from "~components/srs-review";
-import { WordList } from "~components/word-list";
-import { StatsOverview } from "~components/stats-overview";
-import { SettingsView } from "~components/settings-view";
+import SrsReview from "~components/srs-review";
+import WordList from "~components/word-list";
+import StatsOverview from "~components/stats-overview";
+import SettingsView from "~components/settings-view";
 import { useSettingsStore } from "~lib/utils/settings";
 import type { ExtensionSettings } from "~lib/types";
 import { useTranslation } from "~lib/languages/locales";
@@ -258,3 +258,6 @@ function SidebarButton({
     </button>
   );
 }
+
+export { AppDashboard };
+

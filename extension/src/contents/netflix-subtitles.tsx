@@ -20,6 +20,7 @@ import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/youtube-subtitle-sty
 import { SubtitleOverlay } from "~components/subtitle-overlay";
 import { SelectSubtitlesModal, type SubtitleTrackOption } from "~components/select-subtitles-modal";
 import { useSettingsStore } from "~lib/utils/settings";
+import { useTranslation } from "~lib/languages/locales";
 import {
   parseNetflixTtml,
   readSubtitleFile,
@@ -538,6 +539,8 @@ export default function NetflixSubtitlesOverlay() {
 
   // ── Injected Player Toolbar Button & Hover Menu ───────────────────────────
 
+  const { t } = useTranslation();
+
   useEffect(() => {
     let hoverMenu = document.getElementById("hk-netflix-hover-menu") as HTMLDivElement | null;
     let menuHideTimeout: number | null = null;
@@ -548,16 +551,16 @@ export default function NetflixSubtitlesOverlay() {
         <div style="padding: 10px 14px 8px; border-bottom: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: space-between;">
           <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: #fff;">
             <span style="color: #c084fc; font-weight: 900; font-size: 16px;">発</span>
-            <span>Shortcuts Manual</span>
+            <span>${t("shortcut_manual_title")}</span>
           </div>
           <button id="hk-nf-menu-open-modal" style="font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(168,85,247,0.25); border: 1px solid rgba(168,85,247,0.4); color: #c084fc; cursor: pointer; transition: all 0.15s ease;">
-            SETTINGS ⚙
+            ${t("shortcut_btn_settings")}
           </button>
         </div>
 
         <div style="padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
           <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">Seek Prev / Next Cue</span>
+            <span style="color: #a1a1aa;">${t("shortcut_seek_cue")}</span>
             <div style="display: flex; gap: 4px;">
               <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">A</kbd>
               <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">D</kbd>
@@ -565,17 +568,12 @@ export default function NetflixSubtitlesOverlay() {
           </div>
 
           <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">Repeat Current Cue</span>
-            <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">R</kbd>
-          </div>
-
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">Toggle Auto-Pause</span>
+            <span style="color: #a1a1aa;">${t("shortcut_toggle_autopause")}</span>
             <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">E</kbd>
           </div>
 
           <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">Toggle Furigana</span>
+            <span style="color: #a1a1aa;">${t("shortcut_toggle_furigana")}</span>
             <div style="display: flex; gap: 4px;">
               <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">F</kbd>
               <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">W</kbd>
@@ -583,23 +581,18 @@ export default function NetflixSubtitlesOverlay() {
           </div>
 
           <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">Toggle Translation</span>
+            <span style="color: #a1a1aa;">${t("shortcut_toggle_translation")}</span>
             <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">V</kbd>
           </div>
 
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">Open Settings / Tracks</span>
-            <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">C</kbd>
-          </div>
-
           <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px; margin-top: 2px;">
-            <span style="color: #a1a1aa;">Word Lookup</span>
-            <span style="color: #c084fc; font-weight: 600;">Hover / Click Token</span>
+            <span style="color: #a1a1aa;">${t("shortcut_word_lookup")}</span>
+            <span style="color: #c084fc; font-weight: 600;">${t("shortcut_word_lookup_val")}</span>
           </div>
 
           <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">Load Subtitles</span>
-            <span style="color: #c084fc; font-weight: 600;">Drag &amp; Drop .srt/.vtt</span>
+            <span style="color: #a1a1aa;">${t("shortcut_load_subtitles")}</span>
+            <span style="color: #c084fc; font-weight: 600;">${t("shortcut_load_subtitles_val")}</span>
           </div>
         </div>
       `;

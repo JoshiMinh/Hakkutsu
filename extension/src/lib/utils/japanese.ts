@@ -155,12 +155,22 @@ export function katakanaToHiragana(text: string): string {
  */
 export function sanitizeReading(rawReading: string, surface?: string): string {
   if (!rawReading) return "";
-  const variants = rawReading
+  const rawVariants = rawReading
     .split(/[\u3001,;\/\s\u3000]+/)
     .map((v) => katakanaToHiragana(v.trim()))
     .filter(Boolean);
 
-  if (variants.length === 0) return "";
+  if (rawVariants.length === 0) return "";
+
+  // Deduplicate variants while cleaning doubled strings (e.g. おもいおもい -> おmoい)
+  const variants = Array.from(new Set(rawVariants)).map((v) => {
+    if (v.length >= 4 && v.length % 2 === 0) {
+      const half = v.slice(0, v.length / 2);
+      if (half + half === v) return half;
+    }
+    return v;
+  });
+
   if (variants.length === 1) return variants[0];
 
   if (surface) {
@@ -241,7 +251,13 @@ export function distributeFurigana(text: string, reading?: string): RubySegment[
     return [{ text: cleanText }];
   }
 
-  const cleanReading = reading.trim();
+  let cleanReading = reading.trim();
+  if (cleanText.length === 1 && cleanReading.length >= 4 && cleanReading.length % 2 === 0) {
+    const half = cleanReading.slice(0, cleanReading.length / 2);
+    if (half + half === cleanReading) {
+      cleanReading = half;
+    }
+  }
 
   // Step 1: Strip common kana prefixes
   let start = 0;

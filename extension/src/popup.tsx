@@ -20,8 +20,7 @@ import {
   Trash2,
   CornerDownLeft,
   ChevronRight,
-  Volume2,
-  Scan
+  Volume2
 } from "lucide-react";
 
 import { apiClient } from "~lib/services/api-client";
@@ -40,7 +39,7 @@ import "./style.css";
 import appLogo from "data-base64:~assets/icon/icon-rounded.png";
 import kofiSvg from "data-base64:~assets/logo/kofi.svg";
 
-const SrsReview = lazy(() => import("~components/srs-review").then(m => ({ default: m.SrsReview })));
+import SrsReview from "~components/srs-review";
 
 interface PopupErrorBoundaryProps {
   children: ReactNode;
@@ -541,6 +540,8 @@ function Popup() {
   return (
     <div className="hk-popup" style={{ width: "420px", maxWidth: "420px", minHeight: "480px", background: "#09090b", color: "#ffffff", boxSizing: "border-box", overflowX: "hidden" }}>
       <header className="hk-header" style={{ padding: "12px 14px", overflowX: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <img src={appLogo} alt="Hakkutsu Logo" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "cover" }} />
           <div>
             <div className="hk-header__title" style={{ fontSize: "15px", lineHeight: "1.2", fontWeight: 700 }}>Hakkutsu</div>
             <div style={{ fontSize: "10px", color: "var(--hk-text-muted)" }}>{t("popup_subtitle")}</div>
@@ -570,27 +571,6 @@ function Popup() {
             <img src={kofiSvg} alt="Ko-fi" style={{ width: 14, height: 14, objectFit: "contain" }} />
             Ko-fi
           </a>
-
-          <button 
-            className="hk-btn hk-btn--secondary hk-btn--sm"
-            onClick={() => {
-              alert(t("ocr_coming_soon"));
-            }}
-            title={t("ocr_coming_soon")}
-            style={{
-              padding: "4px 8px",
-              fontSize: "11.5px",
-              background: "rgba(255, 255, 255, 0.05)",
-              color: "var(--hk-text-muted)",
-              border: "1px solid var(--hk-border)",
-              borderRadius: "6px",
-              gap: "4px",
-              cursor: "pointer",
-              opacity: 0.75
-            }}
-          >
-            <Scan size={12} /> OCR <span style={{ fontSize: "9px", background: "rgba(168, 85, 247, 0.2)", color: "#c084fc", padding: "1px 4px", borderRadius: "3px" }}>Soon</span>
-          </button>
 
           <button 
             className="hk-btn hk-btn--secondary hk-btn--sm"

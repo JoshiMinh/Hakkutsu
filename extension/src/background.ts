@@ -9,7 +9,6 @@ import { getSettings } from "~lib/services/storage";
 import { apiClient } from "~lib/services/api-client";
 import { localSrs } from "~lib/services/local-srs";
 import { ankiClient } from "~lib/services/anki-connect";
-import { localOcrService } from "~lib/services/ocr-service";
 import { llmService } from "~lib/services/llm-service";
 import type {
   ExtensionMessage,
@@ -345,18 +344,6 @@ async function handleMessage(
       return { type: "GET_SETTINGS", payload: settings };
     }
 
-    case "START_OCR_FLOW": {
-      const { tabId } = (message.payload as { tabId?: number }) || {};
-      if (tabId) {
-        await triggerOcrFlow(tabId);
-      } else {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          if (tabs[0]?.id) triggerOcrFlow(tabs[0].id);
-        });
-      }
-      return { type: "START_OCR_FLOW_RESULT", payload: {} };
-    }
-
     case "CAPTURE_SCREENSHOT": {
       return new Promise((resolve, reject) => {
         const windowId = sender.tab?.windowId;
@@ -459,44 +446,6 @@ async function handleMessage(
       };
     }
 
-    case "OCR_IMAGE": {
-      const { image_data, language } = message.payload as { image_data: string; language?: string };
-      const settings = await getSettings();
-      const targetLang = settings.targetLanguage || "vi";
-      const ocrLang = language || settings.ocrDefaultOrientation || "auto";
-
-      let rawText = "";
-      try {
-        rawText = await localOcrService.recognizeImage(image_data, ocrLang);
-      } catch (error: any) {
-        throw new Error(`Nhận diện OCR thất bại: ${error.message || error}`);
-      }
-
-      if (!rawText || !rawText.trim()) {
-        throw new Error("Không tìm thấy chữ tiếng Nhật trong vùng ảnh được chọn.");
-      }
-
-      // Automatically analyze recognized text through Hakkutsu dictionary & translation pipeline
-      let analysis: any = null;
-      try {
-        analysis = await llmService.analyzeText(rawText, false, targetLang);
-      } catch (analErr) {
-        console.warn("[Hakkutsu] OCR text analysis warning:", analErr);
-      }
-
-      return {
-        type: "OCR_RESULT",
-        payload: {
-          full_text: rawText,
-          engine: "local",
-          tokens: analysis?.tokens || null,
-          translation: analysis?.translation || "",
-          regions: [{ text: rawText, confidence: 1.0, bbox: null }],
-          language: ocrLang
-        }
-      };
-    }
-
     case "OPEN_APP": {
       chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") });
       return { type: "OPEN_APP_RESULT", payload: {} };
@@ -506,57 +455,5 @@ async function handleMessage(
       return { type: "ERROR", payload: { error: `Unknown message type: ${message.type}` } };
   }
 }
-
-async function triggerOcrFlow(tabId: number) {
-  try {
-    await chrome.tabs.sendMessage(tabId, { type: "START_SCREENSHOT_FLOW" });
-  } catch (err) {
-    console.warn("[Hakkutsu Background] Content script not responding on tab, attempting injection:", tabId, err);
-    try {
-      if (chrome.scripting) {
-        await chrome.scripting.executeScript({
-          target: { tabId },
-          files: ["contents/screenshot-overlay.js"]
-        });
-        setTimeout(() => {
-          chrome.tabs.sendMessage(tabId, { type: "START_SCREENSHOT_FLOW" });
-        }, 250);
-      }
-    } catch (injErr) {
-      console.error("[Hakkutsu Background] Script injection error:", injErr);
-    }
-  }
-}
-
-// Context Menu Setup
-if (typeof chrome !== "undefined" && chrome.contextMenus) {
-  chrome.runtime.onInstalled.addListener(() => {
-    try {
-      chrome.contextMenus.create({
-        id: "hakkutsu-ocr-selection",
-        title: "Hakkutsu OCR (Coming Soon)",
-        contexts: ["image", "selection", "page"]
-      });
-    } catch {
-      // menu item might already exist
-    }
-  });
-
-  chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId === "hakkutsu-ocr-selection" && tab?.id) {
-      triggerOcrFlow(tab.id);
-    }
-  });
-}
-
-chrome.commands.onCommand.addListener((command) => {
-  if (command === "start-ocr") {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]?.id) {
-        triggerOcrFlow(tabs[0].id);
-      }
-    });
-  }
-});
 
 export {};

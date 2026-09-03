@@ -243,10 +243,18 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     const checkAutoPause = () => {
       if (video.paused) return;
       const adjustedTime = video.currentTime - offset;
+
+      // Reset auto-pause lock if user seeks back into this cue
+      if (adjustedTime < currentSegment.start + 0.3) {
+        if (autoPauseLockedCueRef.current === currentSegment) {
+          autoPauseLockedCueRef.current = null;
+        }
+      }
+
       const cueEnd = currentSegment.start + currentSegment.duration;
 
-      // When near the end of the active cue (within 100ms)
-      if (adjustedTime >= cueEnd - 0.08 && adjustedTime <= cueEnd + 0.15) {
+      // Pause when reaching the end of active cue
+      if (adjustedTime >= cueEnd - 0.08) {
         if (autoPauseLockedCueRef.current !== currentSegment) {
           autoPauseLockedCueRef.current = currentSegment;
           video.pause();
@@ -254,7 +262,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       }
     };
 
-    const interval = setInterval(checkAutoPause, 50);
+    const interval = setInterval(checkAutoPause, 40);
     return () => clearInterval(interval);
   }, [currentSegment, settings.subtitlesAutoPause, offset, videoRef]);
 
@@ -451,6 +459,14 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       lookupDismissTimerRef.current = null;
     }
 
+    // Auto-pause video playback upon hover
+    const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+    if (video && !video.paused) {
+      try {
+        video.pause();
+      } catch {}
+    }
+
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = rect.left + rect.width / 2;
     const y = rect.top;
@@ -501,13 +517,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isEditableTarget(e.target)) return;
 
-      // Replay cue: 'R'
-      if (e.key === "r" || e.key === "R") {
-        e.preventDefault();
-        replayCurrentCue();
-        return;
-      }
-
       // Previous cue: 'A'
       if (e.key === "a" || e.key === "A") {
         e.preventDefault();
@@ -529,17 +538,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         updateSettings({ subtitlesAutoPause: next });
         showOffsetNotification(next ? 1 : 0);
         setOffsetToast(`Auto-Pause: ${next ? "ON" : "OFF"}`);
-        return;
-      }
-
-      // Open Select Subtitles / Settings Modal: 'C'
-      if (e.key === "c" || e.key === "C") {
-        e.preventDefault();
-        if (onOpenModal) {
-          onOpenModal();
-        } else {
-          setShowSelectModal(true);
-        }
         return;
       }
 

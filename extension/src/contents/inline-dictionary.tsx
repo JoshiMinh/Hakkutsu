@@ -286,7 +286,9 @@ const InlineDictionary = () => {
       return path.some(
         (el: any) =>
           el?.id === "hakkutsu-inline-dictionary" ||
-          el?.classList?.contains?.("hk-popup")
+          el?.id === "hakkutsu-inline-dictionary-host" ||
+          el?.classList?.contains?.("hk-popup") ||
+          el?.classList?.contains?.("hk-sub-token")
       );
     };
 
@@ -454,6 +456,13 @@ const InlineDictionary = () => {
 
     const onCustomAnalyze = (e: any) => {
       if (e.detail?.text) {
+        const video = document.querySelector<HTMLVideoElement>("video");
+        if (video && !video.paused) {
+          try {
+            video.pause();
+          } catch {}
+        }
+
         const x = Number.isFinite(e.detail.x)
           ? e.detail.x
           : window.innerWidth / 2;
@@ -507,6 +516,18 @@ const InlineDictionary = () => {
       window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
     };
 
+    const onDocumentPointerDown = (e: MouseEvent) => {
+      if (!positionRef.current) return;
+      if (!isClickInsidePopup(e)) {
+        analysisRequestRef.current += 1;
+        setPosition(null);
+        setHoverHighlightRects(null);
+        setTransientMode(false);
+        window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+      }
+    };
+
+    document.addEventListener("mousedown", onDocumentPointerDown, true);
     document.addEventListener("mousemove", onMouseMove, true);
     document.addEventListener("mouseup", onMouseUp, true);
     document.addEventListener("dblclick", onDoubleClick, true);
@@ -518,6 +539,7 @@ const InlineDictionary = () => {
     window.addEventListener("hakkutsu:token-hover", onTokenHover);
 
     return () => {
+      document.removeEventListener("mousedown", onDocumentPointerDown, true);
       document.removeEventListener("mousemove", onMouseMove, true);
       document.removeEventListener("mouseup", onMouseUp, true);
       document.removeEventListener("dblclick", onDoubleClick, true);
@@ -667,7 +689,7 @@ const InlineDictionary = () => {
     ? placeAbove
       ? {
           position: "fixed",
-          bottom: `${Math.max(16, window.innerHeight - position.y + 8)}px`,
+          bottom: `${Math.max(16, window.innerHeight - position.y + 36)}px`,
           left: `${panelLeft}px`,
           width: `${cardWidth}px`,
           maxHeight: "min(380px, calc(100vh - 40px))",

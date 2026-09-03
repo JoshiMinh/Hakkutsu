@@ -30,3 +30,5 @@ export function FrequencyBadge({ rank }: { rank: number | null }) {
     </span>
   );
 }
+
+export default JlptBadge;

@@ -362,25 +362,25 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
         <div style={{ padding: "20px", maxHeight: "420px", overflowY: "auto" }}>
           {/* Primary Track (Japanese Target) */}
           <CustomTrackDropdown
-            label="PRIMARY SUBTITLE TRACK (JAPANESE IMMERSION)"
+            label={t("sub_modal_primary_track")}
             labelColor="#c084fc"
             value={currentTrackId || ""}
             onChange={handlePrimaryTrackChange}
             tracks={availableTracks}
-            emptyLabel="No Track Selected"
+            emptyLabel={t("sub_modal_no_track")}
           />
 
           {/* Secondary Track (Bilingual Translation) */}
           <CustomTrackDropdown
-            label="SECONDARY SUBTITLE TRACK (TRANSLATION)"
+            label={t("sub_modal_secondary_track")}
             labelColor="#60a5fa"
             value={secondaryTrackId || ""}
             onChange={handleSecondaryTrackChange}
             tracks={availableTracks}
             allowEmpty
-            emptyLabel="Disabled (Japanese Only)"
+            emptyLabel={t("sub_modal_disabled_ja_only")}
             allowAutoTranslate
-            autoTranslateLabel="Auto-translate Japanese on demand"
+            autoTranslateLabel={t("sub_modal_auto_translate")}
           />
 
           {/* Offset Controls */}
@@ -388,7 +388,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#a1a1aa" }}>
                 <Clock size={14} />
-                <span>Subtitle Sync Offset:</span>
+                <span>{t("sub_modal_sync_offset")}</span>
               </div>
               <span style={{ fontSize: "13px", fontWeight: 700, color: offset === 0 ? "#a1a1aa" : "#a855f7" }}>
                 {offset > 0 ? `+${offset.toFixed(1)}s` : `${offset.toFixed(1)}s`}
@@ -414,7 +414,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
                 onClick={() => onOffsetChange(0)}
                 style={{ flex: 1, padding: "6px", borderRadius: "6px", background: "#27272a", border: "none", color: "#fff", cursor: "pointer", fontSize: "11px" }}
               >
-                Reset
+                {t("sub_modal_reset")}
               </button>
               <button
                 type="button"
@@ -438,7 +438,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
             <div style={{ padding: "12px", backgroundColor: "#18181c", borderRadius: "10px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "#a1a1aa", marginBottom: "6px" }}>
                 <Type size={13} />
-                <span>Font Size: {fontSize}px</span>
+                <span>{t("sub_modal_font_size")}: {fontSize}px</span>
               </div>
               <input
                 type="range"
@@ -466,9 +466,9 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
             >
               <div>
                 <div style={{ fontSize: "12px", fontWeight: 600, color: autoPause ? "#a855f7" : "#fff" }}>
-                  Auto-Pause (E)
+                  {t("sub_modal_autopause")}
                 </div>
-                <div style={{ fontSize: "10px", color: "#a1a1aa" }}>Pause after each cue</div>
+                <div style={{ fontSize: "10px", color: "#a1a1aa" }}>{t("sub_modal_autopause_desc")}</div>
               </div>
               <input
                 type="checkbox"
@@ -496,9 +496,9 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
           >
             <div>
               <div style={{ fontSize: "12px", fontWeight: 600, color: showFurigana ? "#a855f7" : "#fff" }}>
-                Kanji Furigana (F / W)
+                {t("sub_modal_furigana")}
               </div>
-              <div style={{ fontSize: "10px", color: "#a1a1aa" }}>Show readings above kanji characters</div>
+              <div style={{ fontSize: "10px", color: "#a1a1aa" }}>{t("sub_modal_furigana_desc")}</div>
             </div>
             <input
               type="checkbox"
@@ -546,7 +546,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
               }}
             >
               <FolderOpen size={16} color="#c084fc" />
-              <span>Open Local Subtitle File (.srt, .vtt, .ass)</span>
+              <span>{t("sub_modal_btn_open_files")}</span>
             </button>
           </div>
         </div>
@@ -564,7 +564,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
             color: "#71717a",
           }}
         >
-          <span>Tip: Press <b>R</b> replay, <b>A</b>/<b>D</b> skip, <b>F</b>/<b>W</b> furigana</span>
+          <span>{t("sub_modal_tip")}</span>
           <button
             type="button"
             onClick={onClose}
@@ -579,7 +579,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
               cursor: "pointer",
             }}
           >
-            Done
+            {t("sub_modal_done")}
           </button>
         </div>
       </div>

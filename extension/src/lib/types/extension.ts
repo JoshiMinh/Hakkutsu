@@ -23,7 +23,6 @@ export interface ExtensionSettings {
   subtitlesSecondaryEnabled: boolean;
   subtitlesAutoPause: boolean;
   subtitlesOffset: number;
-  ocrDefaultOrientation: "auto" | "horizontal" | "vertical";
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -45,7 +44,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   subtitlesSecondaryEnabled: true,
   subtitlesAutoPause: false,
   subtitlesOffset: 0,
-  ocrDefaultOrientation: "auto",
 };
 
 export interface VocabularyEntry {

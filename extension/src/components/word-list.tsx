@@ -960,3 +960,4 @@ function FormGroup({
   );
 }
 
+export default WordList;
