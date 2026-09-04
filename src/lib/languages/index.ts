@@ -36,9 +36,39 @@ export const SUPPORTED_LANGUAGES: Record<string, LanguageConfig> = {
     supportsHanViet: false,
     dictionaryName: "Jisho / JMdict",
   },
+  zh: {
+    code: "zh",
+    name: "Chinese",
+    nativeName: "中文",
+    flag: "🇨🇳",
+    ttsLangCode: "zh-CN",
+    googleTranslateCode: "zh-CN",
+    supportsHanViet: false,
+    dictionaryName: "CEDICT",
+  },
+  ja: {
+    code: "ja",
+    name: "Japanese",
+    nativeName: "日本語",
+    flag: "🇯🇵",
+    ttsLangCode: "ja-JP",
+    googleTranslateCode: "ja",
+    supportsHanViet: false,
+    dictionaryName: "JMdict",
+  },
+  ko: {
+    code: "ko",
+    name: "Korean",
+    nativeName: "한국語",
+    flag: "🇰🇷",
+    ttsLangCode: "ko-KR",
+    googleTranslateCode: "ko",
+    supportsHanViet: false,
+    dictionaryName: "KRdict",
+  },
 };
 
-export type SupportedLanguageCode = "vi" | "en";
+export type SupportedLanguageCode = "vi" | "en" | "zh" | "ja" | "ko";
 
 export function getLanguageConfig(langCode?: string): LanguageConfig {
   if (langCode && SUPPORTED_LANGUAGES[langCode]) {

@@ -5,7 +5,7 @@
 export type ExtensionView = "translate" | "srs" | "anki";
 
 export interface ExtensionSettings {
-  targetLanguage: "vi" | "en";
+  targetLanguage: "vi" | "en" | "zh" | "ja" | "ko";
   showHanViet: boolean;
   ankiEnabled: boolean;
   ankiDeck: string;

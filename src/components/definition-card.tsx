@@ -3,6 +3,7 @@ import type { TokenAnalysis, AnkiExportData } from "~lib/types";
 import { formatPosLabel } from "~lib/utils/constants";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { hasKanji, distributeFurigana } from "~lib/utils/japanese";
+import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { JlptBadge, PosBadge, FrequencyBadge } from "./Badges";
 import { Volume2, BookmarkPlus, Copy, Check, Sparkles, BookOpen, MessageSquareText, Loader2 } from "lucide-react";
 import { useTranslation } from "~lib/languages/locales";
@@ -229,7 +230,7 @@ export function DefinitionCard({
         </div>
 
         <div className="hk-definition__meta">
-          <JlptBadge level={token.jlpt_level} />
+          <JlptBadge level={token.jlpt_level || predictJlpt(token.dictionary_form || token.surface)} />
           <PosBadge pos={token.pos} />
           <FrequencyBadge rank={token.frequency_rank} />
         </div>

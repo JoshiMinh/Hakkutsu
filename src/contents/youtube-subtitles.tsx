@@ -215,6 +215,14 @@ export default function YouTubeSubtitlesOverlay() {
   const [hasLiveCues, setHasLiveCues] = useState(false);
   const [offset, setOffset] = useState(settings.subtitlesOffset || 0);
 
+  useEffect(() => {
+    setIsEnabled(settings.subtitlesEnabled !== false);
+  }, [settings.subtitlesEnabled]);
+
+  useEffect(() => {
+    setOffset(settings.subtitlesOffset || 0);
+  }, [settings.subtitlesOffset]);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const currentUrlRef = useRef(window.location.href);

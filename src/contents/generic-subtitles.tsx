@@ -74,6 +74,15 @@ export const mountShadowHost: PlasmoMountShadowHost = async ({
       container.appendChild(host);
     }
 
+    if (container && container !== document.body) {
+      try {
+        const computed = window.getComputedStyle(container);
+        if (computed.overflow === "hidden" || computed.overflowY === "hidden") {
+          container.style.setProperty("overflow", "visible", "important");
+        }
+      } catch {}
+    }
+
     const shadowContainer = host.shadowRoot?.getElementById("plasmo-shadow-container");
     if (shadowContainer) {
       Object.assign(shadowContainer.style, {
@@ -82,6 +91,7 @@ export const mountShadowHost: PlasmoMountShadowHost = async ({
         width: "100%",
         height: "100%",
         pointerEvents: "none",
+        overflow: "visible",
       });
     }
     return true;

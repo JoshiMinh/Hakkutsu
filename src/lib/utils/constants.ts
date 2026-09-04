@@ -126,7 +126,7 @@ export const POS_LABELS_EN: Record<string, string> = {
 /** Backward-compatible default export */
 export const POS_LABELS = POS_LABELS_VI;
 
-export function formatPosLabel(pos: string | null | undefined, lang: "en" | "vi" = "en"): string {
+export function formatPosLabel(pos: string | null | undefined, lang: string = "en"): string {
   if (!pos) return "";
   const clean = pos.trim().toLowerCase();
   const map = lang === "vi" ? POS_LABELS_VI : POS_LABELS_EN;

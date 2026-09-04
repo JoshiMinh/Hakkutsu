@@ -1719,7 +1719,8 @@ body.editor-page { height: 100vh; overflow: hidden; display: flex; flex-directio
   background: var(--hk-bg-secondary);
   border: 1px solid var(--hk-border);
   border-radius: var(--hk-radius-lg);
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
   box-shadow: var(--hk-shadow-sm);
   transition: border-color var(--hk-transition-fast);
 }
@@ -1735,6 +1736,8 @@ body.editor-page { height: 100vh; overflow: hidden; display: flex; flex-directio
   padding: 14px 18px;
   background: rgba(255, 255, 255, 0.02);
   border-bottom: 1px solid var(--hk-border);
+  border-top-left-radius: var(--hk-radius-lg);
+  border-top-right-radius: var(--hk-radius-lg);
 }
 
 .hk-settings-card__icon {

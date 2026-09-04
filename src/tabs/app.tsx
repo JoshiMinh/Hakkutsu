@@ -8,7 +8,7 @@ import SettingsView from "~components/settings-view";
 import { useSettingsStore } from "~lib/utils/settings";
 import type { ExtensionSettings } from "~lib/types";
 import { useTranslation } from "~lib/languages/locales";
-import logoUrl from "data-base64:~assets/icon/icon-rounded.png";
+import logoUrl from "data-base64:../../assets/icon/icon-rounded.png";
 import "~style.css";
 
 interface ErrorBoundaryProps {

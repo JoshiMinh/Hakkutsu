@@ -36,8 +36,8 @@ import type {
 } from "~lib/types";
 
 import "./style.css";
-import appLogo from "data-base64:~assets/icon/icon-rounded.png";
-import kofiSvg from "data-base64:~assets/logo/kofi.svg";
+import appLogo from "data-base64:../assets/icon/icon-rounded.png";
+import kofiSvg from "data-base64:../assets/logo/kofi.svg";
 
 import SrsReview from "~components/srs-review";
 

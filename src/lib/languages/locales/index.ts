@@ -6,10 +6,16 @@
 import { useSettingsStore } from "~lib/utils/settings";
 import { vi } from "./vi";
 import { en } from "./en";
+import { zh } from "./zh";
+import { ja } from "./ja";
+import { ko } from "./ko";
 
 export const translations: Record<string, Record<string, string>> = {
   vi,
   en,
+  zh,
+  ja,
+  ko,
 };
 
 export type TranslationKey = keyof typeof en;

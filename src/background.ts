@@ -172,9 +172,13 @@ async function translateWithGoogle(text: string, targetLang: string): Promise<st
     ? "vi"
     : targetLang.startsWith("en")
       ? "en"
-      : targetLang.startsWith("ja")
-        ? "ja"
-        : targetLang;
+      : targetLang.startsWith("zh")
+        ? "zh-CN"
+        : targetLang.startsWith("ko")
+          ? "ko"
+          : targetLang.startsWith("ja")
+            ? "ja"
+            : targetLang;
 
   // 1. Primary: gtx single endpoint with browser headers
   try {

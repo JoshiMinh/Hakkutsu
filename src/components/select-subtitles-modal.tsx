@@ -332,6 +332,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
         style={{
           width: "100%",
           maxWidth: "480px",
+          maxHeight: "calc(100vh - 32px)",
           backgroundColor: "#111114",
           border: "1px solid rgba(255, 255, 255, 0.14)",
           borderRadius: "16px",
@@ -351,6 +352,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
             alignItems: "center",
             justifyContent: "space-between",
             backgroundColor: "#18181c",
+            flexShrink: 0,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -392,7 +394,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div style={{ padding: "20px", maxHeight: "450px", overflowY: "auto" }}>
+        <div style={{ padding: "20px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Custom Subtitle Upload Dropzone */}
           <div
             onDragOver={(e) => {

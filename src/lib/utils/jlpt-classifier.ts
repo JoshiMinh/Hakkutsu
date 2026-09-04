@@ -1,48 +1,109 @@
 /**
- * Local JLPT classifier (Rule-based / Dictionary matcher)
- * Replaces the backend ML classifier.
+ * Local JLPT classifier (Rule-based / Comprehensive Dictionary matcher)
  */
 
-// A small dictionary of common words to JLPT levels for demonstration.
-// In a full implementation, this could load a JSON dictionary file.
+// Comprehensive dictionary mapping common Japanese words to JLPT levels (N5-N1)
 const JLPT_DICT: Record<string, string> = {
-  "食べる": "N5",
-  "飲む": "N5",
-  "行く": "N5",
-  "来る": "N5",
-  "学校": "N5",
-  "勉強": "N5",
-  "日本": "N5",
-  "語彙": "N3",
-  "文法": "N3",
-  "読解": "N3",
-  "聴解": "N3",
-  "試験": "N4",
-  "合格": "N3",
-  "失敗": "N3",
+  // N5 Vocabulary
+  "私": "N5", "僕": "N5", "俺": "N5", "あなた": "N5", "彼": "N5", "彼女": "N5", "人": "N5", "名": "N5", "方": "N5",
+  "日": "N5", "本": "N5", "月": "N5", "火": "N5", "水": "N5", "木": "N5", "金": "N5", "土": "N5", "年": "N5",
+  "今": "N5", "今日": "N5", "明日": "N5", "昨日": "N5", "毎日": "N5", "朝": "N5", "昼": "N5", "夜": "N5", "晩": "N5",
+  "時": "N5", "分": "N5", "半": "N5", "前": "N5", "後": "N5", "今週": "N5", "来週": "N5", "先週": "N5",
+  "学校": "N5", "先生": "N5", "学生": "N5", "大学": "N5", "友達": "N5", "家": "N5", "部屋": "N5", "店": "N5",
+  "車": "N5", "電車": "N5", "駅": "N5", "道": "N5", "国": "N5", "語": "N5", "日本語": "N5", "英語": "N5",
+  "食べる": "N5", "飲む": "N5", "行く": "N5", "来る": "N5", "見る": "N5", "聞く": "N5", "書く": "N5", "読む": "N5",
+  "話す": "N5", "買物": "N5", "買う": "N5", "起きる": "N5", "寝る": "N5", "会う": "N5", "待つ": "N5", "作る": "N5",
+  "使う": "N5", "休む": "N5", "歩く": "N5", "走る": "N5", "泳ぐ": "N5", "勉強": "N5", "仕事": "N5", "電話": "N5",
+  "大": "N5", "小": "N5", "高": "N5", "安": "N5", "新": "N5", "古": "N5", "長": "N5", "短": "N5", "多": "N5", "少": "N5",
+
+  // N4 Vocabulary (including 週間, 時間, etc.)
+  "週間": "N4", "時間": "N4", "年間": "N4", "月間": "N4", "日間": "N4", "期間": "N4", "仲間": "N4",
+  "生活": "N4", "世界": "N4", "社会": "N4", "文化": "N4", "歴史": "N4", "経済": "N4", "交通": "N4", "安全": "N4",
+  "注意": "N4", "準備": "N4", "計画": "N4", "約束": "N4", "説明": "N4", "利用": "N4", "案内": "N4", "遠慮": "N4",
+  "安心": "N4", "心配": "N4", "経験": "N4", "技術": "N4", "方法": "N4", "習慣": "N4", "目的": "N4", "理由": "N4",
+  "試験": "N4", "問題": "N4", "言葉": "N4", "意味": "N4", "意見": "N4", "研究": "N4", "専門": "N4", "関係": "N4",
+  "始ま": "N4", "終わ": "N4", "探す": "N4", "見つかる": "N4", "調べる": "N4", "決める": "N4", "選ぶ": "N4",
+  "手伝う": "N4", "助ける": "N4", "断る": "N4", "変える": "N4", "集める": "N4", "伝える": "N4", "信じる": "N4",
+
+  // N3 Vocabulary
+  "語彙": "N3", "文法": "N3", "読解": "N3", "聴解": "N3", "合格": "N3", "失敗": "N3", "影響": "N3", "結果": "N3",
+  "原因": "N3", "発展": "N3", "成功": "N3", "機会": "N3", "可能": "N3", "限界": "N3", "期待": "N3", "評価": "N3",
+  "態度": "N3", "感情": "N3", "状況": "N3", "条件": "N3", "環境": "N3", "意識": "N3", "価値": "N3", "割合": "N3",
+
+  // N2 Vocabulary
+  "世間": "N2", "瞬間": "N2", "人間": "N2", "背景": "N2", "対立": "N2", "主張": "N2", "批判": "N2", "追求": "N2",
+  "矛盾": "N2", "抽象": "N2", "具体": "N2", "概念": "N2", "分析": "N2", "仮説": "N2", "展開": "N2", "範囲": "N2",
+
+  // N1 Vocabulary
+  "網羅": "N1", "凌駕": "N1", "変遷": "N1", "糾弾": "N1", "躊躇": "N1", "乖離": "N1", "杞憂": "N1", "脆弱": "N1",
+};
+
+// Kanji JLPT character level map
+const KANJI_JLPT: Record<string, string> = {
+  // N5 Kanji
+  "一": "N5", "二": "N5", "三": "N5", "四": "N5", "五": "N5", "六": "N5", "七": "N5", "八": "N5", "九": "N5", "十": "N5",
+  "百": "N5", "千": "N5", "万": "N5", "円": "N5", "口": "N5", "目": "N5", "耳": "N5", "手": "N5", "足": "N5", "見": "N5",
+  "音": "N5", "力": "N5", "気": "N5", "天": "N5", "雨": "N5", "空": "N5", "立": "N5", "休": "N5", "先": "N5", "生": "N5",
+  "学": "N5", "校": "N5", "年": "N5", "月": "N5", "日": "N5", "火": "N5", "水": "N5", "木": "N5", "金": "N5", "土": "N5",
+  "名": "N5", "前": "N5", "後": "N5", "上": "N5", "下": "N5", "中": "N5", "外": "N5", "右": "N5", "左": "N5", "大": "N5",
+  "小": "N5", "高": "N5", "安": "N5", "新": "N5", "古": "N5", "多": "N5", "少": "N5", "長": "N5", "山": "N5", "川": "N5",
+  "花": "N5", "犬": "N5", "猫": "N5", "本": "N5", "話": "N5", "語": "N5", "読": "N5", "書": "N5", "聞": "N5", "食": "N5",
+  "飲": "N5", "買": "N5", "来": "N5", "行": "N5", "出": "N5", "入": "N5", "会": "N5", "友": "N5", "間": "N5", "時": "N5",
+
+  // N4 Kanji (including 週, 意, 味, 験, 試, etc.)
+  "週": "N4", "意": "N4", "味": "N4", "験": "N4", "試": "N4", "題": "N4", "問": "N4", "答": "N4", "教": "N4", "習": "N4",
+  "強": "N4", "勉": "N4", "業": "N4", "作": "N4", "使": "N4", "持": "N4", "待": "N4", "住": "N4", "借": "N4", "貸": "N4",
+  "思": "N4", "知": "N4", "考": "N4", "感": "N4", "情": "N4", "病": "N4", "院": "N4", "医": "N4", "薬": "N4", "身": "N4",
+  "体": "N4", "頭": "N4", "顔": "N4", "声": "N4", "風": "N4", "自": "N4", "動": "N4", "転": "N4", "運": "N4", "海": "N4",
+
+  // N3 Kanji
+  "政": "N3", "治": "N3", "経": "N3", "済": "N3", "連": "N3", "関": "N3", "係": "N3", "現": "N3", "象": "N3", "評": "N3",
+  "価": "N3", "条": "N3", "件": "N3", "環": "N3", "境": "N3", "機": "N3", "構": "N3", "可": "N3", "能": "N3", "限": "N3",
+
+  // N2 Kanji
+  "党": "N2", "警": "N2", "察": "N2", "庁": "N2", "判": "N2", "断": "N2", "批": "N2", "抽": "N2",
 };
 
 const JAPANESE_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/;
 
 /**
  * Predicts the JLPT level (N1-N5) for a given Japanese text.
- * Falls back to dictionary lookup.
  */
 export function predictJlpt(text: string): string | null {
-  if (!text || !JAPANESE_PATTERN.test(text)) {
+  if (!text || typeof text !== "string") return null;
+
+  const trimmed = text.trim();
+  if (!trimmed || !JAPANESE_PATTERN.test(trimmed)) {
     return null;
   }
 
-  // Exact match
-  if (JLPT_DICT[text]) {
-    return JLPT_DICT[text];
+  // 1. Direct dictionary match
+  if (JLPT_DICT[trimmed]) {
+    return JLPT_DICT[trimmed];
   }
 
-  // Substring matching for a very crude fallback
+  // 2. Substring dictionary match
   for (const [word, level] of Object.entries(JLPT_DICT)) {
-    if (text.includes(word)) {
+    if (trimmed === word || trimmed.includes(word)) {
       return level;
     }
+  }
+
+  // 3. Kanji character-level level inference
+  const kanjiChars = [...trimmed].filter((c) => KANJI_JLPT[c]);
+  if (kanjiChars.length > 0) {
+    const levelRank: Record<string, number> = { N5: 5, N4: 4, N3: 3, N2: 2, N1: 1 };
+    let highestLevelName = "N5";
+    let minRank = 5;
+
+    for (const char of kanjiChars) {
+      const lvl = KANJI_JLPT[char];
+      if (lvl && levelRank[lvl] <= minRank) {
+        minRank = levelRank[lvl];
+        highestLevelName = lvl;
+      }
+    }
+    return highestLevelName;
   }
 
   return null;

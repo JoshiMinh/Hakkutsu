@@ -18,10 +18,11 @@ import {
 } from "lucide-react";
 import { JlptBadge } from "~components/Badges";
 import { getHanViet } from "~lib/utils/hanviet-dict";
+import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { lookupWord } from "~lib/services/dictionary-lookup";
 import { useTranslation } from "~lib/languages/locales";
 import { ankiClient } from "~lib/services/anki-connect";
-import ankiSvg from "data-base64:~assets/logo/anki.svg";
+import ankiSvg from "data-base64:../../assets/logo/anki.svg";
 
 export function WordList({ 
   userId = "user_1",
@@ -710,7 +711,11 @@ export function WordList({
 
                       {/* 6. JLPT */}
                       <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                        {card.jlpt ? <JlptBadge level={card.jlpt} /> : <span style={{ color: "var(--hk-text-muted)", fontSize: "11px" }}>—</span>}
+                        {(card.jlpt || predictJlpt(card.word)) ? (
+                          <JlptBadge level={card.jlpt || predictJlpt(card.word)} />
+                        ) : (
+                          <span style={{ color: "var(--hk-text-muted)", fontSize: "11px" }}>—</span>
+                        )}
                       </td>
 
                       {/* 7. Actions */}

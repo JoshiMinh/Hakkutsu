@@ -1,11 +1,153 @@
-import { Database, Film, GraduationCap, Languages, Settings as SettingsIcon } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Check, ChevronDown, Database, Film, GraduationCap, Languages, Settings as SettingsIcon } from "lucide-react";
 import type { ExtensionSettings } from "~lib/types";
 import { t } from "~lib/languages/locales";
-import { SUPPORTED_LANGUAGES } from "~lib/languages";
-import ankiSvg from "data-base64:~assets/logo/anki.svg";
-import kofiSvg from "data-base64:~assets/logo/kofi.svg";
-import usFlag from "data-base64:~assets/language/en.png";
-import vnFlag from "data-base64:~assets/language/vi.png";
+import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from "~lib/languages";
+import ankiSvg from "data-base64:../../assets/logo/anki.svg";
+import kofiSvg from "data-base64:../../assets/logo/kofi.svg";
+import usFlag from "data-base64:../../assets/language/en.png";
+import vnFlag from "data-base64:../../assets/language/vi.png";
+import zhFlag from "data-base64:../../assets/language/zh.png";
+import jaFlag from "data-base64:../../assets/language/ja.png";
+import koFlag from "data-base64:../../assets/language/ko.png";
+
+const FLAG_MAP: Record<string, string> = {
+  vi: vnFlag,
+  en: usFlag,
+  zh: zhFlag,
+  ja: jaFlag,
+  ko: koFlag,
+};
+
+function CustomLanguageDropdown({
+  value,
+  onChange,
+}: {
+  value: SupportedLanguageCode;
+  onChange: (code: SupportedLanguageCode) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const currentLangObj = SUPPORTED_LANGUAGES[value] || SUPPORTED_LANGUAGES.vi;
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", flexShrink: 0 }}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "8px",
+          backgroundColor: "#18181c",
+          border: "1.5px solid rgba(255, 255, 255, 0.14)",
+          borderRadius: "10px",
+          padding: "8px 12px",
+          color: "#fff",
+          fontSize: "13px",
+          fontWeight: 700,
+          cursor: "pointer",
+          outline: "none",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          transition: "all 0.2s ease",
+        }}
+      >
+        <img
+          src={FLAG_MAP[value] || FLAG_MAP.vi}
+          alt={value}
+          style={{ width: "20px", height: "20px", objectFit: "contain", borderRadius: "2px" }}
+        />
+        <span>{currentLangObj.nativeName}</span>
+        <ChevronDown
+          size={14}
+          style={{
+            color: "#a1a1aa",
+            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.2s ease",
+          }}
+        />
+      </button>
+
+      {isOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            right: 0,
+            zIndex: 1000,
+            minWidth: "160px",
+            backgroundColor: "#18181c",
+            border: "1px solid rgba(255, 255, 255, 0.14)",
+            borderRadius: "12px",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+            padding: "6px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "2px",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          {Object.values(SUPPORTED_LANGUAGES).map((lang) => {
+            const isSelected = lang.code === value;
+            return (
+              <button
+                key={lang.code}
+                type="button"
+                onClick={() => {
+                  onChange(lang.code as SupportedLanguageCode);
+                  setIsOpen(false);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  padding: "8px 10px",
+                  borderRadius: "8px",
+                  border: "none",
+                  backgroundColor: isSelected ? "rgba(192, 132, 252, 0.12)" : "transparent",
+                  color: isSelected ? "#c084fc" : "#e4e4e7",
+                  fontSize: "13px",
+                  fontWeight: isSelected ? 700 : 500,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "background-color 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <img
+                    src={FLAG_MAP[lang.code] || FLAG_MAP.vi}
+                    alt={lang.code}
+                    style={{ width: "20px", height: "20px", objectFit: "contain", borderRadius: "2px" }}
+                  />
+                  <span>{lang.nativeName}</span>
+                </div>
+                {isSelected && <Check size={14} style={{ color: "#c084fc", marginLeft: "8px" }} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function SettingsView({
   settings,
@@ -38,66 +180,37 @@ export function SettingsView({
           </header>
           
           <div className="hk-settings-card__body">
-            <div style={{ padding: "16px 18px" }}>
-              <label className="hk-settings-row__label" style={{ marginBottom: "4px", display: "block" }}>
-                {t("settings_lang_label", currentLang)}
-              </label>
-              <div className="hk-settings-row__desc" style={{ marginBottom: "14px" }}>
-                {t("settings_lang_desc", currentLang)}
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
-                {Object.values(SUPPORTED_LANGUAGES).map((lang) => {
-                  const isSelected = currentLang === lang.code;
-                  const flagImg = lang.code === "vi" ? vnFlag : usFlag;
-                  return (
-                    <button
-                      key={lang.code}
-                      type="button"
-                      onClick={() => onUpdate({ targetLanguage: lang.code as "vi" | "en" })}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "12px",
-                        padding: "14px 16px",
-                        borderRadius: "10px",
-                        border: isSelected ? "2px solid var(--hk-accent-primary)" : "1px solid var(--hk-border)",
-                        background: isSelected ? "rgba(168, 85, 247, 0.14)" : "var(--hk-bg-tertiary)",
-                        color: "var(--hk-text-primary)",
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                        boxShadow: isSelected ? "0 4px 16px rgba(168, 85, 247, 0.25)" : "none",
-                        textAlign: "left"
-                      }}
-                    >
-                      <img 
-                        src={flagImg} 
-                        alt={lang.code} 
-                        style={{ width: 26, height: 26, objectFit: "contain", flexShrink: 0 }} 
-                      />
-                      <div>
-                        <div style={{ fontSize: "14px", fontWeight: 700 }}>{lang.nativeName}</div>
-                        <div style={{ fontSize: "11px", color: "var(--hk-text-muted)", marginTop: "2px" }}>
-                          {lang.dictionaryName}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid rgba(255, 255, 255, 0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div>
-                  <label htmlFor="showHanViet" className="hk-settings-row__label" style={{ cursor: "pointer" }}>
-                    {t("settings_hanviet", currentLang)}
-                  </label>
-                  <div className="hk-settings-row__desc">
-                    {t("settings_hanviet_desc", currentLang)}
-                  </div>
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label className="hk-settings-row__label">
+                  {t("settings_lang_label", currentLang)}
+                </label>
+                <div className="hk-settings-row__desc">
+                  {t("settings_lang_desc", currentLang)}
                 </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <CustomLanguageDropdown
+                  value={currentLang}
+                  onChange={(code) => onUpdate({ targetLanguage: code })}
+                />
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="showHanViet" className="hk-settings-row__label">
+                  {t("settings_hanviet", currentLang)}
+                </label>
+                <div id="showHanViet-desc" className="hk-settings-row__desc">
+                  {t("settings_hanviet_desc", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
                 <label className="hk-toggle" htmlFor="showHanViet">
                   <input
                     id="showHanViet"
+                    aria-describedby="showHanViet-desc"
                     type="checkbox"
                     checked={settings.showHanViet !== false}
                     onChange={(e) => onUpdate({ showHanViet: e.target.checked })}
@@ -282,6 +395,29 @@ export function SettingsView({
 
             <div className="hk-settings-row">
               <div className="hk-settings-row__info">
+                <label htmlFor="showFuriganaSub" className="hk-settings-row__label">
+                  {t("settings_furigana", currentLang)}
+                </label>
+                <div id="showFuriganaSub-desc" className="hk-settings-row__desc">
+                  {t("settings_furigana_desc", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="showFuriganaSub">
+                  <input
+                    id="showFuriganaSub"
+                    aria-describedby="showFuriganaSub-desc"
+                    type="checkbox"
+                    checked={settings.showFurigana !== false}
+                    onChange={(e) => onUpdate({ showFurigana: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
                 <label htmlFor="subtitlesFontSize" className="hk-settings-row__label">
                   {t("settings_sub_fontsize", currentLang) || "Subtitle Font Size"} ({settings.subtitlesFontSize || 26}px)
                 </label>
@@ -300,6 +436,54 @@ export function SettingsView({
                   onChange={(e) => onUpdate({ subtitlesFontSize: Number(e.target.value) })}
                   style={{ width: "100%", accentColor: "var(--hk-accent-primary)" }}
                 />
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="subtitlesOffset" className="hk-settings-row__label">
+                  {t("sub_modal_sync_offset", currentLang)} ({settings.subtitlesOffset ? (settings.subtitlesOffset > 0 ? `+${settings.subtitlesOffset.toFixed(1)}s` : `${settings.subtitlesOffset.toFixed(1)}s`) : "0.0s"})
+                </label>
+                <div id="subtitlesOffset-desc" className="hk-settings-row__desc">
+                  Adjust subtitle timing delay or advance to sync with audio
+                </div>
+              </div>
+              <div className="hk-settings-row__control" style={{ display: "flex", gap: "6px" }}>
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ subtitlesOffset: Number(((settings.subtitlesOffset || 0) - 0.5).toFixed(1)) })}
+                  style={{ padding: "5px 9px", borderRadius: "6px", background: "var(--hk-bg-tertiary, #18181c)", border: "1px solid var(--hk-border, rgba(255, 255, 255, 0.14))", color: "#fff", cursor: "pointer", fontSize: "11px", fontWeight: 600 }}
+                >
+                  -500ms
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ subtitlesOffset: Number(((settings.subtitlesOffset || 0) - 0.1).toFixed(1)) })}
+                  style={{ padding: "5px 9px", borderRadius: "6px", background: "var(--hk-bg-tertiary, #18181c)", border: "1px solid var(--hk-border, rgba(255, 255, 255, 0.14))", color: "#fff", cursor: "pointer", fontSize: "11px", fontWeight: 600 }}
+                >
+                  -100ms
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ subtitlesOffset: 0 })}
+                  style={{ padding: "5px 9px", borderRadius: "6px", background: "var(--hk-bg-tertiary, #18181c)", border: "1px solid var(--hk-border, rgba(255, 255, 255, 0.14))", color: settings.subtitlesOffset ? "#c084fc" : "#a1a1aa", cursor: "pointer", fontSize: "11px", fontWeight: 600 }}
+                >
+                  {t("sub_modal_reset", currentLang)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ subtitlesOffset: Number(((settings.subtitlesOffset || 0) + 0.1).toFixed(1)) })}
+                  style={{ padding: "5px 9px", borderRadius: "6px", background: "var(--hk-bg-tertiary, #18181c)", border: "1px solid var(--hk-border, rgba(255, 255, 255, 0.14))", color: "#fff", cursor: "pointer", fontSize: "11px", fontWeight: 600 }}
+                >
+                  +100ms
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ subtitlesOffset: Number(((settings.subtitlesOffset || 0) + 0.5).toFixed(1)) })}
+                  style={{ padding: "5px 9px", borderRadius: "6px", background: "var(--hk-bg-tertiary, #18181c)", border: "1px solid var(--hk-border, rgba(255, 255, 255, 0.14))", color: "#fff", cursor: "pointer", fontSize: "11px", fontWeight: 600 }}
+                >
+                  +500ms
+                </button>
               </div>
             </div>
           </div>
