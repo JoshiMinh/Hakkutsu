@@ -105,6 +105,39 @@ export const getStyle: PlasmoGetStyle = () => {
 
 const STORAGE_KEY_PREFIX = "hk_generic_enabled_";
 const FAB_POS_KEY = "hk_fab_pos";
+const GENERIC_STYLE_ID = "hakkutsu-generic-global-style";
+
+function injectGenericGlobalStyle(hideNative: boolean): void {
+  let styleEl = document.getElementById(GENERIC_STYLE_ID) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = GENERIC_STYLE_ID;
+    document.head.appendChild(styleEl);
+  }
+
+  styleEl.textContent = hideNative
+    ? `
+      /* Cleanly hide raw player subtitles when Hakkutsu is active */
+      .jw-text-track-display,
+      .vjs-text-track-display,
+      .shaka-text-container,
+      .art-subtitles,
+      .plyr__captions,
+      .subtitle-container,
+      .video-js .vjs-text-track-display,
+      [class*="subtitle-text" i],
+      [class*="caption-text" i],
+      [class*="timedtext" i],
+      [class*="player-subtitle" i],
+      [class*="subtitle-layer" i],
+      [class*="subtitles-overlay" i],
+      video::cue {
+        opacity: 0 !important;
+        visibility: hidden !important;
+      }
+    `
+    : "";
+}
 
 function getSiteKey(): string {
   return STORAGE_KEY_PREFIX + location.origin;
@@ -438,7 +471,7 @@ export default function GenericSubtitlesOverlay() {
 
   const [availableTracks, setAvailableTracks] = useState<SubtitleTrackOption[]>([]);
   const [currentTrackId, setCurrentTrackId] = useState<string>("");
-  const [secondaryTrackId, setSecondaryTrackId] = useState<string>("");
+  const [secondaryTrackId, setSecondaryTrackId] = useState<string>("__auto_translate__");
 
   const [subtitleData, setSubtitleData] = useState<SubtitleFetchResult | null>(null);
   const [secondaryData, setSecondaryData] = useState<SubtitleFetchResult | null>(null);
@@ -449,6 +482,13 @@ export default function GenericSubtitlesOverlay() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const currentUrlRef = useRef(window.location.href);
+
+  // ── Inject CSS to hide raw player subtitles ─────────────────────────────────
+
+  useEffect(() => {
+    injectGenericGlobalStyle(isEnabled);
+    return () => injectGenericGlobalStyle(false);
+  }, [isEnabled]);
 
   // ── Check for a video element on this page ────────────────────────────────
 
@@ -583,48 +623,69 @@ export default function GenericSubtitlesOverlay() {
   // ── Frame sync loop & Live TextTrack Cue Extraction ─────────────────────
 
   const getLiveTextTrackCue = useCallback(
-    (video: HTMLVideoElement): SubtitleSegment | null => {
-      if (!video.textTracks || video.textTracks.length === 0) return null;
+    (video: HTMLVideoElement): { primary: SubtitleSegment | null; secondary: SubtitleSegment | null } => {
+      if (!video.textTracks || video.textTracks.length === 0) {
+        return { primary: null, secondary: null };
+      }
+
+      let primaryCue: SubtitleSegment | null = null;
+      let secondaryCue: SubtitleSegment | null = null;
 
       for (let i = 0; i < video.textTracks.length; i++) {
         const tt = video.textTracks[i];
+        if (tt.kind !== "subtitles" && tt.kind !== "captions") continue;
+
+        // Hide native UI rendering while keeping activeCues firing
+        if (tt.mode === "showing" || tt.mode === "disabled") {
+          try {
+            tt.mode = "hidden";
+          } catch {}
+        }
+
         const lang = tt.language || "";
         const label = tt.label || "";
+        const trackId = `track-${i}-${lang}-${label}`;
         const isJa = lang.startsWith("ja") || /ja|jp|japanese/i.test(label);
-        const isSelected = currentTrackId && (currentTrackId.includes(label) || currentTrackId.includes(lang));
 
-        if (isJa || isSelected) {
-          if (tt.mode === "disabled") {
-            try {
-              tt.mode = "hidden";
-            } catch {}
-          }
+        const isSelectedPrimary = currentTrackId
+          ? currentTrackId === trackId || currentTrackId.includes(label) || currentTrackId.includes(lang)
+          : isJa;
+        const isSelectedSecondary = secondaryTrackId && secondaryTrackId !== "__auto_translate__"
+          ? secondaryTrackId === trackId || secondaryTrackId.includes(label) || secondaryTrackId.includes(lang)
+          : !isSelectedPrimary && !isJa;
 
-          const activeCues = tt.activeCues;
-          if (activeCues && activeCues.length > 0) {
-            let text = "";
-            let start = 0;
-            let end = 0;
-            for (let j = 0; j < activeCues.length; j++) {
-              const cue = activeCues[j] as any;
-              if (cue.text) {
-                const cleaned = String(cue.text).replace(/<[^>]*>/g, "").trim();
-                if (cleaned) {
-                  text += (text ? "\n" : "") + cleaned;
-                  start = cue.startTime;
-                  end = cue.endTime;
-                }
+        const activeCues = tt.activeCues;
+        if (activeCues && activeCues.length > 0) {
+          let text = "";
+          let start = 0;
+          let end = 0;
+          for (let j = 0; j < activeCues.length; j++) {
+            const cue = activeCues[j] as any;
+            if (cue.text) {
+              const cleaned = String(cue.text).replace(/<[^>]*>/g, "").trim();
+              if (cleaned) {
+                text += (text ? "\n" : "") + cleaned;
+                start = cue.startTime;
+                end = cue.endTime;
               }
             }
-            if (text) {
-              return { text, start, duration: Math.max(2, end - start) };
+          }
+          if (text) {
+            const seg: SubtitleSegment = { text, start, duration: Math.max(2, end - start) };
+            if (isSelectedPrimary && !primaryCue) {
+              primaryCue = seg;
+            } else if (isSelectedSecondary && !secondaryCue) {
+              secondaryCue = seg;
+            } else if (!primaryCue) {
+              primaryCue = seg;
             }
           }
         }
       }
-      return null;
+
+      return { primary: primaryCue, secondary: secondaryCue };
     },
-    [currentTrackId]
+    [currentTrackId, secondaryTrackId]
   );
 
   useEffect(() => {
@@ -640,17 +701,20 @@ export default function GenericSubtitlesOverlay() {
 
     const syncCues = () => {
       const adjustedTime = video.currentTime - offset;
+      const liveCues = getLiveTextTrackCue(video);
+
       if (subtitleData?.segments?.length) {
         setCurrentSegment(findSmartCue(subtitleData.segments, adjustedTime));
-      } else {
-        const liveCue = getLiveTextTrackCue(video);
-        if (liveCue) {
-          setCurrentSegment(liveCue);
-        }
+      } else if (liveCues.primary) {
+        setCurrentSegment(liveCues.primary);
+      } else if (video.textTracks && video.textTracks.length > 0) {
+        setCurrentSegment(null);
       }
 
       if (secondaryData?.segments?.length) {
         setSecondarySegment(findSmartCue(secondaryData.segments, adjustedTime));
+      } else if (liveCues.secondary) {
+        setSecondarySegment(liveCues.secondary);
       } else {
         setSecondarySegment(null);
       }
