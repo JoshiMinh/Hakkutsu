@@ -123,17 +123,19 @@ function injectGenericGlobalStyle(hideNative: boolean): void {
       .shaka-text-container,
       .art-subtitles,
       .plyr__captions,
-      .subtitle-container,
+      .subtitle-container:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
       .video-js .vjs-text-track-display,
-      [class*="subtitle-text" i],
-      [class*="caption-text" i],
-      [class*="timedtext" i],
-      [class*="player-subtitle" i],
-      [class*="subtitle-layer" i],
-      [class*="subtitles-overlay" i],
+      [class*="subtitle-text" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      [class*="caption-text" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      [class*="timedtext" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      [class*="player-subtitle" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      [class*="subtitle-layer" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      [class*="subtitles-overlay" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
       video::cue {
         opacity: 0 !important;
-        visibility: hidden !important;
+        color: transparent !important;
+        text-shadow: none !important;
+        background: transparent !important;
       }
     `
     : "";
@@ -482,6 +484,8 @@ export default function GenericSubtitlesOverlay() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const currentUrlRef = useRef(window.location.href);
+  const hasActiveTextTrackRef = useRef(false);
+  const lastDomTextRef = useRef("");
 
   // ── Inject CSS to hide raw player subtitles ─────────────────────────────────
 
@@ -489,6 +493,71 @@ export default function GenericSubtitlesOverlay() {
     injectGenericGlobalStyle(isEnabled);
     return () => injectGenericGlobalStyle(false);
   }, [isEnabled]);
+
+  // ── Helper to find DOM subtitle text from third-party players ───────────────
+
+  const findSubtitleText = useCallback((): string => {
+    const selectors = [
+      ".jw-text-track-display",
+      ".vjs-text-track-display",
+      ".shaka-text-container",
+      ".art-subtitles",
+      ".plyr__captions",
+      ".subtitle-container",
+      ".video-js .vjs-text-track-display",
+      "[class*='subtitle-text' i]",
+      "[class*='caption-text' i]",
+      "[class*='timedtext' i]",
+      "[class*='player-subtitle' i]",
+      "[class*='subtitle-layer' i]",
+      "[class*='subtitles-overlay' i]",
+      "[class*='subtitle' i]",
+      "[class*='caption' i]",
+    ];
+
+    let fallbackText = "";
+
+    for (const sel of selectors) {
+      const els = document.querySelectorAll(sel);
+      for (let i = 0; i < els.length; i++) {
+        const el = els[i];
+        if (
+          el.closest("#hakkutsu-generic-subtitles-host") ||
+          el.closest(".hk-sub__container") ||
+          el.closest("button") ||
+          el.closest("[role='menu']") ||
+          el.closest("[role='menuitem']") ||
+          el.closest("[role='button']") ||
+          el.closest("[class*='menu' i]") ||
+          el.closest("[class*='control' i]") ||
+          el.closest("[class*='select' i]") ||
+          el.closest("[class*='dropdown' i]") ||
+          el.closest("[class*='option' i]")
+        ) {
+          continue;
+        }
+
+        const spans = el.querySelectorAll("span, div, p");
+        let text = "";
+        if (spans.length > 0) {
+          text = Array.from(spans)
+            .map((s) => s.textContent?.trim() || "")
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+        } else {
+          text = el.textContent?.trim() || "";
+        }
+
+        if (text) {
+          if (containsJapanese(text)) return text;
+          if (!fallbackText) fallbackText = text;
+        }
+      }
+    }
+
+    return fallbackText;
+  }, []);
 
   // ── Check for a video element on this page ────────────────────────────────
 
@@ -692,6 +761,8 @@ export default function GenericSubtitlesOverlay() {
     if (!isEnabled) {
       setCurrentSegment(null);
       setSecondarySegment(null);
+      hasActiveTextTrackRef.current = false;
+      lastDomTextRef.current = "";
       return;
     }
 
@@ -701,22 +772,44 @@ export default function GenericSubtitlesOverlay() {
 
     const syncCues = () => {
       const adjustedTime = video.currentTime - offset;
-      const liveCues = getLiveTextTrackCue(video);
 
       if (subtitleData?.segments?.length) {
         setCurrentSegment(findSmartCue(subtitleData.segments, adjustedTime));
-      } else if (liveCues.primary) {
-        setCurrentSegment(liveCues.primary);
-      } else if (video.textTracks && video.textTracks.length > 0) {
-        setCurrentSegment(null);
+      } else {
+        const liveCues = getLiveTextTrackCue(video);
+        if (liveCues.primary) {
+          hasActiveTextTrackRef.current = true;
+          setCurrentSegment(liveCues.primary);
+        } else if (hasActiveTextTrackRef.current) {
+          setCurrentSegment(null);
+        } else {
+          // DOM subtitle scanning fallback for third-party players
+          const domText = findSubtitleText();
+          if (domText) {
+            if (domText !== lastDomTextRef.current) {
+              lastDomTextRef.current = domText;
+              setCurrentSegment({
+                start: adjustedTime,
+                duration: 4,
+                text: domText,
+              });
+            }
+          } else if (lastDomTextRef.current) {
+            lastDomTextRef.current = "";
+            setCurrentSegment(null);
+          }
+        }
       }
 
       if (secondaryData?.segments?.length) {
         setSecondarySegment(findSmartCue(secondaryData.segments, adjustedTime));
-      } else if (liveCues.secondary) {
-        setSecondarySegment(liveCues.secondary);
       } else {
-        setSecondarySegment(null);
+        const liveCues = getLiveTextTrackCue(video);
+        if (liveCues.secondary) {
+          setSecondarySegment(liveCues.secondary);
+        } else {
+          setSecondarySegment(null);
+        }
       }
     };
 
@@ -737,86 +830,33 @@ export default function GenericSubtitlesOverlay() {
       video.removeEventListener("seeked", syncCues);
       video.removeEventListener("timeupdate", syncCues);
     };
-  }, [isEnabled, subtitleData, secondaryData, offset, getLiveTextTrackCue]);
+  }, [isEnabled, subtitleData, secondaryData, offset, getLiveTextTrackCue, findSubtitleText]);
 
   // ── DOM MutationObserver Fallback for Third-Party Players ──────────────────
 
   useEffect(() => {
     if (!isEnabled || subtitleData) return;
 
-    let lastObservedText = "";
     const target = document.body;
     if (!target) return;
-
-    const findSubtitleText = (): string => {
-      const selectors = [
-        ".jw-text-track-display",
-        ".vjs-text-track-display",
-        ".shaka-text-container",
-        ".art-subtitles",
-        ".plyr__captions",
-        ".subtitle-container",
-        "[class*='subtitle-text' i]",
-        "[class*='caption-text' i]",
-        "[class*='timedtext' i]",
-        "[class*='subtitle' i]",
-        "[class*='caption' i]",
-      ];
-
-      for (const sel of selectors) {
-        const els = document.querySelectorAll(sel);
-        for (let i = 0; i < els.length; i++) {
-          const el = els[i];
-          if (
-            el.closest("#hakkutsu-generic-subtitles-host") ||
-            el.closest(".hk-sub__container") ||
-            el.closest("button") ||
-            el.closest("[role='menu']") ||
-            el.closest("[role='menuitem']") ||
-            el.closest("[role='button']") ||
-            el.closest("[class*='menu' i]") ||
-            el.closest("[class*='control' i]") ||
-            el.closest("[class*='select' i]") ||
-            el.closest("[class*='dropdown' i]") ||
-            el.closest("[class*='option' i]")
-          ) {
-            continue;
-          }
-
-          const spans = el.querySelectorAll("span, div, p");
-          let text = "";
-          if (spans.length > 0) {
-            text = Array.from(spans)
-              .map((s) => s.textContent?.trim() || "")
-              .filter(Boolean)
-              .join(" ")
-              .trim();
-          } else {
-            text = el.textContent?.trim() || "";
-          }
-          if (text && containsJapanese(text)) return text;
-        }
-      }
-      return "";
-    };
 
     const observer = new MutationObserver(() => {
       if (subtitleData) return;
 
       const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
-      if (video && getLiveTextTrackCue(video)) return;
+      if (video && getLiveTextTrackCue(video).primary) return;
 
       const text = findSubtitleText();
-      if (text && text !== lastObservedText) {
-        lastObservedText = text;
+      if (text && text !== lastDomTextRef.current) {
+        lastDomTextRef.current = text;
         const now = video?.currentTime || 0;
         setCurrentSegment({
           start: now,
           duration: 4,
           text,
         });
-      } else if (!text && lastObservedText !== "") {
-        lastObservedText = "";
+      } else if (!text && lastDomTextRef.current !== "") {
+        lastDomTextRef.current = "";
         setCurrentSegment(null);
       }
     });
@@ -828,7 +868,7 @@ export default function GenericSubtitlesOverlay() {
     });
 
     return () => observer.disconnect();
-  }, [isEnabled, subtitleData, getLiveTextTrackCue]);
+  }, [isEnabled, subtitleData, getLiveTextTrackCue, findSubtitleText]);
 
   const handleCustomSubtitleLoaded = useCallback((result: SubtitleFetchResult) => {
     const option: SubtitleTrackOption = {
