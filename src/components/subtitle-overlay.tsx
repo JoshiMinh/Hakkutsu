@@ -415,6 +415,23 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   // ── 7. Token Click / Hover Handler ──────────────────────────────────────────
 
   const lookupDismissTimerRef = useRef<number | null>(null);
+  const pausedByHoverRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    const handleClosed = () => {
+      if (pausedByHoverRef.current) {
+        pausedByHoverRef.current = false;
+        const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+        if (video && video.paused) {
+          try {
+            void video.play();
+          } catch {}
+        }
+      }
+    };
+    window.addEventListener("hakkutsu:analysis-closed", handleClosed);
+    return () => window.removeEventListener("hakkutsu:analysis-closed", handleClosed);
+  }, [videoRef]);
 
   const handleTokenClick = (e: React.MouseEvent, token: TokenAnalysis, index: number) => {
     e.stopPropagation();
@@ -426,6 +443,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     if (videoRef.current && !videoRef.current.paused) {
       try {
         videoRef.current.pause();
+        pausedByHoverRef.current = true;
       } catch {}
     }
 
@@ -441,7 +459,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
           y,
           placement: "player-overlay",
           mode: "dictionary",
-          transient: false,
+          transient: true,
         },
       })
     );
@@ -464,6 +482,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     if (video && !video.paused) {
       try {
         video.pause();
+        pausedByHoverRef.current = true;
       } catch {}
     }
 
@@ -479,7 +498,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
           y,
           placement: "player-overlay",
           mode: "dictionary",
-          transient: false,
+          transient: true,
         },
       })
     );
@@ -500,8 +519,8 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
     if (lookupDismissTimerRef.current) window.clearTimeout(lookupDismissTimerRef.current);
     lookupDismissTimerRef.current = window.setTimeout(() => {
-      window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss"));
-    }, 600);
+      window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss", { detail: { force: true } }));
+    }, 250);
   };
 
   // ── 8. Immersion Keyboard Shortcuts ─────────────────────────────────────────

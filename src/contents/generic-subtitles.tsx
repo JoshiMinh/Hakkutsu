@@ -12,7 +12,12 @@
  *  - Draggable floating pill button, position persisted in sessionStorage.
  */
 
-import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo";
+import type {
+  PlasmoCSConfig,
+  PlasmoGetOverlayAnchor,
+  PlasmoGetStyle,
+  PlasmoMountShadowHost,
+} from "plasmo";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import cssText from "data-text:~style.css";
 import type { SubtitleSegment, SubtitleFetchResult } from "~lib/types";
@@ -20,6 +25,8 @@ import { youtubeSubtitleCss, genericPlayerCss } from "~lib/youtube-subtitle-styl
 import { SubtitleOverlay } from "~components/subtitle-overlay";
 import { SelectSubtitlesModal, type SubtitleTrackOption } from "~components/select-subtitles-modal";
 import { useSettingsStore } from "~lib/utils/settings";
+import { useTranslation } from "~lib/languages/locales";
+import { containsJapanese } from "~lib/utils/japanese";
 import { readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";
 
@@ -31,10 +38,62 @@ export const config: PlasmoCSConfig = {
     "*://*.youtube.com/*",
     "*://youtube.com/*",
   ],
+  all_frames: true,
   run_at: "document_idle",
 };
 
+export const getOverlayAnchor: PlasmoGetOverlayAnchor = async () => {
+  const video = document.querySelector("video");
+  return video?.parentElement || video || document.body;
+};
+
 export const getShadowHostId = () => "hakkutsu-generic-subtitles-host";
+
+export const mountShadowHost: PlasmoMountShadowHost = async ({
+  shadowHost,
+  mountState,
+}) => {
+  const mountToPlayer = () => {
+    const video = document.querySelector<HTMLElement>("video");
+    const container = video?.parentElement || video;
+    if (!container) return false;
+
+    const host = shadowHost as HTMLElement;
+    Object.assign(host.style, {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      display: "block",
+      overflow: "visible",
+      zIndex: "2147483647",
+      pointerEvents: "none",
+    });
+
+    if (!container.contains(host)) {
+      container.appendChild(host);
+    }
+
+    const shadowContainer = host.shadowRoot?.getElementById("plasmo-shadow-container");
+    if (shadowContainer) {
+      Object.assign(shadowContainer.style, {
+        position: "absolute",
+        inset: "0",
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+      });
+    }
+    return true;
+  };
+
+  if (!mountToPlayer()) {
+    const interval = setInterval(() => {
+      if (mountToPlayer()) clearInterval(interval);
+    }, 500);
+    setTimeout(() => clearInterval(interval), 15000);
+  }
+};
 
 export const getStyle: PlasmoGetStyle = () => {
   const style = document.createElement("style");
@@ -54,9 +113,9 @@ function getSiteKey(): string {
 async function isSiteEnabled(): Promise<boolean> {
   try {
     const result = await chrome.storage.local.get(getSiteKey());
-    return result[getSiteKey()] === true;
+    return result[getSiteKey()] !== false;
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -157,93 +216,200 @@ async function fetchTrackContent(track: SubtitleTrackOption): Promise<SubtitleSe
 
 // ── Draggable FAB ─────────────────────────────────────────────────────────────
 
-interface FabProps {
+function DraggableFab({
+  isEnabled,
+  onToggle,
+  onOpenModal,
+}: {
   isEnabled: boolean;
   onToggle: () => void;
-}
-
-function DraggableFab({ isEnabled, onToggle }: FabProps) {
-  const fabRef = useRef<HTMLDivElement>(null);
-  const dragState = useRef<{
-    startX: number;
-    startY: number;
-    startRight: number;
-    startBottom: number;
-  } | null>(null);
-  const hasDragged = useRef(false);
-
+  onOpenModal: () => void;
+}) {
+  const { t } = useTranslation();
   const defaultPos = loadFabPosition() || { right: 24, bottom: 24 };
   const [pos, setPos] = useState(defaultPos);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showHoverMenu, setShowHoverMenu] = useState(false);
 
-  const onMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      hasDragged.current = false;
+  const dragStartRef = useRef<{ pointerX: number; pointerY: number; startRight: number; startBottom: number } | null>(null);
+  const hideTimeoutRef = useRef<number | null>(null);
 
-      dragState.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        startRight: pos.right,
-        startBottom: pos.bottom,
-      };
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
 
-      const fab = fabRef.current;
-      if (fab) fab.classList.add("is-dragging");
+    dragStartRef.current = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      startRight: pos.right,
+      startBottom: pos.bottom,
+    };
 
-      const onMove = (ev: MouseEvent) => {
-        if (!dragState.current) return;
-        const dx = ev.clientX - dragState.current.startX;
-        const dy = ev.clientY - dragState.current.startY;
-        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasDragged.current = true;
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (!dragStartRef.current) return;
+      const dx = moveEvent.clientX - dragStartRef.current.pointerX;
+      const dy = moveEvent.clientY - dragStartRef.current.pointerY;
 
-        const newRight = Math.max(4, dragState.current.startRight - dx);
-        const newBottom = Math.max(4, dragState.current.startBottom - dy);
-        setPos({ right: newRight, bottom: newBottom });
-        saveFabPosition(newRight, newBottom);
-      };
-
-      const onUp = () => {
-        dragState.current = null;
-        const fab = fabRef.current;
-        if (fab) fab.classList.remove("is-dragging");
-        document.removeEventListener("mousemove", onMove);
-        document.removeEventListener("mouseup", onUp);
-      };
-
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onUp);
-    },
-    [pos]
-  );
-
-  const onClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (hasDragged.current) {
-        e.stopPropagation();
-        return;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        setIsDragging(true);
       }
-      onToggle();
-    },
-    [onToggle]
-  );
+
+      const newRight = Math.max(4, dragStartRef.current.startRight - dx);
+      const newBottom = Math.max(4, dragStartRef.current.startBottom - dy);
+      setPos({ right: newRight, bottom: newBottom });
+      saveFabPosition(newRight, newBottom);
+    };
+
+    const handlePointerUp = (upEvent: PointerEvent) => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+
+      if (dragStartRef.current) {
+        const dx = upEvent.clientX - dragStartRef.current.pointerX;
+        const dy = upEvent.clientY - dragStartRef.current.pointerY;
+
+        if (Math.hypot(dx, dy) <= 5) {
+          onToggle();
+        }
+      }
+      setIsDragging(false);
+      dragStartRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
+
+  const handleMouseEnter = () => {
+    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    setShowHoverMenu(true);
+  };
+
+  const handleMouseLeave = () => {
+    hideTimeoutRef.current = window.setTimeout(() => {
+      setShowHoverMenu(false);
+    }, 280);
+  };
 
   return (
     <div
-      ref={fabRef}
-      className={`hk-generic-fab ${isEnabled ? "is-active" : "is-off"}`}
-      style={{ right: pos.right, bottom: pos.bottom }}
-      onMouseDown={onMouseDown}
-      onClick={onClick}
-      title={
-        isEnabled
-          ? "Hakkutsu active — click to disable"
-          : "Click to enable Hakkutsu subtitles on this page"
-      }
+      style={{
+        position: "fixed",
+        right: `${pos.right}px`,
+        bottom: `${pos.bottom}px`,
+        zIndex: 2147483647,
+        pointerEvents: "auto",
+      }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
-      <span className="hk-generic-fab__kanji">発</span>
-      <span className="hk-generic-fab__label">{isEnabled ? "ON" : "OFF"}</span>
-      <span className="hk-generic-fab__dot" />
+      <button
+        onPointerDown={handlePointerDown}
+        title={isEnabled ? "Hakkutsu active — click to toggle" : "Click to enable Hakkutsu subtitles"}
+        style={{
+          width: "44px",
+          height: "44px",
+          borderRadius: "50%",
+          background: isEnabled ? "rgba(20, 20, 26, 0.88)" : "rgba(30, 30, 35, 0.7)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          border: isEnabled ? "1.5px solid rgba(192, 132, 252, 0.6)" : "1.5px solid rgba(255, 255, 255, 0.2)",
+          boxShadow: isDragging
+            ? "0 10px 28px rgba(168, 85, 247, 0.5), 0 0 0 2px rgba(192, 132, 252, 0.8)"
+            : "0 6px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(168, 85, 247, 0.2)",
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: isDragging ? "grabbing" : "grab",
+          userSelect: "none",
+          touchAction: "none",
+          transition: isDragging ? "none" : "transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease",
+          transform: isDragging ? "scale(1.1)" : "scale(1)",
+        }}
+      >
+        <span
+          style={{
+            color: isEnabled ? "#c084fc" : "#a1a1aa",
+            fontWeight: 900,
+            fontSize: "18px",
+            lineHeight: 1,
+            pointerEvents: "none",
+          }}
+        >
+          発
+        </span>
+      </button>
+
+      {showHoverMenu && !isDragging && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "52px",
+            right: "0",
+            width: "224px",
+            background: "rgba(18, 18, 22, 0.96)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            border: "1px solid rgba(255, 255, 255, 0.14)",
+            borderRadius: "12px",
+            boxShadow: "0 16px 36px rgba(0,0,0,0.85)",
+            color: "#f4f4f5",
+            fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            zIndex: 2147483647,
+            pointerEvents: "auto",
+          }}
+          onMouseEnter={() => {
+            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+          }}
+          onMouseLeave={handleMouseLeave}
+        >
+          <div style={{ padding: "10px 14px 8px", borderBottom: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "14px", color: "#fff" }}>
+              <span style={{ color: "#c084fc", fontWeight: 900, fontSize: "16px" }}>発</span>
+              <span>{t("shortcut_manual_title")}</span>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowHoverMenu(false);
+                onOpenModal();
+              }}
+              style={{ fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "6px", background: "rgba(168,85,247,0.25)", border: "1px solid rgba(168,85,247,0.4)", color: "#c084fc", cursor: "pointer" }}
+            >
+              {t("shortcut_btn_settings")}
+            </button>
+          </div>
+
+          <div style={{ padding: "10px 14px 12px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("shortcut_seek_cue")}</span>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>A</kbd>
+                <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>D</kbd>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("shortcut_toggle_autopause")}</span>
+              <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>E</kbd>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("shortcut_toggle_furigana")}</span>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>F</kbd>
+                <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>W</kbd>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("shortcut_toggle_translation")}</span>
+              <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>V</kbd>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -348,87 +514,6 @@ export default function GenericSubtitlesOverlay() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!isEnabled || !videoRef.current) return;
-
-    const video = videoRef.current;
-    const scan = () => {
-      const tracks = readVideoTrackElements(video);
-      if (tracks.length > 0) {
-        setAvailableTracks((prev) => {
-          const map = new Map(prev.map((t) => [t.id, t]));
-          for (const t of tracks) {
-            if (!map.has(t.id)) map.set(t.id, t);
-          }
-          return Array.from(map.values());
-        });
-
-        if (!currentTrackId) {
-          const ja = tracks.find((t) => t.languageCode.startsWith("ja"));
-          if (ja) handleSelectPrimaryTrack(ja);
-        }
-      }
-    };
-
-    scan();
-    const interval = setInterval(scan, 3000);
-    const observer = new MutationObserver(scan);
-    observer.observe(video, { childList: true, subtree: true });
-
-    return () => {
-      clearInterval(interval);
-      observer.disconnect();
-    };
-  }, [isEnabled, currentTrackId, handleSelectPrimaryTrack]);
-
-  // ── Frame sync loop ───────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!isEnabled) {
-      setCurrentSegment(null);
-      setSecondarySegment(null);
-      return;
-    }
-
-    const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
-    if (!video) return;
-    videoRef.current = video;
-
-    const syncCues = () => {
-      const adjustedTime = video.currentTime - offset;
-      if (subtitleData?.segments?.length) {
-        setCurrentSegment(findSmartCue(subtitleData.segments, adjustedTime));
-      } else {
-        setCurrentSegment(null);
-      }
-      if (secondaryData?.segments?.length) {
-        setSecondarySegment(findSmartCue(secondaryData.segments, adjustedTime));
-      } else {
-        setSecondarySegment(null);
-      }
-    };
-
-    syncCues();
-    let running = true;
-    const tick = () => {
-      if (!running) return;
-      syncCues();
-      rafIdRef.current = requestAnimationFrame(tick);
-    };
-    rafIdRef.current = requestAnimationFrame(tick);
-    video.addEventListener("seeked", syncCues);
-    video.addEventListener("timeupdate", syncCues);
-
-    return () => {
-      running = false;
-      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-      video.removeEventListener("seeked", syncCues);
-      video.removeEventListener("timeupdate", syncCues);
-    };
-  }, [isEnabled, subtitleData, secondaryData, offset]);
-
-  // ── Secondary track & custom subtitle handlers ─────────────────────────────
-
   const handleSelectSecondaryTrack = useCallback(async (track: SubtitleTrackOption | null) => {
     if (!track) {
       setSecondaryTrackId("");
@@ -454,6 +539,233 @@ export default function GenericSubtitlesOverlay() {
     } catch {}
   }, []);
 
+  useEffect(() => {
+    if (!isEnabled || !videoRef.current) return;
+
+    const video = videoRef.current;
+    const scan = () => {
+      const tracks = readVideoTrackElements(video);
+      if (tracks.length > 0) {
+        setAvailableTracks((prev) => {
+          const map = new Map(prev.map((t) => [t.id, t]));
+          for (const t of tracks) {
+            if (!map.has(t.id)) map.set(t.id, t);
+          }
+          return Array.from(map.values());
+        });
+
+        if (!currentTrackId) {
+          const ja = tracks.find((t) => t.languageCode.startsWith("ja"));
+          if (ja) {
+            handleSelectPrimaryTrack(ja);
+          } else if (tracks.length > 0 && !secondaryTrackId) {
+            // Auto-select native non-Japanese track as secondary
+            const nonJa = tracks.find((t) => !t.languageCode.startsWith("ja"));
+            if (nonJa) {
+              handleSelectSecondaryTrack(nonJa);
+            }
+          }
+        }
+      }
+    };
+
+    scan();
+    const interval = setInterval(scan, 3000);
+    const observer = new MutationObserver(scan);
+    observer.observe(video, { childList: true, subtree: true });
+
+    return () => {
+      clearInterval(interval);
+      observer.disconnect();
+    };
+  }, [isEnabled, currentTrackId, secondaryTrackId, handleSelectPrimaryTrack, handleSelectSecondaryTrack]);
+
+  // ── Frame sync loop & Live TextTrack Cue Extraction ─────────────────────
+
+  const getLiveTextTrackCue = useCallback(
+    (video: HTMLVideoElement): SubtitleSegment | null => {
+      if (!video.textTracks || video.textTracks.length === 0) return null;
+
+      for (let i = 0; i < video.textTracks.length; i++) {
+        const tt = video.textTracks[i];
+        const lang = tt.language || "";
+        const label = tt.label || "";
+        const isJa = lang.startsWith("ja") || /ja|jp|japanese/i.test(label);
+        const isSelected = currentTrackId && (currentTrackId.includes(label) || currentTrackId.includes(lang));
+
+        if (isJa || isSelected) {
+          if (tt.mode === "disabled") {
+            try {
+              tt.mode = "hidden";
+            } catch {}
+          }
+
+          const activeCues = tt.activeCues;
+          if (activeCues && activeCues.length > 0) {
+            let text = "";
+            let start = 0;
+            let end = 0;
+            for (let j = 0; j < activeCues.length; j++) {
+              const cue = activeCues[j] as any;
+              if (cue.text) {
+                const cleaned = String(cue.text).replace(/<[^>]*>/g, "").trim();
+                if (cleaned) {
+                  text += (text ? "\n" : "") + cleaned;
+                  start = cue.startTime;
+                  end = cue.endTime;
+                }
+              }
+            }
+            if (text) {
+              return { text, start, duration: Math.max(2, end - start) };
+            }
+          }
+        }
+      }
+      return null;
+    },
+    [currentTrackId]
+  );
+
+  useEffect(() => {
+    if (!isEnabled) {
+      setCurrentSegment(null);
+      setSecondarySegment(null);
+      return;
+    }
+
+    const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+    if (!video) return;
+    videoRef.current = video;
+
+    const syncCues = () => {
+      const adjustedTime = video.currentTime - offset;
+      if (subtitleData?.segments?.length) {
+        setCurrentSegment(findSmartCue(subtitleData.segments, adjustedTime));
+      } else {
+        const liveCue = getLiveTextTrackCue(video);
+        if (liveCue) {
+          setCurrentSegment(liveCue);
+        }
+      }
+
+      if (secondaryData?.segments?.length) {
+        setSecondarySegment(findSmartCue(secondaryData.segments, adjustedTime));
+      } else {
+        setSecondarySegment(null);
+      }
+    };
+
+    syncCues();
+    let running = true;
+    const tick = () => {
+      if (!running) return;
+      syncCues();
+      rafIdRef.current = requestAnimationFrame(tick);
+    };
+    rafIdRef.current = requestAnimationFrame(tick);
+    video.addEventListener("seeked", syncCues);
+    video.addEventListener("timeupdate", syncCues);
+
+    return () => {
+      running = false;
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      video.removeEventListener("seeked", syncCues);
+      video.removeEventListener("timeupdate", syncCues);
+    };
+  }, [isEnabled, subtitleData, secondaryData, offset, getLiveTextTrackCue]);
+
+  // ── DOM MutationObserver Fallback for Third-Party Players ──────────────────
+
+  useEffect(() => {
+    if (!isEnabled || subtitleData) return;
+
+    let lastObservedText = "";
+    const target = document.body;
+    if (!target) return;
+
+    const findSubtitleText = (): string => {
+      const selectors = [
+        ".jw-text-track-display",
+        ".vjs-text-track-display",
+        ".shaka-text-container",
+        ".art-subtitles",
+        ".plyr__captions",
+        ".subtitle-container",
+        "[class*='subtitle-text' i]",
+        "[class*='caption-text' i]",
+        "[class*='timedtext' i]",
+        "[class*='subtitle' i]",
+        "[class*='caption' i]",
+      ];
+
+      for (const sel of selectors) {
+        const els = document.querySelectorAll(sel);
+        for (let i = 0; i < els.length; i++) {
+          const el = els[i];
+          if (
+            el.closest("#hakkutsu-generic-subtitles-host") ||
+            el.closest(".hk-sub__container") ||
+            el.closest("button") ||
+            el.closest("[role='menu']") ||
+            el.closest("[role='menuitem']") ||
+            el.closest("[role='button']") ||
+            el.closest("[class*='menu' i]") ||
+            el.closest("[class*='control' i]") ||
+            el.closest("[class*='select' i]") ||
+            el.closest("[class*='dropdown' i]") ||
+            el.closest("[class*='option' i]")
+          ) {
+            continue;
+          }
+
+          const spans = el.querySelectorAll("span, div, p");
+          let text = "";
+          if (spans.length > 0) {
+            text = Array.from(spans)
+              .map((s) => s.textContent?.trim() || "")
+              .filter(Boolean)
+              .join(" ")
+              .trim();
+          } else {
+            text = el.textContent?.trim() || "";
+          }
+          if (text && containsJapanese(text)) return text;
+        }
+      }
+      return "";
+    };
+
+    const observer = new MutationObserver(() => {
+      if (subtitleData) return;
+
+      const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+      if (video && getLiveTextTrackCue(video)) return;
+
+      const text = findSubtitleText();
+      if (text && text !== lastObservedText) {
+        lastObservedText = text;
+        const now = video?.currentTime || 0;
+        setCurrentSegment({
+          start: now,
+          duration: 4,
+          text,
+        });
+      } else if (!text && lastObservedText !== "") {
+        lastObservedText = "";
+        setCurrentSegment(null);
+      }
+    });
+
+    observer.observe(target, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return () => observer.disconnect();
+  }, [isEnabled, subtitleData, getLiveTextTrackCue]);
+
   const handleCustomSubtitleLoaded = useCallback((result: SubtitleFetchResult) => {
     const option: SubtitleTrackOption = {
       id: `custom-${Date.now()}`,
@@ -464,19 +776,27 @@ export default function GenericSubtitlesOverlay() {
     setAvailableTracks((prev) => [option, ...prev]);
     setCurrentTrackId(option.id);
     setSubtitleData(result);
-  }, []);
+
+    if (!secondaryTrackId && availableTracks.length > 0) {
+      const nonJaTrack = availableTracks.find((t) => !t.languageCode.startsWith("ja"));
+      if (nonJaTrack) {
+        handleSelectSecondaryTrack(nonJaTrack);
+      }
+    }
+  }, [secondaryTrackId, availableTracks, handleSelectSecondaryTrack]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  // Don't inject anything if this page has no video element
   if (!hasVideo || !siteChecked) return null;
 
   return (
     <>
-      {/* Draggable enable/disable pill — always visible when a video is detected */}
-      <DraggableFab isEnabled={siteEnabled} onToggle={handleToggle} />
+      <DraggableFab
+        isEnabled={siteEnabled}
+        onToggle={handleToggle}
+        onOpenModal={() => setIsModalOpen(true)}
+      />
 
-      {/* Subtitle overlay and modal — only when user has opted in for this site */}
       {isEnabled && (
         <>
           <SubtitleOverlay

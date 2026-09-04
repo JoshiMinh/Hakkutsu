@@ -234,6 +234,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   if (!isOpen) return null;
 
@@ -245,10 +246,42 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
       const parsed = await readSubtitleFile(file);
       const result = parsedToSubtitleFetchResult(parsed);
       onCustomSubtitleLoaded(result);
+
+      if (!secondaryTrackId && availableTracks.length > 0) {
+        const nonJaTrack = availableTracks.find((t) => !t.languageCode.startsWith("ja"));
+        if (nonJaTrack) {
+          void onSelectSecondaryTrack(nonJaTrack);
+        }
+      }
       onClose();
     } catch (err) {
       console.error("Failed to parse local subtitle file:", err);
-      alert("Failed to parse subtitle file. Supported formats: .srt, .vtt, .ass");
+      alert("Failed to parse subtitle file. Supported formats: .srt, .vtt, .ass, .ttml");
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    try {
+      const parsed = await readSubtitleFile(file);
+      const result = parsedToSubtitleFetchResult(parsed);
+      onCustomSubtitleLoaded(result);
+
+      if (!secondaryTrackId && availableTracks.length > 0) {
+        const nonJaTrack = availableTracks.find((t) => !t.languageCode.startsWith("ja"));
+        if (nonJaTrack) {
+          void onSelectSecondaryTrack(nonJaTrack);
+        }
+      }
+      onClose();
+    } catch (err) {
+      console.error("Failed to parse local subtitle file:", err);
+      alert("Failed to parse subtitle file. Supported formats: .srt, .vtt, .ass, .ttml");
     }
   };
 
@@ -359,7 +392,69 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div style={{ padding: "20px", maxHeight: "420px", overflowY: "auto" }}>
+        <div style={{ padding: "20px", maxHeight: "450px", overflowY: "auto" }}>
+          {/* Custom Subtitle Upload Dropzone */}
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragOver(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragOver(false);
+            }}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              marginBottom: "18px",
+              padding: "14px 16px",
+              borderRadius: "10px",
+              border: isDragOver ? "2px dashed #c084fc" : "1.5px dashed rgba(192, 132, 252, 0.4)",
+              backgroundColor: isDragOver ? "rgba(168, 85, 247, 0.18)" : "rgba(24, 24, 28, 0.75)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".srt,.vtt,.ass,.ttml,.json,.txt"
+              style={{ display: "none" }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <FolderOpen size={22} color="#c084fc" />
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: "#fff" }}>
+                  Load Custom Japanese Subtitles
+                </div>
+                <div style={{ fontSize: "11px", color: "#a1a1aa", marginTop: "2px" }}>
+                  Drag & drop or click to upload .srt, .vtt, .ass file
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                padding: "6px 12px",
+                borderRadius: "6px",
+                backgroundColor: "rgba(168, 85, 247, 0.25)",
+                border: "1px solid rgba(168, 85, 247, 0.4)",
+                color: "#c084fc",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Browse
+            </button>
+          </div>
           {/* Primary Track (Japanese Target) */}
           <CustomTrackDropdown
             label={t("sub_modal_primary_track")}

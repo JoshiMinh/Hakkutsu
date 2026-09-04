@@ -740,6 +740,13 @@ const InlineDictionary = () => {
           }}
           onMouseLeave={() => {
             isMouseOverPopupRef.current = false;
+            if (transientModeRef.current) {
+              window.setTimeout(() => {
+                if (!isMouseOverPopupRef.current) {
+                  window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss", { detail: { force: true } }));
+                }
+              }, 250);
+            }
           }}
         >
           {/* Header */}

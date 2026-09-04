@@ -93,18 +93,18 @@ const netflixSpecificCss = `
   /* ── Subtitle container position on Netflix ── */
   .watch-video .hk-sub__container,
   .VideoContainer .hk-sub__container {
-    bottom: 72px;
+    bottom: 110px;
     transition: bottom 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
   }
 
   .watch-video.active .hk-sub__container,
   .watch-video:hover .hk-sub__container,
   .watch-video--bottom-controls-container:hover ~ * .hk-sub__container {
-    bottom: 126px;
+    bottom: 170px;
   }
 
   .watch-video.inactive .hk-sub__container {
-    bottom: 50px;
+    bottom: 90px;
   }
 `;
 
@@ -537,353 +537,11 @@ export default function NetflixSubtitlesOverlay() {
     return () => observer.disconnect();
   }, [isEnabled, subtitleData]);
 
-  // ── Injected Player Toolbar Button & Hover Menu ───────────────────────────
-
-  const { t } = useTranslation();
+  // ── Floating Netflix Button Component ─────────────────────────────────────
 
   useEffect(() => {
-    let hoverMenu = document.getElementById("hk-netflix-hover-menu") as HTMLDivElement | null;
-    let menuHideTimeout: number | null = null;
-
-    const renderMenuContent = () => {
-      if (!hoverMenu) return;
-      hoverMenu.innerHTML = `
-        <div style="padding: 10px 14px 8px; border-bottom: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: space-between;">
-          <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: #fff;">
-            <span style="color: #c084fc; font-weight: 900; font-size: 16px;">発</span>
-            <span>${t("shortcut_manual_title")}</span>
-          </div>
-          <button id="hk-nf-menu-open-modal" style="font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(168,85,247,0.25); border: 1px solid rgba(168,85,247,0.4); color: #c084fc; cursor: pointer; transition: all 0.15s ease;">
-            ${t("shortcut_btn_settings")}
-          </button>
-        </div>
-
-        <div style="padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">${t("shortcut_seek_cue")}</span>
-            <div style="display: flex; gap: 4px;">
-              <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">A</kbd>
-              <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">D</kbd>
-            </div>
-          </div>
-
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">${t("shortcut_toggle_autopause")}</span>
-            <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">E</kbd>
-          </div>
-
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">${t("shortcut_toggle_furigana")}</span>
-            <div style="display: flex; gap: 4px;">
-              <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">F</kbd>
-              <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">W</kbd>
-            </div>
-          </div>
-
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">${t("shortcut_toggle_translation")}</span>
-            <kbd style="padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 11px; font-weight: 700;">V</kbd>
-          </div>
-
-          <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px; margin-top: 2px;">
-            <span style="color: #a1a1aa;">${t("shortcut_word_lookup")}</span>
-            <span style="color: #c084fc; font-weight: 600;">${t("shortcut_word_lookup_val")}</span>
-          </div>
-
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="color: #a1a1aa;">${t("shortcut_load_subtitles")}</span>
-            <span style="color: #c084fc; font-weight: 600;">${t("shortcut_load_subtitles_val")}</span>
-          </div>
-        </div>
-      `;
-
-      document.getElementById("hk-nf-menu-open-modal")?.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        hideHoverMenuImmediate();
-        setIsModalOpen(true);
-      });
-    };
-
     injectNetflixGlobalStyle(isEnabled);
-
-    const showHoverMenu = (btnEl: HTMLElement) => {
-      if (menuHideTimeout) {
-        clearTimeout(menuHideTimeout);
-        menuHideTimeout = null;
-      }
-
-      if (!hoverMenu) {
-        hoverMenu = document.createElement("div");
-        hoverMenu.id = "hk-netflix-hover-menu";
-        hoverMenu.style.cssText = `
-          position: absolute;
-          width: 224px;
-          background: rgba(18, 18, 22, 0.96);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.14);
-          border-radius: 12px;
-          box-shadow: 0 16px 36px rgba(0,0,0,0.85);
-          color: #f4f4f5;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          z-index: 2147483647;
-          pointer-events: auto;
-          opacity: 0;
-          transform: translateY(8px);
-          transition: opacity 0.15s ease, transform 0.15s ease;
-        `;
-
-        hoverMenu.onmouseenter = () => {
-          if (menuHideTimeout) {
-            clearTimeout(menuHideTimeout);
-            menuHideTimeout = null;
-          }
-        };
-        hoverMenu.onmouseleave = scheduleHide;
-
-        const player =
-          document.querySelector(".watch-video") ||
-          document.querySelector(".VideoContainer") ||
-          document.body;
-        player.appendChild(hoverMenu);
-      }
-
-      renderMenuContent();
-
-      // Position the menu centered directly above the button
-      const btnRect = btnEl.getBoundingClientRect();
-      const menuWidth = 230;
-
-      hoverMenu.style.position = "fixed";
-      hoverMenu.style.top = "auto";
-      hoverMenu.style.bottom = `${window.innerHeight - btnRect.top + 10}px`;
-      const btnCenter = btnRect.left + btnRect.width / 2;
-      const menuLeft = Math.max(12, Math.min(window.innerWidth - menuWidth - 12, btnCenter - menuWidth / 2));
-      hoverMenu.style.left = `${menuLeft}px`;
-      hoverMenu.style.right = "auto";
-      hoverMenu.style.display = "block";
-
-      requestAnimationFrame(() => {
-        if (hoverMenu) {
-          hoverMenu.style.opacity = "1";
-          hoverMenu.style.transform = "translateY(0)";
-        }
-      });
-    };
-
-    const hideHoverMenuImmediate = () => {
-      if (hoverMenu) {
-        hoverMenu.style.opacity = "0";
-        hoverMenu.style.transform = "translateY(8px)";
-        setTimeout(() => {
-          if (hoverMenu && hoverMenu.style.opacity === "0") {
-            hoverMenu.style.display = "none";
-          }
-        }, 150);
-      }
-    };
-
-    const scheduleHide = () => {
-      if (menuHideTimeout) clearTimeout(menuHideTimeout);
-      menuHideTimeout = window.setTimeout(hideHoverMenuImmediate, 280);
-    };
-
-    const injectToolbarButton = () => {
-      // 1. Find the buttons in Netflix's right-controls area
-      const subSelectors = [
-        '[data-uia="control-audio-subtitle"]',
-        '[data-uia="controls-subtitle-selector"]',
-        '[data-uia="control-audio-subtitles"]',
-        'button[data-uia*="subtitle" i]',
-        'button[data-uia*="audio" i]',
-        '.button-nfplayerSubtitles',
-        'button[aria-label*="subtitle" i]',
-        'button[aria-label*="audio" i]',
-        'button[aria-label*="字幕" i]',
-        'button[aria-label*="音声" i]',
-      ];
-
-      let subBtn: HTMLElement | null = null;
-      for (const sel of subSelectors) {
-        const el = document.querySelector<HTMLElement>(sel);
-        if (el) {
-          subBtn = el;
-          break;
-        }
-      }
-
-      const speedBtn = document.querySelector<HTMLElement>(
-        '[data-uia="control-speed"], button[data-uia*="speed" i]'
-      );
-      const fsBtn = document.querySelector<HTMLElement>(
-        '[data-uia="control-fullscreen-enter"], [data-uia="control-fullscreen-exit"], button[data-uia*="fullscreen" i]'
-      );
-
-      // Find lowest common ancestor (the true controls flex-row)
-      const btnA = subBtn || speedBtn;
-      const btnB = fsBtn || speedBtn;
-
-      let row: HTMLElement | null = null;
-      if (btnA && btnB && btnA !== btnB) {
-        let curr: HTMLElement | null = btnA.parentElement;
-        while (curr && curr !== document.body) {
-          if (curr.contains(btnB)) {
-            row = curr;
-            break;
-          }
-          curr = curr.parentElement;
-        }
-      }
-
-      if (!row && (subBtn || speedBtn || fsBtn)) {
-        const anyBtn = subBtn || speedBtn || fsBtn;
-        let curr: HTMLElement | null = anyBtn?.parentElement || null;
-        while (curr && curr !== document.body && !curr.classList.contains("watch-video")) {
-          const display = window.getComputedStyle(curr).display;
-          if (display === "flex" || display === "inline-flex") {
-            row = curr;
-            break;
-          }
-          curr = curr.parentElement;
-        }
-      }
-
-      // If still no row, try well-known Netflix controls row selectors
-      if (!row) {
-        row = document.querySelector<HTMLElement>(
-          ".watch-video--bottom-controls-container .controls-container-right, .controls-right, .watch-video--bottom-controls-container"
-        );
-      }
-
-      if (!row) return;
-
-      // Find the direct child of `row` that contains subBtn, speedBtn, or fsBtn
-      const getDirectChildOfRow = (descendant: HTMLElement | null): HTMLElement | null => {
-        if (!descendant || !row) return null;
-        let curr: HTMLElement | null = descendant;
-        while (curr && curr.parentElement !== row) {
-          curr = curr.parentElement;
-        }
-        return curr;
-      };
-
-      const subChild = getDirectChildOfRow(subBtn);
-      const speedChild = getDirectChildOfRow(speedBtn);
-      const fsChild = getDirectChildOfRow(fsBtn);
-
-      // We want to insert BEFORE the subtitle control in the row
-      const targetChild = subChild || speedChild || fsChild;
-
-      // 2. Create or get wrapper and button
-      let wrapper = document.getElementById("hk-netflix-btn-wrapper") as HTMLDivElement | null;
-      if (!wrapper) {
-        wrapper = document.createElement("div");
-        wrapper.id = "hk-netflix-btn-wrapper";
-        wrapper.className = "hk-nf-control-wrapper";
-      }
-
-      let btn = document.getElementById("hk-netflix-toolbar-btn") as HTMLButtonElement | null;
-      if (!btn) {
-        btn = document.createElement("button");
-        btn.id = "hk-netflix-toolbar-btn";
-        btn.title = "Hakkutsu Subtitles (発掘) · Click to Toggle · Hover for Shortcuts";
-
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          setIsEnabled((prev) => {
-            const next = !prev;
-            updateSettings({ subtitlesEnabled: next });
-            return next;
-          });
-        };
-      }
-
-      if (btn.parentElement !== wrapper) {
-        wrapper.appendChild(btn);
-      }
-
-      // Insert wrapper into row as a direct sibling BEFORE targetChild
-      if (targetChild && targetChild !== wrapper) {
-        if (wrapper.parentElement !== row || wrapper.nextSibling !== targetChild) {
-          row.insertBefore(wrapper, targetChild);
-        }
-      } else if (wrapper.parentElement !== row) {
-        row.appendChild(wrapper);
-      }
-
-      // Re-bind hover handlers
-      btn.onmouseenter = () => {
-        if (btn) showHoverMenu(btn);
-      };
-      btn.onmouseleave = scheduleHide;
-
-      // Clean borderless kanji icon (no box border) with active indicator bar
-      btn.innerHTML = `
-        <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; position: relative;">
-          <span style="
-            font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
-            font-size: 20px;
-            font-weight: 800;
-            color: ${isEnabled ? "#c084fc" : "#ffffff"};
-            line-height: 1;
-            letter-spacing: -0.5px;
-            text-shadow: ${isEnabled ? "0 0 10px rgba(192, 132, 252, 0.75)" : "0 1px 2px rgba(0,0,0,0.5)"};
-            pointer-events: none;
-            display: inline-block;
-            user-select: none;
-            -webkit-user-select: none;
-            opacity: ${isEnabled ? "1" : "0.85"};
-            transition: color 0.15s ease, opacity 0.15s ease;
-          ">発</span>
-          <div style="
-            position: absolute;
-            bottom: 5px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 18px;
-            height: 3px;
-            background: #a855f7;
-            border-radius: 2px;
-            box-shadow: 0 0 6px rgba(168, 85, 247, 0.8);
-            opacity: ${isEnabled ? "1" : "0"};
-            transition: opacity 0.2s ease;
-          "></div>
-        </div>
-      `;
-
-      // Precision vertical alignment: align vertical center to exact pixel of subBtn
-      if (subBtn) {
-        const subRect = subBtn.getBoundingClientRect();
-        const btnRect = btn.getBoundingClientRect();
-        if (subRect.height > 0 && btnRect.height > 0) {
-          const subCenter = subRect.top + subRect.height / 2;
-          const btnCenter = btnRect.top + btnRect.height / 2;
-          const diff = Math.round(subCenter - btnCenter);
-          if (Math.abs(diff) >= 1 && Math.abs(diff) <= 20) {
-            btn.style.transform = `translateY(${diff}px)`;
-          } else if (diff === 0) {
-            btn.style.transform = "";
-          }
-        }
-      }
-    };
-
-    injectToolbarButton();
-    const interval = setInterval(injectToolbarButton, 1000);
-
-    return () => {
-      clearInterval(interval);
-      if (menuHideTimeout) clearTimeout(menuHideTimeout);
-      if (hoverMenu && hoverMenu.parentElement) {
-        hoverMenu.parentElement.removeChild(hoverMenu);
-      }
-      const existingWrapper = document.getElementById("hk-netflix-btn-wrapper");
-      if (existingWrapper?.parentElement) {
-        existingWrapper.parentElement.removeChild(existingWrapper);
-      }
-    };
-  }, [isEnabled, offset, settings.subtitlesSecondaryEnabled, settings.subtitlesAutoPause, updateSettings]);
+  }, [isEnabled]);
 
   // ── Track Selection & Custom File Handlers ─────────────────────────────────
 
@@ -983,6 +641,11 @@ export default function NetflixSubtitlesOverlay() {
 
   return (
     <>
+      <FloatingNetflixButton
+        onOpenModal={() => setIsModalOpen(true)}
+        isEnabled={isEnabled}
+      />
+
       <SubtitleOverlay
         isEnabled={isEnabled}
         loading={loading}
@@ -1041,3 +704,225 @@ export default function NetflixSubtitlesOverlay() {
     </>
   );
 }
+
+const FloatingNetflixButton: React.FC<{
+  onOpenModal: () => void;
+  isEnabled: boolean;
+}> = ({ onOpenModal, isEnabled }) => {
+  const { settings, updateSettings } = useSettingsStore();
+  const { t } = useTranslation();
+
+  const pos = settings.netflixBtnPosition || { x: 90, y: 12 };
+  const [currentPos, setCurrentPos] = useState(pos);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showHoverMenu, setShowHoverMenu] = useState(false);
+
+  const dragStartRef = useRef<{ pointerX: number; pointerY: number; startX: number; startY: number } | null>(null);
+  const hideTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (settings.netflixBtnPosition) {
+      setCurrentPos(settings.netflixBtnPosition);
+    }
+  }, [settings.netflixBtnPosition]);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    dragStartRef.current = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      startX: currentPos.x,
+      startY: currentPos.y,
+    };
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (!dragStartRef.current) return;
+      const player = document.querySelector(".watch-video") || document.querySelector(".VideoContainer") || document.body;
+      const rect = player.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+
+      const deltaX = moveEvent.clientX - dragStartRef.current.pointerX;
+      const deltaY = moveEvent.clientY - dragStartRef.current.pointerY;
+
+      const percentX = (deltaX / rect.width) * 100;
+      const percentY = (deltaY / rect.height) * 100;
+
+      const newX = Math.max(2, Math.min(96, dragStartRef.current.startX + percentX));
+      const newY = Math.max(2, Math.min(96, dragStartRef.current.startY + percentY));
+
+      if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+        setIsDragging(true);
+      }
+
+      setCurrentPos({ x: newX, y: newY });
+    };
+
+    const handlePointerUp = (upEvent: PointerEvent) => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+
+      if (dragStartRef.current) {
+        const deltaX = upEvent.clientX - dragStartRef.current.pointerX;
+        const deltaY = upEvent.clientY - dragStartRef.current.pointerY;
+
+        if (Math.hypot(deltaX, deltaY) > 5) {
+          updateSettings({ netflixBtnPosition: currentPos });
+        } else {
+          onOpenModal();
+        }
+      }
+      setIsDragging(false);
+      dragStartRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
+
+  const handleMouseEnter = () => {
+    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    setShowHoverMenu(true);
+  };
+
+  const handleMouseLeave = () => {
+    hideTimeoutRef.current = window.setTimeout(() => {
+      setShowHoverMenu(false);
+    }, 280);
+  };
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: `${currentPos.x}%`,
+        top: `${currentPos.y}%`,
+        transform: "translate(-50%, -50%)",
+        zIndex: 2147483647,
+        pointerEvents: "auto",
+      }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <button
+        onPointerDown={handlePointerDown}
+        title="Hakkutsu Netflix Control"
+        style={{
+          width: "44px",
+          height: "44px",
+          borderRadius: "50%",
+          background: isEnabled ? "rgba(20, 20, 26, 0.88)" : "rgba(30, 30, 35, 0.7)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          border: isEnabled ? "1.5px solid rgba(192, 132, 252, 0.6)" : "1.5px solid rgba(255, 255, 255, 0.2)",
+          boxShadow: isDragging
+            ? "0 10px 28px rgba(168, 85, 247, 0.5), 0 0 0 2px rgba(192, 132, 252, 0.8)"
+            : "0 6px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(168, 85, 247, 0.2)",
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: isDragging ? "grabbing" : "grab",
+          userSelect: "none",
+          touchAction: "none",
+          transition: isDragging ? "none" : "transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease",
+          transform: isDragging ? "scale(1.1)" : "scale(1)",
+        }}
+      >
+        <span
+          style={{
+            color: isEnabled ? "#c084fc" : "#a1a1aa",
+            fontWeight: 900,
+            fontSize: "18px",
+            lineHeight: 1,
+            pointerEvents: "none",
+          }}
+        >
+          発
+        </span>
+      </button>
+
+      {showHoverMenu && !isDragging && (
+        <div
+          style={{
+            position: "absolute",
+            top: "52px",
+            right: currentPos.x > 50 ? "0" : "auto",
+            left: currentPos.x <= 50 ? "0" : "auto",
+            width: "224px",
+            background: "rgba(18, 18, 22, 0.96)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            border: "1px solid rgba(255, 255, 255, 0.14)",
+            borderRadius: "12px",
+            boxShadow: "0 16px 36px rgba(0,0,0,0.85)",
+            color: "#f4f4f5",
+            fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            zIndex: 2147483647,
+            pointerEvents: "auto",
+          }}
+          onMouseEnter={() => {
+            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+          }}
+          onMouseLeave={handleMouseLeave}
+        >
+          <div style={{ padding: "10px 14px 8px", borderBottom: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "14px", color: "#fff" }}>
+              <span style={{ color: "#c084fc", fontWeight: 900, fontSize: "16px" }}>発</span>
+              <span>{t("shortcut_manual_title")}</span>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowHoverMenu(false);
+                onOpenModal();
+              }}
+              style={{ fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "6px", background: "rgba(168,85,247,0.25)", border: "1px solid rgba(168,85,247,0.4)", color: "#c084fc", cursor: "pointer" }}
+            >
+              {t("shortcut_btn_settings")}
+            </button>
+          </div>
+
+          <div style={{ padding: "10px 14px 12px", display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("shortcut_seek_cue")}</span>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>A</kbd>
+                <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>D</kbd>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("shortcut_toggle_autopause")}</span>
+              <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>E</kbd>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("shortcut_toggle_furigana")}</span>
+              <div style={{ display: "flex", gap: "4px" }}>
+                <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>F</kbd>
+                <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>W</kbd>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("shortcut_toggle_translation")}</span>
+              <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>V</kbd>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "6px", marginTop: "2px" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("shortcut_word_lookup")}</span>
+              <span style={{ color: "#c084fc", fontWeight: 600 }}>{t("shortcut_word_lookup_val")}</span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("shortcut_load_subtitles")}</span>
+              <span style={{ color: "#c084fc", fontWeight: 600 }}>{t("shortcut_load_subtitles_val")}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

@@ -23,6 +23,7 @@ export interface ExtensionSettings {
   subtitlesSecondaryEnabled: boolean;
   subtitlesAutoPause: boolean;
   subtitlesOffset: number;
+  netflixBtnPosition?: { x: number; y: number } | null;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -44,6 +45,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   subtitlesSecondaryEnabled: true,
   subtitlesAutoPause: false,
   subtitlesOffset: 0,
+  netflixBtnPosition: null,
 };
 
 export interface VocabularyEntry {
