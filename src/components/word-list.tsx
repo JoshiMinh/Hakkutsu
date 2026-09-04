@@ -14,7 +14,8 @@ import {
   Layers, 
   Check,
   Brain,
-  ExternalLink
+  ExternalLink,
+  Image as ImageIcon
 } from "lucide-react";
 import { JlptBadge } from "~components/badges";
 import { getHanViet } from "~lib/utils/hanviet-dict";
@@ -553,13 +554,7 @@ export function WordList({
       )}
       
       {/* ── Data Table / Empty State ────────────────────────────────────── */}
-      <div style={{
-        background: "var(--hk-bg-secondary)",
-        border: "1px solid var(--hk-border)",
-        borderRadius: "10px",
-        overflow: "hidden",
-        boxShadow: "var(--hk-shadow-sm)"
-      }}>
+      <div style={{ width: "100%" }}>
         {filteredCards.length === 0 ? (
           <div style={{
             textAlign: "center",
@@ -570,28 +565,28 @@ export function WordList({
             justifyContent: "center"
           }}>
             <div style={{
-              width: "48px",
-              height: "48px",
+              width: "44px",
+              height: "44px",
               borderRadius: "50%",
-              background: "rgba(168, 85, 247, 0.12)",
-              border: "1px solid rgba(168, 85, 247, 0.25)",
+              background: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               marginBottom: "12px",
-              color: "#a855f7"
+              color: "var(--hk-text-muted)"
             }}>
-              <BookOpen size={22} />
+              <BookOpen size={20} />
             </div>
-            <h3 style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: 600, color: "#ffffff" }}>
+            <h3 style={{ margin: "0 0 6px", fontSize: "14px", fontWeight: 500, color: "var(--hk-text-muted)" }}>
               {searchTerm ? t("vocab_empty_search") : t("vocab_empty")}
             </h3>
           </div>
         ) : (
-          <div style={{ width: "100%", overflow: "hidden" }}>
-            <table className="hk-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+          <div style={{ width: "100%", overflowX: "auto" }}>
+            <table className="hk-table" style={{ width: "100%", minWidth: "940px", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "#0e0e12", borderBottom: "1px solid var(--hk-border)" }}>
+                <tr style={{ background: "transparent", borderBottom: "1px solid rgba(255, 255, 255, 0.1)" }}>
                   {/* Select All Checkbox */}
                   <th style={{ padding: "10px 8px", width: "36px", textAlign: "center" }}>
                     <input
@@ -601,16 +596,17 @@ export function WordList({
                       style={{ cursor: "pointer", accentColor: "#a855f7" }}
                     />
                   </th>
-                  {/* Proportional, non-overflowing column widths */}
-                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", width: "13%" }}>{t("vocab_th_word")}</th>
-                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", width: "13%" }}>{t("vocab_th_furigana")}</th>
-                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", width: "25%" }}>{t("vocab_th_meaning")}</th>
+                  <th style={{ padding: "10px 6px", textAlign: "center", fontSize: "12px", width: "52px" }}>Image</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "100px" }}>{t("vocab_th_word")}</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "100px" }}>{t("vocab_th_furigana")}</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "160px" }}>{t("vocab_th_meaning")}</th>
                   {showHanViet && (
-                    <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", width: "12%" }}>{t("vocab_th_hanviet")}</th>
+                    <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "100px" }}>{t("vocab_th_hanviet")}</th>
                   )}
-                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px" }}>{t("vocab_th_sentence")}</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "180px" }}>{t("vocab_th_sentence")}</th>
                   <th style={{ padding: "10px 6px", textAlign: "center", fontSize: "12px", width: "52px" }}>{t("vocab_th_jlpt")}</th>
-                  <th style={{ padding: "10px 6px", textAlign: "center", width: "56px", fontSize: "12px" }}>{t("vocab_th_actions")}</th>
+                  <th style={{ padding: "10px 6px", textAlign: "center", fontSize: "12px", width: "80px" }}>Status</th>
+                  <th style={{ padding: "10px 6px", textAlign: "center", width: "64px", fontSize: "12px" }}>{t("vocab_th_actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -633,6 +629,19 @@ export function WordList({
                           onChange={() => handleToggleSelect(card.id)}
                           style={{ cursor: "pointer", accentColor: "#a855f7" }}
                         />
+                      </td>
+
+                      {/* Image Visual */}
+                      <td style={{ padding: "6px", textAlign: "center" }}>
+                        {card.image_url ? (
+                          <img
+                            src={card.image_url}
+                            alt={card.word}
+                            style={{ width: "36px", height: "36px", objectFit: "contain", borderRadius: "6px", background: "#18181b" }}
+                          />
+                        ) : (
+                          <span style={{ color: "#52525b", fontSize: "10px" }}>—</span>
+                        )}
                       </td>
 
                       {/* 1. Word */}
@@ -689,7 +698,7 @@ export function WordList({
                         </td>
                       )}
 
-                      {/* 5. Example Sentence (Spacious) */}
+                      {/* 5. Example Sentence */}
                       <td style={{ padding: "10px 12px" }}>
                         <div 
                           style={{ 
@@ -718,7 +727,24 @@ export function WordList({
                         )}
                       </td>
 
-                      {/* 7. Actions */}
+                      {/* 7. SRS Status */}
+                      <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                        {card.repetition === 0 ? (
+                          <span style={{ fontSize: "10px", fontWeight: 600, padding: "2px 7px", borderRadius: "10px", background: "rgba(59, 130, 246, 0.15)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.3)" }}>
+                            {t("vocab_filter_new")}
+                          </span>
+                        ) : card.due_date <= Date.now() ? (
+                          <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "10px", background: "rgba(245, 158, 11, 0.15)", color: "#fbbf24", border: "1px solid rgba(245, 158, 11, 0.3)" }}>
+                            Due
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "10px", fontWeight: 600, padding: "2px 7px", borderRadius: "10px", background: "rgba(34, 197, 94, 0.15)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.3)" }}>
+                            {t("vocab_filter_graduated")}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 8. Actions */}
                       <td style={{ padding: "10px 8px", textAlign: "center" }}>
                         <div style={{ display: "inline-flex", gap: "4px" }}>
                           <button 
@@ -788,33 +814,69 @@ function EditCardModal({
   };
 
   return (
-    <div className="hk-modal-backdrop" onClick={onClose}>
+    <div className="hk-modal-overlay" onClick={onClose}>
       <div 
         className="hk-modal" 
         onClick={(e) => e.stopPropagation()} 
-        style={{ maxWidth: "580px" }}
+        style={{
+          maxWidth: "600px",
+          width: "92%",
+          background: "#141418",
+          border: "1px solid rgba(255, 255, 255, 0.12)",
+          borderRadius: "12px",
+          boxShadow: "0 20px 50px rgba(0, 0, 0, 0.7)"
+        }}
       >
         {/* Header */}
-        <div className="hk-modal__header">
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Edit2 size={16} style={{ color: "#a855f7" }} />
-            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600 }}>{t("vocab_modal_edit_title")}</h3>
+        <div className="hk-modal__header" style={{
+          padding: "16px 20px",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between"
+        }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#ffffff" }}>
+              {t("vocab_modal_edit_title")}
+            </h3>
+            <span style={{ fontSize: "11px", color: "var(--hk-text-muted)", fontFamily: "var(--hk-font-jp)" }}>
+              {card.word} {card.reading ? `(${card.reading})` : ""}
+            </span>
           </div>
           <button 
             className="hk-modal__close" 
             onClick={onClose} 
             title="Close"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--hk-text-muted)",
+              cursor: "pointer",
+              padding: "6px",
+              borderRadius: "6px",
+              display: "flex"
+            }}
           >
             <X size={16} />
           </button>
         </div>
 
         {/* Body */}
-        <div className="hk-modal__body" style={{ maxHeight: "70vh", overflowY: "auto", padding: "18px" }}>
+        <div className="hk-modal__body" style={{ maxHeight: "72vh", overflowY: "auto", padding: "20px" }}>
           <form id="edit-word-form" onSubmit={handleSubmit}>
-            {/* Section 1: Basic Word Info */}
-            <div className="hk-modal-section-title">
-              <Sparkles size={12} />
+            {/* Section 1: Basic Word Details */}
+            <div className="hk-modal-section-title" style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "11px",
+              fontWeight: 600,
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+              color: "var(--hk-text-muted)",
+              marginBottom: "12px"
+            }}>
+              <Sparkles size={13} />
               {t("vocab_modal_sec_details")}
             </div>
             
@@ -851,12 +913,23 @@ function EditCardModal({
               )}
               
               <div className="hk-form-group">
-                <label className="hk-form-label">{t("vocab_label_jlpt")}</label>
+                <label className="hk-form-label" style={{ fontSize: "11.5px", color: "var(--hk-text-secondary)", marginBottom: "4px", display: "block" }}>
+                  {t("vocab_label_jlpt")}
+                </label>
                 <select
                   className="hk-form-input"
                   value={draft.jlpt || ""}
                   onChange={(e) => handleChange("jlpt", e.target.value)}
-                  style={{ background: "#09090b" }}
+                  style={{
+                    background: "#09090b",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    borderRadius: "8px",
+                    color: "#ffffff",
+                    padding: "8px 10px",
+                    fontSize: "12.5px",
+                    width: "100%",
+                    outline: "none"
+                  }}
                 >
                   <option value="">None / Unranked</option>
                   <option value="N5">JLPT N5</option>
@@ -875,9 +948,66 @@ function EditCardModal({
               />
             </div>
 
-            {/* Section 2: Sentence Context */}
-            <div className="hk-modal-section-title" style={{ marginTop: "16px" }}>
-              <Layers size={12} />
+            {/* Section 2: Illustration Image */}
+            <div className="hk-modal-section-title" style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "11px",
+              fontWeight: 600,
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+              color: "var(--hk-text-muted)",
+              marginTop: "18px",
+              marginBottom: "12px"
+            }}>
+              <ImageIcon size={13} />
+              Illustration Image URL
+            </div>
+            
+            <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+              <div style={{ flex: 1 }}>
+                <FormGroup 
+                  label="Image URL"
+                  value={draft.image_url} 
+                  onChange={(v) => handleChange("image_url", v)} 
+                  fullWidth
+                  placeholder="https://www.irasutoya.com/... image URL"
+                />
+              </div>
+              {draft.image_url && (
+                <div style={{
+                  width: "60px",
+                  height: "60px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  background: "#09090d",
+                  overflow: "hidden",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  marginTop: "20px"
+                }}>
+                  <img src={draft.image_url} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                </div>
+              )}
+            </div>
+
+            {/* Section 3: Sentence Context */}
+            <div className="hk-modal-section-title" style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "11px",
+              fontWeight: 600,
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+              color: "var(--hk-text-muted)",
+              marginTop: "18px",
+              marginBottom: "12px"
+            }}>
+              <Layers size={13} />
               {t("vocab_modal_sec_sentence")}
             </div>
             
@@ -910,12 +1040,18 @@ function EditCardModal({
         </div>
 
         {/* Footer */}
-        <div className="hk-modal__footer">
+        <div className="hk-modal__footer" style={{
+          padding: "14px 20px",
+          borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: "10px"
+        }}>
           <button 
             type="button" 
             className="hk-btn hk-btn--secondary" 
             onClick={onClose}
-            style={{ padding: "7px 14px", fontSize: "12px" }}
+            style={{ padding: "8px 16px", fontSize: "12.5px", borderRadius: "8px" }}
           >
             {t("vocab_modal_cancel")}
           </button>
@@ -923,7 +1059,16 @@ function EditCardModal({
             type="submit" 
             form="edit-word-form" 
             className="hk-btn hk-btn--primary"
-            style={{ padding: "7px 16px", fontSize: "12px", gap: "6px" }}
+            style={{
+              padding: "8px 20px",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              gap: "6px",
+              borderRadius: "8px",
+              background: "#7c3aed",
+              border: "none",
+              boxShadow: "none"
+            }}
           >
             <Check size={14} />
             {t("vocab_modal_save")}

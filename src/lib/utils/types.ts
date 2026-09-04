@@ -43,6 +43,7 @@ export interface AnkiExportData {
   jlptLevel: string;
   pos: string;
   screenshot?: string;
+  imageUrl?: string;
   sourceUrl?: string;
   audio?: string;
 }
@@ -91,6 +92,7 @@ export interface TokenAnalysis {
   vietnamese_sound?: string;
   srs_state?: string | null;
   grammar_note_vi?: string;
+  imageUrl?: string;
   components?: Array<{
     surface: string;
     lemma: string;
@@ -214,6 +216,8 @@ export interface ExtensionSettings {
   ankiEnabled: boolean;
   ankiDeck: string;
   ankiModel: string;
+  ankiImageField: string;
+  includeImages: boolean;
   autoDetect: boolean;
   showFurigana: boolean;
   showJlptColors: boolean;
@@ -236,6 +240,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   ankiEnabled: true,
   ankiDeck: "Hakkutsu",
   ankiModel: "Hakkutsu Japanese",
+  ankiImageField: "Image",
+  includeImages: true,
   autoDetect: true,
   showFurigana: true,
   showJlptColors: true,
@@ -262,6 +268,7 @@ export interface VocabularyEntry {
   sourceUrl: string;
   addedAt: number;
   exported: boolean;
+  imageUrl?: string;
 }
 
 export interface SelectionEvent {
@@ -288,6 +295,10 @@ export type MessageType =
   | "TEXT_SELECTED"
   | "ADD_SRS_CARD"
   | "SRS_RESULT"
+  | "CHECK_CARD_EXISTS"
+  | "CARD_EXISTS_RESULT"
+  | "REMOVE_SRS_CARD"
+  | "REMOVE_SRS_CARD_RESULT"
   | "OPEN_APP"
   | "OPEN_APP_RESULT"
   | "TRANSLATE_TEXT"

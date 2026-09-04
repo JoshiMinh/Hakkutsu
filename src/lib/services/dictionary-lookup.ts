@@ -235,6 +235,192 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
 }
 
 /**
+ * Look up a Japanese word in Chinese using Mazii / CEDICT / Translate fallback.
+ */
+export async function lookupWordChinese(word: string): Promise<LookupResult> {
+  if (!word || word.trim() === "") return { meaning: "" };
+  const rawKey = word.trim();
+  const isJp = containsJapanese(rawKey);
+  const hiraganaKey = !isJp ? romajiToHiragana(rawKey) : rawKey;
+  const key = hiraganaKey || rawKey;
+
+  const cacheKey = `zh:${rawKey}`;
+  if (lookupCache.has(cacheKey)) {
+    return lookupCache.get(cacheKey)!;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+    const res = await fetch("https://mazii.net/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        dict: "jaza",
+        type: "word",
+        query: key,
+        page: 1,
+      }),
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const json = await res.json();
+      if (json.status === 200 && json.data && json.data.length > 0) {
+        const match = json.data.find((item: any) => item.word === key || item.phonetic === key || item.word === rawKey) || json.data[0];
+        if (match) {
+          const means = (match.means || [])
+            .map((m: any) => m.mean || "")
+            .filter(Boolean)
+            .slice(0, 3);
+
+          const meaning = means.join("; ");
+          const reading = sanitizeReading(match.phonetic || key, rawKey);
+          if (meaning) {
+            const result: LookupResult = { meaning, reading, source: "mazii-zh" };
+            lookupCache.set(cacheKey, result);
+            return result;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[Hakkutsu] Mazii ZH lookup error for:", word, e);
+  }
+
+  // Fallback: Jisho English -> Chinese translate
+  const enRes = await lookupWordEnglish(rawKey);
+  let meaning = enRes.meaning;
+  if (meaning) {
+    try {
+      const zhMeaning = await googleTranslateService.translate(meaning, "zh-CN", "en");
+      if (zhMeaning) meaning = zhMeaning;
+    } catch {}
+  } else {
+    meaning = await googleTranslateService.translate(rawKey, "zh-CN", "ja");
+  }
+
+  const fallbackResult: LookupResult = {
+    meaning,
+    reading: enRes.reading || (key !== rawKey ? key : undefined),
+    jlpt: enRes.jlpt,
+    source: "JMdict (ZH)",
+  };
+  lookupCache.set(cacheKey, fallbackResult);
+  return fallbackResult;
+}
+
+/**
+ * Look up a Japanese word in Korean using Mazii / KRdict / Translate fallback.
+ */
+export async function lookupWordKorean(word: string): Promise<LookupResult> {
+  if (!word || word.trim() === "") return { meaning: "" };
+  const rawKey = word.trim();
+  const isJp = containsJapanese(rawKey);
+  const hiraganaKey = !isJp ? romajiToHiragana(rawKey) : rawKey;
+  const key = hiraganaKey || rawKey;
+
+  const cacheKey = `ko:${rawKey}`;
+  if (lookupCache.has(cacheKey)) {
+    return lookupCache.get(cacheKey)!;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+    const res = await fetch("https://mazii.net/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        dict: "jako",
+        type: "word",
+        query: key,
+        page: 1,
+      }),
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const json = await res.json();
+      if (json.status === 200 && json.data && json.data.length > 0) {
+        const match = json.data.find((item: any) => item.word === key || item.phonetic === key || item.word === rawKey) || json.data[0];
+        if (match) {
+          const means = (match.means || [])
+            .map((m: any) => m.mean || "")
+            .filter(Boolean)
+            .slice(0, 3);
+
+          const meaning = means.join("; ");
+          const reading = sanitizeReading(match.phonetic || key, rawKey);
+          if (meaning) {
+            const result: LookupResult = { meaning, reading, source: "mazii-ko" };
+            lookupCache.set(cacheKey, result);
+            return result;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[Hakkutsu] Mazii KO lookup error for:", word, e);
+  }
+
+  // Fallback: Jisho English -> Korean translate
+  const enRes = await lookupWordEnglish(rawKey);
+  let meaning = enRes.meaning;
+  if (meaning) {
+    try {
+      const koMeaning = await googleTranslateService.translate(meaning, "ko", "en");
+      if (koMeaning) meaning = koMeaning;
+    } catch {}
+  } else {
+    meaning = await googleTranslateService.translate(rawKey, "ko", "ja");
+  }
+
+  const fallbackResult: LookupResult = {
+    meaning,
+    reading: enRes.reading || (key !== rawKey ? key : undefined),
+    jlpt: enRes.jlpt,
+    source: "JMdict (KO)",
+  };
+  lookupCache.set(cacheKey, fallbackResult);
+  return fallbackResult;
+}
+
+/**
+ * Look up a Japanese word in Japanese (Monolingual / Jisho Japanese gloss).
+ */
+export async function lookupWordJapanese(word: string): Promise<LookupResult> {
+  if (!word || word.trim() === "") return { meaning: "" };
+  const rawKey = word.trim();
+  const cacheKey = `ja:${rawKey}`;
+  if (lookupCache.has(cacheKey)) {
+    return lookupCache.get(cacheKey)!;
+  }
+
+  const enRes = await lookupWordEnglish(rawKey);
+  let meaning = enRes.meaning;
+  if (meaning) {
+    try {
+      const jaMeaning = await googleTranslateService.translate(meaning, "ja", "en");
+      if (jaMeaning) meaning = jaMeaning;
+    } catch {}
+  }
+
+  const result: LookupResult = {
+    meaning: meaning || rawKey,
+    reading: enRes.reading || rawKey,
+    jlpt: enRes.jlpt,
+    source: "JMdict (JA)",
+  };
+  lookupCache.set(cacheKey, result);
+  return result;
+}
+
+/**
  * Fetch example sentences for a Japanese word with translations.
  */
 export async function fetchExampleSentences(
@@ -244,7 +430,8 @@ export async function fetchExampleSentences(
 ): Promise<ExampleSentence[]> {
   if (!word || word.trim() === "") return [];
   const key = word.trim();
-  const cacheKey = `${targetLang}:${key}`;
+  const lang = targetLang || "en";
+  const cacheKey = `${lang}:${key}`;
 
   if (exampleCache.has(cacheKey)) {
     return exampleCache.get(cacheKey)!.slice(0, limit);
@@ -254,7 +441,7 @@ export async function fetchExampleSentences(
 
   // 1. Try Mazii Example Search
   try {
-    const dictType = targetLang === "vi" ? "javi" : "jaen";
+    const dictType = lang === "vi" ? "javi" : (lang === "zh" ? "jaza" : (lang === "ko" ? "jako" : "jaen"));
     const res = await fetch("https://mazii.net/api/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -272,9 +459,15 @@ export async function fetchExampleSentences(
       if (Array.isArray(rawExamples) && rawExamples.length > 0) {
         for (const item of rawExamples.slice(0, limit)) {
           const japanese = (item.content || item.example || item.entry || "").trim();
-          const translation = (item.mean || item.trans || item.translation || "").trim();
+          let translation = (item.mean || item.trans || item.translation || "").trim();
           const reading = (item.phonetic || item.transcription || "").trim();
           if (japanese && translation) {
+            if (dictType === "jaen" && lang !== "en") {
+              try {
+                const tr = await googleTranslateService.translate(translation, lang, "en");
+                if (tr) translation = tr;
+              } catch {}
+            }
             results.push({
               id: `mazii-${results.length}`,
               japanese,
@@ -293,7 +486,8 @@ export async function fetchExampleSentences(
   // 2. Fallback to Tatoeba API if Mazii returned no results
   if (results.length === 0) {
     try {
-      const tatoebaLang = targetLang === "vi" ? "vie" : "eng";
+      const tatoebaLangMap: Record<string, string> = { vi: "vie", en: "eng", zh: "cmn", ko: "kor", ja: "jpn" };
+      const tatoebaLang = tatoebaLangMap[lang] || "eng";
       const res = await fetch(
         `https://tatoeba.org/en/api_v0/search?from=jpn&to=${tatoebaLang}&query=${encodeURIComponent(key)}`
       );
@@ -304,7 +498,17 @@ export async function fetchExampleSentences(
           for (const item of data.slice(0, limit)) {
             const japanese = item.text?.trim();
             const translations = item.translations?.[0];
-            const translation = translations?.find((t: any) => t.lang === tatoebaLang)?.text?.trim();
+            let translation = translations?.find((t: any) => t.lang === tatoebaLang)?.text?.trim();
+            if (!translation && lang !== "en") {
+              const engTrans = translations?.find((t: any) => t.lang === "eng")?.text?.trim();
+              if (engTrans) {
+                try {
+                  translation = await googleTranslateService.translate(engTrans, lang, "en");
+                } catch {
+                  translation = engTrans;
+                }
+              }
+            }
             if (japanese && translation) {
               results.push({
                 id: `tatoeba-${item.id || results.length}`,
@@ -321,7 +525,6 @@ export async function fetchExampleSentences(
     }
   }
 
-  // 3. Fallback: Context synthetic example if needed
   if (results.length > 0) {
     exampleCache.set(cacheKey, results);
   }
@@ -334,23 +537,43 @@ export async function fetchExampleSentences(
  * Seamlessly handles any future language by translating dictionary definitions.
  */
 export async function lookupWord(word: string, targetLang: string = "vi"): Promise<LookupResult> {
-  if (targetLang === "en") {
+  if (!word || word.trim() === "") return { meaning: "" };
+  const lang = targetLang || "vi";
+
+  if (lang === "en") {
     return lookupWordEnglish(word);
   }
-  if (targetLang === "vi") {
+  if (lang === "vi") {
     return lookupWordVietnamese(word);
   }
+  if (lang === "zh") {
+    return lookupWordChinese(word);
+  }
+  if (lang === "ko") {
+    return lookupWordKorean(word);
+  }
+  if (lang === "ja") {
+    return lookupWordJapanese(word);
+  }
 
-  // Universal dynamic language adapter for any future target language:
+  const rawKey = word.trim();
+  const cacheKey = `${lang}:${rawKey}`;
+  if (lookupCache.has(cacheKey)) {
+    return lookupCache.get(cacheKey)!;
+  }
+
+  // Universal dynamic language adapter for any target language:
   const enResult = await lookupWordEnglish(word);
   if (enResult && enResult.meaning) {
     try {
-      const translatedMeaning = await googleTranslateService.translate(enResult.meaning, targetLang, "en");
-      return {
+      const translatedMeaning = await googleTranslateService.translate(enResult.meaning, lang, "en");
+      const res = {
         ...enResult,
         meaning: translatedMeaning || enResult.meaning,
-        source: `JMdict (${targetLang.toUpperCase()})`
+        source: `JMdict (${lang.toUpperCase()})`
       };
+      lookupCache.set(cacheKey, res);
+      return res;
     } catch {
       return enResult;
     }
@@ -358,13 +581,15 @@ export async function lookupWord(word: string, targetLang: string = "vi"): Promi
 
   // Direct translation fallback
   try {
-    const directTranslation = await googleTranslateService.translate(word, targetLang, "ja");
-    return {
+    const directTranslation = await googleTranslateService.translate(word, lang, "ja");
+    const res = {
       meaning: directTranslation,
       reading: enResult.reading || word,
       jlpt: enResult.jlpt,
       source: "Google Translate"
     };
+    lookupCache.set(cacheKey, res);
+    return res;
   } catch {
     return { meaning: "" };
   }
@@ -389,7 +614,8 @@ export async function fetchWordVariants(
 ): Promise<WordVariant[]> {
   if (!word || word.trim() === "") return [];
   const key = word.trim();
-  const cacheKey = `var:${targetLang}:${key}`;
+  const lang = targetLang || "en";
+  const cacheKey = `var:${lang}:${key}`;
 
   if (variantCache.has(cacheKey)) {
     return variantCache.get(cacheKey)!;
@@ -416,10 +642,10 @@ export async function fetchWordVariants(
               .slice(0, 2);
 
             let meaning = englishDefs.join("; ");
-            if (targetLang === "vi" && meaning) {
+            if (lang !== "en" && meaning) {
               try {
-                const viMeaning = await googleTranslateService.translate(meaning, "vi", "en");
-                if (viMeaning) meaning = viMeaning;
+                const trMeaning = await googleTranslateService.translate(meaning, lang, "en");
+                if (trMeaning) meaning = trMeaning;
               } catch {}
             }
 
@@ -438,14 +664,15 @@ export async function fetchWordVariants(
     console.warn("[Hakkutsu] Jisho variant fetch error:", word, e);
   }
 
-  // 2. Fallback to Mazii for Vietnamese variants if Jisho returns < limit
-  if (variants.length < limit && targetLang === "vi") {
+  // 2. Fallback to Mazii for non-English variants if Jisho returns < limit
+  if (variants.length < limit && lang !== "en") {
     try {
+      const dictType = lang === "vi" ? "javi" : (lang === "zh" ? "jaza" : (lang === "ko" ? "jako" : "jaen"));
       const res = await fetch("https://mazii.net/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          dict: "javi",
+          dict: dictType,
           type: "word",
           query: key,
           page: 1,
@@ -459,11 +686,18 @@ export async function fetchWordVariants(
             const itemWord = item.word || item.phonetic;
             if (itemWord && itemWord !== key && itemWord.includes(key) && !seenWords.has(itemWord)) {
               seenWords.add(itemWord);
-              const means = (item.means || [])
+              let means = (item.means || [])
                 .map((m: any) => m.mean || "")
                 .filter(Boolean)
                 .slice(0, 2)
                 .join("; ");
+
+              if (dictType === "jaen" && lang !== "en" && means) {
+                try {
+                  const tr = await googleTranslateService.translate(means, lang, "en");
+                  if (tr) means = tr;
+                } catch {}
+              }
 
               variants.push({
                 word: itemWord,

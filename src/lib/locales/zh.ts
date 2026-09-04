@@ -63,6 +63,7 @@ export const zh = {
   def_btn_added_srs: "已添加到 SRS",
   def_btn_add_library: "添加到词库",
   def_btn_added_library: "已添加到词库",
+  def_btn_already_added: "已在词库中",
   def_btn_export_anki: "导出至 Anki",
   def_anki_connected: "导出卡片至 Anki",
   def_anki_disconnected: "AnkiConnect 未连接",

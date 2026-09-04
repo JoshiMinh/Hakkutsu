@@ -13,6 +13,7 @@ export interface SrsCard {
   sentence?: string;
   source_url?: string;
   source_title?: string;
+  image_url?: string;
   
   word_furigana?: string;
   jlpt?: string;
@@ -89,6 +90,7 @@ class LocalSrsService {
     vietnamese_sound?: string;
     source_url?: string;
     source_title?: string;
+    image_url?: string;
     target_word?: string;
     jlpt?: string;
   }): Promise<SrsCard> {
@@ -107,6 +109,22 @@ class LocalSrsService {
     let sentence = data.sentence?.trim();
     let sentence_furigana = data.sentence_furigana?.trim();
     let sentence_meaning = data.sentence_meaning?.trim();
+
+    // Duplicate prevention: if card already exists, update card fields (e.g., image_url) and return
+    const allCards = await db.getAll("cards");
+    const existingCard = allCards.find((c) => c.word.trim().toLowerCase() === word.toLowerCase());
+    if (existingCard) {
+      const updatedCard: SrsCard = {
+        ...existingCard,
+        meaning: (meaning && meaning !== "—") ? meaning : existingCard.meaning,
+        reading: reading || existingCard.reading,
+        sentence: sentence || existingCard.sentence,
+        image_url: data.image_url || existingCard.image_url,
+        updated_at: now,
+      };
+      await db.put("cards", updatedCard);
+      return updatedCard;
+    }
 
     // Look up dictionary details if missing
     if (!meaning || meaning.trim() === "" || meaning === "—" || !reading) {
@@ -153,6 +171,7 @@ class LocalSrsService {
       sentence_meaning,
       source_url: data.source_url,
       source_title: data.source_title,
+      image_url: data.image_url,
       
       due_date: now,
       interval: 0,
@@ -184,6 +203,35 @@ class LocalSrsService {
       source_title: data.source_title,
       target_word: data.target_word,
     });
+  }
+
+  async hasCard(word: string): Promise<boolean> {
+    if (!word || !word.trim()) return false;
+    const db = await this.dbPromise;
+    const allCards = await db.getAll("cards");
+    const clean = word.trim().toLowerCase();
+    return allCards.some((c) => c.word.trim().toLowerCase() === clean);
+  }
+
+  async getCardByWord(word: string): Promise<SrsCard | null> {
+    if (!word || !word.trim()) return null;
+    const db = await this.dbPromise;
+    const allCards = await db.getAll("cards");
+    const clean = word.trim().toLowerCase();
+    return allCards.find((c) => c.word.trim().toLowerCase() === clean) || null;
+  }
+
+  async deleteSrsCardByWord(word: string): Promise<boolean> {
+    if (!word || !word.trim()) return false;
+    const db = await this.dbPromise;
+    const allCards = await db.getAll("cards");
+    const clean = word.trim().toLowerCase();
+    const card = allCards.find((c) => c.word.trim().toLowerCase() === clean);
+    if (card) {
+      await db.delete("cards", card.id);
+      return true;
+    }
+    return false;
   }
 
   async getDueCards(limit: number = 50): Promise<SrsCard[]> {

@@ -240,6 +240,17 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
               </div>
             )}
 
+            {/* Illustration Visual */}
+            {card.image_url && (
+              <div style={{ marginTop: "10px", textAlign: "center" }}>
+                <img
+                  src={card.image_url}
+                  alt={card.word}
+                  style={{ maxHeight: "130px", maxWidth: "100%", objectFit: "contain", borderRadius: "8px", background: "#18181b", padding: "4px", border: "1px solid rgba(255, 255, 255, 0.1)" }}
+                />
+              </div>
+            )}
+
             {/* Sentence Context */}
             {(card.sentence || card.sentence_furigana) && (
               <>

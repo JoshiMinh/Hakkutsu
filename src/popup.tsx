@@ -543,7 +543,7 @@ function Popup() {
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <img src={appLogo} alt="Hakkutsu Logo" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "cover" }} />
           <div>
-            <div className="hk-header__title" style={{ fontSize: "15px", lineHeight: "1.2", fontWeight: 700 }}>Hakkutsu</div>
+            <div className="hk-header__title hk-brand-title" style={{ fontSize: "15px", lineHeight: "1.2", fontWeight: 800, fontFamily: "var(--hk-font-brand)", letterSpacing: "-0.015em" }}>Hakkutsu</div>
             <div style={{ fontSize: "10px", color: "var(--hk-text-muted)" }}>{t("popup_subtitle")}</div>
           </div>
         </div>

@@ -5,10 +5,11 @@ import { getHanViet } from "~lib/utils/hanviet-dict";
 import { hasKanji, distributeFurigana } from "~lib/utils/japanese";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { JlptBadge, PosBadge, FrequencyBadge } from "./badges";
-import { Volume2, BookmarkPlus, Copy, Check, Sparkles, BookOpen, MessageSquareText, Loader2 } from "lucide-react";
+import { Volume2, BookmarkPlus, Copy, Check, Sparkles, BookOpen, MessageSquareText, Loader2, Image as ImageIcon, AlertCircle } from "lucide-react";
 import { useTranslation } from "~lib/locales";
 import { ttsService } from "~lib/services/tts-service";
 import { fetchExampleSentences, fetchWordVariants } from "~lib/services/dictionary-lookup";
+import { fetchIrasutoyaImages } from "~lib/services/irasutoya-service";
 import type { ExampleSentence, WordVariant } from "~lib/services/dictionary-lookup";
 
 function highlightJapaneseSentence(sentence: string, targetWords: string[]): React.ReactNode {
@@ -68,16 +69,20 @@ export function DefinitionCard({
   ankiConnected: boolean;
   originalText: string;
   sentenceReading: string;
-  onSrsAdd?: () => void;
+  onSrsAdd?: (selectedImageUrl?: string) => Promise<void> | void;
   hideBottomAction?: boolean;
 }) {
   const { t, isVietnamese, showHanViet, lang } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [srsAdded, setSrsAdded] = useState(false);
+  const [srsError, setSrsError] = useState<string | null>(null);
   const [examples, setExamples] = useState<ExampleSentence[]>([]);
   const [loadingExamples, setLoadingExamples] = useState(false);
   const [variants, setVariants] = useState<WordVariant[]>([]);
   const [loadingVariants, setLoadingVariants] = useState(false);
+  const [irasutoyaImgs, setIrasutoyaImgs] = useState<string[]>([]);
+  const [selectedImgUrl, setSelectedImgUrl] = useState<string | null>(null);
+  const [loadingImgs, setLoadingImgs] = useState(false);
 
   const wordQuery = token.dictionary_form || token.surface;
   const wordHasKanji = hasKanji(token.dictionary_form) || hasKanji(token.surface);
@@ -88,6 +93,63 @@ export function DefinitionCard({
   const hanViet = showHanViet && wordHasKanji
     ? (token.vietnamese_sound || getHanViet(token.dictionary_form || token.surface))
     : null;
+  // Check if word is already in SRS library
+  useEffect(() => {
+    let isMounted = true;
+    if (!wordQuery || !token.is_japanese) {
+      setSrsAdded(false);
+      return;
+    }
+
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({
+        type: "CHECK_CARD_EXISTS",
+        payload: { word: wordQuery }
+      }).then((res) => {
+        if (isMounted && res && res.type === "CARD_EXISTS_RESULT" && res.payload?.exists) {
+          setSrsAdded(true);
+        }
+      }).catch(() => {});
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [wordQuery, token.is_japanese]);
+
+  // Fetch Irasutoya illustration images
+  useEffect(() => {
+    let isMounted = true;
+    if (!wordQuery || !token.is_japanese) {
+      setIrasutoyaImgs([]);
+      setSelectedImgUrl(null);
+      return;
+    }
+
+    const glossMeaning = token.definitions?.[0]?.glosses?.join(", ") || "";
+    setLoadingImgs(true);
+    fetchIrasutoyaImages(wordQuery, lang, glossMeaning)
+      .then((imgs) => {
+        if (isMounted) {
+          setIrasutoyaImgs(imgs);
+          setSelectedImgUrl(imgs.length > 0 ? imgs[0] : null);
+        }
+      })
+      .catch((e) => {
+        console.warn("[Hakkutsu] Irasutoya fetch failed:", e);
+        if (isMounted) {
+          setIrasutoyaImgs([]);
+          setSelectedImgUrl(null);
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLoadingImgs(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [wordQuery, lang, token.is_japanese, token.definitions]);
 
   // Fetch real example sentences for this word
   useEffect(() => {
@@ -159,11 +221,13 @@ export function DefinitionCard({
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const handleAddToLibrary = () => {
+  const handleAddToLibrary = async () => {
     if (onSrsAdd) {
-      onSrsAdd();
-      setSrsAdded(true);
-      setTimeout(() => setSrsAdded(false), 2000);
+      try {
+        await onSrsAdd(selectedImgUrl || undefined);
+      } catch (e: any) {
+        console.error("SRS toggle failed", e);
+      }
     }
   };
 
@@ -252,11 +316,67 @@ export function DefinitionCard({
             <span>{t("def_grammar_note")}</span>
           </div>
           <div className="hk-dict-note__content">{token.grammar_note_vi}</div>
-          {token.components && token.components.length > 1 && (
-            <div className="hk-dict-note__sub">
-              {token.components
-                .map((part) => `${part.surface} (${part.lemma})`)
-                .join(" + ")}
+        </div>
+      )}
+
+      {/* Irasutoya Illustration Gallery Section */}
+      {(irasutoyaImgs.length > 0 || loadingImgs) && (
+        <div className="hk-definition__illustrations" style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
+          <div className="hk-dict-label-row" style={{ marginBottom: "6px" }}>
+            <span className="hk-dict-label" style={{ display: "flex", alignItems: "center", gap: "6px", color: "#38bdf8" }}>
+              <ImageIcon size={13} />
+              Irasutoya Visuals
+            </span>
+            {loadingImgs && <Loader2 size={12} className="hk-spin" style={{ color: "#38bdf8" }} />}
+          </div>
+
+          {irasutoyaImgs.length > 0 && (
+            <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "4px" }}>
+              {irasutoyaImgs.map((imgUrl, idx) => {
+                const isSelected = selectedImgUrl === imgUrl;
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => setSelectedImgUrl(imgUrl)}
+                    style={{
+                      position: "relative",
+                      cursor: "pointer",
+                      borderRadius: "8px",
+                      overflow: "hidden",
+                      border: isSelected ? "2px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.12)",
+                      background: "#18181b",
+                      width: "64px",
+                      height: "64px",
+                      flexShrink: 0,
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <img
+                      src={imgUrl}
+                      alt="Irasutoya"
+                      style={{ width: "100%", height: "100%", objectFit: "contain", padding: "2px" }}
+                    />
+                    {isSelected && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "2px",
+                          right: "2px",
+                          background: "#38bdf8",
+                          borderRadius: "50%",
+                          width: "14px",
+                          height: "14px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Check size={10} color="#000" strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -403,12 +523,23 @@ export function DefinitionCard({
       {!hideBottomAction && (
         <div className="hk-definition__actions" style={{ marginTop: "14px" }}>
           <button
-            className={`hk-btn ${srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
+            className={`hk-btn ${srsError ? "hk-btn--danger" : srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
             onClick={handleAddToLibrary}
-            title={srsAdded ? t("def_btn_added_library") : t("def_btn_add_library")}
-            style={{ width: "100%", justifyContent: "center", padding: "8px 16px" }}
+            title={srsError || (srsAdded ? t("def_btn_added_library") : t("def_btn_add_library"))}
+            style={{
+              width: "100%",
+              justifyContent: "center",
+              padding: "8px 16px",
+              backgroundColor: srsError ? "#ef4444" : undefined,
+              borderColor: srsError ? "#ef4444" : undefined,
+              color: srsError ? "#ffffff" : undefined
+            }}
           >
-            {srsAdded ? (
+            {srsError ? (
+              <>
+                <AlertCircle size={14} /> {srsError}
+              </>
+            ) : srsAdded ? (
               <>
                 <Check size={14} /> {t("def_btn_added_library")}
               </>

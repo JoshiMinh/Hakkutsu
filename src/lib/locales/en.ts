@@ -63,6 +63,7 @@ export const en = {
   def_btn_added_srs: "Added to SRS",
   def_btn_add_library: "Add to Library",
   def_btn_added_library: "Added to Library",
+  def_btn_already_added: "Already added to library",
   def_btn_export_anki: "Export to Anki",
   def_anki_connected: "Export note to Anki",
   def_anki_disconnected: "AnkiConnect not connected",

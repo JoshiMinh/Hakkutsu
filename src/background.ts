@@ -23,6 +23,8 @@ import { searchDictionary } from "~lib/services/local-lookup";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { containsJapanese, katakanaToHiragana, hasKanji, sanitizeReading } from "~lib/utils/japanese";
 import { lookupWord } from "~lib/services/dictionary-lookup";
+import { googleTranslateService } from "~lib/services/google-translate";
+import { fetchIrasutoyaImagesDirect } from "~lib/services/irasutoya-service";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
 
@@ -88,41 +90,66 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
       const rawReading = kuromojiReading || firstEntry?.readingElements?.[0] || "";
       let reading = sanitizeReading(rawReading, surface);
       let jlptLevel = firstEntry?.jlpt || predictJlpt(surface);
-      let definitions = dictEntries.flatMap((d) =>
-        d.senses.map((s) => ({
-          dictionary: "JMdict",
-          glosses: s.glosses,
-          pos: s.partOfSpeech || ["Word"],
-          field: null,
-          misc: [],
-        }))
-      );
 
-      // Fallback for kanji words without IndexedDB entry: query common & cached dict for reading
-      if (!reading && hasKanji(surface)) {
-        try {
-          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 400));
-          const dictInfo = await Promise.race([lookupWord(surface, targetLang), timeoutPromise]);
-          if (dictInfo) {
-            if (dictInfo.reading) {
-              reading = sanitizeReading(dictInfo.reading, surface);
-            }
-            if (dictInfo.jlpt) {
-              jlptLevel = dictInfo.jlpt;
-            }
-            if (dictInfo.meaning && definitions.length === 0) {
-              definitions = [
-                {
-                  dictionary: dictInfo.source || "Dict",
-                  glosses: [dictInfo.meaning],
-                  pos: [t.pos || "Word"],
-                  field: null,
-                  misc: [],
-                },
-              ];
-            }
+      let definitions: DictionaryEntry[] = [];
+
+      // Query target-language dictionary lookup
+      try {
+        const dictInfo = await lookupWord(surface, targetLang);
+        if (dictInfo) {
+          if (dictInfo.reading && !reading) {
+            reading = sanitizeReading(dictInfo.reading, surface);
           }
-        } catch {}
+          if (dictInfo.jlpt && !jlptLevel) {
+            jlptLevel = dictInfo.jlpt;
+          }
+          if (dictInfo.meaning) {
+            definitions = [
+              {
+                dictionary: dictInfo.source || "Dict",
+                glosses: [dictInfo.meaning],
+                pos: [t.pos || "Word"],
+                field: null,
+                misc: [],
+              },
+            ];
+          }
+        }
+      } catch (e) {
+        console.warn("[Hakkutsu] Token target dictionary lookup error:", surface, e);
+      }
+
+      // If no target language definition was found from adapter, use IndexedDB JMdict entries
+      if (definitions.length === 0 && dictEntries.length > 0) {
+        definitions = dictEntries.flatMap((d) =>
+          d.senses.map((s) => ({
+            dictionary: "JMdict",
+            glosses: s.glosses,
+            pos: s.partOfSpeech || ["Word"],
+            field: null,
+            misc: [],
+          }))
+        );
+
+        // If target language is not English, translate local JMdict glosses to target language
+        if (targetLang !== "en") {
+          definitions = await Promise.all(
+            definitions.map(async (def) => {
+              try {
+                const translatedGlosses = await Promise.all(
+                  def.glosses.map((g) => googleTranslateService.translate(g, targetLang, "en"))
+                );
+                return {
+                  ...def,
+                  dictionary: `JMdict (${targetLang.toUpperCase()})`,
+                  glosses: translatedGlosses.map((tg, idx) => tg || def.glosses[idx]),
+                };
+              } catch {
+                return def;
+              }
+            })
+          );
+        }
       }
 
       return {
@@ -335,8 +362,26 @@ async function handleMessage(
 
     case "ADD_SRS_CARD": {
       const data = message.payload as { word: string; reading?: string; meaning?: string; sentence?: string };
-      const card = await localSrs.addSrsCard(data);
-      return { type: "SRS_RESULT", payload: card };
+      try {
+        const card = await localSrs.addSrsCard(data);
+        return { type: "SRS_RESULT", payload: card };
+      } catch (err: any) {
+        return { type: "ERROR", payload: { error: err.message || "Failed to add to library" } };
+      }
+    }
+
+    case "CHECK_CARD_EXISTS": {
+      const { word } = (message.payload || {}) as { word: string };
+      if (!word) return { type: "CARD_EXISTS_RESULT", payload: { exists: false } };
+      const card = await localSrs.getCardByWord(word);
+      return { type: "CARD_EXISTS_RESULT", payload: { exists: !!card, card } };
+    }
+
+    case "REMOVE_SRS_CARD": {
+      const { word } = (message.payload || {}) as { word: string };
+      if (!word) return { type: "REMOVE_SRS_CARD_RESULT", payload: { success: false } };
+      const success = await localSrs.deleteSrsCardByWord(word);
+      return { type: "REMOVE_SRS_CARD_RESULT", payload: { success } };
     }
 
     case "CHECK_ANKI": {
@@ -389,20 +434,31 @@ async function handleMessage(
     }
 
     case "FETCH_IMAGE": {
-      const { url } = message.payload as { url: string };
-      try {
-        const res = await fetch(url);
-        const blob = await res.blob();
-        const reader = new FileReader();
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-        return { type: "FETCH_IMAGE_RESULT", payload: { dataUrl } };
-      } catch (err: any) {
-        throw new Error(`Failed to fetch image: ${err.message || err}`);
+      const { query, targetLang, meaning, url } = (message.payload || {}) as { query?: string; targetLang?: string; meaning?: string; url?: string };
+      if (query) {
+        try {
+          const images = await fetchIrasutoyaImagesDirect(query, targetLang, meaning);
+          return { type: "FETCH_IMAGE_RESULT", payload: { images } };
+        } catch (err: any) {
+          return { type: "FETCH_IMAGE_RESULT", payload: { images: [] } };
+        }
       }
+      if (url) {
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          const reader = new FileReader();
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          return { type: "FETCH_IMAGE_RESULT", payload: { dataUrl } };
+        } catch (err: any) {
+          throw new Error(`Failed to fetch image: ${err.message || err}`);
+        }
+      }
+      return { type: "FETCH_IMAGE_RESULT", payload: { images: [] } };
     }
 
     case "FETCH_TIMEDTEXT_URL": {

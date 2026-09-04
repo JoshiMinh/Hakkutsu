@@ -63,6 +63,7 @@ export const ja = {
   def_btn_added_srs: "SRSに追加済み",
   def_btn_add_library: "単語帳に追加",
   def_btn_added_library: "単語帳に追加済み",
+  def_btn_already_added: "すでに単語帳に追加されています",
   def_btn_export_anki: "Ankiへエクスポート",
   def_anki_connected: "Ankiへノートを出力",
   def_anki_disconnected: "AnkiConnect 未接続",

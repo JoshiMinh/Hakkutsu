@@ -51,7 +51,7 @@ export const SUPPORTED_LANGUAGES: Record<string, LanguageConfig> = {
     ttsLangCode: "zh-CN",
     googleTranslateCode: "zh-CN",
     supportsHanViet: false,
-    dictionaryName: "CEDICT",
+    dictionaryName: "Mazii / CEDICT",
   },
   ja: {
     code: "ja",
@@ -61,7 +61,7 @@ export const SUPPORTED_LANGUAGES: Record<string, LanguageConfig> = {
     ttsLangCode: "ja-JP",
     googleTranslateCode: "ja",
     supportsHanViet: false,
-    dictionaryName: "JMdict",
+    dictionaryName: "JMdict / 国語",
   },
   ko: {
     code: "ko",
@@ -71,7 +71,7 @@ export const SUPPORTED_LANGUAGES: Record<string, LanguageConfig> = {
     ttsLangCode: "ko-KR",
     googleTranslateCode: "ko",
     supportsHanViet: false,
-    dictionaryName: "KRdict",
+    dictionaryName: "Mazii / KRdict",
   },
 };
 

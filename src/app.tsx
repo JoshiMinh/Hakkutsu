@@ -142,7 +142,7 @@ export default function AppDashboard() {
         <div style={{ marginBottom: "28px", padding: "0 10px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
             <img src={logoUrl} alt="Hakkutsu Logo" style={{ width: 28, height: 28, borderRadius: 6 }} />
-            <h1 style={{ fontSize: "19px", fontWeight: "bold", margin: 0, fontFamily: "var(--hk-font-jp)", color: "var(--hk-text-primary)" }}>
+            <h1 className="hk-brand-title" style={{ fontSize: "19px", fontWeight: 800, margin: 0, fontFamily: "var(--hk-font-brand)", color: "var(--hk-text-primary)", letterSpacing: "-0.015em" }}>
               Hakkutsu
             </h1>
           </div>
@@ -192,7 +192,7 @@ export default function AppDashboard() {
                   {t("srs_title")}
                 </h2>
               </div>
-              <div style={{ border: "1px solid var(--hk-border)", borderRadius: "12px", overflow: "hidden", background: "var(--hk-bg-secondary)", flex: 1, display: "flex", flexDirection: "column" }}>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                 <SrsReview />
               </div>
             </div>

@@ -1,6 +1,6 @@
 import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useRef } from "react";
-import { X, Loader2, Sparkles, Languages, Zap, Check, BookmarkPlus } from "lucide-react";
+import { X, Loader2, Sparkles, Languages, Zap, Check, BookmarkPlus, AlertCircle } from "lucide-react";
 import { containsJapanese } from "~lib/utils/japanese";
 import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis, AnkiExportData } from "~lib/utils/types";
 import { DefinitionCard } from "~components/definition-card";
@@ -215,6 +215,7 @@ const InlineDictionary = () => {
   transientModeRef.current = transientMode;
   const isMouseOverPopupRef = useRef(false);
   const [srsAdded, setSrsAdded] = useState(false);
+  const [srsError, setSrsError] = useState<string | null>(null);
   const [hoverHighlightRects, setHoverHighlightRects] = useState<DOMRect[] | null>(null);
   const { settings, isHydrated } = useSettingsStore();
   const { t, isVietnamese, lang } = useTranslation();
@@ -626,38 +627,77 @@ const InlineDictionary = () => {
     }
   };
 
-  const handleSrsAdd = async () => {
+  const handleSrsAdd = async (selectedImageUrl?: string) => {
     if (!selectedTokenData) return;
-    const meanings = selectedTokenData.definitions
-      .flatMap((d) => d.glosses)
-      .join("; ");
-      
-    try {
-      await chrome.runtime.sendMessage({
-        type: "ADD_SRS_CARD",
-        payload: {
-          word: selectedTokenData.dictionary_form || selectedTokenData.surface,
-          reading: selectedTokenData.reading.hiragana,
-          word_furigana: `${selectedTokenData.dictionary_form || selectedTokenData.surface}[${selectedTokenData.reading.hiragana}]`,
-          meaning: meanings || "—",
-          sentence: result?.text,
-          sentence_furigana: result?.sentence_reading,
-          sentence_meaning: phraseTranslation,
-          vietnamese_sound: selectedTokenData.vietnamese_sound,
-          jlpt: selectedTokenData.jlpt_level,
-        },
-      });
-      setSrsAdded(true);
-      setTimeout(() => setSrsAdded(false), 2000);
-    } catch (e) {
-      console.error("SRS Add failed", e);
+    const word = selectedTokenData.dictionary_form || selectedTokenData.surface;
+    if (!word) return;
+
+    if (srsAdded) {
+      try {
+        await chrome.runtime.sendMessage({
+          type: "REMOVE_SRS_CARD",
+          payload: { word }
+        });
+        setSrsAdded(false);
+        setSrsError(null);
+      } catch (e: any) {
+        console.error("Remove card failed", e);
+      }
+    } else {
+      const meanings = selectedTokenData.definitions
+        .flatMap((d) => d.glosses)
+        .join("; ");
+        
+      try {
+        await chrome.runtime.sendMessage({
+          type: "ADD_SRS_CARD",
+          payload: {
+            word,
+            reading: selectedTokenData.reading.hiragana,
+            word_furigana: `${word}[${selectedTokenData.reading.hiragana}]`,
+            meaning: meanings || "—",
+            sentence: result?.text,
+            sentence_furigana: result?.sentence_reading,
+            sentence_meaning: phraseTranslation,
+            vietnamese_sound: selectedTokenData.vietnamese_sound,
+            jlpt: selectedTokenData.jlpt_level,
+            image_url: selectedImageUrl,
+          },
+        });
+        setSrsAdded(true);
+        setSrsError(null);
+      } catch (e: any) {
+        console.error("SRS Add failed", e);
+      }
     }
   };
 
-  if (!position && (!hoverHighlightRects || hoverHighlightRects.length === 0)) return null;
-
   const selectedTokenData =
-    result && selectedToken !== null ? result.tokens[selectedToken] : null;
+    result && selectedToken !== null ? result.tokens?.[selectedToken] : null;
+
+  useEffect(() => {
+    if (!selectedTokenData || !selectedTokenData.is_japanese) {
+      setSrsAdded(false);
+      return;
+    }
+    const word = selectedTokenData.dictionary_form || selectedTokenData.surface;
+    if (!word) return;
+
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({
+        type: "CHECK_CARD_EXISTS",
+        payload: { word }
+      }).then((res) => {
+        if (res && res.type === "CARD_EXISTS_RESULT" && res.payload?.exists) {
+          setSrsAdded(true);
+        } else {
+          setSrsAdded(false);
+        }
+      }).catch(() => {});
+    }
+  }, [selectedTokenData]);
+
+  if (!position && (!hoverHighlightRects || hoverHighlightRects.length === 0)) return null;
   const phraseTranslation =
     result && "translation" in result
       ? String((result as any).translation || "").trim()
@@ -766,7 +806,7 @@ const InlineDictionary = () => {
           <header className="hk-header">
             <div className="hk-header__logo">
               <img src={logoUrl} alt="Hakkutsu" style={{ width: 18, height: 18, borderRadius: "4px" }} />
-              <h2 className="hk-header__title">Hakkutsu Lookup</h2>
+              <h2 className="hk-header__title hk-brand-title">Hakkutsu Lookup</h2>
             </div>
             <button
               className="hk-btn-icon-subtle"
@@ -802,34 +842,6 @@ const InlineDictionary = () => {
         
         {result && !loading && (
           <>
-            {/* Show sentence context when analyzing a phrase/sentence */}
-            {result.tokens.length > 1 && (
-              <div className="hk-dict-section">
-                <div className="hk-dict-label-row">
-                  <span className="hk-dict-label">
-                    {t("dict_label_original")}
-                  </span>
-                  {sentenceMode && !phraseMode && !transientMode && (
-                    <button
-                      className="hk-btn hk-btn--primary hk-btn--sm"
-                      onClick={() => {
-                        setPhraseMode(true);
-                        analyzeText(inputText, true, true);
-                      }}
-                      style={{ padding: "3px 8px", fontSize: "11px" }}
-                    >
-                      <Sparkles size={12} /> {t("dict_btn_deep_ai")}
-                    </button>
-                  )}
-                </div>
-
-                <TokenDisplay
-                  tokens={result.tokens}
-                  selectedIndex={selectedToken}
-                  onSelect={handleTokenSelect}
-                />
-              </div>
-            )}
 
             {/* Target Language sentence translation */}
             {phraseTranslation && (
@@ -884,12 +896,27 @@ const InlineDictionary = () => {
           flexShrink: 0
         }}>
           <button
-            className={`hk-btn ${srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
-            onClick={handleSrsAdd}
-            title={srsAdded ? t("def_btn_added_library") : t("def_btn_add_library")}
-            style={{ width: "100%", justifyContent: "center", padding: "8px 16px", fontSize: "13px", fontWeight: 600, borderRadius: "8px", gap: "6px" }}
+            className={`hk-btn ${srsError ? "hk-btn--danger" : srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
+            onClick={() => handleSrsAdd()}
+            title={srsError || (srsAdded ? t("def_btn_added_library") : t("def_btn_add_library"))}
+            style={{
+              width: "100%",
+              justifyContent: "center",
+              padding: "8px 16px",
+              fontSize: "13px",
+              fontWeight: 600,
+              borderRadius: "8px",
+              gap: "6px",
+              backgroundColor: srsError ? "#ef4444" : undefined,
+              borderColor: srsError ? "#ef4444" : undefined,
+              color: srsError ? "#ffffff" : undefined
+            }}
           >
-            {srsAdded ? (
+            {srsError ? (
+              <>
+                <AlertCircle size={14} /> {srsError}
+              </>
+            ) : srsAdded ? (
               <>
                 <Check size={14} /> {t("def_btn_added_library")}
               </>

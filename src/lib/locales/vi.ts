@@ -63,6 +63,7 @@ export const vi = {
   def_btn_added_srs: "Đã thêm vào SRS",
   def_btn_add_library: "Thêm vào thư viện",
   def_btn_added_library: "Đã thêm vào thư viện",
+  def_btn_already_added: "Đã có trong thư viện",
   def_btn_export_anki: "Xuất Anki",
   def_anki_connected: "Xuất thẻ sang Anki",
   def_anki_disconnected: "AnkiConnect chưa kết nối",

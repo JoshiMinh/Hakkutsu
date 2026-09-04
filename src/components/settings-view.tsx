@@ -532,6 +532,42 @@ export function SettingsView({
                 />
               </div>
             </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="includeImages" className="hk-settings-row__label">Include Illustrations & Images</label>
+                <div id="includeImages-desc" className="hk-settings-row__desc">Automatically attach Irasutoya illustration images to cards and Anki exports</div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="includeImages">
+                  <input
+                    id="includeImages"
+                    aria-describedby="includeImages-desc"
+                    type="checkbox"
+                    checked={settings.includeImages !== false}
+                    onChange={(e) => onUpdate({ includeImages: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="ankiImageField" className="hk-settings-row__label">Anki Image Field Name</label>
+                <div id="ankiImageField-desc" className="hk-settings-row__desc">Name of the Anki card field to store illustration image tag</div>
+              </div>
+              <div className="hk-settings-row__control">
+                <input
+                  id="ankiImageField"
+                  aria-describedby="ankiImageField-desc"
+                  className="hk-settings-input hk-settings-input--text"
+                  type="text"
+                  value={settings.ankiImageField || "Image"}
+                  onChange={(e) => onUpdate({ ankiImageField: e.target.value })}
+                />
+              </div>
+            </div>
           </div>
         </section>
 

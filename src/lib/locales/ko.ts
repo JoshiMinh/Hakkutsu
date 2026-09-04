@@ -63,6 +63,7 @@ export const ko = {
   def_btn_added_srs: "SRS에 추가됨",
   def_btn_add_library: "단어장에 추가",
   def_btn_added_library: "단어장에 추가됨",
+  def_btn_already_added: "이미 단어장에 추가됨",
   def_btn_export_anki: "Anki로 내보내기",
   def_anki_connected: "Anki에 노트 내보내기",
   def_anki_disconnected: "AnkiConnect 연결 안 됨",
