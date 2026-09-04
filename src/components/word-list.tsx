@@ -16,13 +16,13 @@ import {
   Brain,
   ExternalLink
 } from "lucide-react";
-import { JlptBadge } from "~components/Badges";
+import { JlptBadge } from "~components/badges";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { lookupWord } from "~lib/services/dictionary-lookup";
-import { useTranslation } from "~lib/languages/locales";
+import { useTranslation } from "~lib/locales";
 import { ankiClient } from "~lib/services/anki-connect";
-import ankiSvg from "data-base64:../../assets/logo/anki.svg";
+import ankiSvg from "data-base64:../../assets/logo/anki.png";
 
 export function WordList({ 
   userId = "user_1",

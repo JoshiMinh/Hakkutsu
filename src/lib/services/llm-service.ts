@@ -1,5 +1,5 @@
 import { useSettingsStore } from "~lib/utils/settings";
-import type { ExtensionSettings, WebTranslateResponse } from "~lib/types";
+import type { ExtensionSettings, WebTranslateResponse } from "~lib/utils/types";
 import { googleTranslateService } from "./google-translate";
 import { lookupWord, type LookupResult } from "./dictionary-lookup";
 import { katakanaToHiragana, containsJapanese, hasKanji, romajiToHiragana, segmentJapaneseTokens } from "~lib/utils/japanese";

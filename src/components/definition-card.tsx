@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import type { TokenAnalysis, AnkiExportData } from "~lib/types";
+import type { TokenAnalysis, AnkiExportData } from "~lib/utils/types";
 import { formatPosLabel } from "~lib/utils/constants";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { hasKanji, distributeFurigana } from "~lib/utils/japanese";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
-import { JlptBadge, PosBadge, FrequencyBadge } from "./Badges";
+import { JlptBadge, PosBadge, FrequencyBadge } from "./badges";
 import { Volume2, BookmarkPlus, Copy, Check, Sparkles, BookOpen, MessageSquareText, Loader2 } from "lucide-react";
-import { useTranslation } from "~lib/languages/locales";
+import { useTranslation } from "~lib/locales";
 import { ttsService } from "~lib/services/tts-service";
 import { fetchExampleSentences, fetchWordVariants } from "~lib/services/dictionary-lookup";
 import type { ExampleSentence, WordVariant } from "~lib/services/dictionary-lookup";

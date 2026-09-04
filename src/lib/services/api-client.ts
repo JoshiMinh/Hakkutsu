@@ -17,7 +17,7 @@ import type {
   WebTranslateResponse,
   TokenAnalysis,
   DictionaryEntry,
-} from "~lib/types";
+} from "~lib/utils/types";
 import { llmService } from "./llm-service";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { containsJapanese } from "~lib/utils/japanese";

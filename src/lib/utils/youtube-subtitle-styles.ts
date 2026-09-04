@@ -149,11 +149,10 @@ export const youtubeSubtitleCss = /* css */ `
   }
 
   /* JLPT level color coding */
-  .hk-sub__token--n5 { color: #4ade80; }
-  .hk-sub__token--n4 { color: #60a5fa; }
-  .hk-sub__token--n3 { color: #fbbf24; }
-  .hk-sub__token--n2 { color: #f87171; }
-  .hk-sub__token--n1 { color: #c084fc; }
+  .hk-sub__token--saved {
+    color: #c084fc;
+    border-bottom: 2px dotted #c084fc;
+  }
 
   /* ── Furigana (Ruby) ─────────────────────────────────────── */
   .hk-sub__token ruby {

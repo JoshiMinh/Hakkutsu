@@ -15,19 +15,20 @@ import type {
 } from "plasmo";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import cssText from "data-text:~style.css";
-import type { SubtitleSegment, SubtitleFetchResult } from "~lib/types";
-import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/youtube-subtitle-styles";
+import type { SubtitleSegment, SubtitleFetchResult } from "~lib/utils/types";
+import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/utils/youtube-subtitle-styles";
 import { SubtitleOverlay } from "~components/subtitle-overlay";
 import { SelectSubtitlesModal, type SubtitleTrackOption } from "~components/select-subtitles-modal";
 import { useSettingsStore } from "~lib/utils/settings";
-import { useTranslation } from "~lib/languages/locales";
+import { useTranslation } from "~lib/locales";
 import {
   parseNetflixTtml,
   readSubtitleFile,
   parsedToSubtitleFetchResult,
+  deduplicateCueText,
 } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";
-import { initNetflixPageBridge, type HakkutsuNetflixSyncedData, type HakkutsuNetflixTrack } from "~lib/bridges/netflix-bridge";
+import { initNetflixPageBridge, type HakkutsuNetflixSyncedData, type HakkutsuNetflixTrack } from "~lib/services/netflix-bridge";
 
 export const config: PlasmoCSConfig = {
   matches: ["https://www.netflix.com/watch/*", "https://www.netflix.com/*"],
@@ -509,17 +510,16 @@ export default function NetflixSubtitlesOverlay() {
         return;
       }
 
-      const spans = timedTextEl.querySelectorAll("span");
-      let text = "";
-      if (spans.length > 0) {
-        text = Array.from(spans)
-          .map((s) => s.textContent?.trim() || "")
-          .filter(Boolean)
-          .join(" ")
-          .trim();
+      const leafSpans = Array.from(timedTextEl.querySelectorAll("span")).filter(
+        (s) => s.children.length === 0 && s.textContent?.trim()
+      );
+      let rawText = "";
+      if (leafSpans.length > 0) {
+        rawText = leafSpans.map((s) => s.textContent?.trim() || "").join(" ");
       } else {
-        text = timedTextEl.textContent?.trim() || "";
+        rawText = timedTextEl.textContent?.trim() || "";
       }
+      const text = deduplicateCueText(rawText);
 
       if (text && text !== lastObservedText) {
         lastObservedText = text;

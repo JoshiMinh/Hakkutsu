@@ -1,4 +1,4 @@
-import AppDashboard from "~tabs/app";
+import AppDashboard from "~app";
 
 export default function OptionsPage() {
   return <AppDashboard />;

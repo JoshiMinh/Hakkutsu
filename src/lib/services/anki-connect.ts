@@ -11,7 +11,7 @@ import type {
   AnkiConnectResponse,
   AnkiNote,
   AnkiExportData,
-} from "~lib/types";
+} from "~lib/utils/types";
 
 class AnkiConnectClient {
   private url: string;

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { localSrs } from "~lib/services/local-srs";
 import type { SrsCard, SrsStats } from "~lib/services/local-srs";
 import { PartyPopper, Volume2, RotateCcw } from "lucide-react";
-import { useTranslation } from "~lib/languages/locales";
+import { useTranslation } from "~lib/locales";
 import { ttsService } from "~lib/services/tts-service";
 import { distributeFurigana } from "~lib/utils/japanese";
 

@@ -20,12 +20,12 @@ import type {
 } from "plasmo";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import cssText from "data-text:~style.css";
-import type { SubtitleSegment, SubtitleFetchResult } from "~lib/types";
-import { youtubeSubtitleCss, genericPlayerCss } from "~lib/youtube-subtitle-styles";
+import type { SubtitleSegment, SubtitleFetchResult } from "~lib/utils/types";
+import { youtubeSubtitleCss, genericPlayerCss } from "~lib/utils/youtube-subtitle-styles";
 import { SubtitleOverlay } from "~components/subtitle-overlay";
 import { SelectSubtitlesModal, type SubtitleTrackOption } from "~components/select-subtitles-modal";
 import { useSettingsStore } from "~lib/utils/settings";
-import { useTranslation } from "~lib/languages/locales";
+import { useTranslation } from "~lib/locales";
 import { containsJapanese } from "~lib/utils/japanese";
 import { readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";

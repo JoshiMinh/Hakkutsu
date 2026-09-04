@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { X, Settings, FolderOpen, Check, ChevronDown, Clock, Sliders, Volume2, Type, Subtitles } from "lucide-react";
-import { useTranslation } from "~lib/languages/locales";
+import { useTranslation } from "~lib/locales";
 import { readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
-import type { SubtitleFetchResult } from "~lib/types";
+import type { SubtitleFetchResult } from "~lib/utils/types";
 
 export interface SubtitleTrackOption {
   id: string;

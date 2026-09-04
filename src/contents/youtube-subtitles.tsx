@@ -16,12 +16,12 @@ import type {
 } from "plasmo";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import cssText from "data-text:~style.css";
-import type { SubtitleSegment, SubtitleFetchResult } from "~lib/types";
-import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/youtube-subtitle-styles";
+import type { SubtitleSegment, SubtitleFetchResult } from "~lib/utils/types";
+import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/utils/youtube-subtitle-styles";
 import { SubtitleOverlay } from "~components/subtitle-overlay";
 import { SelectSubtitlesModal, type SubtitleTrackOption } from "~components/select-subtitles-modal";
 import { useSettingsStore } from "~lib/utils/settings";
-import { useTranslation } from "~lib/languages/locales";
+import { useTranslation } from "~lib/locales";
 import {
   parseYouTubeTimedTextXml,
   parseYouTubeJson3,
@@ -34,7 +34,7 @@ import {
   initYouTubePageBridge,
   type HakkutsuYouTubeSyncedData,
   type HakkutsuYouTubeTrack,
-} from "~lib/bridges/youtube-bridge";
+} from "~lib/services/youtube-bridge";
 
 export const config: PlasmoCSConfig = {
   matches: ["https://www.youtube.com/*", "https://m.youtube.com/*"],

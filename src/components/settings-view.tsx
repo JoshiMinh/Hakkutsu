@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { Check, ChevronDown, Database, Film, GraduationCap, Languages, Settings as SettingsIcon } from "lucide-react";
-import type { ExtensionSettings } from "~lib/types";
-import { t } from "~lib/languages/locales";
-import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from "~lib/languages";
-import ankiSvg from "data-base64:../../assets/logo/anki.svg";
-import kofiSvg from "data-base64:../../assets/logo/kofi.svg";
+import type { ExtensionSettings } from "~lib/utils/types";
+import { t } from "~lib/locales";
+import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from "~lib/locales";
+import ankiSvg from "data-base64:../../assets/logo/anki.png";
+import kofiSvg from "data-base64:../../assets/logo/kofi.png";
 import usFlag from "data-base64:../../assets/language/en.png";
 import vnFlag from "data-base64:../../assets/language/vi.png";
 import zhFlag from "data-base64:../../assets/language/zh.png";

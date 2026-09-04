@@ -1,6 +1,6 @@
 import React from "react"
-import type { GrammarPattern } from "~lib/types"
-import { useTranslation } from "~lib/languages/locales"
+import type { GrammarPattern } from "~lib/utils/types"
+import { useTranslation } from "~lib/locales"
 import { Sparkles } from "lucide-react"
 
 interface GrammarExplanationsProps {

@@ -5,7 +5,7 @@
   "description": "Local-first open-source Japanese immersion browser extension. Learn Japanese while browsing the web with offline dictionary, local Kuromoji parsing, SRS, and dual subtitles.",
   "author": "Hakkutsu Team",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "dev": "node ./run-plasmo.cjs dev",
     "build": "node ./run-plasmo.cjs build",

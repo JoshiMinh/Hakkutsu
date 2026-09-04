@@ -2,13 +2,13 @@ import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo";
 import { useEffect, useState, useRef } from "react";
 import { X, Loader2, Sparkles, Languages, Zap, Check, BookmarkPlus } from "lucide-react";
 import { containsJapanese } from "~lib/utils/japanese";
-import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis, AnkiExportData } from "~lib/types";
+import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis, AnkiExportData } from "~lib/utils/types";
 import { DefinitionCard } from "~components/definition-card";
 import { TokenDisplay } from "~components/token-display";
 import { GrammarExplanations } from "~components/grammar-explanations";
 import { useSettingsStore } from "~lib/utils/settings";
-import { useTranslation } from "~lib/languages/locales";
-import logoUrl from "data-base64:../../assets/icon/icon-rounded.png";
+import { useTranslation } from "~lib/locales";
+import logoUrl from "data-base64:../../assets/icon.png";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
@@ -685,7 +685,8 @@ const InlineDictionary = () => {
   const isLower = position ? position.y > window.innerHeight * 0.42 : false;
   const placeAbove = usePlayerOverlay || (position?.above ?? isLower);
 
-  const availableHeightAbove = position ? Math.max(160, position.y - 28) : 380;
+  const aboveOffset = usePlayerOverlay ? 40 : 24;
+  const availableHeightAbove = position ? Math.max(160, position.y - aboveOffset - 16) : 380;
   const availableHeightBelow = position ? Math.max(160, window.innerHeight - position.y - 24) : 380;
   const computedMaxHeight = position
     ? placeAbove
@@ -697,7 +698,7 @@ const InlineDictionary = () => {
     ? placeAbove
       ? {
           position: "fixed",
-          bottom: `${Math.max(16, window.innerHeight - position.y + 12)}px`,
+          bottom: `${Math.max(16, window.innerHeight - position.y + aboveOffset)}px`,
           left: `${panelLeft}px`,
           width: `${cardWidth}px`,
           maxHeight: `${computedMaxHeight}px`,

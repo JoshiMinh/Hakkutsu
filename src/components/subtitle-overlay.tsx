@@ -6,9 +6,9 @@ import type {
   AnalyzeResponse,
   TokenAnalysis,
   AnkiExportData,
-} from "~lib/types";
+} from "~lib/utils/types";
 import { useSettingsStore } from "~lib/utils/settings";
-import { useTranslation } from "~lib/languages/locales";
+import { useTranslation } from "~lib/locales";
 import { SelectSubtitlesModal } from "./select-subtitles-modal";
 import type { SubtitleTrackOption } from "./select-subtitles-modal";
 import { smartCueEnd } from "~lib/services/smart-cue";
@@ -117,6 +117,38 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [offsetToast, setOffsetToast] = useState<string | null>(null);
   const [ankiSaved, setAnkiSaved] = useState(false);
+
+  const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const loadSavedWords = async () => {
+      try {
+        if (typeof chrome !== "undefined" && chrome.storage?.local) {
+          const res = await chrome.storage.local.get("hakkutsu_vocabulary");
+          const vocab = res["hakkutsu_vocabulary"] || [];
+          const wordSet = new Set<string>();
+          vocab.forEach((v: any) => {
+            if (v.word) wordSet.add(v.word);
+            if (v.dictionaryForm) wordSet.add(v.dictionaryForm);
+          });
+          setSavedWords(wordSet);
+        }
+      } catch {}
+    };
+
+    void loadSavedWords();
+
+    const handleStorageChange = (changes: any, areaName: string) => {
+      if (areaName === "local" && changes["hakkutsu_vocabulary"]) {
+        void loadSavedWords();
+      }
+    };
+
+    if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
+      chrome.storage.onChanged.addListener(handleStorageChange);
+      return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+    }
+  }, []);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -519,8 +551,8 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
     if (lookupDismissTimerRef.current) window.clearTimeout(lookupDismissTimerRef.current);
     lookupDismissTimerRef.current = window.setTimeout(() => {
-      window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss", { detail: { force: true } }));
-    }, 250);
+      window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss"));
+    }, 450);
   };
 
   // ── 8. Immersion Keyboard Shortcuts ─────────────────────────────────────────
@@ -725,7 +757,10 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                     isKanji &&
                     Boolean(cleanReading) &&
                     cleanReading !== token.surface;
-                  const jlptClass = token.jlpt_level && settings.showJlptColors ? `hk-sub__token--${token.jlpt_level.toLowerCase()}` : "";
+                  const isSaved =
+                    savedWords.has(token.surface) ||
+                    Boolean(token.dictionary_form && savedWords.has(token.dictionary_form));
+                  const savedClass = isSaved ? "hk-sub__token--saved" : "";
                   const rubySegments = showRuby
                     ? distributeFurigana(token.surface, cleanReading)
                     : null;
@@ -734,7 +769,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                   return (
                     <span
                       key={idx}
-                      className={`hk-sub__token ${jlptClass}`}
+                      className={`hk-sub__token ${savedClass}`}
                       onClick={(e) => handleTokenClick(e, token, idx)}
                       onMouseEnter={(e) => handleTokenMouseEnter(e, token, idx)}
                       onMouseLeave={handleTokenMouseLeave}

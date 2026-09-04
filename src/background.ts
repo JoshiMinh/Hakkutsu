@@ -17,7 +17,7 @@ import type {
   AnalyzeResponse,
   TokenAnalysis,
   DictionaryEntry
-} from "~lib/types";
+} from "~lib/utils/types";
 import { tokenize } from "~lib/services/local-tokenizer";
 import { searchDictionary } from "~lib/services/local-lookup";
 import { getHanViet } from "~lib/utils/hanviet-dict";
@@ -84,7 +84,8 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
       const dictEntries = await searchDictionary(surface);
       const firstEntry = dictEntries[0];
       const kanjiForm = firstEntry?.kanjiElements?.[0] || surface;
-      const rawReading = firstEntry?.readingElements?.[0] || (t as any).reading || "";
+      const kuromojiReading = (t as any).reading ? katakanaToHiragana((t as any).reading) : "";
+      const rawReading = kuromojiReading || firstEntry?.readingElements?.[0] || "";
       let reading = sanitizeReading(rawReading, surface);
       let jlptLevel = firstEntry?.jlpt || predictJlpt(surface);
       let definitions = dictEntries.flatMap((d) =>
@@ -451,7 +452,7 @@ async function handleMessage(
     }
 
     case "OPEN_APP": {
-      chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") });
+      chrome.tabs.create({ url: chrome.runtime.getURL("options.html") });
       return { type: "OPEN_APP_RESULT", payload: {} };
     }
 

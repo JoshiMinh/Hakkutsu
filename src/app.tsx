@@ -6,9 +6,9 @@ import WordList from "~components/word-list";
 import StatsOverview from "~components/stats-overview";
 import SettingsView from "~components/settings-view";
 import { useSettingsStore } from "~lib/utils/settings";
-import type { ExtensionSettings } from "~lib/types";
-import { useTranslation } from "~lib/languages/locales";
-import logoUrl from "data-base64:../../assets/icon/icon-rounded.png";
+import type { ExtensionSettings } from "~lib/utils/types";
+import { useTranslation } from "~lib/locales";
+import logoUrl from "data-base64:../assets/icon.png";
 import "~style.css";
 
 interface ErrorBoundaryProps {

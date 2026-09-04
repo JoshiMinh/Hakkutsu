@@ -13,8 +13,8 @@ import {
   Clock,
   LayoutDashboard
 } from "lucide-react";
-import { useTranslation } from "~lib/languages/locales";
-import { JlptBadge } from "~components/Badges";
+import { useTranslation } from "~lib/locales";
+import { JlptBadge } from "~components/badges";
 import { ttsService } from "~lib/services/tts-service";
 
 export function StatsOverview({ 

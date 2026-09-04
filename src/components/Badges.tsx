@@ -1,5 +1,5 @@
 import { formatPosLabel } from "~lib/utils/constants";
-import { useTranslation } from "~lib/languages/locales";
+import { useTranslation } from "~lib/locales";
 
 export function JlptBadge({ level }: { level: string | null }) {
   if (!level) return null;

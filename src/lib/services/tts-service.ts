@@ -1,4 +1,4 @@
-import { SUPPORTED_LANGUAGES, getLanguageConfig } from "~lib/languages";
+import { SUPPORTED_LANGUAGES, getLanguageConfig } from "~lib/locales";
 
 /**
  * High-Quality Text-to-Speech (TTS) Service for Hakkutsu.

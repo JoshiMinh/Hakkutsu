@@ -1,4 +1,4 @@
-import type { TokenAnalysis } from "~lib/types";
+import type { TokenAnalysis } from "~lib/utils/types";
 import { hasKanji } from "~lib/utils/japanese";
 
 export function TokenDisplay({

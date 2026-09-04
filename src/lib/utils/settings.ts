@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { StateStorage } from "zustand/middleware";
-import type { ExtensionSettings } from "~lib/types";
-import { DEFAULT_SETTINGS } from "~lib/types";
+import type { ExtensionSettings } from "~lib/utils/types";
+import { DEFAULT_SETTINGS } from "~lib/utils/types";
 
 interface SettingsState {
   settings: ExtensionSettings;

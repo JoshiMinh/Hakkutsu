@@ -28,16 +28,16 @@ import { ankiClient } from "~lib/services/anki-connect";
 import { useSettingsStore } from "~lib/utils/settings";
 import { containsJapanese } from "~lib/utils/japanese";
 import { ttsService } from "~lib/services/tts-service";
-import { useTranslation } from "~lib/languages/locales";
+import { useTranslation } from "~lib/locales";
 import type {
   PhraseAnalyzeResponse,
   ExtensionSettings,
   ExtensionView,
-} from "~lib/types";
+} from "~lib/utils/types";
 
 import "./style.css";
-import appLogo from "data-base64:../assets/icon/icon-rounded.png";
-import kofiSvg from "data-base64:../assets/logo/kofi.svg";
+import appLogo from "data-base64:../assets/icon.png";
+import kofiSvg from "data-base64:../assets/logo/kofi.png";
 
 import SrsReview from "~components/srs-review";
 
@@ -471,7 +471,7 @@ function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSe
         <button
           className="hk-btn hk-btn--secondary"
           style={{ width: '100%', justifyContent: 'center' }}
-          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("tabs/app.html") })}
+          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
         >
           <ExternalLink size={16} /> Open Full App
         </button>
@@ -520,7 +520,7 @@ function Popup() {
   ];
 
   const handleOpenAppTab = () => {
-    const appUrl = chrome.runtime.getURL("tabs/app.html");
+    const appUrl = chrome.runtime.getURL("options.html");
     if (typeof chrome !== "undefined" && chrome.tabs?.query) {
       chrome.tabs.query({ url: appUrl }, (tabs) => {
         if (tabs && tabs.length > 0 && tabs[0].id) {

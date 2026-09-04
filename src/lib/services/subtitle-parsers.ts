@@ -3,7 +3,7 @@
  * Inspired by ASBPlayer's subtitle parsing architecture.
  */
 
-import type { SubtitleSegment, SubtitleFetchResult } from "~lib/types";
+import type { SubtitleSegment, SubtitleFetchResult } from "~lib/utils/types";
 
 // ── Time Converters ──────────────────────────────────────────────────────────
 
@@ -62,16 +62,16 @@ export function deduplicateCueText(text: string): string {
   let cleaned = text.replace(/\s+/g, " ").trim();
   if (!cleaned) return "";
 
-  // 1. Remove exact full repetition e.g. "X X" or "X. X." or "X. X"
+  // 1. Remove exact full repetition e.g. "X X" or "X. X." or "X. X" or Japanese "XYZXYZ"
   const mid = Math.floor(cleaned.length / 2);
-  for (let len = mid; len >= 3; len--) {
+  for (let len = mid; len >= 2; len--) {
     const sub = cleaned.slice(0, len).trim();
     const rest = cleaned.slice(len).trim();
 
     const subNorm = sub.replace(/^[\s.,!?。！？:;\-\/]+|[\s.,!?。！？:;\-\/]+$/g, "").trim();
     const restNorm = rest.replace(/^[\s.,!?。！？:;\-\/]+|[\s.,!?。！？:;\-\/]+$/g, "").trim();
 
-    if (subNorm && restNorm && (subNorm === restNorm || rest.startsWith(sub + " ") || rest === sub)) {
+    if (subNorm && restNorm && (subNorm === restNorm || rest.startsWith(sub + " ") || rest === sub || rest.startsWith(subNorm))) {
       cleaned = sub;
       break;
     }
