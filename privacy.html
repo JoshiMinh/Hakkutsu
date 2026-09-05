@@ -9,69 +9,61 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     body { background-color: #09090b; color: #f4f4f5; font-family: 'Plus Jakarta Sans', sans-serif; }
-    .glass-card { background: rgba(18, 18, 21, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
   </style>
 </head>
-<body class="antialiased py-16 px-6 max-w-4xl mx-auto">
+<body class="antialiased py-16 px-6 max-w-3xl mx-auto">
 
-  <div class="glass-card p-8 md:p-12 rounded-2xl">
-    <div class="flex items-center gap-3 mb-8">
-      <img src="assets/icon.png" alt="Hakkutsu Logo" class="w-10 h-10 rounded-lg shadow" />
-      <div>
-        <h1 class="text-2xl font-bold">Privacy Policy for Hakkutsu (発掘)</h1>
-        <p class="text-xs text-zinc-400">Effective Date: August 28, 2026</p>
-      </div>
+  <div class="flex items-center gap-3 mb-10 pb-6 border-b border-zinc-800">
+    <img src="assets/icon.png" alt="Hakkutsu Logo" class="w-10 h-10 rounded-lg shadow" />
+    <div>
+      <h1 class="text-2xl font-bold text-white">Privacy Policy for Hakkutsu (発掘)</h1>
+      <p class="text-xs text-zinc-400">Effective Date: August 28, 2026</p>
     </div>
+  </div>
 
-    <div class="space-y-6 text-zinc-300 text-sm leading-relaxed">
-      <section>
-        <h2 class="text-lg font-semibold text-white mb-2">1. Introduction</h2>
-        <p>Hakkutsu ("we", "our", or "the extension") is an AI-powered Japanese immersion browser extension designed to assist learners with reading Japanese text, inline dictionary lookups, and Anki card mining. We are committed to protecting user privacy and ensuring transparency regarding data handling.</p>
-      </section>
+  <div class="space-y-8 text-zinc-300 text-sm leading-relaxed">
+    <section>
+      <h2 class="text-lg font-semibold text-white mb-2">1. Overview</h2>
+      <p>Hakkutsu ("we", "our", or "the extension") is a local-first Japanese language immersion extension for Chrome. We are committed to absolute user privacy. Hakkutsu operates 100% locally on your computer with zero external data collection, remote servers, or tracking.</p>
+    </section>
 
-      <section>
-        <h2 class="text-lg font-semibold text-white mb-2">2. Zero Personal Data Collection</h2>
-        <p>Hakkutsu does <strong>NOT</strong> collect, store, transmit, or sell any personally identifiable information (PII), including your name, email address, IP address, location, browsing history, or payment details. We run no telemetry or tracking analytics servers.</p>
-      </section>
+    <section>
+      <h2 class="text-lg font-semibold text-white mb-2">2. Zero Data Collection &amp; Tracking</h2>
+      <p>Hakkutsu does <strong>NOT</strong> collect, track, log, store, transmit, or sell any personal data, usage metrics, IP addresses, browsing history, or user identifiers. We operate no tracking or analytics servers.</p>
+    </section>
 
-      <section>
-        <h2 class="text-lg font-semibold text-white mb-2">3. Local Data Storage & Processing</h2>
-        <ul class="list-disc list-inside space-y-1 text-zinc-400">
-          <li><strong>Dictionary & Tokenizer:</strong> Morphological analysis (Sudachi & Kuromoji) and dictionary lookups are processed 100% locally in your browser.</li>
-          <li><strong>User Settings & SRS Cards:</strong> Your preference settings and saved vocabulary items are stored strictly on your device using local extension storage (`chrome.storage.local`).</li>
-        </ul>
-      </section>
+    <section>
+      <h2 class="text-lg font-semibold text-white mb-2">3. 100% Local Storage &amp; Processing</h2>
+      <ul class="list-disc list-inside space-y-2 text-zinc-400">
+        <li><strong>Offline Dictionary:</strong> Japanese word lookups, readings, and pitch accents are processed completely offline inside your browser.</li>
+        <li><strong>Local Storage:</strong> Your configuration settings, saved vocabulary, SRS review intervals, and preferences are stored exclusively on your device.</li>
+      </ul>
+    </section>
 
-      <section>
-        <h2 class="text-lg font-semibold text-white mb-2">4. Optional External API Services</h2>
-        <p>If you choose to enable AI sentence analysis or Anki synchronization:</p>
-        <ul class="list-disc list-inside space-y-1 text-zinc-400">
-          <li><strong>Gemini / OpenAI API:</strong> Only the specific Japanese text snippet you request to analyze is sent directly to your configured AI provider using your personal API key.</li>
-          <li><strong>AnkiConnect:</strong> Flashcard data is transferred directly to your local Anki application (`http://localhost:8765`).</li>
-        </ul>
-      </section>
+    <section>
+      <h2 class="text-lg font-semibold text-white mb-2">4. Local Anki Integration</h2>
+      <p>If you enable Anki flashcard export, Hakkutsu connects strictly to your local Anki desktop application running on your computer. No card data, vocabulary, or sentence context is ever sent to remote servers or third parties.</p>
+    </section>
 
-      <section>
-        <h2 class="text-lg font-semibold text-white mb-2">5. Single Purpose & Policy Disclosures</h2>
-        <p>Hakkutsu adheres strictly to Chrome Web Store Developer Program Policies:</p>
-        <ul class="list-disc list-inside space-y-1 text-zinc-400">
-          <li>We do not sell or transfer user data to third parties.</li>
-          <li>We do not use or transfer user data for purposes unrelated to the extension's single purpose.</li>
-          <li>We do not use user data for creditworthiness or lending purposes.</li>
-        </ul>
-      </section>
+    <section>
+      <h2 class="text-lg font-semibold text-white mb-2">5. Single Purpose &amp; Policy Compliance</h2>
+      <p>Hakkutsu complies strictly with Chrome Web Store Developer Program Policies:</p>
+      <ul class="list-disc list-inside space-y-1 text-zinc-400">
+        <li>User data is never sold or transferred to third parties.</li>
+        <li>User data is never used for advertising, marketing, or creditworthiness evaluation.</li>
+        <li>Data access is strictly limited to supporting the extension's single purpose of Japanese language learning.</li>
+      </ul>
+    </section>
 
-      <section>
-        <h2 class="text-lg font-semibold text-white mb-2">6. Contact & Open Support</h2>
-        <p>If you have any questions regarding this Privacy Policy, please visit <a href="https://ko-fi.com/joshiminh" target="_blank" class="text-purple-400 underline">ko-fi.com/joshiminh</a> or contact the extension author on GitHub.</p>
-      </section>
-    </div>
+    <section>
+      <h2 class="text-lg font-semibold text-white mb-2">6. Contact</h2>
+      <p>If you have any questions about this Privacy Policy, please visit <a href="https://ko-fi.com/joshiminh" target="_blank" class="text-purple-400 underline">ko-fi.com/joshiminh</a> or contact the author.</p>
+    </section>
+  </div>
 
-    <div class="mt-10 pt-6 border-t border-white/10 text-center">
-      <a href="index.html" class="text-sm text-purple-400 hover:underline">← Back to Hakkutsu Home Page</a>
-    </div>
+  <div class="mt-12 pt-6 border-t border-zinc-800 text-center">
+    <a href="index.html" class="text-sm text-purple-400 hover:underline">← Back to Hakkutsu Home Page</a>
   </div>
 
 </body>
 </html>
-
