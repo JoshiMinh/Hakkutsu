@@ -204,7 +204,7 @@ export const en = {
   settings_hover_key: "Hover Modifier Key (Without Click)",
   settings_hover_key_desc: "Hold this key while hovering mouse over Japanese text to look up words without clicking",
 
-  settings_video_section: "Subtitles & Immersion",
+  settings_video_section: "Immersion",
   settings_autofetch_sub: "Auto-fetch Japanese Subtitles",
   settings_autofetch_sub_desc: "Automatically fetch Japanese tracks (native or auto-translated) upon video playback",
   settings_universal_video: "Universal HTML5 Video Support",

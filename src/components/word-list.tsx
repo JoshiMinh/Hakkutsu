@@ -23,6 +23,7 @@ import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { lookupWord } from "~lib/services/dictionary-lookup";
 import { useTranslation } from "~lib/locales";
 import { ankiClient } from "~lib/services/anki-connect";
+import { useSettingsStore } from "~lib/utils/settings";
 import ankiSvg from "data-base64:../../assets/logo/anki.png";
 
 export function WordList({ 
@@ -33,6 +34,7 @@ export function WordList({
   onStartReview?: () => void;
 }) {
   const { t, isVietnamese, showHanViet, lang } = useTranslation();
+  const { settings } = useSettingsStore();
   const [cards, setCards] = useState<SrsCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -201,24 +203,52 @@ export function WordList({
       setAnkiExporting(true);
       const connected = await ankiClient.isConnected();
       if (!connected) {
-        alert(t("vocab_anki_not_connected"));
+        alert(t("vocab_anki_not_connected") || "AnkiConnect is not connected. Please ensure Anki app is running with AnkiConnect enabled.");
         return;
       }
 
       let count = 0;
+      const errors: string[] = [];
+
       for (const card of targetCards) {
-        await ankiClient.exportVocabulary({
-          word: card.word,
-          reading: card.reading,
-          meaning: card.meaning,
-          sentence: card.sentence,
-          sentenceReading: card.sentence_furigana,
-          jlptLevel: card.jlpt || "",
-          pos: "Word"
-        });
-        count++;
+        try {
+          await ankiClient.exportVocabulary(
+            {
+              word: card.word,
+              reading: card.reading,
+              meaning: card.meaning,
+              sentence: card.sentence,
+              sentenceReading: card.sentence_furigana,
+              jlptLevel: card.jlpt || "",
+              pos: "Word",
+              imageUrl: card.image_url
+            },
+            settings.ankiDeck,
+            settings.ankiModel,
+            settings.ankiFieldMap
+          );
+          count++;
+        } catch (cardErr: any) {
+          console.error(`Anki export error for "${card.word}":`, cardErr);
+          errors.push(`"${card.word}": ${cardErr.message || cardErr}`);
+        }
       }
-      alert(isVietnamese ? `Đã xuất ${count} từ sang Anki thành công!` : `Exported ${count} cards to Anki successfully!`);
+
+      if (errors.length > 0) {
+        if (count > 0) {
+          alert(isVietnamese 
+            ? `Đã xuất ${count}/${targetCards.length} từ sang Anki.\n\nMột số từ bị lỗi:\n${errors.slice(0, 5).join("\n")}${errors.length > 5 ? `\nvà ${errors.length - 5} lỗi khác...` : ""}`
+            : `Exported ${count}/${targetCards.length} cards to Anki.\n\nFailed items:\n${errors.slice(0, 5).join("\n")}${errors.length > 5 ? `\nand ${errors.length - 5} more errors...` : ""}`
+          );
+        } else {
+          alert(isVietnamese 
+            ? `Xuất sang Anki thất bại:\n${errors.slice(0, 5).join("\n")}`
+            : `Failed to export to Anki:\n${errors.slice(0, 5).join("\n")}`
+          );
+        }
+      } else {
+        alert(isVietnamese ? `Đã xuất ${count} từ sang Anki thành công!` : `Exported ${count} cards to Anki successfully!`);
+      }
     } catch (e: any) {
       console.error("Anki export error:", e);
       alert(e.message || "Failed to export to Anki");

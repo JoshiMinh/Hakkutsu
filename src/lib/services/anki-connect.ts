@@ -31,12 +31,26 @@ class AnkiConnectClient {
       ...(params ? { params } : {}),
     };
 
-    const response = await fetch(this.url, {
-      method: "POST",
-      body: JSON.stringify(request),
-    });
+    let response: Response;
+    try {
+      response = await fetch(this.url, {
+        method: "POST",
+        body: JSON.stringify(request),
+      });
+    } catch (err: any) {
+      throw new Error(`AnkiConnect connection failed: Cannot reach Anki at ${this.url}. Please make sure Anki app is open with the AnkiConnect add-on enabled.`);
+    }
 
-    const data: AnkiConnectResponse = await response.json();
+    if (!response.ok) {
+      throw new Error(`AnkiConnect HTTP error (${response.status}): ${response.statusText}`);
+    }
+
+    let data: AnkiConnectResponse;
+    try {
+      data = await response.json();
+    } catch (e) {
+      throw new Error("Invalid JSON response from AnkiConnect.");
+    }
 
     if (data.error) {
       throw new Error(`AnkiConnect error: ${data.error}`);
@@ -84,31 +98,43 @@ class AnkiConnectClient {
 
   /** Add a note to Anki */
   async addNote(note: AnkiNote): Promise<number> {
-    return (await this.invoke("addNote", { note })) as number;
+    const result = await this.invoke("addNote", { note });
+    if (result === null || result === undefined) {
+      throw new Error(`Anki rejected adding card "${note.fields.Word || note.fields.Front || ''}". It may already exist as a duplicate in deck "${note.deckName}".`);
+    }
+    return result as number;
   }
 
   /**
-   * Export a vocabulary entry to Anki using Hakkutsu's card format.
-   *
-   * Creates a note with: word, reading, meaning, sentence, JLPT level.
+   * Export a vocabulary entry to Anki using Hakkutsu's card format or custom field map.
    */
   async exportVocabulary(
     data: AnkiExportData,
     deckName: string = "Hakkutsu",
-    modelName: string = "Basic"
+    modelName: string = "Basic",
+    fieldMap?: Record<string, string>
   ): Promise<number> {
+    const targetDeck = (deckName && deckName.trim()) || "Hakkutsu";
+    const targetModel = (modelName && modelName.trim()) || "Basic";
+
+    // Ensure target deck exists in Anki first
+    try {
+      await this.createDeck(targetDeck);
+    } catch (e) {
+      console.warn("[AnkiConnect] createDeck warning:", e);
+    }
+
     const imgHtml = data.imageUrl
       ? `<div class="illustration" style="margin-top: 10px; text-align: center;"><img src="${data.imageUrl}" style="max-width: 280px; border-radius: 8px;" /></div>`
       : "";
 
-    // Build the front/back fields
-    const front = `<div class="hakkutsu-card">
+    const frontHtml = `<div class="hakkutsu-card">
   <div class="word">${data.word}</div>
   <div class="reading">${data.reading}</div>
   ${data.jlptLevel ? `<div class="jlpt">${data.jlptLevel}</div>` : ""}
 </div>`;
 
-    const back = `<div class="hakkutsu-card">
+    const backHtml = `<div class="hakkutsu-card">
   <div class="meaning">${data.meaning}</div>
   <div class="pos">${data.pos}</div>
   ${data.sentence ? `<div class="sentence">${data.sentence}</div>` : ""}
@@ -118,23 +144,59 @@ class AnkiConnectClient {
   ${imgHtml}
 </div>`;
 
-    const fields: Record<string, string> = {
-      Front: front,
-      Back: back,
-      Word: data.word,
-      Reading: data.reading,
-      Meaning: data.meaning,
-      Sentence: data.sentence || "",
+    const getValueForChoice = (choice: string): string => {
+      switch (choice) {
+        case "word": return data.word;
+        case "reading": return data.reading;
+        case "wordFurigana": return data.wordFurigana || data.reading || data.word;
+        case "meaning": return data.meaning;
+        case "vietnameseSound": return data.vietnameseSound || "";
+        case "sentence": return data.sentence || "";
+        case "sentenceFurigana": return data.sentenceFurigana || data.sentence || "";
+        case "sentenceReading": return data.sentenceReading || "";
+        case "sentenceMeaning": return data.sentenceMeaning || "";
+        case "jlptLevel": return data.jlptLevel || "";
+        case "pos": return data.pos || "";
+        case "imageUrl": return data.imageUrl ? `<img src="${data.imageUrl}" />` : "";
+        case "screenshot": return data.screenshot ? `<img src="${data.screenshot}" />` : "";
+        case "sourceUrl": return data.sourceUrl ? `<a href="${data.sourceUrl}" target="_blank">Video Context</a>` : "";
+        case "audio": return data.audio || "";
+        case "sentenceAudio": return data.sentenceAudio || "";
+        case "frontHtml": return frontHtml;
+        case "backHtml": return backHtml;
+        case "none":
+        default:
+          return "";
+      }
     };
 
-    if (data.imageUrl) {
-      fields["Image"] = `<img src="${data.imageUrl}" />`;
-      fields["Illustration"] = `<img src="${data.imageUrl}" />`;
+    const fields: Record<string, string> = {};
+
+    if (fieldMap && Object.keys(fieldMap).length > 0) {
+      for (const [fieldName, choice] of Object.entries(fieldMap)) {
+        if (choice && choice !== "none") {
+          fields[fieldName] = getValueForChoice(choice);
+        } else {
+          fields[fieldName] = "";
+        }
+      }
+    } else {
+      // Default fallback mappings
+      fields.Front = frontHtml;
+      fields.Back = backHtml;
+      fields.Word = data.word;
+      fields.Reading = data.reading;
+      fields.Meaning = data.meaning;
+      fields.Sentence = data.sentence || "";
+      if (data.imageUrl) {
+        fields.Image = `<img src="${data.imageUrl}" />`;
+        fields.Illustration = `<img src="${data.imageUrl}" />`;
+      }
     }
 
     const note: AnkiNote = {
-      deckName,
-      modelName,
+      deckName: targetDeck,
+      modelName: targetModel,
       fields,
       options: { allowDuplicate: false },
       tags: ["hakkutsu", data.jlptLevel || "unranked"].filter(Boolean),

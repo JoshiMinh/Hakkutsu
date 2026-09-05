@@ -352,12 +352,17 @@ async function handleMessage(
     case "EXPORT_ANKI": {
       const data = message.payload as AnkiExportData;
       const settings = await getSettings();
-      const noteId = await ankiClient.exportVocabulary(
-        data,
-        settings.ankiDeck,
-        settings.ankiModel
-      );
-      return { type: "ANKI_RESULT", payload: { noteId } };
+      try {
+        const noteId = await ankiClient.exportVocabulary(
+          data,
+          settings.ankiDeck,
+          settings.ankiModel,
+          settings.ankiFieldMap
+        );
+        return { type: "ANKI_RESULT", payload: { noteId } };
+      } catch (err: any) {
+        return { type: "ERROR", payload: { error: err?.message || "Failed to export card to Anki" } };
+      }
     }
 
     case "ADD_SRS_CARD": {

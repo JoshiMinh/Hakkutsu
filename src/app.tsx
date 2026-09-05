@@ -179,6 +179,15 @@ export default function AppDashboard() {
             label={t("nav_settings")} 
           />
         </nav>
+
+        <div style={{ marginTop: "auto", paddingTop: "16px", borderTop: "1px solid var(--hk-border)", padding: "12px 10px 0 10px" }}>
+          <strong style={{ fontSize: "13px", fontWeight: 700, color: "var(--hk-text-primary)", display: "block" }}>
+            Hakkutsu v0.1.3
+          </strong>
+          <p style={{ fontSize: "11px", color: "var(--hk-text-muted)", margin: "2px 0 0 0", lineHeight: 1.4 }}>
+            Japanese Immersion Extension
+          </p>
+        </div>
       </aside>
 
       {/* Main Content Area */}

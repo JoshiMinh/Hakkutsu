@@ -204,7 +204,7 @@ export const vi = {
   settings_hover_key: "Phím phím tắt di chuột tra từ (Hover Key)",
   settings_hover_key_desc: "Giữ phím này và di chuột qua từ tiếng Nhật để tra từ không cần click",
 
-  settings_video_section: "Phụ đề & Immersion",
+  settings_video_section: "Immersion",
   settings_autofetch_sub: "Tự động lấy phụ đề tiếng Nhật",
   settings_autofetch_sub_desc: "Tự động tìm kiếm phụ đề tiếng Nhật (gốc hoặc dịch máy) khi phát video",
   settings_universal_video: "Bật hỗ trợ video trên mọi trang web",

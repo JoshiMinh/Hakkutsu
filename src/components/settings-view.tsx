@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from "react";
-import { Check, ChevronDown, Database, Film, GraduationCap, Languages, Settings as SettingsIcon } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Check, ChevronDown, Database, Film, GraduationCap, Languages, RefreshCw, Settings as SettingsIcon } from "lucide-react";
 import type { ExtensionSettings } from "~lib/utils/types";
 import { t } from "~lib/locales";
 import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from "~lib/locales";
+import { ankiClient } from "~lib/services/anki-connect";
 import ankiSvg from "data-base64:../../assets/logo/anki.png";
 import kofiSvg from "data-base64:../../assets/logo/kofi.png";
 import usFlag from "data-base64:../../assets/language/en.png";
@@ -149,6 +150,194 @@ function CustomLanguageDropdown({
   );
 }
 
+export interface CustomSelectOption {
+  value: string;
+  label: string;
+  group?: string;
+}
+
+function CustomSelect({
+  value,
+  onChange,
+  options,
+  placeholder = "Select...",
+  width = "260px",
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: CustomSelectOption[];
+  placeholder?: string;
+  width?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+  const groups = Array.from(new Set(options.map((o) => o.group).filter(Boolean))) as string[];
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", width, flexShrink: 0 }}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          width: "100%",
+          backgroundColor: "#18181c",
+          border: "1.5px solid rgba(255, 255, 255, 0.14)",
+          borderRadius: "10px",
+          padding: "8px 12px",
+          color: selectedOption ? "#ffffff" : "#a1a1aa",
+          fontSize: "13px",
+          fontWeight: 600,
+          cursor: "pointer",
+          outline: "none",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          transition: "all 0.2s ease",
+          textAlign: "left",
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginRight: "8px" }}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown
+          size={14}
+          style={{
+            color: "#a1a1aa",
+            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.2s ease",
+            flexShrink: 0,
+          }}
+        />
+      </button>
+
+      {isOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            right: 0,
+            zIndex: 1000,
+            width: "100%",
+            minWidth: "260px",
+            maxHeight: "320px",
+            overflowY: "auto",
+            backgroundColor: "#18181c",
+            border: "1px solid rgba(255, 255, 255, 0.16)",
+            borderRadius: "12px",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
+            padding: "6px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "2px",
+            backdropFilter: "blur(14px)",
+          }}
+        >
+          {groups.length > 0 ? (
+            groups.map((groupName) => {
+              const groupOptions = options.filter((o) => o.group === groupName);
+              return (
+                <div key={groupName} style={{ marginBottom: "6px" }}>
+                  <div
+                    style={{
+                      fontSize: "10.5px",
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      color: "#c084fc",
+                      letterSpacing: "0.6px",
+                      padding: "6px 8px 3px",
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+                    }}
+                  >
+                    {groupName}
+                  </div>
+                  {groupOptions.map((opt) => (
+                    <OptionButton
+                      key={opt.value}
+                      opt={opt}
+                      isSelected={opt.value === value}
+                      onClick={() => {
+                        onChange(opt.value);
+                        setIsOpen(false);
+                      }}
+                    />
+                  ))}
+                </div>
+              );
+            })
+          ) : (
+            options.map((opt) => (
+              <OptionButton
+                key={opt.value}
+                opt={opt}
+                isSelected={opt.value === value}
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OptionButton({
+  opt,
+  isSelected,
+  onClick,
+}: {
+  opt: CustomSelectOption;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        width: "100%",
+        padding: "7px 10px",
+        borderRadius: "8px",
+        border: "none",
+        backgroundColor: isSelected ? "rgba(192, 132, 252, 0.14)" : "transparent",
+        color: isSelected ? "#c084fc" : "#e4e4e7",
+        fontSize: "12.5px",
+        fontWeight: isSelected ? 700 : 500,
+        cursor: "pointer",
+        textAlign: "left",
+        transition: "background-color 0.15s ease",
+      }}
+      onMouseEnter={(e) => {
+        if (!isSelected) e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
+      }}
+      onMouseLeave={(e) => {
+        if (!isSelected) e.currentTarget.style.backgroundColor = "transparent";
+      }}
+    >
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt.label}</span>
+      {isSelected && <Check size={14} style={{ color: "#c084fc", marginLeft: "8px", flexShrink: 0 }} />}
+    </button>
+  );
+}
+
 export function SettingsView({
   settings,
   onUpdate,
@@ -157,6 +346,165 @@ export function SettingsView({
   onUpdate: (patch: Partial<ExtensionSettings>) => void;
 }) {
   const currentLang = settings.targetLanguage || "vi";
+
+  const [decks, setDecks] = useState<string[]>([]);
+  const [models, setModels] = useState<string[]>([]);
+  const [fields, setFields] = useState<string[]>([]);
+  const [ankiConnected, setAnkiConnected] = useState<boolean>(false);
+  const [loadingAnki, setLoadingAnki] = useState<boolean>(false);
+
+  const fetchAnkiData = useCallback(async (selectedModel?: string) => {
+    setLoadingAnki(true);
+    try {
+      const connected = await ankiClient.isConnected();
+      setAnkiConnected(connected);
+      if (connected) {
+        const [dList, mList] = await Promise.all([
+          ankiClient.getDecks().catch(() => [] as string[]),
+          ankiClient.getModels().catch(() => [] as string[]),
+        ]);
+        setDecks(dList);
+        setModels(mList);
+
+        const currentModel = selectedModel || settings.ankiModel || (mList.length > 0 ? mList[0] : "");
+        if (currentModel) {
+          const fList = await ankiClient.getModelFields(currentModel).catch(() => [] as string[]);
+          setFields(fList);
+        } else {
+          setFields([]);
+        }
+      } else {
+        setDecks([]);
+        setModels([]);
+        setFields([]);
+      }
+    } catch (e) {
+      console.error("Anki data load error:", e);
+      setAnkiConnected(false);
+    } finally {
+      setLoadingAnki(false);
+    }
+  }, [settings.ankiModel]);
+
+  useEffect(() => {
+    fetchAnkiData();
+  }, []);
+
+  const inferDefaultMapping = (fieldName: string): string => {
+    const lower = fieldName.toLowerCase().replace(/[-_]/g, " ");
+
+    // 1. Audio / Sound
+    if (lower.includes("audio") || lower.includes("sound")) {
+      if (lower.includes("sentence") || lower.includes("expression") || lower.includes("example")) return "sentenceAudio";
+      return "audio";
+    }
+
+    // 2. Furigana
+    if (lower.includes("furigana")) {
+      if (lower.includes("sentence") || lower.includes("expression") || lower.includes("example")) return "sentenceFurigana";
+      return "wordFurigana";
+    }
+
+    // 3. Reading / Pronunciation / Kana
+    if (lower.includes("reading") || lower.includes("kana") || lower.includes("pronunciation")) {
+      if (lower.includes("sentence") || lower.includes("expression") || lower.includes("example")) return "sentenceReading";
+      return "reading";
+    }
+
+    // 4. Meaning / Definition / Translation / Gloss
+    if (lower.includes("meaning") || lower.includes("definition") || lower.includes("translation") || lower.includes("gloss")) {
+      if (lower.includes("sentence") || lower.includes("expression") || lower.includes("example")) return "sentenceMeaning";
+      return "meaning";
+    }
+
+    // 5. Sino-Vietnamese / Han-Viet / Vietnamese
+    if (lower.includes("vietnamese") || lower.includes("hanviet") || lower.includes("sino")) {
+      return "vietnameseSound";
+    }
+
+    // 6. Sentence / Context / Example
+    if (lower.includes("sentence") || lower.includes("context") || lower.includes("example")) {
+      return "sentence";
+    }
+
+    // 7. Image / Picture / Illustration
+    if (lower.includes("image") || lower.includes("picture") || lower.includes("illustration")) {
+      return "imageUrl";
+    }
+
+    // 8. Screenshot
+    if (lower.includes("screenshot")) {
+      return "screenshot";
+    }
+
+    // 9. JLPT
+    if (lower.includes("jlpt") || lower.includes("level")) {
+      return "jlptLevel";
+    }
+
+    // 10. POS / Part of speech
+    if (lower.includes("pos") || lower.includes("part of speech")) {
+      return "pos";
+    }
+
+    // 11. Front / Back HTML
+    if (lower === "front") return "frontHtml";
+    if (lower === "back") return "backHtml";
+
+    // 12. Word / Kanji / Vocabulary
+    if (lower.includes("word") || lower.includes("kanji") || lower.includes("vocab")) {
+      return "word";
+    }
+
+    return "none";
+  };
+
+  const handleModelChange = async (newModel: string) => {
+    onUpdate({ ankiModel: newModel });
+    setLoadingAnki(true);
+    try {
+      const fList = await ankiClient.getModelFields(newModel).catch(() => [] as string[]);
+      setFields(fList);
+
+      const existingMap = { ...(settings.ankiFieldMap || {}) };
+      let updated = false;
+      for (const f of fList) {
+        if (!existingMap[f]) {
+          existingMap[f] = inferDefaultMapping(f);
+          updated = true;
+        }
+      }
+      if (updated) {
+        onUpdate({ ankiModel: newModel, ankiFieldMap: existingMap });
+      }
+    } catch {
+      setFields([]);
+    } finally {
+      setLoadingAnki(false);
+    }
+  };
+
+  const FIELD_OPTIONS = [
+    { value: "none", label: "-- None (Leave Empty) --" },
+    { value: "word", label: "Word (Kanji / Base)" },
+    { value: "reading", label: "Word Reading (Hiragana / Kana)" },
+    { value: "wordFurigana", label: "Word Furigana (HTML Ruby)" },
+    { value: "meaning", label: "Word Meaning (Definition)" },
+    { value: "vietnameseSound", label: "Sino-Vietnamese Sound (Hán-Việt)" },
+    { value: "sentence", label: "Example Sentence (Japanese)" },
+    { value: "sentenceFurigana", label: "Sentence Furigana (HTML Ruby)" },
+    { value: "sentenceReading", label: "Sentence Reading (Hiragana)" },
+    { value: "sentenceMeaning", label: "Sentence Meaning / Translation" },
+    { value: "jlptLevel", label: "JLPT Level (N5-N1)" },
+    { value: "pos", label: "Part of Speech" },
+    { value: "imageUrl", label: "Illustration Image" },
+    { value: "screenshot", label: "Video Screenshot" },
+    { value: "sourceUrl", label: "Video Context Link" },
+    { value: "audio", label: "Word Audio" },
+    { value: "sentenceAudio", label: "Sentence Audio" },
+    { value: "frontHtml", label: "Formatted Front Card (Default HTML)" },
+    { value: "backHtml", label: "Formatted Back Card (Default HTML)" },
+  ];
 
   return (
     <div className="hk-content hk-fade-in">
@@ -222,11 +570,7 @@ export function SettingsView({
           </div>
         </section>
 
-
-
-
-
-        {/* Immersion & Study Preferences Card */}
+        {/* General Card */}
         <section className="hk-settings-card">
           <header className="hk-settings-card__header">
             <div className="hk-settings-card__icon">
@@ -295,17 +639,17 @@ export function SettingsView({
 
             <div className="hk-settings-row">
               <div className="hk-settings-row__info">
-                <label htmlFor="showJlptColors" className="hk-settings-row__label">{t("settings_jlpt_colors", currentLang)}</label>
-                <div id="showJlptColors-desc" className="hk-settings-row__desc">{t("settings_jlpt_colors_desc", currentLang)}</div>
+                <label htmlFor="includeImages" className="hk-settings-row__label">Include Illustrations & Images</label>
+                <div id="includeImages-desc" className="hk-settings-row__desc">Automatically attach Irasutoya illustration images to cards and Anki exports</div>
               </div>
               <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="showJlptColors">
+                <label className="hk-toggle" htmlFor="includeImages">
                   <input
-                    id="showJlptColors"
-                    aria-describedby="showJlptColors-desc"
+                    id="includeImages"
+                    aria-describedby="includeImages-desc"
                     type="checkbox"
-                    checked={settings.showJlptColors !== false}
-                    onChange={(e) => onUpdate({ showJlptColors: e.target.checked })}
+                    checked={settings.includeImages !== false}
+                    onChange={(e) => onUpdate({ includeImages: e.target.checked })}
                   />
                   <span className="hk-toggle__slider" />
                 </label>
@@ -314,7 +658,7 @@ export function SettingsView({
           </div>
         </section>
 
-        {/* Subtitles & Immersion Card */}
+        {/* Immersion Card */}
         <section className="hk-settings-card">
           <header className="hk-settings-card__header">
             <div className="hk-settings-card__icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -438,136 +782,186 @@ export function SettingsView({
                 />
               </div>
             </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="subtitlesOffset" className="hk-settings-row__label">
-                  {t("sub_modal_sync_offset", currentLang)} ({settings.subtitlesOffset ? (settings.subtitlesOffset > 0 ? `+${settings.subtitlesOffset.toFixed(1)}s` : `${settings.subtitlesOffset.toFixed(1)}s`) : "0.0s"})
-                </label>
-                <div id="subtitlesOffset-desc" className="hk-settings-row__desc">
-                  Adjust subtitle timing delay or advance to sync with audio
-                </div>
-              </div>
-              <div className="hk-settings-row__control" style={{ display: "flex", gap: "6px" }}>
-                <button
-                  type="button"
-                  onClick={() => onUpdate({ subtitlesOffset: Number(((settings.subtitlesOffset || 0) - 0.5).toFixed(1)) })}
-                  style={{ padding: "5px 9px", borderRadius: "6px", background: "var(--hk-bg-tertiary, #18181c)", border: "1px solid var(--hk-border, rgba(255, 255, 255, 0.14))", color: "#fff", cursor: "pointer", fontSize: "11px", fontWeight: 600 }}
-                >
-                  -500ms
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onUpdate({ subtitlesOffset: Number(((settings.subtitlesOffset || 0) - 0.1).toFixed(1)) })}
-                  style={{ padding: "5px 9px", borderRadius: "6px", background: "var(--hk-bg-tertiary, #18181c)", border: "1px solid var(--hk-border, rgba(255, 255, 255, 0.14))", color: "#fff", cursor: "pointer", fontSize: "11px", fontWeight: 600 }}
-                >
-                  -100ms
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onUpdate({ subtitlesOffset: 0 })}
-                  style={{ padding: "5px 9px", borderRadius: "6px", background: "var(--hk-bg-tertiary, #18181c)", border: "1px solid var(--hk-border, rgba(255, 255, 255, 0.14))", color: settings.subtitlesOffset ? "#c084fc" : "#a1a1aa", cursor: "pointer", fontSize: "11px", fontWeight: 600 }}
-                >
-                  {t("sub_modal_reset", currentLang)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onUpdate({ subtitlesOffset: Number(((settings.subtitlesOffset || 0) + 0.1).toFixed(1)) })}
-                  style={{ padding: "5px 9px", borderRadius: "6px", background: "var(--hk-bg-tertiary, #18181c)", border: "1px solid var(--hk-border, rgba(255, 255, 255, 0.14))", color: "#fff", cursor: "pointer", fontSize: "11px", fontWeight: 600 }}
-                >
-                  +100ms
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onUpdate({ subtitlesOffset: Number(((settings.subtitlesOffset || 0) + 0.5).toFixed(1)) })}
-                  style={{ padding: "5px 9px", borderRadius: "6px", background: "var(--hk-bg-tertiary, #18181c)", border: "1px solid var(--hk-border, rgba(255, 255, 255, 0.14))", color: "#fff", cursor: "pointer", fontSize: "11px", fontWeight: 600 }}
-                >
-                  +500ms
-                </button>
-              </div>
-            </div>
           </div>
         </section>
 
         {/* Anki Integration Card */}
         <section className="hk-settings-card">
-          <header className="hk-settings-card__header">
-            <div className="hk-settings-card__icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <img src={ankiSvg} alt="Anki" style={{ width: 17, height: 17 }} />
+          <header className="hk-settings-card__header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div className="hk-settings-card__icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <img src={ankiSvg} alt="Anki" style={{ width: 17, height: 17 }} />
+              </div>
+              <h3 className="hk-settings-card__title">{t("settings_anki_section", currentLang)}</h3>
             </div>
-            <h3 className="hk-settings-card__title">{t("settings_anki_section", currentLang)}</h3>
+            
+            <button
+              type="button"
+              onClick={() => fetchAnkiData()}
+              disabled={loadingAnki}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "5px 10px",
+                borderRadius: "6px",
+                background: "rgba(255, 255, 255, 0.08)",
+                border: "1px solid rgba(255, 255, 255, 0.14)",
+                color: "#e4e4e7",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: loadingAnki ? "not-allowed" : "pointer"
+              }}
+            >
+              <RefreshCw size={13} className={loadingAnki ? "hk-spin" : ""} />
+              {loadingAnki ? "Refreshing..." : "Refresh Anki"}
+            </button>
           </header>
           
           <div className="hk-settings-card__body">
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="ankiModel" className="hk-settings-row__label">{t("settings_anki_model", currentLang)}</label>
+                <div id="ankiModel-desc" className="hk-settings-row__desc">Select Anki Note Type model from AnkiConnect</div>
+              </div>
+              <div className="hk-settings-row__control">
+                {models.length > 0 ? (
+                  <CustomSelect
+                    value={settings.ankiModel || ""}
+                    onChange={(val) => handleModelChange(val)}
+                    options={models.map((m) => ({ value: m, label: m }))}
+                    width="260px"
+                  />
+                ) : (
+                  <input
+                    id="ankiModel"
+                    aria-describedby="ankiModel-desc"
+                    className="hk-settings-input hk-settings-input--text"
+                    type="text"
+                    value={settings.ankiModel || ""}
+                    onChange={(e) => handleModelChange(e.target.value)}
+                    placeholder="e.g. Basic"
+                  />
+                )}
+              </div>
+            </div>
+
             <div className="hk-settings-row">
               <div className="hk-settings-row__info">
                 <label htmlFor="ankiDeck" className="hk-settings-row__label">{t("settings_anki_deck", currentLang)}</label>
                 <div id="ankiDeck-desc" className="hk-settings-row__desc">{t("settings_anki_deck_desc", currentLang)}</div>
               </div>
               <div className="hk-settings-row__control">
-                <input
-                  id="ankiDeck"
-                  aria-describedby="ankiDeck-desc"
-                  className="hk-settings-input hk-settings-input--text"
-                  type="text"
-                  value={settings.ankiDeck || ""}
-                  onChange={(e) => onUpdate({ ankiDeck: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="ankiModel" className="hk-settings-row__label">{t("settings_anki_model", currentLang)}</label>
-                <div id="ankiModel-desc" className="hk-settings-row__desc">{t("settings_anki_model_desc", currentLang)}</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <input
-                  id="ankiModel"
-                  aria-describedby="ankiModel-desc"
-                  className="hk-settings-input hk-settings-input--text"
-                  type="text"
-                  value={settings.ankiModel || ""}
-                  onChange={(e) => onUpdate({ ankiModel: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="includeImages" className="hk-settings-row__label">Include Illustrations & Images</label>
-                <div id="includeImages-desc" className="hk-settings-row__desc">Automatically attach Irasutoya illustration images to cards and Anki exports</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="includeImages">
-                  <input
-                    id="includeImages"
-                    aria-describedby="includeImages-desc"
-                    type="checkbox"
-                    checked={settings.includeImages !== false}
-                    onChange={(e) => onUpdate({ includeImages: e.target.checked })}
+                {decks.length > 0 ? (
+                  <CustomSelect
+                    value={settings.ankiDeck || ""}
+                    onChange={(val) => onUpdate({ ankiDeck: val })}
+                    options={decks.map((d) => ({ value: d, label: d }))}
+                    width="260px"
                   />
-                  <span className="hk-toggle__slider" />
-                </label>
+                ) : (
+                  <input
+                    id="ankiDeck"
+                    aria-describedby="ankiDeck-desc"
+                    className="hk-settings-input hk-settings-input--text"
+                    type="text"
+                    value={settings.ankiDeck || ""}
+                    onChange={(e) => onUpdate({ ankiDeck: e.target.value })}
+                    placeholder="e.g. Hakkutsu"
+                  />
+                )}
               </div>
             </div>
 
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="ankiImageField" className="hk-settings-row__label">Anki Image Field Name</label>
-                <div id="ankiImageField-desc" className="hk-settings-row__desc">Name of the Anki card field to store illustration image tag</div>
+            {/* Note Type Field Mappings */}
+            {fields.length > 0 && (
+              <div style={{ paddingTop: "16px" }}>
+                <div style={{ padding: "0 18px 12px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+                  <div>
+                    <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#c084fc", margin: "0 0 4px 0" }}>
+                      Note Field Mappings ({settings.ankiModel})
+                    </h4>
+                    <p style={{ fontSize: "12px", color: "var(--hk-text-muted)", margin: 0 }}>
+                      Map each field of your Anki note type to the corresponding Hakkutsu data option
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newMap: Record<string, string> = { ...(settings.ankiFieldMap || {}) };
+                      for (const f of fields) {
+                        newMap[f] = inferDefaultMapping(f);
+                      }
+                      onUpdate({ ankiFieldMap: newMap });
+                    }}
+                    style={{
+                      padding: "5px 12px",
+                      borderRadius: "6px",
+                      background: "rgba(192, 132, 252, 0.12)",
+                      border: "1px solid rgba(192, 132, 252, 0.3)",
+                      color: "#c084fc",
+                      fontSize: "11.5px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap"
+                    }}
+                    title="Auto-assign default mapping options to all fields based on field names"
+                  >
+                    Auto-Assign Mappings
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {fields.map((field, idx) => {
+                    const currentMapping =
+                      (settings.ankiFieldMap && settings.ankiFieldMap[field]) ||
+                      inferDefaultMapping(field);
+
+                    return (
+                      <div
+                        key={field}
+                        className="hk-settings-row"
+                        style={{
+                          padding: "12px 18px",
+                          borderBottom: idx === fields.length - 1 ? "none" : "1px solid rgba(255, 255, 255, 0.06)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between"
+                        }}
+                      >
+                        <div className="hk-settings-row__info">
+                          <label className="hk-settings-row__label" style={{ fontSize: "13.5px", fontWeight: 600 }}>
+                            {field}
+                          </label>
+                        </div>
+
+                        <div className="hk-settings-row__control">
+                          <CustomSelect
+                            value={currentMapping}
+                            onChange={(val) => {
+                              const updatedMap = {
+                                ...(settings.ankiFieldMap || {}),
+                                [field]: val,
+                              };
+                              onUpdate({ ankiFieldMap: updatedMap });
+                            }}
+                            options={FIELD_OPTIONS}
+                            width="260px"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="hk-settings-row__control">
-                <input
-                  id="ankiImageField"
-                  aria-describedby="ankiImageField-desc"
-                  className="hk-settings-input hk-settings-input--text"
-                  type="text"
-                  value={settings.ankiImageField || "Image"}
-                  onChange={(e) => onUpdate({ ankiImageField: e.target.value })}
-                />
+            )}
+
+            {!ankiConnected && (
+              <div style={{ margin: "12px 18px 0 18px", fontSize: "12px", color: "#f59e0b" }}>
+                ⚠️ AnkiConnect not detected. Ensure Anki app is running with AnkiConnect add-on enabled, then click "Refresh Anki".
               </div>
-            </div>
+            )}
           </div>
         </section>
 
@@ -604,14 +998,6 @@ export function SettingsView({
         </section>
 
       </form>
-
-      <div className="hk-settings-footer">
-        <strong className="hk-settings-footer__title">Hakkutsu v0.1.3</strong>
-        <p className="hk-settings-footer__desc">
-          {t("settings_footer_built", currentLang)}<br />
-          Built with Plasmo, React, TypeScript. • <a href="https://ko-fi.com/joshiminh" target="_blank" rel="noopener noreferrer" style={{ color: "#ff5e5b", textDecoration: "none" }}>Support on Ko-fi</a>
-        </p>
-      </div>
     </div>
   );
 }

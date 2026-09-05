@@ -37,15 +37,20 @@ export interface AnkiModel {
 export interface AnkiExportData {
   word: string;
   reading: string;
+  wordFurigana?: string;
   meaning: string;
+  vietnameseSound?: string;
   sentence: string;
-  sentenceReading: string;
+  sentenceFurigana?: string;
+  sentenceReading?: string;
+  sentenceMeaning?: string;
   jlptLevel: string;
   pos: string;
   screenshot?: string;
   imageUrl?: string;
   sourceUrl?: string;
   audio?: string;
+  sentenceAudio?: string;
 }
 
 
@@ -208,7 +213,7 @@ export interface HealthResponse {
  * Extension-specific type definitions.
  */
 
-export type ExtensionView = "translate" | "srs" | "anki";
+export type ExtensionView = "translate" | "srs";
 
 export interface ExtensionSettings {
   targetLanguage: "vi" | "en" | "zh" | "ja" | "ko";
@@ -217,6 +222,7 @@ export interface ExtensionSettings {
   ankiDeck: string;
   ankiModel: string;
   ankiImageField: string;
+  ankiFieldMap: Record<string, string>;
   includeImages: boolean;
   autoDetect: boolean;
   showFurigana: boolean;
@@ -241,6 +247,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   ankiDeck: "Hakkutsu",
   ankiModel: "Hakkutsu Japanese",
   ankiImageField: "Image",
+  ankiFieldMap: {},
   includeImages: true,
   autoDetect: true,
   showFurigana: true,

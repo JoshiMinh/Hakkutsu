@@ -401,85 +401,6 @@ function TranslateQuickView({
   );
 }
 
-// ── Anki View ──────────────────────────────────────────────────
-
-function AnkiView({ settings, onUpdate, ankiConnected }: { settings: ExtensionSettings, onUpdate: (patch: Partial<ExtensionSettings>) => void, ankiConnected: boolean }) {
-  const { t } = useTranslation();
-
-  return (
-    <div className="hk-content hk-fade-in">
-      <div style={{ 
-        padding: "16px", 
-        background: "var(--hk-bg-secondary)", 
-        borderRadius: "var(--hk-radius-lg)",
-        marginBottom: "24px",
-        display: "flex",
-        alignItems: "center",
-        gap: "16px",
-        border: `1px solid ${ankiConnected ? 'var(--hk-jlpt-n5)' : 'var(--hk-border)'}`,
-        boxShadow: "var(--hk-shadow-sm)"
-      }}>
-        {ankiConnected ? <Wifi size={24} color="var(--hk-jlpt-n5)" /> : <WifiOff size={24} color="var(--hk-text-muted)" />}
-        <div>
-          <div style={{ fontWeight: 600, fontSize: "14px", color: ankiConnected ? "var(--hk-jlpt-n5)" : "var(--hk-text-primary)" }}>
-            {ankiConnected ? "AnkiConnect is running" : "AnkiConnect not detected"}
-          </div>
-          <div style={{ fontSize: "12px", color: "var(--hk-text-secondary)", marginTop: "4px" }}>
-            {ankiConnected ? "Ready to export flashcards." : "Please start Anki and ensure AnkiConnect is installed."}
-          </div>
-        </div>
-      </div>
-
-      <fieldset className="hk-settings-card">
-        <legend className="hk-settings-card__title">Export Settings</legend>
-        <div className="hk-settings-row">
-          <div className="hk-settings-row__info">
-            <label htmlFor="ankiDeck" className="hk-settings-row__label">{t("settings_anki_deck")}</label>
-            <div id="ankiDeck-desc" className="hk-settings-row__desc">{t("settings_anki_deck_desc")}</div>
-          </div>
-          <div className="hk-settings-row__control">
-            <input
-              id="ankiDeck"
-              aria-describedby="ankiDeck-desc"
-              className="hk-settings-input hk-settings-input--text"
-              type="text"
-              value={settings.ankiDeck || ""}
-              onChange={(e) => onUpdate({ ankiDeck: e.target.value })}
-            />
-          </div>
-        </div>
-
-        <div className="hk-settings-row">
-          <div className="hk-settings-row__info">
-            <label htmlFor="ankiModel" className="hk-settings-row__label">{t("settings_anki_model")}</label>
-            <div id="ankiModel-desc" className="hk-settings-row__desc">{t("settings_anki_model_desc")}</div>
-          </div>
-          <div className="hk-settings-row__control">
-            <input
-              id="ankiModel"
-              aria-describedby="ankiModel-desc"
-              className="hk-settings-input hk-settings-input--text"
-              type="text"
-              value={settings.ankiModel || ""}
-              onChange={(e) => onUpdate({ ankiModel: e.target.value })}
-            />
-          </div>
-        </div>
-      </fieldset>
-      
-      <div style={{ marginTop: 24, textAlign: 'center' }}>
-        <button
-          className="hk-btn hk-btn--secondary"
-          style={{ width: '100%', justifyContent: 'center' }}
-          onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html") })}
-        >
-          <ExternalLink size={16} /> Open Full App
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ── Main Popup ──────────────────────────────────────────────────────
 
 function Popup() {
@@ -516,7 +437,6 @@ function Popup() {
     ...(settings.srsEnabled !== false
       ? [{ id: "srs" as ExtensionView, label: t("popup_tab_review"), icon: <Brain size={15} /> }]
       : []),
-    { id: "anki", label: "Anki", icon: <BookMarked size={15} /> },
   ];
 
   const handleOpenAppTab = () => {
@@ -624,13 +544,6 @@ function Popup() {
           )}
           {activeView === "srs" && (
             <SrsReview />
-          )}
-          {activeView === "anki" && (
-            <AnkiView 
-              settings={settings} 
-              onUpdate={handleUpdateSettings}
-              ankiConnected={ankiConnected}
-            />
           )}
         </Suspense>
       </ErrorBoundary>
