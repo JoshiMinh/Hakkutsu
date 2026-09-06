@@ -458,7 +458,7 @@ function Popup() {
   };
 
   return (
-    <div className="hk-popup" style={{ width: "420px", maxWidth: "420px", minHeight: "480px", background: "#09090b", color: "#ffffff", boxSizing: "border-box", overflowX: "hidden" }}>
+    <div className="hk-popup" style={{ width: "420px", maxWidth: "420px", minHeight: "360px", background: "#09090b", color: "#ffffff", boxSizing: "border-box", overflowX: "hidden" }}>
       <header className="hk-header" style={{ padding: "12px 14px", overflowX: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <img src={appLogo} alt="Hakkutsu Logo" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "cover" }} />
@@ -522,18 +522,20 @@ function Popup() {
         </div>
       </header>
 
-      {/* Segmented Pill Tabs */}
-      <nav className="hk-nav">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`hk-nav__tab ${activeView === tab.id ? "hk-nav__tab--active" : ""}`}
-            onClick={() => setActiveView(tab.id)}
-          >
-            {tab.icon} {tab.label}
-          </button>
-        ))}
-      </nav>
+      {/* Segmented Pill Tabs — rendered only when multiple views are active */}
+      {tabs.length > 1 && (
+        <nav className="hk-nav">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              className={`hk-nav__tab ${activeView === tab.id ? "hk-nav__tab--active" : ""}`}
+              onClick={() => setActiveView(tab.id)}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       <ErrorBoundary>
         <Suspense fallback={<LoadingSpinner text="Loading view..." />}>

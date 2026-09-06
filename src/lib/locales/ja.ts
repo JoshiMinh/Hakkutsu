@@ -204,9 +204,9 @@ export const ja = {
   settings_hover_key: "ホバー検索修飾キー",
   settings_hover_key_desc: "このキーを押しながら日本語にマウスホバーで即座に単語検索",
 
-  settings_video_section: "字幕 & イマーシブ",
-  settings_autofetch_sub: "日本語字幕を自動取得",
-  settings_autofetch_sub_desc: "動画再生時に日本語字幕トラックを自動取得",
+  settings_video_section: "Immersion",
+  settings_autofetch_sub: "ビデオ字幕を有効化",
+  settings_autofetch_sub_desc: "YouTube、Netflix、および動画プレイヤーで日本語字幕とコントロールを有効化",
   settings_universal_video: "ユニバーサル HTML5 動画サポート",
   settings_universal_video_desc: "HTML5プレーヤーのある全ウェブページで字幕オーバーレイを有効化",
   settings_sub_fontsize: "字幕フォントサイズ",

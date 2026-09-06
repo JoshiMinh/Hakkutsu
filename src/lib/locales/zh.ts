@@ -204,9 +204,9 @@ export const zh = {
   settings_hover_key: "悬停查词修饰键 (Hover Key)",
   settings_hover_key_desc: "按住此键并将鼠标悬停在日文文本上即可查词，无需点击",
 
-  settings_video_section: "字幕与沉浸式体验",
-  settings_autofetch_sub: "自动获取日文字幕",
-  settings_autofetch_sub_desc: "播放视频时自动获取日文字幕",
+  settings_video_section: "Immersion",
+  settings_autofetch_sub: "启用视频字幕",
+  settings_autofetch_sub_desc: "在 YouTube、Netflix 和视频播放器上启用互动日文字幕及控制按钮",
   settings_universal_video: "通用 HTML5 视频支持",
   settings_universal_video_desc: "在任何 HTML5 播放器网页上启用字幕叠加",
   settings_sub_fontsize: "字幕字体大小",

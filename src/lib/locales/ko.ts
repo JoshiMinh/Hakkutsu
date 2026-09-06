@@ -204,9 +204,9 @@ export const ko = {
   settings_hover_key: "마우스 호버 검색 단축키",
   settings_hover_key_desc: "이 키를 누른 채 일본어 단어에 마우스를 올리면 클릭 없이 즉시 검색",
 
-  settings_video_section: "자막 및 몰입 환경",
-  settings_autofetch_sub: "일본어 자막 자동 가져오기",
-  settings_autofetch_sub_desc: "동영상 재생 시 일본어 자막 트랙 자동 검색",
+  settings_video_section: "Immersion",
+  settings_autofetch_sub: "비디오 자막 활성화",
+  settings_autofetch_sub_desc: "YouTube, Netflix 및 동영상 플레이어에서 일본어 자막 및 컨트롤 활성화",
   settings_universal_video: "범용 HTML5 동영상 지원",
   settings_universal_video_desc: "HTML5 플레이어가 있는 모든 웹페이지에서 자막 오버레이 활성화",
   settings_sub_fontsize: "자막 글꼴 크기",

@@ -691,95 +691,107 @@ export function SettingsView({
               </div>
             </div>
 
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="subtitlesSecondary" className="hk-settings-row__label">
-                  {t("sub_modal_track_secondary", currentLang) || "Secondary Subtitles (Dual Translation)"}
-                </label>
-                <div id="subtitlesSecondary-desc" className="hk-settings-row__desc">
-                  Display secondary translated or native subtitle line beneath Japanese text
+            <div
+              style={{
+                opacity: settings.subtitlesEnabled !== false ? 1 : 0.45,
+                pointerEvents: settings.subtitlesEnabled !== false ? "auto" : "none",
+                transition: "opacity 0.2s ease",
+              }}
+            >
+              <div className="hk-settings-row">
+                <div className="hk-settings-row__info">
+                  <label htmlFor="subtitlesSecondary" className="hk-settings-row__label">
+                    {t("sub_modal_track_secondary", currentLang) || "Secondary Subtitles (Dual Translation)"}
+                  </label>
+                  <div id="subtitlesSecondary-desc" className="hk-settings-row__desc">
+                    Display secondary translated or native subtitle line beneath Japanese text
+                  </div>
+                </div>
+                <div className="hk-settings-row__control">
+                  <label className="hk-toggle" htmlFor="subtitlesSecondary">
+                    <input
+                      id="subtitlesSecondary"
+                      aria-describedby="subtitlesSecondary-desc"
+                      type="checkbox"
+                      disabled={settings.subtitlesEnabled === false}
+                      checked={settings.subtitlesSecondaryEnabled !== false}
+                      onChange={(e) => onUpdate({ subtitlesSecondaryEnabled: e.target.checked })}
+                    />
+                    <span className="hk-toggle__slider" />
+                  </label>
                 </div>
               </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="subtitlesSecondary">
-                  <input
-                    id="subtitlesSecondary"
-                    aria-describedby="subtitlesSecondary-desc"
-                    type="checkbox"
-                    checked={settings.subtitlesSecondaryEnabled !== false}
-                    onChange={(e) => onUpdate({ subtitlesSecondaryEnabled: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
 
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="subtitlesAutoPause" className="hk-settings-row__label">
-                  {t("settings_sub_autopause", currentLang) || "Auto-Pause Playback"}
-                </label>
-                <div id="subtitlesAutoPause-desc" className="hk-settings-row__desc">
-                  {t("settings_sub_autopause_desc", currentLang) || "Automatically pause playback after each subtitle line for study"}
+              <div className="hk-settings-row">
+                <div className="hk-settings-row__info">
+                  <label htmlFor="subtitlesAutoPause" className="hk-settings-row__label">
+                    {t("settings_sub_autopause", currentLang) || "Auto-Pause Playback"}
+                  </label>
+                  <div id="subtitlesAutoPause-desc" className="hk-settings-row__desc">
+                    {t("settings_sub_autopause_desc", currentLang) || "Automatically pause playback after each subtitle line for study"}
+                  </div>
+                </div>
+                <div className="hk-settings-row__control">
+                  <label className="hk-toggle" htmlFor="subtitlesAutoPause">
+                    <input
+                      id="subtitlesAutoPause"
+                      aria-describedby="subtitlesAutoPause-desc"
+                      type="checkbox"
+                      disabled={settings.subtitlesEnabled === false}
+                      checked={Boolean(settings.subtitlesAutoPause)}
+                      onChange={(e) => onUpdate({ subtitlesAutoPause: e.target.checked })}
+                    />
+                    <span className="hk-toggle__slider" />
+                  </label>
                 </div>
               </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="subtitlesAutoPause">
-                  <input
-                    id="subtitlesAutoPause"
-                    aria-describedby="subtitlesAutoPause-desc"
-                    type="checkbox"
-                    checked={Boolean(settings.subtitlesAutoPause)}
-                    onChange={(e) => onUpdate({ subtitlesAutoPause: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
 
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="showFuriganaSub" className="hk-settings-row__label">
-                  {t("settings_furigana", currentLang)}
-                </label>
-                <div id="showFuriganaSub-desc" className="hk-settings-row__desc">
-                  {t("settings_furigana_desc", currentLang)}
+              <div className="hk-settings-row">
+                <div className="hk-settings-row__info">
+                  <label htmlFor="showFuriganaSub" className="hk-settings-row__label">
+                    {t("settings_furigana", currentLang)}
+                  </label>
+                  <div id="showFuriganaSub-desc" className="hk-settings-row__desc">
+                    {t("settings_furigana_desc", currentLang)}
+                  </div>
+                </div>
+                <div className="hk-settings-row__control">
+                  <label className="hk-toggle" htmlFor="showFuriganaSub">
+                    <input
+                      id="showFuriganaSub"
+                      aria-describedby="showFuriganaSub-desc"
+                      type="checkbox"
+                      disabled={settings.subtitlesEnabled === false}
+                      checked={settings.showFurigana !== false}
+                      onChange={(e) => onUpdate({ showFurigana: e.target.checked })}
+                    />
+                    <span className="hk-toggle__slider" />
+                  </label>
                 </div>
               </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="showFuriganaSub">
-                  <input
-                    id="showFuriganaSub"
-                    aria-describedby="showFuriganaSub-desc"
-                    type="checkbox"
-                    checked={settings.showFurigana !== false}
-                    onChange={(e) => onUpdate({ showFurigana: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
 
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="subtitlesFontSize" className="hk-settings-row__label">
-                  {t("settings_sub_fontsize", currentLang) || "Subtitle Font Size"} ({settings.subtitlesFontSize || 26}px)
-                </label>
-                <div id="subtitlesFontSize-desc" className="hk-settings-row__desc">
-                  {t("settings_sub_fontsize_desc", currentLang) || "Adjust subtitle text scale on video player overlays"}
+              <div className="hk-settings-row">
+                <div className="hk-settings-row__info">
+                  <label htmlFor="subtitlesFontSize" className="hk-settings-row__label">
+                    {t("settings_sub_fontsize", currentLang) || "Subtitle Font Size"} ({settings.subtitlesFontSize || 26}px)
+                  </label>
+                  <div id="subtitlesFontSize-desc" className="hk-settings-row__desc">
+                    {t("settings_sub_fontsize_desc", currentLang) || "Adjust subtitle text scale on video player overlays"}
+                  </div>
                 </div>
-              </div>
-              <div className="hk-settings-row__control" style={{ width: "160px" }}>
-                <input
-                  id="subtitlesFontSize"
-                  aria-describedby="subtitlesFontSize-desc"
-                  type="range"
-                  min="18"
-                  max="38"
-                  value={settings.subtitlesFontSize || 26}
-                  onChange={(e) => onUpdate({ subtitlesFontSize: Number(e.target.value) })}
-                  style={{ width: "100%", accentColor: "var(--hk-accent-primary)" }}
-                />
+                <div className="hk-settings-row__control" style={{ width: "160px" }}>
+                  <input
+                    id="subtitlesFontSize"
+                    aria-describedby="subtitlesFontSize-desc"
+                    type="range"
+                    min="18"
+                    max="38"
+                    disabled={settings.subtitlesEnabled === false}
+                    value={settings.subtitlesFontSize || 26}
+                    onChange={(e) => onUpdate({ subtitlesFontSize: Number(e.target.value) })}
+                    style={{ width: "100%", accentColor: "var(--hk-accent-primary)" }}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -804,13 +816,12 @@ export function SettingsView({
                 alignItems: "center",
                 gap: "6px",
                 padding: "5px 10px",
-                borderRadius: "6px",
-                background: "rgba(255, 255, 255, 0.08)",
-                border: "1px solid rgba(255, 255, 255, 0.14)",
-                color: "#e4e4e7",
                 fontSize: "12px",
-                fontWeight: 600,
-                cursor: loadingAnki ? "not-allowed" : "pointer"
+                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid var(--hk-border)",
+                borderRadius: "6px",
+                color: "#e4e4e7",
+                cursor: loadingAnki ? "not-allowed" : "pointer",
               }}
             >
               <RefreshCw size={13} className={loadingAnki ? "hk-spin" : ""} />

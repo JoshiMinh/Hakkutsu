@@ -647,6 +647,8 @@ export default function NetflixSubtitlesOverlay() {
     setIsEnabled(true);
   };
 
+  if (settings.subtitlesEnabled === false) return null;
+
   return (
     <>
       <FloatingNetflixButton

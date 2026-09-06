@@ -205,8 +205,8 @@ export const en = {
   settings_hover_key_desc: "Hold this key while hovering mouse over Japanese text to look up words without clicking",
 
   settings_video_section: "Immersion",
-  settings_autofetch_sub: "Auto-fetch Japanese Subtitles",
-  settings_autofetch_sub_desc: "Automatically fetch Japanese tracks (native or auto-translated) upon video playback",
+  settings_autofetch_sub: "Enable Video Subtitles",
+  settings_autofetch_sub_desc: "Enable interactive Japanese subtitles, dual translations, and floating player controls",
   settings_universal_video: "Universal HTML5 Video Support",
   settings_universal_video_desc: "Enable subtitle overlay on any webpage with HTML5 media players",
   settings_sub_fontsize: "Subtitle Font Size",

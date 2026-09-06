@@ -205,8 +205,8 @@ export const vi = {
   settings_hover_key_desc: "Giữ phím này và di chuột qua từ tiếng Nhật để tra từ không cần click",
 
   settings_video_section: "Immersion",
-  settings_autofetch_sub: "Tự động lấy phụ đề tiếng Nhật",
-  settings_autofetch_sub_desc: "Tự động tìm kiếm phụ đề tiếng Nhật (gốc hoặc dịch máy) khi phát video",
+  settings_autofetch_sub: "Bật phụ đề Video",
+  settings_autofetch_sub_desc: "Bật phụ đề tiếng Nhật tương tác, dịch song ngữ và nút điều khiển trên video",
   settings_universal_video: "Bật hỗ trợ video trên mọi trang web",
   settings_universal_video_desc: "Hiển thị công cụ phụ đề trên tất cả các trang web có phát video HTML5",
   settings_sub_fontsize: "Kích cỡ chữ phụ đề",

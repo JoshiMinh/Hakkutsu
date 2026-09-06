@@ -795,6 +795,10 @@ export default function YouTubeSubtitlesOverlay() {
       if (hoverMenu && hoverMenu.parentElement) {
         hoverMenu.parentElement.removeChild(hoverMenu);
       }
+      const existingBtn = document.getElementById("hk-yt-toolbar-btn");
+      if (existingBtn && existingBtn.parentElement) {
+        existingBtn.parentElement.removeChild(existingBtn);
+      }
     };
   }, [isEnabled, offset, settings.subtitlesSecondaryEnabled, settings.subtitlesAutoPause, updateSettings]);
 
@@ -810,6 +814,8 @@ export default function YouTubeSubtitlesOverlay() {
     setSubtitleData(result);
     setIsEnabled(true);
   };
+
+  if (settings.subtitlesEnabled === false) return null;
 
   return (
     <>

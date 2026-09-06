@@ -573,10 +573,22 @@ export default function GenericSubtitlesOverlay() {
 
   useEffect(() => {
     const checkVideo = () => {
-      const vid = document.querySelector<HTMLVideoElement>("video");
-      if (vid) {
-        videoRef.current = vid;
+      const videos = document.querySelectorAll<HTMLVideoElement>("video");
+      let validVid: HTMLVideoElement | null = null;
+      for (let i = 0; i < videos.length; i++) {
+        const v = videos[i];
+        const rect = v.getBoundingClientRect();
+        if ((rect.width >= 150 && rect.height >= 150) || (v.offsetWidth >= 150 && v.offsetHeight >= 150)) {
+          validVid = v;
+          break;
+        }
+      }
+      if (validVid) {
+        videoRef.current = validVid;
         setHasVideo(true);
+      } else {
+        videoRef.current = null;
+        setHasVideo(false);
       }
     };
     checkVideo();
@@ -592,7 +604,7 @@ export default function GenericSubtitlesOverlay() {
       setIsEnabled(enabled && settings.subtitlesEnabled !== false);
       setSiteChecked(true);
     });
-  }, []);
+  }, [settings.subtitlesEnabled]);
 
   // ── Toggle handler ────────────────────────────────────────────────────────
 
@@ -901,7 +913,7 @@ export default function GenericSubtitlesOverlay() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  if (!hasVideo || !siteChecked) return null;
+  if (!hasVideo || !siteChecked || settings.subtitlesEnabled === false) return null;
 
   return (
     <>
