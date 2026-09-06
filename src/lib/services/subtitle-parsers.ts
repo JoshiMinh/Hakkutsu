@@ -7,8 +7,8 @@ import type { SubtitleSegment, SubtitleFetchResult } from "~lib/utils/types";
 
 // ── Time Converters ──────────────────────────────────────────────────────────
 
-/** Parse SRT/VTT/TTML timestamp (HH:MM:SS.mmm, MM:SS.mmm, or HH:MM:SS:frames) into seconds */
-export function parseTimestamp(timeStr: string, frameRate: number = 24): number {
+/** Parse SRT/VTT/TTML timestamp (HH:MM:SS.mmm, MM:SS.mmm, HH:MM:SS:frames, or ticks/ms/s) into seconds */
+export function parseTimestamp(timeStr: string, frameRate: number = 24, tickRate: number = 10000000): number {
   if (!timeStr) return 0;
   const cleaned = timeStr.trim().replace(",", ".");
 
@@ -17,9 +17,29 @@ export function parseTimestamp(timeStr: string, frameRate: number = 24): number 
     return parseFloat(cleaned.slice(0, -1)) || 0;
   }
 
-  // Ticks format e.g. "1000t"
+  // Milliseconds format e.g. "1234ms"
+  if (cleaned.endsWith("ms")) {
+    return (parseFloat(cleaned.slice(0, -2)) || 0) / 1000;
+  }
+
+  // Ticks format e.g. "10000000t" or "1000t"
   if (cleaned.endsWith("t")) {
-    return (parseFloat(cleaned.slice(0, -1)) || 0) / 1000;
+    const rawVal = parseFloat(cleaned.slice(0, -1)) || 0;
+    let effectiveTickRate = tickRate;
+    if (effectiveTickRate === 1000 && rawVal > 1000000) {
+      effectiveTickRate = 10000000;
+    }
+    return rawVal / (effectiveTickRate || 10000000);
+  }
+
+  // Plain integer tick string without 't' suffix e.g. "35000000"
+  if (/^\d{7,}$/.test(cleaned)) {
+    const rawVal = parseFloat(cleaned) || 0;
+    let effectiveTickRate = tickRate;
+    if (effectiveTickRate === 1000 || effectiveTickRate === 10000000) {
+      effectiveTickRate = 10000000;
+    }
+    return rawVal / effectiveTickRate;
   }
 
   const parts = cleaned.split(":");
@@ -274,40 +294,121 @@ export function parseNetflixTtml(ttmlContent: string): SubtitleSegment[] {
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(ttmlContent, "text/xml");
-    const pElements = doc.querySelectorAll("p");
 
-    pElements.forEach((p) => {
-      const beginAttr = p.getAttribute("begin");
-      const endAttr = p.getAttribute("end");
-      const durAttr = p.getAttribute("dur");
+    // Extract frameRate & tickRate if defined on <tt> root
+    const ttEl = doc.documentElement;
+    const frameRateAttr = ttEl?.getAttribute("ttp:frameRate") || ttEl?.getAttribute("frameRate");
+    const frameRate = frameRateAttr ? parseFloat(frameRateAttr) : 24;
 
-      if (!beginAttr) return;
+    const tickRateAttr = ttEl?.getAttribute("ttp:tickRate") || ttEl?.getAttribute("tickRate");
+    const tickRate = tickRateAttr ? parseFloat(tickRateAttr) : 10000000;
 
-      const start = parseTimestamp(beginAttr);
-      let duration = 2;
+    const seen = new Set<string>();
 
-      if (endAttr) {
-        const end = parseTimestamp(endAttr);
-        duration = Math.max(0.1, end - start);
-      } else if (durAttr) {
-        duration = Math.max(0.1, parseTimestamp(durAttr));
-      }
+    // Query all elements with [begin] attribute (timed cues)
+    const allTimedElements = Array.from(doc.querySelectorAll("[begin]"));
 
-      // Extract all text inside <p>, replacing <br> with space
-      let rawText = "";
-      p.childNodes.forEach((node) => {
-        if (node.nodeName.toLowerCase() === "br") {
-          rawText += " ";
-        } else {
-          rawText += node.textContent || "";
+    if (allTimedElements.length > 0) {
+      allTimedElements.forEach((el) => {
+        // If this element has child elements with [begin], skip it so leaf timed cues are used
+        if (el.querySelector("[begin]") !== null) {
+          return;
+        }
+
+        const beginAttr = el.getAttribute("begin");
+        if (!beginAttr) return;
+
+        let endAttr = el.getAttribute("end");
+        let durAttr = el.getAttribute("dur");
+
+        // Inherit end/dur from ancestor if missing on leaf element
+        let ancestor = el.parentElement;
+        while (ancestor && !endAttr && !durAttr) {
+          endAttr = ancestor.getAttribute("end");
+          durAttr = ancestor.getAttribute("dur");
+          ancestor = ancestor.parentElement;
+        }
+
+        const start = parseTimestamp(beginAttr, frameRate, tickRate);
+        let duration = 2;
+
+        if (endAttr) {
+          const end = parseTimestamp(endAttr, frameRate, tickRate);
+          duration = Math.max(0.1, end - start);
+        } else if (durAttr) {
+          duration = Math.max(0.1, parseTimestamp(durAttr, frameRate, tickRate));
+        }
+
+        let rawText = "";
+        el.childNodes.forEach((node) => {
+          if (node.nodeName.toLowerCase().includes("br")) {
+            rawText += " ";
+          } else {
+            rawText += node.textContent || "";
+          }
+        });
+
+        if (!rawText.trim()) {
+          rawText = el.textContent || "";
+        }
+
+        const text = cleanSubtitleText(rawText);
+        if (text) {
+          const key = `${start.toFixed(2)}|${text}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            segments.push({ text, start, duration });
+          }
         }
       });
+    } else {
+      // Fallback: query <p> or <tt:p> paragraph elements
+      const pElements = Array.from(doc.querySelectorAll("p, tt\\:p"));
+      pElements.forEach((el) => {
+        let beginAttr = el.getAttribute("begin");
+        let endAttr = el.getAttribute("end");
+        let durAttr = el.getAttribute("dur");
 
-      const text = cleanSubtitleText(rawText);
-      if (text) {
-        segments.push({ text, start, duration });
-      }
-    });
+        if (!beginAttr) {
+          const childBegin = el.querySelector("[begin]");
+          if (childBegin) {
+            beginAttr = childBegin.getAttribute("begin");
+            endAttr = endAttr || childBegin.getAttribute("end");
+            durAttr = durAttr || childBegin.getAttribute("dur");
+          }
+        }
+
+        if (!beginAttr) return;
+
+        const start = parseTimestamp(beginAttr, frameRate, tickRate);
+        let duration = 2;
+
+        if (endAttr) {
+          const end = parseTimestamp(endAttr, frameRate, tickRate);
+          duration = Math.max(0.1, end - start);
+        } else if (durAttr) {
+          duration = Math.max(0.1, parseTimestamp(durAttr, frameRate, tickRate));
+        }
+
+        let rawText = "";
+        el.childNodes.forEach((node) => {
+          if (node.nodeName.toLowerCase().includes("br")) {
+            rawText += " ";
+          } else {
+            rawText += node.textContent || "";
+          }
+        });
+
+        const text = cleanSubtitleText(rawText);
+        if (text) {
+          const key = `${start.toFixed(2)}|${text}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            segments.push({ text, start, duration });
+          }
+        }
+      });
+    }
 
     if (segments.length > 0) {
       return segments.sort((a, b) => a.start - b.start);
@@ -316,14 +417,14 @@ export function parseNetflixTtml(ttmlContent: string): SubtitleSegment[] {
     console.warn("Failed to parse Netflix TTML with DOMParser:", err);
   }
 
-  // Regex fallback for TTML
-  const pRegex = /<p\s+[^>]*begin="([^"]+)"[^>]*(?:end="([^"]+)")?[^>]*>([\s\S]*?)<\/p>/gi;
+  // Regex fallback for TTML (catches <p> and <span> with begin)
+  const pRegex = /<(?:tt:)?(?:p|span)\s+[^>]*begin="([^"]+)"[^>]*(?:end="([^"]+)")?[^>]*>([\s\S]*?)<\/(?:tt:)?(?:p|span)>/gi;
   let match: RegExpExecArray | null;
   while ((match = pRegex.exec(ttmlContent)) !== null) {
-    const start = parseTimestamp(match[1]);
+    const start = parseTimestamp(match[1], 24, 10000000);
     let duration = 2;
     if (match[2]) {
-      duration = Math.max(0.1, parseTimestamp(match[2]) - start);
+      duration = Math.max(0.1, parseTimestamp(match[2], 24, 10000000) - start);
     }
     const text = cleanSubtitleText(match[3]);
     if (text) {

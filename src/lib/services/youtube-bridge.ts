@@ -257,6 +257,20 @@ export function initYouTubePageBridge(): void {
       void publishCurrentTracks();
     });
 
+    document.addEventListener("hakkutsu:youtube-seek", (e: Event) => {
+      const timeSec = (e as CustomEvent).detail?.timeSec;
+      if (typeof timeSec === "number") {
+        try {
+          const player = document.querySelector<any>("#movie_player");
+          if (player && typeof player.seekTo === "function") {
+            player.seekTo(timeSec, true);
+          }
+        } catch (err) {
+          console.warn("[Hakkutsu Bridge] YouTube seek error:", err);
+        }
+      }
+    });
+
     window.addEventListener("yt-navigate-finish", () => {
       setTimeout(() => {
         void publishCurrentTracks();
@@ -277,38 +291,23 @@ export function initYouTubePageBridge(): void {
     }, 1000);
   }
 
-  // Inject into page MAIN world with Trusted Types support
-  if (typeof document === "undefined") return;
-  const BRIDGE_ID = "hakkutsu-youtube-main-bridge";
-  if (document.getElementById(BRIDGE_ID)) return;
-
-  const script = document.createElement("script");
-  script.id = BRIDGE_ID;
-  const code = `(${bridgeMain.toString()})();`;
-
-  try {
-    const trustedTypes = (window as any).trustedTypes;
-    if (trustedTypes && typeof trustedTypes.createPolicy === "function") {
-      let policy: any;
-      try {
-        policy = trustedTypes.createPolicy("hakkutsu-yt-policy", {
-          createScript: (s: string) => s,
-        });
-      } catch {
-        policy = trustedTypes.defaultPolicy;
-      }
-      if (policy?.createScript) {
-        script.textContent = policy.createScript(code);
-      } else {
-        script.textContent = code;
-      }
-    } else {
-      script.textContent = code;
-    }
-  } catch {
-    script.textContent = code;
+  // If in MAIN world, run directly
+  if (typeof window !== "undefined") {
+    bridgeMain();
   }
 
-  (document.head || document.documentElement).appendChild(script);
+  // If in isolated world, attempt DOM injection as backup
+  if (typeof document !== "undefined") {
+    const BRIDGE_ID = "hakkutsu-youtube-main-bridge";
+    if (document.getElementById(BRIDGE_ID)) return;
+
+    try {
+      const script = document.createElement("script");
+      script.id = BRIDGE_ID;
+      const code = `(${bridgeMain.toString()})();`;
+      script.textContent = code;
+      (document.head || document.documentElement).appendChild(script);
+    } catch {}
+  }
 }
 

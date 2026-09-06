@@ -162,40 +162,41 @@ export function findSmartCue(
   segments: SubtitleSegment[],
   currentTime: number
 ): SubtitleSegment | null {
-  let low = 0;
-  let high = segments.length - 1;
-  let bestIndex = -1;
-  while (low <= high) {
-    const middle = Math.floor((low + high) / 2);
-    if (currentTime < segments[middle].start) {
-      high = middle - 1;
-    } else {
-      bestIndex = middle;
-      low = middle + 1;
-    }
-  }
-  if (bestIndex < 0) return null;
-  return currentTime <= smartCueEnd(segments, bestIndex)
-    ? segments[bestIndex]
-    : null;
+  const index = findSmartCueIndex(segments, currentTime);
+  return index >= 0 ? segments[index] : null;
 }
 
 export function findSmartCueIndex(
   segments: SubtitleSegment[],
   currentTime: number
 ): number {
+  if (!segments || segments.length === 0) return -1;
+
   let low = 0;
   let high = segments.length - 1;
-  let bestIndex = -1;
+  let upperBound = -1;
+
   while (low <= high) {
     const middle = Math.floor((low + high) / 2);
-    if (currentTime < segments[middle].start) {
-      high = middle - 1;
-    } else {
-      bestIndex = middle;
+    if (segments[middle].start <= currentTime) {
+      upperBound = middle;
       low = middle + 1;
+    } else {
+      high = middle - 1;
     }
   }
-  if (bestIndex < 0) return -1;
-  return currentTime <= smartCueEnd(segments, bestIndex) ? bestIndex : -1;
+
+  if (upperBound < 0) return -1;
+
+  for (let i = upperBound; i >= 0; i--) {
+    const cue = segments[i];
+    if (currentTime - cue.start > 60) {
+      break;
+    }
+    if (currentTime <= smartCueEnd(segments, i)) {
+      return i;
+    }
+  }
+
+  return -1;
 }

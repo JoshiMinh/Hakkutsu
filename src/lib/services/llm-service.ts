@@ -31,10 +31,37 @@ class LlmService {
   }
 
   async analyzeText(text: string, isPhrase: boolean = false, targetLang: string = "vi"): Promise<any> {
+    const cleanText = text.trim();
     // 1. Start Google Translate for sentence translation in parallel
-    const translationPromise = googleTranslateService.translate(text, targetLang, "ja");
+    const translationPromise = googleTranslateService.translate(cleanText, targetLang, "ja");
+
+    // 2. Direct whole-word dictionary match check for single terms (e.g. "好き", "お知らせ")
+    if (containsJapanese(cleanText) && cleanText.length <= 16 && !/[\s\u3000、。！？!?…]/u.test(cleanText)) {
+      try {
+        const directDict = await lookupWord(cleanText, targetLang);
+        if (directDict && directDict.meaning && directDict.meaning.trim().length > 0) {
+          const translation = await translationPromise;
+          return {
+            translation: translation || directDict.meaning,
+            usedFallback: true,
+            tokens: [
+              {
+                surface: cleanText,
+                reading: directDict.reading || cleanText,
+                pos: "Word",
+                meaning: directDict.meaning,
+                dictionary_form: cleanText,
+                jlpt: directDict.jlpt || predictJlpt(cleanText),
+                vietnamese_sound: targetLang === "vi" && hasKanji(cleanText) ? (directDict.hanviet || getHanViet(cleanText)) : undefined,
+                is_japanese: true,
+              },
+            ],
+          };
+        }
+      } catch {}
+    }
     
-    // 2. Local Kuromoji Tokenizer + Dictionary Lookup
+    // 3. Local Kuromoji Tokenizer + Dictionary Lookup
     try {
       let tokenList: Array<{ surface: string; base_form: string; reading?: string; pos?: string }> = [];
 

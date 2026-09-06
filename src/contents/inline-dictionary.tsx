@@ -592,13 +592,19 @@ const InlineDictionary = () => {
         }
         setResult(analyzeResponse);
         
-        // Auto-select the first Japanese token if available
+        // Prefer selecting token matching expectedText if present, or first Japanese token
+        const matchingTokenIndex = analyzeResponse.tokens.findIndex(
+          (t) => t.surface === expectedText || t.dictionary_form === expectedText
+        );
         const firstJpIndex = analyzeResponse.tokens.findIndex((t) => t.is_japanese);
+
         if (
           preferredTokenIndex !== null &&
           analyzeResponse.tokens[preferredTokenIndex]
         ) {
           setSelectedToken(preferredTokenIndex);
+        } else if (matchingTokenIndex !== -1) {
+          setSelectedToken(matchingTokenIndex);
         } else if (includeDefinitions && firstJpIndex !== -1) {
           setSelectedToken(firstJpIndex);
         }

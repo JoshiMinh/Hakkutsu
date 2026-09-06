@@ -27,7 +27,7 @@ import { SelectSubtitlesModal, type SubtitleTrackOption } from "~components/sele
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
 import { containsJapanese } from "~lib/utils/japanese";
-import { readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
+import { readSubtitleFile, parsedToSubtitleFetchResult, parseSubtitleContent } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";
 
 export const config: PlasmoCSConfig = {
@@ -39,7 +39,6 @@ export const config: PlasmoCSConfig = {
     "*://youtube.com/*",
   ],
   all_frames: true,
-  run_at: "document_idle",
 };
 
 export const getOverlayAnchor: PlasmoGetOverlayAnchor = async () => {
@@ -55,12 +54,13 @@ export const mountShadowHost: PlasmoMountShadowHost = async ({
 }) => {
   const mountToPlayer = () => {
     const video = document.querySelector<HTMLElement>("video");
-    const container = video?.parentElement || video;
+    const container = video?.parentElement || video || document.body;
     if (!container) return false;
 
     const host = shadowHost as HTMLElement;
+    const isBody = container === document.body;
     Object.assign(host.style, {
-      position: "absolute",
+      position: isBody ? "fixed" : "absolute",
       inset: "0",
       width: "100%",
       height: "100%",
@@ -86,7 +86,7 @@ export const mountShadowHost: PlasmoMountShadowHost = async ({
     const shadowContainer = host.shadowRoot?.getElementById("plasmo-shadow-container");
     if (shadowContainer) {
       Object.assign(shadowContainer.style, {
-        position: "absolute",
+        position: isBody ? "fixed" : "absolute",
         inset: "0",
         width: "100%",
         height: "100%",
@@ -101,7 +101,7 @@ export const mountShadowHost: PlasmoMountShadowHost = async ({
     const interval = setInterval(() => {
       if (mountToPlayer()) clearInterval(interval);
     }, 500);
-    setTimeout(() => clearInterval(interval), 15000);
+    setTimeout(() => clearInterval(interval), 10000);
   }
 };
 
@@ -120,6 +120,7 @@ const GENERIC_STYLE_ID = "hakkutsu-generic-global-style";
 function injectGenericGlobalStyle(hideNative: boolean): void {
   let styleEl = document.getElementById(GENERIC_STYLE_ID) as HTMLStyleElement | null;
   if (!styleEl) {
+    if (!hideNative) return;
     styleEl = document.createElement("style");
     styleEl.id = GENERIC_STYLE_ID;
     document.head.appendChild(styleEl);
@@ -151,22 +152,35 @@ function injectGenericGlobalStyle(hideNative: boolean): void {
     : "";
 }
 
-function getSiteKey(): string {
-  return STORAGE_KEY_PREFIX + location.origin;
+function getSiteKeys(): string[] {
+  const keys = [STORAGE_KEY_PREFIX + location.origin];
+  try {
+    if (window.top && window.top.location.origin) {
+      const topKey = STORAGE_KEY_PREFIX + window.top.location.origin;
+      if (!keys.includes(topKey)) keys.push(topKey);
+    }
+  } catch {}
+  return keys;
 }
 
 async function isSiteEnabled(): Promise<boolean> {
   try {
-    const result = await chrome.storage.local.get(getSiteKey());
-    return result[getSiteKey()] !== false;
+    const keys = getSiteKeys();
+    const result = await chrome.storage.local.get(keys);
+    return keys.some((k) => result[k] === true);
   } catch {
-    return true;
+    return false;
   }
 }
 
 async function setSiteEnabled(enabled: boolean): Promise<void> {
   try {
-    await chrome.storage.local.set({ [getSiteKey()]: enabled });
+    const keys = getSiteKeys();
+    const updateObj: Record<string, boolean> = {};
+    for (const k of keys) {
+      updateObj[k] = enabled;
+    }
+    await chrome.storage.local.set(updateObj);
   } catch {}
 }
 
@@ -192,7 +206,7 @@ function readVideoTrackElements(video: HTMLVideoElement): SubtitleTrackOption[] 
   // Read from the TextTrack API
   for (let i = 0; i < video.textTracks.length; i++) {
     const tt = video.textTracks[i];
-    if (tt.kind !== "subtitles" && tt.kind !== "captions") continue;
+    if (tt.kind === "chapters" || tt.kind === "descriptions") continue;
     const id = `track-${i}-${tt.language}-${tt.label}`;
     if (seen.has(id)) continue;
     seen.add(id);
@@ -208,7 +222,7 @@ function readVideoTrackElements(video: HTMLVideoElement): SubtitleTrackOption[] 
   const trackEls = video.querySelectorAll<HTMLTrackElement>("track[src]");
   trackEls.forEach((el, i) => {
     const kind = el.kind;
-    if (kind !== "subtitles" && kind !== "captions") return;
+    if (kind === "chapters" || kind === "descriptions") return;
     const lang = el.srclang || "und";
     const label = el.label || lang;
     const id = `track-el-${i}-${lang}-${label}`;
@@ -248,15 +262,8 @@ async function fetchTrackContent(track: SubtitleTrackOption): Promise<SubtitleSe
 
   if (!content) return [];
 
-  const { parseVtt, parseSrt } = await import("~lib/services/subtitle-parsers") as any;
-  const trimmed = content.trim();
-  let segments: SubtitleSegment[] = [];
-  if (typeof parseVtt === "function" && trimmed.startsWith("WEBVTT")) {
-    segments = parseVtt(content);
-  } else if (typeof parseSrt === "function" && /^\d+\s*\n\d{2}:\d{2}/.test(trimmed)) {
-    segments = parseSrt(content);
-  }
-  return buildSmartCues(segments, false);
+  const parsed = parseSubtitleContent(content, track.name || track.url);
+  return buildSmartCues(parsed.segments, false);
 }
 
 // ── Draggable FAB ─────────────────────────────────────────────────────────────
@@ -392,9 +399,8 @@ function DraggableFab({
             position: "absolute",
             bottom: "52px",
             right: "0",
-            width: "224px",
+            width: "270px",
             background: "rgba(18, 18, 22, 0.96)",
-            backdropFilter: "blur(16px)",
             WebkitBackdropFilter: "blur(16px)",
             border: "1px solid rgba(255, 255, 255, 0.14)",
             borderRadius: "12px",
@@ -410,7 +416,7 @@ function DraggableFab({
           onMouseLeave={handleMouseLeave}
         >
           <div style={{ padding: "10px 14px 8px", borderBottom: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "14px", color: "#fff" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "14px", color: "#fff", whiteSpace: "nowrap" }}>
               <span style={{ color: "#c084fc", fontWeight: 900, fontSize: "16px" }}>発</span>
               <span>{t("shortcut_manual_title")}</span>
             </div>
@@ -491,6 +497,7 @@ export default function GenericSubtitlesOverlay() {
   const [secondarySegment, setSecondarySegment] = useState<SubtitleSegment | null>(null);
   const [offset, setOffset] = useState(settings.subtitlesOffset || 0);
 
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const currentUrlRef = useRef(window.location.href);
@@ -504,9 +511,15 @@ export default function GenericSubtitlesOverlay() {
     return () => injectGenericGlobalStyle(false);
   }, [isEnabled]);
 
-  // ── Helper to find DOM subtitle text from third-party players ───────────────
-
+  // ── Helper to find DOM subtitle text from third-party players (scoped & throttled) ──
+  const lastDomSearchTimeRef = useRef(0);
   const findSubtitleText = useCallback((): string => {
+    const now = Date.now();
+    if (now - lastDomSearchTimeRef.current < 400) {
+      return lastDomTextRef.current;
+    }
+    lastDomSearchTimeRef.current = now;
+
     const selectors = [
       ".jw-text-track-display",
       ".vjs-text-track-display",
@@ -521,14 +534,13 @@ export default function GenericSubtitlesOverlay() {
       "[class*='player-subtitle' i]",
       "[class*='subtitle-layer' i]",
       "[class*='subtitles-overlay' i]",
-      "[class*='subtitle' i]",
-      "[class*='caption' i]",
     ];
 
     let fallbackText = "";
+    const container = videoRef.current?.parentElement || document.body;
 
     for (const sel of selectors) {
-      const els = document.querySelectorAll(sel);
+      const els = container.querySelectorAll(sel);
       for (let i = 0; i < els.length; i++) {
         const el = els[i];
         if (
@@ -577,33 +589,52 @@ export default function GenericSubtitlesOverlay() {
       let validVid: HTMLVideoElement | null = null;
       for (let i = 0; i < videos.length; i++) {
         const v = videos[i];
-        const rect = v.getBoundingClientRect();
-        if ((rect.width >= 150 && rect.height >= 150) || (v.offsetWidth >= 150 && v.offsetHeight >= 150)) {
+        if (v.src || v.currentSrc || v.readyState > 0 || v.offsetWidth > 0 || v.offsetHeight > 0 || document.body.contains(v)) {
           validVid = v;
           break;
         }
       }
-      if (validVid) {
+      if (validVid !== videoRef.current) {
         videoRef.current = validVid;
-        setHasVideo(true);
-      } else {
-        videoRef.current = null;
-        setHasVideo(false);
+        setVideoEl(validVid);
       }
+      setHasVideo(Boolean(validVid));
     };
     checkVideo();
-    const interval = setInterval(checkVideo, 1500);
+    const interval = setInterval(checkVideo, 500);
     return () => clearInterval(interval);
   }, []);
 
-  // ── Load per-site opt-in from chrome.storage.local ────────────────────────
+  // ── Load per-site opt-in from chrome.storage.local (with cross-frame sync) ──
 
   useEffect(() => {
-    isSiteEnabled().then((enabled) => {
-      setSiteEnabled_(enabled);
-      setIsEnabled(enabled && settings.subtitlesEnabled !== false);
-      setSiteChecked(true);
-    });
+    const syncEnabled = () => {
+      isSiteEnabled().then((enabled) => {
+        setSiteEnabled_(enabled);
+        setIsEnabled(enabled && settings.subtitlesEnabled !== false);
+        setSiteChecked(true);
+      });
+    };
+
+    syncEnabled();
+
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
+      if (areaName !== "local") return;
+      const keys = getSiteKeys();
+      if (keys.some((k) => k in changes)) {
+        syncEnabled();
+      }
+    };
+
+    try {
+      chrome.storage.onChanged.addListener(handleStorageChange);
+    } catch {}
+
+    return () => {
+      try {
+        chrome.storage.onChanged.removeListener(handleStorageChange);
+      } catch {}
+    };
   }, [settings.subtitlesEnabled]);
 
   // ── Toggle handler ────────────────────────────────────────────────────────
@@ -690,7 +721,6 @@ export default function GenericSubtitlesOverlay() {
           if (ja) {
             handleSelectPrimaryTrack(ja);
           } else if (tracks.length > 0 && !secondaryTrackId) {
-            // Auto-select native non-Japanese track as secondary
             const nonJa = tracks.find((t) => !t.languageCode.startsWith("ja"));
             if (nonJa) {
               handleSelectSecondaryTrack(nonJa);
@@ -701,13 +731,9 @@ export default function GenericSubtitlesOverlay() {
     };
 
     scan();
-    const interval = setInterval(scan, 3000);
-    const observer = new MutationObserver(scan);
-    observer.observe(video, { childList: true, subtree: true });
-
+    const interval = setInterval(scan, 5000);
     return () => {
       clearInterval(interval);
-      observer.disconnect();
     };
   }, [isEnabled, currentTrackId, secondaryTrackId, handleSelectPrimaryTrack, handleSelectSecondaryTrack]);
 
@@ -724,7 +750,7 @@ export default function GenericSubtitlesOverlay() {
 
       for (let i = 0; i < video.textTracks.length; i++) {
         const tt = video.textTracks[i];
-        if (tt.kind !== "subtitles" && tt.kind !== "captions") continue;
+        if (tt.kind === "chapters" || tt.kind === "descriptions") continue;
 
         // Hide native UI rendering while keeping activeCues firing
         if (tt.mode === "showing" || tt.mode === "disabled") {
@@ -788,9 +814,8 @@ export default function GenericSubtitlesOverlay() {
       return;
     }
 
-    const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+    const video = videoEl || videoRef.current || document.querySelector<HTMLVideoElement>("video");
     if (!video) return;
-    videoRef.current = video;
 
     const syncCues = () => {
       const adjustedTime = video.currentTime - offset;
@@ -805,7 +830,7 @@ export default function GenericSubtitlesOverlay() {
         } else if (hasActiveTextTrackRef.current) {
           setCurrentSegment(null);
         } else {
-          // DOM subtitle scanning fallback for third-party players
+          // DOM subtitle scanning fallback for third-party players (throttled)
           const domText = findSubtitleText();
           if (domText) {
             if (domText !== lastDomTextRef.current) {
@@ -835,62 +860,56 @@ export default function GenericSubtitlesOverlay() {
       }
     };
 
-    syncCues();
-    let running = true;
+    let animId: number | null = null;
+    let playInterval: ReturnType<typeof setInterval> | null = null;
+
     const tick = () => {
-      if (!running) return;
       syncCues();
-      rafIdRef.current = requestAnimationFrame(tick);
+      if (!video.paused) {
+        animId = requestAnimationFrame(tick);
+      }
     };
-    rafIdRef.current = requestAnimationFrame(tick);
+
+    const startPlayTimer = () => {
+      syncCues();
+      if (!playInterval) {
+        playInterval = setInterval(syncCues, 150);
+      }
+      if (!animId) {
+        animId = requestAnimationFrame(tick);
+      }
+    };
+
+    const stopPlayTimer = () => {
+      if (playInterval) {
+        clearInterval(playInterval);
+        playInterval = null;
+      }
+      if (animId) {
+        cancelAnimationFrame(animId);
+        animId = null;
+      }
+    };
+
+    if (!video.paused) {
+      startPlayTimer();
+    }
+
+    video.addEventListener("play", startPlayTimer);
+    video.addEventListener("pause", stopPlayTimer);
+    video.addEventListener("ended", stopPlayTimer);
     video.addEventListener("seeked", syncCues);
     video.addEventListener("timeupdate", syncCues);
 
     return () => {
-      running = false;
-      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      stopPlayTimer();
+      video.removeEventListener("play", startPlayTimer);
+      video.removeEventListener("pause", stopPlayTimer);
+      video.removeEventListener("ended", stopPlayTimer);
       video.removeEventListener("seeked", syncCues);
       video.removeEventListener("timeupdate", syncCues);
     };
-  }, [isEnabled, subtitleData, secondaryData, offset, getLiveTextTrackCue, findSubtitleText]);
-
-  // ── DOM MutationObserver Fallback for Third-Party Players ──────────────────
-
-  useEffect(() => {
-    if (!isEnabled || subtitleData) return;
-
-    const target = document.body;
-    if (!target) return;
-
-    const observer = new MutationObserver(() => {
-      if (subtitleData) return;
-
-      const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
-      if (video && getLiveTextTrackCue(video).primary) return;
-
-      const text = findSubtitleText();
-      if (text && text !== lastDomTextRef.current) {
-        lastDomTextRef.current = text;
-        const now = video?.currentTime || 0;
-        setCurrentSegment({
-          start: now,
-          duration: 4,
-          text,
-        });
-      } else if (!text && lastDomTextRef.current !== "") {
-        lastDomTextRef.current = "";
-        setCurrentSegment(null);
-      }
-    });
-
-    observer.observe(target, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-
-    return () => observer.disconnect();
-  }, [isEnabled, subtitleData, getLiveTextTrackCue, findSubtitleText]);
+  }, [isEnabled, subtitleData, secondaryData, offset, videoEl, getLiveTextTrackCue, findSubtitleText]);
 
   const handleCustomSubtitleLoaded = useCallback((result: SubtitleFetchResult) => {
     const option: SubtitleTrackOption = {
@@ -902,6 +921,8 @@ export default function GenericSubtitlesOverlay() {
     setAvailableTracks((prev) => [option, ...prev]);
     setCurrentTrackId(option.id);
     setSubtitleData(result);
+    setIsEnabled(true);
+    setError(null);
 
     if (!secondaryTrackId && availableTracks.length > 0) {
       const nonJaTrack = availableTracks.find((t) => !t.languageCode.startsWith("ja"));
@@ -911,10 +932,7 @@ export default function GenericSubtitlesOverlay() {
     }
   }, [secondaryTrackId, availableTracks, handleSelectSecondaryTrack]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
-  if (!hasVideo || !siteChecked || settings.subtitlesEnabled === false) return null;
-
+  if (!hasVideo || !siteChecked) return null;
   return (
     <>
       <DraggableFab
@@ -945,9 +963,18 @@ export default function GenericSubtitlesOverlay() {
             onSelectSecondaryTrack={handleSelectSecondaryTrack}
             onLoadCustomSubtitles={handleCustomSubtitleLoaded}
             onOpenModal={() => setIsModalOpen(true)}
+            onSeekTime={(timeSec) => {
+              if (videoRef.current) {
+                try {
+                  videoRef.current.currentTime = Math.max(0, timeSec);
+                } catch {}
+              }
+            }}
             onSeekToCue={(cue) => {
               if (videoRef.current) {
-                videoRef.current.currentTime = Math.max(0, cue.start + offset);
+                try {
+                  videoRef.current.currentTime = Math.max(0, cue.start + offset);
+                } catch {}
               }
             }}
           />

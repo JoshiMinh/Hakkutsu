@@ -11,20 +11,39 @@ import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
 import { SelectSubtitlesModal } from "./select-subtitles-modal";
 import type { SubtitleTrackOption } from "./select-subtitles-modal";
-import { smartCueEnd } from "~lib/services/smart-cue";
-import { deduplicateCueText } from "~lib/services/subtitle-parsers";
+import { deduplicateCueText, readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
 import { distributeFurigana, containsJapanese, sanitizeReading } from "~lib/utils/japanese";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 
-// ── In-Memory Caches ─────────────────────────────────────────────────────────
+// ── In-Memory Bounded Caches ─────────────────────────────────────────────────
 
+const MAX_CACHE_SIZE = 100;
 const tokenCache = new Map<string, TokenAnalysis[]>();
 const translationCache = new Map<string, string>();
 
+function setBoundedCache<K, V>(cache: Map<K, V>, key: K, value: V, maxSize = MAX_CACHE_SIZE): void {
+  if (cache.size >= maxSize) {
+    const firstKey = cache.keys().next().value;
+    if (firstKey !== undefined) cache.delete(firstKey);
+  }
+  cache.set(key, value);
+}
+
+let cachedSegmenter: any = null;
+function getJapaneseSegmenter() {
+  if (cachedSegmenter) return cachedSegmenter;
+  if (typeof Intl !== "undefined" && (Intl as any).Segmenter) {
+    try {
+      cachedSegmenter = new (Intl as any).Segmenter("ja-JP", { granularity: "word" });
+    } catch {}
+  }
+  return cachedSegmenter;
+}
+
 function createImmediateTokens(text: string): TokenAnalysis[] {
   try {
-    if (typeof Intl !== "undefined" && (Intl as any).Segmenter) {
-      const segmenter = new (Intl as any).Segmenter("ja-JP", { granularity: "word" });
+    const segmenter = getJapaneseSegmenter();
+    if (segmenter) {
       const segments = Array.from(segmenter.segment(text)) as any[];
       return segments.map((s) => {
         const segText = s.segment;
@@ -82,6 +101,7 @@ export interface SubtitleOverlayProps {
   onSelectTrack?: (track: SubtitleTrackOption) => Promise<void> | void;
   onSelectSecondaryTrack?: (track: SubtitleTrackOption | null) => Promise<void> | void;
   onLoadCustomSubtitles?: (result: SubtitleFetchResult) => void;
+  onSeekTime?: (timeSec: number) => void;
   onSeekToCue?: (cue: SubtitleSegment) => void;
   onOpenModal?: () => void;
 }
@@ -105,6 +125,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   onSelectTrack,
   onSelectSecondaryTrack,
   onLoadCustomSubtitles,
+  onSeekTime,
   onSeekToCue,
   onOpenModal,
 }) => {
@@ -189,7 +210,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         if (!isMounted) return;
         if (res?.type === "ANALYZE_RESULT" && res.payload?.tokens) {
           const tokens = res.payload.tokens as TokenAnalysis[];
-          tokenCache.set(text, tokens);
+          setBoundedCache(tokenCache, text, tokens);
           setAnalyzedTokens(tokens);
         }
       })
@@ -247,7 +268,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         if (!isMounted) return;
         if (res?.type === "TRANSLATE_RESULT" && res.payload?.translation) {
           const trans = deduplicateCueText(String(res.payload.translation));
-          translationCache.set(cacheKey, trans);
+          setBoundedCache(translationCache, cacheKey, trans);
           setTranslatedText(trans);
         }
       })
@@ -266,7 +287,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     settings.targetLanguage,
   ]);
 
-  // ── 3. Auto-Pause Handling ──────────────────────────────────────────────────
+  // ── 3. Auto-Pause Handling (Event-Driven) ───────────────────────────────────
 
   useEffect(() => {
     if (!settings.subtitlesAutoPause || !currentSegment || !videoRef.current) return;
@@ -294,77 +315,153 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       }
     };
 
-    const interval = setInterval(checkAutoPause, 40);
-    return () => clearInterval(interval);
+    video.addEventListener("timeupdate", checkAutoPause);
+
+    let playInterval: ReturnType<typeof setInterval> | null = null;
+    const startPauseTimer = () => {
+      if (!playInterval) {
+        checkAutoPause();
+        playInterval = setInterval(checkAutoPause, 100);
+      }
+    };
+    const stopPauseTimer = () => {
+      if (playInterval) {
+        clearInterval(playInterval);
+        playInterval = null;
+      }
+    };
+
+    if (!video.paused) {
+      startPauseTimer();
+    }
+
+    video.addEventListener("play", startPauseTimer);
+    video.addEventListener("pause", stopPauseTimer);
+    video.addEventListener("ended", stopPauseTimer);
+
+    return () => {
+      stopPauseTimer();
+      video.removeEventListener("timeupdate", checkAutoPause);
+      video.removeEventListener("play", startPauseTimer);
+      video.removeEventListener("pause", stopPauseTimer);
+      video.removeEventListener("ended", stopPauseTimer);
+    };
   }, [currentSegment, settings.subtitlesAutoPause, offset, videoRef]);
 
   // ── 4. Replay / Cue Navigation ─────────────────────────────────────────────
 
+  const seekToTime = useCallback(
+    (timeSec: number, cue?: SubtitleSegment) => {
+      const targetSec = Math.max(0, timeSec);
+      if (cue && onSeekToCue) {
+        onSeekToCue(cue);
+      } else if (onSeekTime) {
+        onSeekTime(targetSec);
+      }
+      const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+      if (video) {
+        try {
+          video.currentTime = targetSec;
+        } catch {}
+      }
+    },
+    [onSeekToCue, onSeekTime, videoRef]
+  );
+
   const replayCurrentCue = useCallback(() => {
-    if (!videoRef.current) return;
     if (currentSegment) {
-      videoRef.current.currentTime = Math.max(0, currentSegment.start + offset);
-      if (videoRef.current.paused) {
+      seekToTime(currentSegment.start + offset, currentSegment);
+      if (videoRef.current?.paused) {
         void videoRef.current.play();
       }
     } else if (subtitleData && subtitleData.segments.length > 0) {
-      // If between cues, replay previous cue
-      const currentTime = videoRef.current.currentTime - offset;
-      const prevCue = [...subtitleData.segments].reverse().find((s) => s.start <= currentTime);
+      const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+      const currentTime = (video?.currentTime || 0) - offset;
+      const prevCue = [...subtitleData.segments].reverse().find((s) => s.start <= currentTime + 0.1);
       if (prevCue) {
-        videoRef.current.currentTime = Math.max(0, prevCue.start + offset);
-        if (videoRef.current.paused) {
+        seekToTime(prevCue.start + offset, prevCue);
+        if (videoRef.current?.paused) {
           void videoRef.current.play();
         }
       }
+    } else {
+      const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+      const fallbackTime = Math.max(0, (video?.currentTime || 0) - 2.5);
+      seekToTime(fallbackTime);
     }
-  }, [currentSegment, offset, subtitleData, videoRef]);
+  }, [currentSegment, offset, subtitleData, seekToTime, videoRef]);
 
   const seekPreviousCue = useCallback(() => {
-    if (!videoRef.current) return;
+    const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+    const currentTime = (video?.currentTime || 0) - offset;
     if (subtitleData && subtitleData.segments.length > 0) {
-      const currentTime = videoRef.current.currentTime - offset;
-      const prevCues = subtitleData.segments.filter((s) => s.start < currentTime - 0.3);
-      if (prevCues.length > 0) {
-        const target = prevCues[prevCues.length - 1];
-        videoRef.current.currentTime = Math.max(0, target.start + offset);
-        if (onSeekToCue) onSeekToCue(target);
+      const activeCue = subtitleData.segments.find(
+        (s) => currentTime >= s.start - 0.1 && currentTime <= s.start + s.duration + 0.1
+      );
+
+      let target: SubtitleSegment | undefined;
+      if (activeCue && currentTime > activeCue.start + 0.8) {
+        target = activeCue;
+      } else {
+        const prevCues = subtitleData.segments.filter((s) => s.start < currentTime - 0.3);
+        if (prevCues.length > 0) {
+          target = prevCues[prevCues.length - 1];
+        }
+      }
+
+      if (target) {
+        seekToTime(target.start + offset, target);
+        const preview = target.text.slice(0, 20);
+        setOffsetToast(`⏮ ${preview}`);
+        if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = window.setTimeout(() => setOffsetToast(null), 1000);
         return;
       }
     }
-    videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 2.5);
-  }, [offset, subtitleData, videoRef, onSeekToCue]);
+    const fallbackTime = Math.max(0, (video?.currentTime || 0) - 3);
+    seekToTime(fallbackTime);
+    setOffsetToast(`⏮ -3s`);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setOffsetToast(null), 1000);
+  }, [offset, subtitleData, seekToTime, videoRef]);
 
   const seekNextCue = useCallback(() => {
-    if (!videoRef.current) return;
+    const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+    const currentTime = (video?.currentTime || 0) - offset;
     if (subtitleData && subtitleData.segments.length > 0) {
-      const currentTime = videoRef.current.currentTime - offset;
-      const nextCue = subtitleData.segments.find((s) => s.start > currentTime + 0.1);
+      const nextCue = subtitleData.segments.find((s) => s.start > currentTime + 0.2);
       if (nextCue) {
-        videoRef.current.currentTime = Math.max(0, nextCue.start + offset);
-        if (onSeekToCue) onSeekToCue(nextCue);
+        seekToTime(nextCue.start + offset, nextCue);
+        const preview = nextCue.text.slice(0, 20);
+        setOffsetToast(`⏭ ${preview}`);
+        if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = window.setTimeout(() => setOffsetToast(null), 1000);
         return;
       }
     }
-    videoRef.current.currentTime = Math.min(
-      videoRef.current.duration || 999999,
-      videoRef.current.currentTime + 2.5
+    const fallbackTime = Math.min(
+      video?.duration || 999999,
+      (video?.currentTime || 0) + 3
     );
-  }, [offset, subtitleData, videoRef, onSeekToCue]);
+    seekToTime(fallbackTime);
+    setOffsetToast(`⏭ +3s`);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setOffsetToast(null), 1000);
+  }, [offset, subtitleData, seekToTime, videoRef]);
 
   // ── 5. Offset Adjustments & Toast ──────────────────────────────────────────
 
   const showOffsetNotification = useCallback((newOffset: number) => {
-    const formatted = `${newOffset >= 0 ? "+" : ""}${(newOffset * 1000).toFixed(0)} ms`;
-    setOffsetToast(`Subtitle Sync: ${formatted}`);
+    const sign = newOffset >= 0 ? "+" : "";
+    setOffsetToast(`Offset: ${sign}${newOffset.toFixed(1)}s`);
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = window.setTimeout(() => setOffsetToast(null), 1500);
+    toastTimerRef.current = window.setTimeout(() => setOffsetToast(null), 1200);
   }, []);
 
   const adjustOffset = useCallback(
-    (deltaSec: number) => {
-      const newOffset = Math.round((offset + deltaSec) * 100) / 100;
-      if (onOffsetChange) onOffsetChange(newOffset);
+    (delta: number) => {
+      const newOffset = Math.round((offset + delta) * 10) / 10;
+      onOffsetChange?.(newOffset);
       updateSettings({ subtitlesOffset: newOffset });
       showOffsetNotification(newOffset);
     },
@@ -376,10 +473,9 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   const captureVideoScreenshot = (): string | undefined => {
     const video = videoRef.current;
     if (!video || video.videoWidth === 0 || video.videoHeight === 0) return undefined;
-
     try {
       const canvas = document.createElement("canvas");
-      canvas.width = Math.min(640, video.videoWidth);
+      canvas.width = Math.min(video.videoWidth, 1280);
       canvas.height = Math.round((canvas.width / video.videoWidth) * video.videoHeight);
       const ctx = canvas.getContext("2d");
       if (!ctx) return undefined;
@@ -472,11 +568,13 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       lookupDismissTimerRef.current = null;
     }
 
-    if (videoRef.current && !videoRef.current.paused) {
-      try {
-        videoRef.current.pause();
-        pausedByHoverRef.current = true;
-      } catch {}
+    if (settings.subtitlesAutoPause) {
+      if (videoRef.current && !videoRef.current.paused) {
+        try {
+          videoRef.current.pause();
+          pausedByHoverRef.current = true;
+        } catch {}
+      }
     }
 
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -509,13 +607,15 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       lookupDismissTimerRef.current = null;
     }
 
-    // Auto-pause video playback upon hover
-    const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
-    if (video && !video.paused) {
-      try {
-        video.pause();
-        pausedByHoverRef.current = true;
-      } catch {}
+    // Auto-pause video playback upon hover ONLY if auto-pause setting is enabled
+    if (settings.subtitlesAutoPause) {
+      const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+      if (video && !video.paused) {
+        try {
+          video.pause();
+          pausedByHoverRef.current = true;
+        } catch {}
+      }
     }
 
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -567,76 +667,106 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isEditableTarget(e.target)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       // Previous cue: 'A'
-      if (e.key === "a" || e.key === "A") {
+      if (e.key === "a" || e.key === "A" || e.code === "KeyA") {
         e.preventDefault();
+        e.stopPropagation();
         seekPreviousCue();
         return;
       }
 
       // Next cue: 'D'
-      if (e.key === "d" || e.key === "D") {
+      if (e.key === "d" || e.key === "D" || e.code === "KeyD") {
         e.preventDefault();
+        e.stopPropagation();
         seekNextCue();
         return;
       }
 
-      // Toggle auto-pause: 'E'
-      if (e.key === "e" || e.key === "E") {
+      // Replay current cue: 'R'
+      if (e.key === "r" || e.key === "R" || e.code === "KeyR") {
         e.preventDefault();
-        const next = !settings.subtitlesAutoPause;
-        updateSettings({ subtitlesAutoPause: next });
-        showOffsetNotification(next ? 1 : 0);
-        setOffsetToast(`Auto-Pause: ${next ? "ON" : "OFF"}`);
+        e.stopPropagation();
+        replayCurrentCue();
         return;
       }
 
-      // Toggle Kanji Furigana: 'F' or 'W'
+      // Toggle auto-pause: 'E'
+      if (e.key === "e" || e.key === "E" || e.code === "KeyE") {
+        e.preventDefault();
+        e.stopPropagation();
+        const next = !settings.subtitlesAutoPause;
+        updateSettings({ subtitlesAutoPause: next });
+        setOffsetToast(`Auto-Pause: ${next ? "ON" : "OFF"}`);
+        if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = window.setTimeout(() => setOffsetToast(null), 1200);
+        return;
+      }
+
+      // Toggle furigana: 'F' / 'W'
       if (e.key === "f" || e.key === "F" || e.key === "w" || e.key === "W") {
         e.preventDefault();
+        e.stopPropagation();
         const next = settings.showFurigana === false;
         updateSettings({ showFurigana: next });
-        showOffsetNotification(next ? 1 : 0);
         setOffsetToast(`Furigana: ${next ? "ON" : "OFF"}`);
+        if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = window.setTimeout(() => setOffsetToast(null), 1200);
         return;
       }
 
       // Toggle secondary subtitles: 'V'
-      if (e.key === "v" || e.key === "V") {
+      if (e.key === "v" || e.key === "V" || e.code === "KeyV") {
         e.preventDefault();
-        const next = settings.subtitlesSecondaryEnabled === false ? true : false;
+        e.stopPropagation();
+        const next = settings.subtitlesSecondaryEnabled === false;
         updateSettings({ subtitlesSecondaryEnabled: next });
-        showOffsetNotification(next ? 1 : 0);
-        setOffsetToast(`Secondary Subtitles: ${next ? "ON" : "OFF"}`);
+        setOffsetToast(`Translation: ${next ? "ON" : "OFF"}`);
+        if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = window.setTimeout(() => setOffsetToast(null), 1200);
         return;
       }
 
       // Toggle subtitle visibility: 'S'
-      if (e.key === "s" || e.key === "S") {
+      if (e.key === "s" || e.key === "S" || e.code === "KeyS") {
         e.preventDefault();
+        e.stopPropagation();
         onToggleEnabled();
         return;
       }
 
       // Timing offset shortcuts: 'Z' / 'X'
-      if (e.key === "z" || e.key === "Z") {
+      if (e.key === "z" || e.key === "Z" || e.code === "KeyZ") {
         e.preventDefault();
+        e.stopPropagation();
         adjustOffset(e.shiftKey ? -0.5 : -0.1);
         return;
       }
-      if (e.key === "x" || e.key === "X") {
+
+      if (e.key === "x" || e.key === "X" || e.code === "KeyX") {
         e.preventDefault();
+        e.stopPropagation();
         adjustOffset(e.shiftKey ? +0.5 : +0.1);
         return;
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isEnabled, replayCurrentCue, seekPreviousCue, seekNextCue, adjustOffset, onToggleEnabled, settings.subtitlesAutoPause, updateSettings, showOffsetNotification]);
-
-  // ── 9. Drag & Drop Local Subtitles ──────────────────────────────────────────
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [
+    isEnabled,
+    seekPreviousCue,
+    seekNextCue,
+    replayCurrentCue,
+    settings.subtitlesAutoPause,
+    settings.showFurigana,
+    settings.subtitlesSecondaryEnabled,
+    updateSettings,
+    onToggleEnabled,
+    adjustOffset,
+  ]);
 
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {
@@ -646,15 +776,12 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         setIsDraggingFile(true);
       }
     };
-
     const handleDragLeave = (e: DragEvent) => {
-      e.preventDefault();
       e.stopPropagation();
       if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
         setIsDraggingFile(false);
       }
     };
-
     const handleDrop = async (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -662,9 +789,8 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
       const files = e.dataTransfer?.files;
       if (files && files.length > 0 && onLoadCustomSubtitles) {
-        const file = files[0];
         try {
-          const { readSubtitleFile, parsedToSubtitleFetchResult } = await import("~lib/services/subtitle-parsers");
+          const file = files[0];
           const parsed = await readSubtitleFile(file);
           onLoadCustomSubtitles(parsedToSubtitleFetchResult(parsed, currentUrl));
         } catch (err) {
@@ -683,7 +809,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       window.removeEventListener("drop", handleDrop);
     };
   }, [currentUrl, onLoadCustomSubtitles]);
-
   if (!isEnabled) return null;
 
   const fontSize = settings.subtitlesFontSize || 26;

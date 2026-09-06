@@ -508,11 +508,11 @@ export default function YouTubeSubtitlesOverlay() {
     };
 
     scan();
-    const interval = setInterval(scan, 2500);
+    const interval = setInterval(scan, 8000);
     return () => clearInterval(interval);
   }, [subtitleData, handleSelectPrimaryTrack]);
 
-  // ── Continuous Frame & Live Screen Caption Sync ────────────────────────────
+  // ── Event-Driven & Throttled Cue Sync ───────────────────────────────────────
 
   useEffect(() => {
     if (!isEnabled) {
@@ -567,33 +567,40 @@ export default function YouTubeSubtitlesOverlay() {
 
     syncCues();
 
-    let isRunning = true;
-    const tick = () => {
-      if (!isRunning) return;
-      syncCues();
-      rafIdRef.current = requestAnimationFrame(tick);
+    let playInterval: ReturnType<typeof setInterval> | null = null;
+    const startPlayTimer = () => {
+      if (!playInterval) {
+        syncCues();
+        playInterval = setInterval(syncCues, 200);
+      }
     };
-    rafIdRef.current = requestAnimationFrame(tick);
+    const stopPlayTimer = () => {
+      if (playInterval) {
+        clearInterval(playInterval);
+        playInterval = null;
+      }
+    };
 
     const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
     if (video) {
+      if (!video.paused) {
+        startPlayTimer();
+      }
       video.addEventListener("seeked", syncCues);
       video.addEventListener("timeupdate", syncCues);
-      video.addEventListener("pause", syncCues);
-      video.addEventListener("play", syncCues);
+      video.addEventListener("pause", stopPlayTimer);
+      video.addEventListener("play", startPlayTimer);
+      video.addEventListener("ended", stopPlayTimer);
     }
 
-    const interval = setInterval(syncCues, 200);
-
     return () => {
-      isRunning = false;
-      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-      clearInterval(interval);
+      stopPlayTimer();
       if (video) {
         video.removeEventListener("seeked", syncCues);
         video.removeEventListener("timeupdate", syncCues);
-        video.removeEventListener("pause", syncCues);
-        video.removeEventListener("play", syncCues);
+        video.removeEventListener("pause", stopPlayTimer);
+        video.removeEventListener("play", startPlayTimer);
+        video.removeEventListener("ended", stopPlayTimer);
       }
     };
   }, [isEnabled, subtitleData, secondaryData, offset, readCurrentScreenCaption]);
@@ -661,7 +668,7 @@ export default function YouTubeSubtitlesOverlay() {
         hoverMenu.id = "hk-yt-hover-menu";
         hoverMenu.style.cssText = `
           position: absolute;
-          width: 260px;
+          width: 270px;
           background: rgba(13, 13, 17, 0.96);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
@@ -810,12 +817,8 @@ export default function YouTubeSubtitlesOverlay() {
       fetchResult: result,
     };
     setAvailableTracks((prev) => [customOption, ...prev]);
-    setCurrentTrackId(customOption.id);
-    setSubtitleData(result);
     setIsEnabled(true);
   };
-
-  if (settings.subtitlesEnabled === false) return null;
 
   return (
     <>
@@ -845,9 +848,29 @@ export default function YouTubeSubtitlesOverlay() {
         onSelectSecondaryTrack={handleSelectSecondaryTrack}
         onLoadCustomSubtitles={handleCustomSubtitleLoaded}
         onOpenModal={() => setIsModalOpen(true)}
-        onSeekToCue={(cue) => {
+        onSeekTime={(timeSec) => {
+          document.dispatchEvent(
+            new CustomEvent("hakkutsu:youtube-seek", {
+              detail: { timeSec: Math.max(0, timeSec) },
+            })
+          );
           if (videoRef.current) {
-            videoRef.current.currentTime = Math.max(0, cue.start + offset);
+            try {
+              videoRef.current.currentTime = Math.max(0, timeSec);
+            } catch {}
+          }
+        }}
+        onSeekToCue={(cue) => {
+          const targetTime = Math.max(0, cue.start + offset);
+          document.dispatchEvent(
+            new CustomEvent("hakkutsu:youtube-seek", {
+              detail: { timeSec: targetTime },
+            })
+          );
+          if (videoRef.current) {
+            try {
+              videoRef.current.currentTime = targetTime;
+            } catch {}
           }
         }}
       />

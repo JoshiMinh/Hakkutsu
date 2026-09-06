@@ -15,7 +15,16 @@ export interface LookupResult {
   source?: string;
 }
 
+const MAX_LOOKUP_CACHE = 250;
 const lookupCache = new Map<string, LookupResult>();
+
+function setBoundedMap<K, V>(map: Map<K, V>, key: K, value: V, maxSize = MAX_LOOKUP_CACHE): void {
+  if (map.size >= maxSize) {
+    const firstKey = map.keys().next().value;
+    if (firstKey !== undefined) map.delete(firstKey);
+  }
+  map.set(key, value);
+}
 
 // Pre-populated common dictionary fallbacks for fast offline access
 const COMMON_EN_DICT: Record<string, LookupResult> = {
@@ -92,11 +101,11 @@ export async function lookupWordEnglish(word: string): Promise<LookupResult> {
   }
 
   if (COMMON_EN_DICT[rawKey]) {
-    lookupCache.set(cacheKey, COMMON_EN_DICT[rawKey]);
+    setBoundedMap(lookupCache, cacheKey, COMMON_EN_DICT[rawKey]);
     return COMMON_EN_DICT[rawKey];
   }
   if (COMMON_EN_DICT[key]) {
-    lookupCache.set(cacheKey, COMMON_EN_DICT[key]);
+    setBoundedMap(lookupCache, cacheKey, COMMON_EN_DICT[key]);
     return COMMON_EN_DICT[key];
   }
 
@@ -131,7 +140,7 @@ export async function lookupWordEnglish(word: string): Promise<LookupResult> {
 
           if (meaning) {
             const result: LookupResult = { meaning, jlpt, reading: reading || undefined, source: "jisho" };
-            lookupCache.set(cacheKey, result);
+            setBoundedMap(lookupCache, cacheKey, result);
             return result;
           }
         }
@@ -144,7 +153,7 @@ export async function lookupWordEnglish(word: string): Promise<LookupResult> {
   // Fallback to Google Translate
   const gtMeaning = await googleTranslateService.translate(rawKey, "en", "ja");
   const fallbackResult: LookupResult = { meaning: gtMeaning, reading: key !== rawKey ? key : undefined, source: "google" };
-  lookupCache.set(cacheKey, fallbackResult);
+  setBoundedMap(lookupCache, cacheKey, fallbackResult);
   return fallbackResult;
 }
 
@@ -167,12 +176,12 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
 
   if (COMMON_VI_DICT[rawKey]) {
     const res = { ...COMMON_VI_DICT[rawKey], hanviet: hanviet || COMMON_VI_DICT[rawKey].hanviet };
-    lookupCache.set(cacheKey, res);
+    setBoundedMap(lookupCache, cacheKey, res);
     return res;
   }
   if (COMMON_VI_DICT[key]) {
     const res = { ...COMMON_VI_DICT[key], hanviet: hanviet || COMMON_VI_DICT[key].hanviet };
-    lookupCache.set(cacheKey, res);
+    setBoundedMap(lookupCache, cacheKey, res);
     return res;
   }
 
@@ -212,7 +221,7 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
             source: "mazii",
           };
           if (meaning) {
-            lookupCache.set(cacheKey, result);
+            setBoundedMap(lookupCache, cacheKey, result);
             return result;
           }
         }
@@ -230,7 +239,7 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
     hanviet: hanviet || undefined,
     source: "google",
   };
-  lookupCache.set(cacheKey, fallbackResult);
+  setBoundedMap(lookupCache, cacheKey, fallbackResult);
   return fallbackResult;
 }
 
@@ -280,7 +289,7 @@ export async function lookupWordChinese(word: string): Promise<LookupResult> {
           const reading = sanitizeReading(match.phonetic || key, rawKey);
           if (meaning) {
             const result: LookupResult = { meaning, reading, source: "mazii-zh" };
-            lookupCache.set(cacheKey, result);
+            setBoundedMap(lookupCache, cacheKey, result);
             return result;
           }
         }
@@ -308,7 +317,7 @@ export async function lookupWordChinese(word: string): Promise<LookupResult> {
     jlpt: enRes.jlpt,
     source: "JMdict (ZH)",
   };
-  lookupCache.set(cacheKey, fallbackResult);
+  setBoundedMap(lookupCache, cacheKey, fallbackResult);
   return fallbackResult;
 }
 
@@ -358,7 +367,7 @@ export async function lookupWordKorean(word: string): Promise<LookupResult> {
           const reading = sanitizeReading(match.phonetic || key, rawKey);
           if (meaning) {
             const result: LookupResult = { meaning, reading, source: "mazii-ko" };
-            lookupCache.set(cacheKey, result);
+            setBoundedMap(lookupCache, cacheKey, result);
             return result;
           }
         }
@@ -386,7 +395,7 @@ export async function lookupWordKorean(word: string): Promise<LookupResult> {
     jlpt: enRes.jlpt,
     source: "JMdict (KO)",
   };
-  lookupCache.set(cacheKey, fallbackResult);
+  setBoundedMap(lookupCache, cacheKey, fallbackResult);
   return fallbackResult;
 }
 
@@ -416,7 +425,7 @@ export async function lookupWordJapanese(word: string): Promise<LookupResult> {
     jlpt: enRes.jlpt,
     source: "JMdict (JA)",
   };
-  lookupCache.set(cacheKey, result);
+  setBoundedMap(lookupCache, cacheKey, result);
   return result;
 }
 
@@ -526,7 +535,7 @@ export async function fetchExampleSentences(
   }
 
   if (results.length > 0) {
-    exampleCache.set(cacheKey, results);
+    setBoundedMap(exampleCache, cacheKey, results);
   }
 
   return results.slice(0, limit);
@@ -572,7 +581,7 @@ export async function lookupWord(word: string, targetLang: string = "vi"): Promi
         meaning: translatedMeaning || enResult.meaning,
         source: `JMdict (${lang.toUpperCase()})`
       };
-      lookupCache.set(cacheKey, res);
+      setBoundedMap(lookupCache, cacheKey, res);
       return res;
     } catch {
       return enResult;
@@ -588,7 +597,7 @@ export async function lookupWord(word: string, targetLang: string = "vi"): Promi
       jlpt: enResult.jlpt,
       source: "Google Translate"
     };
-    lookupCache.set(cacheKey, res);
+    setBoundedMap(lookupCache, cacheKey, res);
     return res;
   } catch {
     return { meaning: "" };
@@ -716,7 +725,7 @@ export async function fetchWordVariants(
   }
 
   if (variants.length > 0) {
-    variantCache.set(cacheKey, variants);
+    setBoundedMap(variantCache, cacheKey, variants);
   }
 
   return variants.slice(0, limit);

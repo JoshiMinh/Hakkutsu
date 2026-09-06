@@ -22,7 +22,7 @@ import { tokenize } from "~lib/services/local-tokenizer";
 import { searchDictionary } from "~lib/services/local-lookup";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { containsJapanese, katakanaToHiragana, hasKanji, sanitizeReading } from "~lib/utils/japanese";
-import { lookupWord } from "~lib/services/dictionary-lookup";
+import { lookupWord, type LookupResult } from "~lib/services/dictionary-lookup";
 import { googleTranslateService } from "~lib/services/google-translate";
 import { fetchIrasutoyaImagesDirect } from "~lib/services/irasutoya-service";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
@@ -60,10 +60,117 @@ async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
 }
 
 async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
-  const tokens = await tokenize(text);
+  const cleanText = text.trim();
   const settings = await getSettings();
   const targetLang = settings.targetLanguage || "vi";
   const isVietnamese = targetLang === "vi";
+
+  // 1. Direct whole-word dictionary match check (e.g. "お知らせ", "お弁当", "お土産")
+  if (containsJapanese(cleanText) && cleanText.length <= 16 && !/[\s\u3000、。！？!?…]/u.test(cleanText)) {
+    const fullTextDictEntries = await searchDictionary(cleanText);
+    let fullTextDictInfo: LookupResult | null = null;
+    try {
+      fullTextDictInfo = await lookupWord(cleanText, targetLang);
+    } catch {}
+
+    const hasDirectMatch =
+      (fullTextDictEntries && fullTextDictEntries.length > 0) ||
+      (fullTextDictInfo && fullTextDictInfo.meaning && fullTextDictInfo.meaning.trim().length > 0);
+
+    if (hasDirectMatch) {
+      const firstEntry = fullTextDictEntries[0];
+      const kanjiForm = firstEntry?.kanjiElements?.[0] || cleanText;
+      const rawReading = firstEntry?.readingElements?.[0] || fullTextDictInfo?.reading || "";
+      const reading = sanitizeReading(rawReading, cleanText);
+      const jlptLevel = firstEntry?.jlpt || fullTextDictInfo?.jlpt || predictJlpt(cleanText);
+
+      let definitions: DictionaryEntry[] = [];
+      if (fullTextDictInfo?.meaning) {
+        definitions.push({
+          dictionary: fullTextDictInfo.source || "Dict",
+          glosses: [fullTextDictInfo.meaning],
+          pos: ["Word"],
+          field: null,
+          misc: [],
+        });
+      }
+
+      if (definitions.length === 0 && fullTextDictEntries.length > 0) {
+        definitions = fullTextDictEntries.flatMap((d) =>
+          d.senses.map((s) => ({
+            dictionary: "JMdict",
+            glosses: s.glosses,
+            pos: s.partOfSpeech || ["Word"],
+            field: null,
+            misc: [],
+          }))
+        );
+      }
+
+      const singleToken: TokenAnalysis = {
+        surface: cleanText,
+        dictionary_form: kanjiForm,
+        pos: "Word",
+        pos_detail: [],
+        reading: { hiragana: reading, romaji: "" },
+        is_japanese: true,
+        jlpt_level: jlptLevel,
+        frequency_rank: null,
+        vietnamese_sound: isVietnamese ? (fullTextDictInfo?.hanviet || getHanViet(cleanText)) : undefined,
+        definitions,
+      };
+
+      return {
+        text: cleanText,
+        sentence_reading: reading || cleanText,
+        tokens: [singleToken],
+        token_count: 1,
+        difficulty_score: null,
+        difficulty_label: null,
+      };
+    }
+  }
+
+  // 2. Tokenize text using local tokenizer
+  const rawTokens = await tokenize(cleanText);
+
+  // Combine honorific prefixes (お, ご) or compound tokens if combined form exists in dictionary
+  const tokens: typeof rawTokens = [];
+  let idx = 0;
+  while (idx < rawTokens.length) {
+    const current = rawTokens[idx];
+    const next = rawTokens[idx + 1];
+
+    if (
+      next &&
+      (current.surface_form === "お" || current.surface_form === "ご") &&
+      containsJapanese(next.surface_form)
+    ) {
+      const combinedSurface = current.surface_form + next.surface_form;
+      const combinedEntries = await searchDictionary(combinedSurface);
+      let combinedLookup: LookupResult | null = null;
+      try {
+        combinedLookup = await lookupWord(combinedSurface, targetLang);
+      } catch {}
+
+      if (
+        (combinedEntries && combinedEntries.length > 0) ||
+        (combinedLookup && combinedLookup.meaning && combinedLookup.meaning.trim())
+      ) {
+        tokens.push({
+          surface_form: combinedSurface,
+          pos: "Word",
+          reading: combinedLookup?.reading,
+          base_form: combinedSurface,
+        });
+        idx += 2;
+        continue;
+      }
+    }
+
+    tokens.push(current);
+    idx++;
+  }
 
   const tokenAnalyses: TokenAnalysis[] = await Promise.all(
     tokens.map(async (t) => {
