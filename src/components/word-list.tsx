@@ -15,16 +15,17 @@ import {
   Check,
   Brain,
   ExternalLink,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Tag
 } from "lucide-react";
-import { JlptBadge } from "~components/badges";
+import { JlptBadge, FrequencyBadge } from "~components/badges";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { lookupWord } from "~lib/services/dictionary-lookup";
 import { useTranslation } from "~lib/locales";
 import { ankiClient } from "~lib/services/anki-connect";
 import { useSettingsStore } from "~lib/utils/settings";
-import ankiSvg from "data-base64:../../assets/logo/anki.png";
+import ankiSvg from "~/assets/logo/anki.png?url";
 
 export function WordList({ 
   userId = "user_1",
@@ -73,6 +74,9 @@ export function WordList({
               patch.meaning = info.meaning;
               patch.reading = c.reading || info.reading;
               patch.jlpt = c.jlpt || info.jlpt;
+              if (typeof info.frequency_rank === "number" && !c.frequency_rank) {
+                patch.frequency_rank = info.frequency_rank;
+              }
               updated = true;
             }
           }
@@ -154,15 +158,24 @@ export function WordList({
 
     const headers = showHanViet ? [
       "Word", "Furigana", "Word Meaning", 
-      "Han Viet", "Example Sentence", "JLPT"
+      "Han Viet", "Example Sentence", "JLPT",
+      "Frequency Rank", "Proficiency/Status", "Date Added", "Date Updated", "Tags"
     ] : [
       "Word", "Furigana", "Word Meaning", 
-      "Example Sentence", "JLPT"
+      "Example Sentence", "JLPT",
+      "Frequency Rank", "Proficiency/Status", "Date Added", "Date Updated", "Tags"
     ];
 
     const escapeCsv = (str?: string) => {
       if (!str) return '""';
       return `"${str.replace(/"/g, '""')}"`;
+    };
+
+    const getStatusText = (c: SrsCard) => {
+      if (c.repetition === 0) return "New";
+      if (c.due_date <= Date.now()) return "Due";
+      if (c.interval >= 21) return `Graduated (${c.interval}d)`;
+      return `Learning (${c.interval}d)`;
     };
 
     const csvContent = [
@@ -178,7 +191,12 @@ export function WordList({
         }
         row.push(
           escapeCsv(c.sentence),
-          escapeCsv(c.jlpt)
+          escapeCsv(c.jlpt),
+          escapeCsv(c.frequency_rank ? `#${c.frequency_rank}` : ""),
+          escapeCsv(getStatusText(c)),
+          escapeCsv(new Date(c.created_at).toISOString()),
+          escapeCsv(new Date(c.updated_at).toISOString()),
+          escapeCsv((c.tags || []).join("; "))
         );
         return row.join(",");
       })
@@ -215,9 +233,9 @@ export function WordList({
           await ankiClient.exportVocabulary(
             {
               word: card.word,
-              reading: card.reading,
-              meaning: card.meaning,
-              sentence: card.sentence,
+              reading: card.reading || "",
+              meaning: card.meaning || "",
+              sentence: card.sentence || "",
               sentenceReading: card.sentence_furigana,
               jlptLevel: card.jlpt || "",
               pos: "Word",
@@ -274,7 +292,8 @@ export function WordList({
       c.word.toLowerCase().includes(term) || 
       (c.reading && c.reading.toLowerCase().includes(term)) || 
       (c.meaning && c.meaning.toLowerCase().includes(term)) ||
-      (showHanViet && c.vietnamese_sound && c.vietnamese_sound.toLowerCase().includes(term));
+      (showHanViet && c.vietnamese_sound && c.vietnamese_sound.toLowerCase().includes(term)) ||
+      (c.tags && c.tags.some(tag => tag.toLowerCase().includes(term.replace(/^#/, ""))));
 
     if (!matchesSearch) return false;
 
@@ -286,6 +305,9 @@ export function WordList({
 
   const sortedCards = [...filteredCards].sort((a, b) => {
     if (sortBy === "created_desc") return b.created_at - a.created_at;
+    if (sortBy === "created_asc") return a.created_at - b.created_at;
+    if (sortBy === "updated_desc") return b.updated_at - a.updated_at;
+    if (sortBy === "freq_asc") return (a.frequency_rank || 999999) - (b.frequency_rank || 999999);
     if (sortBy === "due_asc") return a.due_date - b.due_date;
     if (sortBy === "due_desc") return b.due_date - a.due_date;
     if (sortBy === "word_asc") return a.word.localeCompare(b.word);
@@ -512,6 +534,15 @@ export function WordList({
               <option value="created_desc" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
                 {t("vocab_sort_newest")}
               </option>
+              <option value="created_asc" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
+                {isVietnamese ? "Cũ nhất" : "Oldest First"}
+              </option>
+              <option value="updated_desc" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
+                {isVietnamese ? "Mới cập nhật" : "Recently Updated"}
+              </option>
+              <option value="freq_asc" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
+                {isVietnamese ? "Tần suất cao nhất" : "Highest Frequency"}
+              </option>
               <option value="due_asc" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
                 {t("vocab_sort_due_asc")}
               </option>
@@ -614,7 +645,7 @@ export function WordList({
           </div>
         ) : (
           <div style={{ width: "100%", overflowX: "auto" }}>
-            <table className="hk-table" style={{ width: "100%", minWidth: "940px", borderCollapse: "collapse" }}>
+            <table className="hk-table" style={{ width: "100%", minWidth: "1280px", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "transparent", borderBottom: "1px solid rgba(255, 255, 255, 0.1)" }}>
                   {/* Select All Checkbox */}
@@ -626,22 +657,27 @@ export function WordList({
                       style={{ cursor: "pointer", accentColor: "#a855f7" }}
                     />
                   </th>
-                  <th style={{ padding: "10px 6px", textAlign: "center", fontSize: "12px", width: "52px" }}>Image</th>
-                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "100px" }}>{t("vocab_th_word")}</th>
-                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "100px" }}>{t("vocab_th_furigana")}</th>
-                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "160px" }}>{t("vocab_th_meaning")}</th>
+                  <th style={{ padding: "10px 6px", textAlign: "center", fontSize: "12px", width: "48px" }}>Image</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "90px" }}>{t("vocab_th_word")}</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "90px" }}>{t("vocab_th_furigana")}</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "150px" }}>{t("vocab_th_meaning")}</th>
                   {showHanViet && (
-                    <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "100px" }}>{t("vocab_th_hanviet")}</th>
+                    <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "90px" }}>{t("vocab_th_hanviet")}</th>
                   )}
-                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "180px" }}>{t("vocab_th_sentence")}</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "160px" }}>{t("vocab_th_sentence")}</th>
                   <th style={{ padding: "10px 6px", textAlign: "center", fontSize: "12px", width: "52px" }}>{t("vocab_th_jlpt")}</th>
-                  <th style={{ padding: "10px 6px", textAlign: "center", fontSize: "12px", width: "80px" }}>Status</th>
+                  <th style={{ padding: "10px 8px", textAlign: "center", fontSize: "12px", width: "90px" }}>{t("vocab_th_frequency")}</th>
+                  <th style={{ padding: "10px 8px", textAlign: "center", fontSize: "12px", width: "130px" }}>{t("vocab_th_proficiency_status")}</th>
+                  <th style={{ padding: "10px 8px", textAlign: "center", fontSize: "12px", width: "95px" }}>{t("vocab_th_added_date")}</th>
+                  <th style={{ padding: "10px 8px", textAlign: "center", fontSize: "12px", width: "95px" }}>{t("vocab_th_updated_date")}</th>
+                  <th style={{ padding: "10px 8px", textAlign: "left", fontSize: "12px", minWidth: "110px" }}>{t("vocab_th_tags")}</th>
                   <th style={{ padding: "10px 6px", textAlign: "center", width: "64px", fontSize: "12px" }}>{t("vocab_th_actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {displayedCards.map(card => {
                   const isSelected = selectedIds.has(card.id);
+                  const isDue = card.due_date <= Date.now();
                   return (
                     <tr 
                       key={card.id}
@@ -757,24 +793,66 @@ export function WordList({
                         )}
                       </td>
 
-                      {/* 7. SRS Status */}
+                      {/* 7. Frequency */}
+                      <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                        {card.frequency_rank ? (
+                          <FrequencyBadge rank={card.frequency_rank} />
+                        ) : (
+                          <span style={{ color: "var(--hk-text-muted)", fontSize: "11px" }}>—</span>
+                        )}
+                      </td>
+
+                      {/* 8. Proficiency / SRS Status */}
                       <td style={{ padding: "10px 8px", textAlign: "center" }}>
                         {card.repetition === 0 ? (
                           <span style={{ fontSize: "10px", fontWeight: 600, padding: "2px 7px", borderRadius: "10px", background: "rgba(59, 130, 246, 0.15)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.3)" }}>
                             {t("vocab_filter_new")}
                           </span>
-                        ) : card.due_date <= Date.now() ? (
+                        ) : isDue ? (
                           <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "10px", background: "rgba(245, 158, 11, 0.15)", color: "#fbbf24", border: "1px solid rgba(245, 158, 11, 0.3)" }}>
                             Due
                           </span>
-                        ) : (
+                        ) : card.interval >= 21 ? (
                           <span style={{ fontSize: "10px", fontWeight: 600, padding: "2px 7px", borderRadius: "10px", background: "rgba(34, 197, 94, 0.15)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.3)" }}>
-                            {t("vocab_filter_graduated")}
+                            {t("vocab_filter_graduated")} ({card.interval}d)
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "10px", fontWeight: 600, padding: "2px 7px", borderRadius: "10px", background: "rgba(168, 85, 247, 0.15)", color: "#c084fc", border: "1px solid rgba(168, 85, 247, 0.3)" }}>
+                            {t("vocab_filter_learning")} ({card.interval}d)
                           </span>
                         )}
                       </td>
 
-                      {/* 8. Actions */}
+                      {/* 9. Added Date */}
+                      <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                        <span style={{ fontSize: "11px", color: "var(--hk-text-muted)", whiteSpace: "nowrap" }}>
+                          {new Date(card.created_at).toLocaleDateString()}
+                        </span>
+                      </td>
+
+                      {/* 10. Updated Date */}
+                      <td style={{ padding: "10px 8px", textAlign: "center" }}>
+                        <span style={{ fontSize: "11px", color: "var(--hk-text-muted)", whiteSpace: "nowrap" }}>
+                          {new Date(card.updated_at).toLocaleDateString()}
+                        </span>
+                      </td>
+
+                      {/* 11. Tags */}
+                      <td style={{ padding: "10px 8px", textAlign: "left" }}>
+                        {(card.tags && card.tags.length > 0) ? (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                            {card.tags.map(tag => (
+                              <span key={tag} className="hk-badge hk-badge--tag">
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ color: "var(--hk-text-muted)", fontSize: "11px" }}>—</span>
+                        )}
+                      </td>
+
+                      {/* 12. Actions */}
                       <td style={{ padding: "10px 8px", textAlign: "center" }}>
                         <div style={{ display: "inline-flex", gap: "4px" }}>
                           <button 
@@ -833,6 +911,7 @@ function EditCardModal({
     ...card,
     word_furigana: card.word_furigana || (card.reading ? `${card.word}[${card.reading}]` : card.word)
   });
+  const [tagsInput, setTagsInput] = useState<string>((card.tags || []).join(", "));
 
   const handleChange = (field: keyof SrsCard, val: any) => {
     setDraft(prev => ({ ...prev, [field]: val }));
@@ -840,7 +919,15 @@ function EditCardModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(draft);
+    const cleanTags = tagsInput
+      .split(",")
+      .map(t => t.trim().replace(/^#/, ""))
+      .filter(Boolean);
+
+    onSave({
+      ...draft,
+      tags: cleanTags
+    });
   };
 
   return (
@@ -971,10 +1058,24 @@ function EditCardModal({
               </div>
 
               <FormGroup 
+                label="Frequency Rank (#)"
+                value={draft.frequency_rank ? String(draft.frequency_rank) : ""} 
+                onChange={(v) => handleChange("frequency_rank", v ? parseInt(v, 10) || null : null)} 
+                placeholder="e.g. 1200"
+              />
+
+              <FormGroup 
                 label={t("vocab_label_meaning")}
                 value={draft.meaning} 
                 onChange={(v) => handleChange("meaning", v)} 
                 placeholder="Meaning translation..."
+              />
+
+              <FormGroup 
+                label="Tags (comma-separated)"
+                value={tagsInput} 
+                onChange={(v) => setTagsInput(v)} 
+                placeholder="e.g. N3, Anime, Netflix"
               />
             </div>
 

@@ -21,6 +21,10 @@ export interface SrsCard {
   sentence_furigana?: string;
   sentence_meaning?: string;
 
+  // Additional metadata
+  frequency_rank?: number | null;
+  tags?: string[];
+
   // SRS data
   due_date: number; // timestamp
   interval: number; // days
@@ -93,6 +97,8 @@ class LocalSrsService {
     image_url?: string;
     target_word?: string;
     jlpt?: string;
+    frequency_rank?: number | null;
+    tags?: string[];
   }): Promise<SrsCard> {
     const db = await this.dbPromise;
     const settings = await getSettings().catch(() => ({ targetLanguage: "vi" as const, showHanViet: true }));
@@ -109,8 +115,9 @@ class LocalSrsService {
     let sentence = data.sentence?.trim();
     let sentence_furigana = data.sentence_furigana?.trim();
     let sentence_meaning = data.sentence_meaning?.trim();
+    let frequency_rank = data.frequency_rank;
 
-    // Duplicate prevention: if card already exists, update card fields (e.g., image_url) and return
+    // Duplicate prevention: if card already exists, update card fields (e.g., image_url, tags) and return
     const allCards = await db.getAll("cards");
     const existingCard = allCards.find((c) => c.word.trim().toLowerCase() === word.toLowerCase());
     if (existingCard) {
@@ -120,6 +127,8 @@ class LocalSrsService {
         reading: reading || existingCard.reading,
         sentence: sentence || existingCard.sentence,
         image_url: data.image_url || existingCard.image_url,
+        frequency_rank: frequency_rank ?? existingCard.frequency_rank,
+        tags: data.tags ? Array.from(new Set([...(existingCard.tags || []), ...data.tags])) : existingCard.tags,
         updated_at: now,
       };
       await db.put("cards", updatedCard);
@@ -158,6 +167,19 @@ class LocalSrsService {
       }
     }
 
+    // Default tags setup
+    const initialTags = data.tags ? [...data.tags] : [];
+    if (jlpt && !initialTags.includes(jlpt)) {
+      initialTags.push(jlpt.toUpperCase().startsWith("N") ? jlpt.toUpperCase() : `N${jlpt}`);
+    }
+    if (data.source_url) {
+      if (data.source_url.includes("youtube.com") && !initialTags.includes("YouTube")) {
+        initialTags.push("YouTube");
+      } else if (data.source_url.includes("netflix.com") && !initialTags.includes("Netflix")) {
+        initialTags.push("Netflix");
+      }
+    }
+
     const card: SrsCard = {
       id: crypto.randomUUID(),
       word,
@@ -172,6 +194,8 @@ class LocalSrsService {
       source_url: data.source_url,
       source_title: data.source_title,
       image_url: data.image_url,
+      frequency_rank: frequency_rank ?? null,
+      tags: initialTags,
       
       due_date: now,
       interval: 0,

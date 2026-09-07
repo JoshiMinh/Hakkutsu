@@ -41,40 +41,7 @@ export async function tokenize(text: string): Promise<Token[]> {
       base_form: s.segment,
     }));
 
-    // Merge kanji stems with adjacent hiragana okurigana (e.g. 好 + き -> 好き, 美 + しい -> 美しい)
-    // or polite prefixes (お + 好き -> お好き, お + 知らせ -> お知らせ)
-    const mergedTokens: Token[] = [];
-    let i = 0;
-    while (i < rawTokens.length) {
-      const cur = rawTokens[i];
-      const next = rawTokens[i + 1];
-
-      if (next && cur.pos === "Word" && next.pos === "Word") {
-        const curSurface = cur.surface_form;
-        const nextSurface = next.surface_form;
-
-        const isKanjiStem = /[\u4E00-\u9FFF\u3400-\u4DBF]/.test(curSurface);
-        const isHiraganaOkurigana = /^[\u3040-\u309F]+$/.test(nextSurface);
-        const isHonorific = curSurface === "お" || curSurface === "ご";
-
-        if ((isKanjiStem && isHiraganaOkurigana) || (isHonorific && /^[\u3040-\u30FF\u4E00-\u9FFF]/.test(nextSurface))) {
-          const combined = curSurface + nextSurface;
-          mergedTokens.push({
-            surface_form: combined,
-            pos: "Word",
-            reading: undefined,
-            base_form: combined,
-          });
-          i += 2;
-          continue;
-        }
-      }
-
-      mergedTokens.push(cur);
-      i++;
-    }
-
-    return mergedTokens;
+    return rawTokens;
   }
 
   // Fallback regex segmentation by whitespace and Japanese punctuation

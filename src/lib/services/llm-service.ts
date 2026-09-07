@@ -5,6 +5,8 @@ import { lookupWord, type LookupResult } from "./dictionary-lookup";
 import { katakanaToHiragana, containsJapanese, hasKanji, romajiToHiragana, segmentJapaneseTokens } from "~lib/utils/japanese";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
+import { tokenize } from "./local-tokenizer";
+import { getSettings } from "./storage";
 
 export class LlmServiceError extends Error {
   constructor(message: string) {
@@ -22,7 +24,6 @@ class LlmService {
     if (providedSettings) return providedSettings;
     if (typeof chrome !== "undefined" && chrome.storage?.sync) {
       try {
-        const { getSettings } = await import("./storage");
         return await getSettings();
       } catch {}
     }
@@ -66,7 +67,6 @@ class LlmService {
       let tokenList: Array<{ surface: string; base_form: string; reading?: string; pos?: string }> = [];
 
       try {
-        const { tokenize } = await import("./local-tokenizer");
         const kTokens = await tokenize(text);
         if (kTokens && kTokens.length > 0) {
           tokenList = kTokens.map(t => ({

@@ -191,7 +191,7 @@ export function runNetflixBridgeMain(): void {
     const urlsByTrackId = findCadmiumTimedTextUrls();
     const tracks: NetflixTrackDef[] = rawTracks
       .map((t: any) => getTrackData(t, urlsByTrackId))
-      .filter((t): t is NetflixTrackDef => t !== null);
+      .filter((t: NetflixTrackDef | null): t is NetflixTrackDef => t !== null);
 
     const title = document.title.replace(/ - Netflix$/i, "").trim() || "Netflix Video";
 

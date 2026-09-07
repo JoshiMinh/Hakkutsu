@@ -257,7 +257,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
                 <hr className="hk-srs-context-divider" />
                 <div className="hk-srs-card__sentence-group">
                   <div className="hk-srs-card__sentence">
-                    <RenderFurigana text={card.sentence_furigana || card.sentence} />
+                    <RenderFurigana text={card.sentence_furigana || card.sentence || ""} />
                   </div>
                   {card.sentence_meaning && (
                     <div className="hk-srs-card__sentence-meaning">

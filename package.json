@@ -1,16 +1,16 @@
 {
   "name": "hakkutsu",
   "displayName": "Hakkutsu — Japanese Immersion",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "Local-first open-source Japanese immersion extension with offline dictionary, Kuromoji parsing, SRS, and dual subtitles.",
   "author": "Hakkutsu Team",
   "private": true,
   "license": "MIT",
   "scripts": {
-    "dev": "node ./run-plasmo.cjs dev",
-    "build": "node ./run-plasmo.cjs build",
-    "build:firefox": "node ./run-plasmo.cjs build --target=firefox-mv2",
-    "package": "node ./run-plasmo.cjs package",
+    "dev": "wxt",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -21,7 +21,6 @@
     "kuroshiro": "^1.2.0",
     "kuroshiro-analyzer-kuromoji": "^1.1.0",
     "lucide-react": "^1.27.0",
-    "plasmo": "0.90.5",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "zustand": "^5.0.14"
@@ -33,33 +32,10 @@
     "@types/node": "20.11.5",
     "@types/react": "18.2.48",
     "@types/react-dom": "18.2.18",
+    "@wxt-dev/module-react": "^1.2.2",
     "prettier": "3.2.4",
-    "typescript": "5.3.3"
-  },
-  "manifest": {
-    "host_permissions": [
-      "https://*/*",
-      "http://localhost:3000/*",
-      "http://localhost:8000/*",
-      "http://127.0.0.1:8000/*",
-      "http://localhost:8765/*"
-    ],
-    "permissions": [
-      "scripting",
-      "tabs",
-      "storage",
-      "activeTab",
-      "contextMenus"
-    ],
-    "web_accessible_resources": [
-      {
-        "resources": [
-          "assets/*"
-        ],
-        "matches": [
-          "<all_urls>"
-        ]
-      }
-    ]
+    "typescript": "5.3.3",
+    "vite": "^5.4.14",
+    "wxt": "^0.19.29"
   }
 }

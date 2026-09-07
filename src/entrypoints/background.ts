@@ -28,6 +28,23 @@ import { fetchIrasutoyaImagesDirect } from "~lib/services/irasutoya-service";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
 
+export default defineBackground(() => {
+  // Listen for messages from popup and content scripts
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    handleMessage(message, sender)
+      .then(sendResponse)
+      .catch((error) =>
+        sendResponse({
+          type: "ERROR" as const,
+          payload: { error: error.message },
+        })
+      );
+
+    // Return true to indicate we'll respond asynchronously
+    return true;
+  });
+});
+
 // Fallback logic for public dictionary lookups
 async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
   const settings = await getSettings();
@@ -73,11 +90,16 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
       fullTextDictInfo = await lookupWord(cleanText, targetLang);
     } catch {}
 
-    const hasDirectMatch =
-      (fullTextDictEntries && fullTextDictEntries.length > 0) ||
-      (fullTextDictInfo && fullTextDictInfo.meaning && fullTextDictInfo.meaning.trim().length > 0);
+    const hasExactHeadword = Boolean(
+      fullTextDictEntries &&
+        fullTextDictEntries.some(
+          (e) =>
+            e.kanjiElements?.includes(cleanText) ||
+            e.readingElements?.includes(cleanText)
+        )
+    );
 
-    if (hasDirectMatch) {
+    if (hasExactHeadword) {
       const firstEntry = fullTextDictEntries[0];
       const kanjiForm = firstEntry?.kanjiElements?.[0] || cleanText;
       const rawReading = firstEntry?.readingElements?.[0] || fullTextDictInfo?.reading || "";
@@ -283,21 +305,6 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
     difficulty_label: null,
   };
 }
-
-// Listen for messages from popup and content scripts
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  handleMessage(message, sender)
-    .then(sendResponse)
-    .catch((error) =>
-      sendResponse({
-        type: "ERROR" as const,
-        payload: { error: error.message },
-      })
-    );
-
-  // Return true to indicate we'll respond asynchronously
-  return true;
-});
 
 async function translateWithGoogle(text: string, targetLang: string): Promise<string> {
   const clean = text.trim();
@@ -508,18 +515,20 @@ async function handleMessage(
 
     case "CAPTURE_SCREENSHOT": {
       return new Promise((resolve, reject) => {
-        const windowId = sender.tab?.windowId;
-        chrome.tabs.captureVisibleTab(
-          windowId !== undefined ? windowId : null,
-          { format: "png" },
-          (dataUrl) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve({ type: "SCREENSHOT_RESULT", payload: { dataUrl } });
-            }
+        const windowId = sender?.tab?.windowId;
+        const callback = (dataUrl: string) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve({ type: "SCREENSHOT_RESULT", payload: { dataUrl } });
           }
-        );
+        };
+        const options: chrome.tabs.CaptureVisibleTabOptions = { format: "png" };
+        if (windowId !== undefined) {
+          chrome.tabs.captureVisibleTab(windowId, options, callback);
+        } else {
+          chrome.tabs.captureVisibleTab(options, callback);
+        }
       });
     }
 
@@ -629,4 +638,3 @@ async function handleMessage(
   }
 }
 
-export {};

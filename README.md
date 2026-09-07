@@ -1,85 +1,101 @@
 <div align="center">
-  <img src="assets/icon.png" alt="Hakkutsu Logo" width="128" height="128" style="border-radius: 16px;" />
+  <img src="public/assets/icon.png" alt="Hakkutsu Logo" width="128" height="128" style="border-radius: 16px;" />
 
   # Hakkutsu (発掘)
-  **Local-First Japanese Immersion & Sentence Mining Extension for Chrome**
+  **Local-First Japanese Immersion & Sentence Mining Extension**
 
   [Add to Chrome Web Store](https://chromewebstore.google.com) • [Support on Ko-fi](https://ko-fi.com/joshiminh) • [Privacy Policy](privacy.html)
 </div>
 
 ---
 
-## Overview
+## 🌟 Overview
 
-Hakkutsu (meaning "excavation" or "discovery") is a free, local-first browser extension designed for Japanese language learners. It brings dictionary lookups, furigana readings, pitch accent indicators, SRS reviews, and sentence mining directly into the web pages and videos you visit.
+**Hakkutsu** (発掘, meaning *"excavation"* or *"discovery"*) is a free, local-first browser extension for Japanese language learners. It brings dictionary lookups, furigana readings, pitch accent indicators, SRS reviews, and 1-click AnkiConnect sentence mining directly into the web pages and videos you visit.
 
-Whether reading news articles, light novels, social media posts, or watching video content on YouTube and Netflix, Hakkutsu helps you understand unfamiliar vocabulary on the spot and save it for long-term retention.
-
----
-
-## Key Features
-
-- **Instant Offline Lookup**: Hover or select Japanese text on any web page to display definitions, pitch accent graphs, furigana readings, and JLPT difficulty badges.
-- **1-Click AnkiConnect Mining**: Export target vocabulary, example sentences, audio pronunciation, and contextual definitions directly to your local Anki desktop software.
-- **Video Subtitle Immersion**: Study with interactive dual subtitles on YouTube, Netflix, third-party sites, and custom HTML5 video players with hover-to-pause definitions.
-- **Built-in SRS & Visualizations**: Review saved vocabulary using the built-in Spaced Repetition System. Track learning progress with charts, review analytics, and kanji stroke order diagrams.
-- **100% Local & Privacy-First**: Operates completely offline on your device with zero telemetry, zero analytics, no external servers, no account required, and zero data tracking.
-- **Completely Free**: No subscriptions, no payment required, no paywalls, and no ads.
+Built on **WXT (Web Extension Tools)** and **Vite**, Hakkutsu delivers lightning-fast performance with zero tracking and full offline capabilities.
 
 ---
 
-## Extension Screenshots
+## ✨ Key Features
 
-### 1. Instant Dictionary Lookup & Pitch Accent
-Look up Japanese words directly inside web pages with furigana, pitch accent graphs, and part-of-speech labels.
-
-![Instant Dictionary Lookup](screenshots/01-dictionary-lookup.jpg)
-
-### 2. Extension Quick Lookup Popup
-Access quick translation, dictionary lookups, study streaks, and mined word metrics directly from the extension popup.
-
-![Extension Quick Lookup Popup](screenshots/02-popup.jpg)
-
-### 3. Video Subtitle Immersion & Dual Subtitles
-Study Japanese media on YouTube, Netflix, and custom HTML5 video players with interactive dual subtitles and click-to-pause lookups.
-
-![Video Subtitle Immersion](screenshots/03-video-subtitles.jpg)
-
-### 4. Built-in Spaced Repetition System (SRS)
-Review saved vocabulary on schedule with built-in spaced repetition card reviews directly inside the extension dashboard.
-
-![Spaced Repetition System](screenshots/04-srs-review.jpg)
-
-### 5. Customization & AnkiConnect Settings
-Configure lookup keyboard shortcuts, dictionary preferences, and 1-click Anki desktop synchronization.
-
-![Customization & AnkiConnect Settings](screenshots/05-settings.jpg)
+- 📖 **Instant Offline Lookup**: Hover or select Japanese text on any web page to display definitions, pitch accent graphs, furigana readings, and JLPT difficulty badges.
+- 🎴 **1-Click AnkiConnect Mining**: Export target vocabulary, example sentences, audio pronunciation, and contextual definitions directly to your local Anki desktop software.
+- 🎬 **Video Subtitle Immersion**: Study with interactive dual subtitles on YouTube, Netflix, third-party sites, and custom HTML5 video players with hover-to-pause lookups.
+- 🧠 **Built-in SRS & Visualizations**: Review saved vocabulary on schedule using the built-in Spaced Repetition System. Track learning progress with charts, review analytics, and kanji stroke order diagrams.
+- 🔒 **100% Local & Privacy-First**: Operates completely offline on your device with zero telemetry, zero analytics, no external servers, no account required, and zero data tracking.
+- 💖 **Completely Free**: No subscriptions, no payment required, no paywalls, and no ads.
 
 ---
 
-## Installation
+## 📸 Extension Screenshots
 
-1. Install the extension from the official [Chrome Web Store](https://chromewebstore.google.com).
-2. Pin the Hakkutsu icon to your browser toolbar.
-3. Click the toolbar icon to configure your preferred lookup shortcuts (e.g. Highlight, Double-Click, or Alt + Hover).
-4. If using Anki, ensure your Anki desktop application is running with the AnkiConnect add-on enabled.
+| 01. Dictionary Lookup | 02. Extension Popup |
+| :---: | :---: |
+| ![Dictionary Lookup](screenshots/01-dictionary-lookup.jpg) | ![Extension Popup](screenshots/02-popup.jpg) |
 
----
-
-## Learning Hub Dashboard
-
-Open the full-screen Learning Hub from the extension options or popup menu:
-
-| Section | Description |
-| :--- | :--- |
-| **Dashboard** | View daily learning statistics, study streaks, and mined vocabulary totals. |
-| **SRS Review** | Perform interactive spaced repetition card reviews. |
-| **Vocabulary** | Search, filter, edit, and organize your saved word library. |
-| **Settings** | Configure lookup shortcuts, language preferences, and Anki card templates. |
+| 03. Video Subtitles | 04. SRS Flashcards |
+| :---: | :---: |
+| ![Video Subtitles](screenshots/03-video-subtitles.jpg) | ![SRS Review](screenshots/04-srs-review.jpg) |
 
 ---
 
-## Privacy Policy
+## 🛠️ Development & Building
+
+Hakkutsu uses **`pnpm`** and **WXT** (powered by Vite).
+
+### Prerequisites
+- Node.js 18+
+- pnpm 8+
+
+### Setup & Commands
+
+```bash
+# 1. Install dependencies
+pnpm install
+
+# 2. Start dev server with Live HMR
+pnpm dev
+
+# 3. Build Chrome MV3 production bundle (.output/chrome-mv3)
+pnpm build
+
+# 4. Build Firefox MV3 production bundle (.output/firefox-mv3)
+pnpm build:firefox
+
+# 5. Package web store .zip releases
+pnpm zip
+
+# 6. Typecheck TypeScript
+pnpm typecheck
+```
+
+---
+
+## 📂 Project Architecture
+
+```text
+Hakkutsu/
+├── public/                 # Static extension assets (single canonical location)
+│   └── assets/             # Icons, logos, language flags
+├── src/
+│   ├── components/         # React UI components (cards, pitch accent, SRS)
+│   ├── contents/           # Content script React overlays & bridge modules
+│   ├── entrypoints/        # WXT extension entry points
+│   │   ├── background.ts   # MV3 service worker
+│   │   ├── popup/          # Extension popup UI
+│   │   ├── options/        # Extension settings page
+│   │   ├── app/            # Full-page Learning Hub dashboard
+│   │   ├── offscreen/      # Offscreen document for heavy processing
+│   │   └── *.content.tsx   # Shadow DOM content script mounting wrappers
+│   └── lib/                # Japanese tokenizer, dictionary, Anki, SRS engines
+├── wxt.config.ts           # WXT & Vite configuration
+└── tsconfig.json           # TypeScript configuration
+```
+
+---
+
+## 🔒 Privacy Policy
 
 Hakkutsu is built privacy-first:
 - All text processing and dictionary lookups take place 100% locally on your machine.
@@ -91,7 +107,7 @@ Read the full [Privacy Policy](privacy.html) for detailed disclosures.
 
 ---
 
-## Support & Feedback
+## 💙 Support & Feedback
 
 If Hakkutsu helps you enjoy reading and learning Japanese, consider supporting ongoing open-source development:
 
@@ -99,6 +115,6 @@ If Hakkutsu helps you enjoy reading and learning Japanese, consider supporting o
 
 ---
 
-## License
+## 📄 License
 
 Distributed under the MIT License. See `LICENSE` for more information.

@@ -8,14 +8,8 @@
  * local subtitle files, immersion shortcuts, and 1-click Anki sentence mining.
  */
 
-import type {
-  PlasmoCSConfig,
-  PlasmoGetOverlayAnchor,
-  PlasmoGetStyle,
-  PlasmoMountShadowHost,
-} from "plasmo";
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import cssText from "data-text:~style.css";
+import cssText from "~/style.css?inline";
 import type { SubtitleSegment, SubtitleFetchResult } from "~lib/utils/types";
 import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/utils/youtube-subtitle-styles";
 import { SubtitleOverlay } from "~components/subtitle-overlay";
@@ -35,72 +29,6 @@ import {
   type HakkutsuYouTubeSyncedData,
   type HakkutsuYouTubeTrack,
 } from "~lib/services/youtube-bridge";
-
-export const config: PlasmoCSConfig = {
-  matches: ["https://www.youtube.com/*", "https://m.youtube.com/*"],
-};
-
-export const getOverlayAnchor: PlasmoGetOverlayAnchor = async () =>
-  document.querySelector("#movie_player") ||
-  document.querySelector(".html5-video-player") ||
-  document.querySelector("video");
-
-export const getShadowHostId = () => "hakkutsu-youtube-subtitles-host";
-
-export const mountShadowHost: PlasmoMountShadowHost = async ({
-  shadowHost,
-  mountState,
-}) => {
-  const mountToPlayer = () => {
-    const player =
-      (mountState?.overlayTargetList?.[0] as HTMLElement | undefined) ||
-      document.querySelector<HTMLElement>("#movie_player") ||
-      document.querySelector<HTMLElement>(".html5-video-player");
-
-    if (!player) return false;
-
-    const host = shadowHost as HTMLElement;
-    Object.assign(host.style, {
-      position: "absolute",
-      inset: "0",
-      width: "100%",
-      height: "100%",
-      display: "block",
-      overflow: "visible",
-      zIndex: "2147483647",
-      pointerEvents: "none",
-    });
-
-    if (!player.contains(host)) {
-      player.appendChild(host);
-    }
-
-    const shadowContainer = host.shadowRoot?.getElementById("plasmo-shadow-container");
-    if (shadowContainer) {
-      Object.assign(shadowContainer.style, {
-        position: "absolute",
-        inset: "0",
-        width: "100%",
-        height: "100%",
-        pointerEvents: "none",
-      });
-    }
-    return true;
-  };
-
-  if (!mountToPlayer()) {
-    const interval = setInterval(() => {
-      if (mountToPlayer()) clearInterval(interval);
-    }, 250);
-    setTimeout(() => clearInterval(interval), 15000);
-  }
-};
-
-export const getStyle: PlasmoGetStyle = () => {
-  const style = document.createElement("style");
-  style.textContent = cssText + youtubeSubtitleCss;
-  return style;
-};
 
 const YT_GLOBAL_STYLE_ID = "hakkutsu-yt-global-style";
 
@@ -243,6 +171,38 @@ export default function YouTubeSubtitlesOverlay() {
     updateVideoRef();
     const interval = setInterval(updateVideoRef, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  // ── Ensure Subtitle Shadow Host is Placed Inside Player ───────────────
+
+  useEffect(() => {
+    const syncHostPlacement = () => {
+      const host = document.getElementById("hakkutsu-youtube-subtitles-host");
+      if (!host) return;
+
+      const fsEl = document.fullscreenElement as HTMLElement | null;
+      if (fsEl) {
+        if (!fsEl.contains(host)) {
+          fsEl.appendChild(host);
+        }
+      } else {
+        const player =
+          document.querySelector<HTMLElement>("#movie_player") ||
+          document.querySelector<HTMLElement>(".html5-video-player");
+        if (player && !player.contains(host)) {
+          player.appendChild(host);
+        }
+      }
+    };
+
+    document.addEventListener("fullscreenchange", syncHostPlacement);
+    syncHostPlacement();
+    const interval = setInterval(syncHostPlacement, 1000);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", syncHostPlacement);
+      clearInterval(interval);
+    };
   }, []);
 
   // ── Global Style & Native Caption Suppression ──────────────────────────────

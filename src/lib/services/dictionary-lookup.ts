@@ -13,6 +13,7 @@ export interface LookupResult {
   reading?: string;
   hanviet?: string;
   source?: string;
+  frequency_rank?: number | null;
 }
 
 const MAX_LOOKUP_CACHE = 250;

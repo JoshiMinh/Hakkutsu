@@ -7,14 +7,8 @@
  * DOM MutationObserver fallback, immersion shortcuts, and 1-click Anki sentence mining.
  */
 
-import type {
-  PlasmoCSConfig,
-  PlasmoGetOverlayAnchor,
-  PlasmoGetStyle,
-  PlasmoMountShadowHost,
-} from "plasmo";
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import cssText from "data-text:~style.css";
+import cssText from "~/style.css?inline";
 import type { SubtitleSegment, SubtitleFetchResult } from "~lib/utils/types";
 import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/utils/youtube-subtitle-styles";
 import { SubtitleOverlay } from "~components/subtitle-overlay";
@@ -29,66 +23,6 @@ import {
 } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";
 import { initNetflixPageBridge, type HakkutsuNetflixSyncedData, type HakkutsuNetflixTrack } from "~lib/services/netflix-bridge";
-
-export const config: PlasmoCSConfig = {
-  matches: ["https://www.netflix.com/watch/*", "https://www.netflix.com/*"],
-};
-
-export const getOverlayAnchor: PlasmoGetOverlayAnchor = async () =>
-  document.querySelector(".watch-video") ||
-  document.querySelector(".VideoContainer") ||
-  document.querySelector("video");
-
-export const getShadowHostId = () => "hakkutsu-netflix-subtitles-host";
-
-export const mountShadowHost: PlasmoMountShadowHost = async ({
-  shadowHost,
-  mountState,
-}) => {
-  const mountToPlayer = () => {
-    const player =
-      (mountState?.overlayTargetList?.[0] as HTMLElement | undefined) ||
-      document.querySelector<HTMLElement>(".watch-video") ||
-      document.querySelector<HTMLElement>(".VideoContainer");
-
-    if (!player) return false;
-
-    const host = shadowHost as HTMLElement;
-    Object.assign(host.style, {
-      position: "absolute",
-      inset: "0",
-      width: "100%",
-      height: "100%",
-      display: "block",
-      overflow: "visible",
-      zIndex: "2147483647",
-      pointerEvents: "none",
-    });
-
-    if (!player.contains(host)) {
-      player.appendChild(host);
-    }
-
-    const shadowContainer = host.shadowRoot?.getElementById("plasmo-shadow-container");
-    if (shadowContainer) {
-      Object.assign(shadowContainer.style, {
-        position: "absolute",
-        inset: "0",
-        width: "100%",
-        height: "100%",
-        pointerEvents: "none",
-      });
-    }
-    return true;
-  };
-
-  if (!mountToPlayer()) {
-    const interval = setInterval(() => {
-      if (mountToPlayer()) clearInterval(interval);
-    }, 250);
-    setTimeout(() => clearInterval(interval), 15000);
-  }
-};
 
 const netflixSpecificCss = `
   /* ── Subtitle container position on Netflix ── */
@@ -108,12 +42,6 @@ const netflixSpecificCss = `
     bottom: 90px;
   }
 `;
-
-export const getStyle: PlasmoGetStyle = () => {
-  const style = document.createElement("style");
-  style.textContent = cssText + youtubeSubtitleCss + netflixSpecificCss;
-  return style;
-};
 
 const NETFLIX_STYLE_ID = "hakkutsu-netflix-global-style";
 
@@ -277,6 +205,38 @@ export default function NetflixSubtitlesOverlay() {
     updateVideoRef();
     const interval = setInterval(updateVideoRef, 500);
     return () => clearInterval(interval);
+  }, []);
+
+  // ── Ensure Subtitle Shadow Host is Placed Inside Player ───────────────
+
+  useEffect(() => {
+    const syncHostPlacement = () => {
+      const host = document.getElementById("hakkutsu-netflix-subtitles-host");
+      if (!host) return;
+
+      const fsEl = document.fullscreenElement as HTMLElement | null;
+      if (fsEl) {
+        if (!fsEl.contains(host)) {
+          fsEl.appendChild(host);
+        }
+      } else {
+        const netflixPlayer =
+          document.querySelector<HTMLElement>(".watch-video") ||
+          document.querySelector<HTMLElement>(".VideoContainer");
+        if (netflixPlayer && !netflixPlayer.contains(host)) {
+          netflixPlayer.appendChild(host);
+        }
+      }
+    };
+
+    document.addEventListener("fullscreenchange", syncHostPlacement);
+    syncHostPlacement();
+    const interval = setInterval(syncHostPlacement, 1000);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", syncHostPlacement);
+      clearInterval(interval);
+    };
   }, []);
 
   // ── Load Track Content (IMSC TTML) ─────────────────────────────────────────

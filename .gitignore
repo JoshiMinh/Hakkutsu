@@ -7,9 +7,10 @@ node_modules/
 build/
 dist/
 out/
+.output/
+.wxt/
 
-# Plasmo & TypeScript build cache
-.plasmo/
+# TypeScript build cache
 *.tsbuildinfo
 
 # Environment & Local Secrets

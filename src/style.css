@@ -89,20 +89,28 @@
 
 /* ── Popup Container ───────────────────────────────────────────── */
 
-html, body {
+body.hk-extension-page {
   margin: 0;
   padding: 0;
+  width: 100%;
+  min-height: 100%;
   background: #09090b;
+  color: #f4f4f5;
+  font-family: var(--hk-font-sans);
   overflow-x: hidden;
 }
 
-.hk-popup {
-  width: 420px;
-  max-width: 420px;
-  min-height: auto;
-  max-height: 600px;
-  overflow-x: hidden;
-  overflow-y: auto;
+body.hk-popup-body {
+  width: 440px;
+  height: 600px;
+}
+
+body.hk-popup-body .hk-popup {
+  width: 440px;
+  height: 600px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: #09090b;
   color: #f4f4f5;
   font-family: var(--hk-font-sans);
@@ -111,7 +119,234 @@ html, body {
   border: none;
   border-radius: 0;
   box-shadow: none;
+  box-sizing: border-box;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ── SRS Review View ───────────────────────────────────────────── */
+
+.hk-srs-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.hk-srs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.hk-srs-badge {
+  font-size: 12px;
+  color: var(--hk-text-secondary);
+  font-weight: 500;
+}
+
+.hk-srs-badge__count {
+  color: var(--hk-accent-primary);
+  font-weight: 700;
+}
+
+.hk-srs-stats-micro {
+  font-size: 11px;
+  color: var(--hk-text-muted);
+}
+
+.hk-srs-card {
+  background: var(--hk-bg-secondary);
+  border: 1px solid var(--hk-border);
+  border-radius: 12px;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 12px;
+  box-shadow: var(--hk-shadow-sm);
+}
+
+.hk-srs-card__word {
+  font-family: var(--hk-font-jp);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--hk-text-primary);
+  line-height: 1.4;
+  word-break: keep-all;
+  white-space: nowrap;
+}
+
+.hk-srs-card__word ruby rt {
+  font-size: 0.48em;
+  color: #f472b6;
+  font-weight: 600;
+}
+
+.hk-srs-card__answer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.hk-srs-card__badges {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.hk-srs-card__badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hk-srs-card__badge--jlpt {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.hk-srs-card__badge--vi {
+  color: var(--hk-accent-primary);
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.hk-srs-card__reading {
+  font-family: var(--hk-font-jp);
+  font-size: 14px;
+  color: #f472b6;
+  margin-bottom: 6px;
+}
+
+.hk-srs-card__meaning {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--hk-text-primary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.hk-srs-context-divider {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--hk-border);
+  margin: 10px 0;
+}
+
+.hk-srs-card__sentence-group {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 8px 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hk-srs-card__sentence {
+  font-family: var(--hk-font-jp);
+  font-size: 13px;
+  color: var(--hk-text-primary);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.hk-srs-card__sentence-meaning {
+  font-size: 12px;
+  color: var(--hk-text-secondary);
+  line-height: 1.4;
+}
+
+.hk-srs-actions {
+  margin-top: auto;
+  padding-top: 6px;
+  width: 100%;
+}
+
+.hk-srs-btn--reveal {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.hk-srs-grades {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+
+.hk-srs-btn--grade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.hk-srs-grade--1 {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.hk-srs-grade--1:hover {
+  background: rgba(239, 68, 68, 0.28);
+  border-color: #ef4444;
+}
+
+.hk-srs-grade--3 {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+.hk-srs-grade--3:hover {
+  background: rgba(245, 158, 11, 0.28);
+  border-color: #f59e0b;
+}
+
+.hk-srs-grade--4 {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+.hk-srs-grade--4:hover {
+  background: rgba(34, 197, 94, 0.28);
+  border-color: #22c55e;
+}
+
+.hk-srs-grade--5 {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.3);
+}
+.hk-srs-grade--5:hover {
+  background: rgba(168, 85, 247, 0.28);
+  border-color: #a855f7;
+}
+
+.hk-srs-grade__label {
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 /* ── Inline Dictionary Specific ───────────────────────────────────── */
@@ -2112,5 +2347,31 @@ select option:hover {
   background-color: #27272a !important;
   color: #ffffff !important;
 }
+
+/* ── Vocabulary Badges ── */
+.hk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.hk-badge--tag {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.hk-badge--freq {
+  background: rgba(14, 165, 233, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  font-weight: 700;
+}
+
 
 

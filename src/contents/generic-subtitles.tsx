@@ -12,14 +12,8 @@
  *  - Draggable floating pill button, position persisted in sessionStorage.
  */
 
-import type {
-  PlasmoCSConfig,
-  PlasmoGetOverlayAnchor,
-  PlasmoGetStyle,
-  PlasmoMountShadowHost,
-} from "plasmo";
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import cssText from "data-text:~style.css";
+import cssText from "~/style.css?inline";
 import type { SubtitleSegment, SubtitleFetchResult } from "~lib/utils/types";
 import { youtubeSubtitleCss, genericPlayerCss } from "~lib/utils/youtube-subtitle-styles";
 import { SubtitleOverlay } from "~components/subtitle-overlay";
@@ -29,87 +23,6 @@ import { useTranslation } from "~lib/locales";
 import { containsJapanese } from "~lib/utils/japanese";
 import { readSubtitleFile, parsedToSubtitleFetchResult, parseSubtitleContent } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";
-
-export const config: PlasmoCSConfig = {
-  matches: ["<all_urls>"],
-  exclude_matches: [
-    "*://*.netflix.com/*",
-    "*://netflix.com/*",
-    "*://*.youtube.com/*",
-    "*://youtube.com/*",
-  ],
-  all_frames: true,
-};
-
-export const getOverlayAnchor: PlasmoGetOverlayAnchor = async () => {
-  const video = document.querySelector("video");
-  return video?.parentElement || video || document.body;
-};
-
-export const getShadowHostId = () => "hakkutsu-generic-subtitles-host";
-
-export const mountShadowHost: PlasmoMountShadowHost = async ({
-  shadowHost,
-  mountState,
-}) => {
-  const mountToPlayer = () => {
-    const video = document.querySelector<HTMLElement>("video");
-    const container = video?.parentElement || video || document.body;
-    if (!container) return false;
-
-    const host = shadowHost as HTMLElement;
-    const isBody = container === document.body;
-    Object.assign(host.style, {
-      position: isBody ? "fixed" : "absolute",
-      inset: "0",
-      width: "100%",
-      height: "100%",
-      display: "block",
-      overflow: "visible",
-      zIndex: "2147483647",
-      pointerEvents: "none",
-    });
-
-    if (!container.contains(host)) {
-      container.appendChild(host);
-    }
-
-    if (container && container !== document.body) {
-      try {
-        const computed = window.getComputedStyle(container);
-        if (computed.overflow === "hidden" || computed.overflowY === "hidden") {
-          container.style.setProperty("overflow", "visible", "important");
-        }
-      } catch {}
-    }
-
-    const shadowContainer = host.shadowRoot?.getElementById("plasmo-shadow-container");
-    if (shadowContainer) {
-      Object.assign(shadowContainer.style, {
-        position: isBody ? "fixed" : "absolute",
-        inset: "0",
-        width: "100%",
-        height: "100%",
-        pointerEvents: "none",
-        overflow: "visible",
-      });
-    }
-    return true;
-  };
-
-  if (!mountToPlayer()) {
-    const interval = setInterval(() => {
-      if (mountToPlayer()) clearInterval(interval);
-    }, 500);
-    setTimeout(() => clearInterval(interval), 10000);
-  }
-};
-
-export const getStyle: PlasmoGetStyle = () => {
-  const style = document.createElement("style");
-  style.textContent = cssText + youtubeSubtitleCss + genericPlayerCss;
-  return style;
-};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

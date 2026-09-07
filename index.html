@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hakkutsu (発掘) — Japanese Immersion Extension for Chrome</title>
-  <meta name="description" content="Free local Japanese immersion extension for Chrome. Instant word lookups, 1-click Anki mining, dual subtitles, SRS, and zero tracking." />
-  <link rel="icon" type="image/png" href="assets/icon.png" />
+  <title>Hakkutsu (発掘) — Free Local Japanese Immersion Extension</title>
+  <meta name="description" content="Free local Japanese immersion extension for Chrome & Firefox. Instant word lookups, 1-click Anki mining, dual subtitles, SRS, and zero tracking." />
+  <link rel="icon" type="image/png" href="public/assets/icon.png" />
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -50,35 +50,37 @@
     .card-clean {
       background: #121215;
       border: 1px solid #27272a;
+      transition: all 0.2s ease-in-out;
     }
     .card-clean:hover {
       border-color: #3f3f46;
+      transform: translateY(-2px);
     }
   </style>
 </head>
 <body class="antialiased selection:bg-brand-600 selection:text-white">
 
   <!-- Header / Navigation -->
-  <nav class="fixed top-0 left-0 right-0 z-50 bg-dark-bg/95 border-b border-zinc-800">
+  <nav class="fixed top-0 left-0 right-0 z-50 bg-dark-bg/95 backdrop-blur border-b border-zinc-800">
     <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <img src="assets/icon.png" alt="Hakkutsu Logo" class="w-9 h-9 rounded-lg shadow" />
+        <img src="public/assets/icon.png" alt="Hakkutsu Logo" class="w-9 h-9 rounded-lg shadow" />
         <span class="text-xl font-bold tracking-tight text-white">Hakkutsu <span class="text-brand-400 font-jp text-base font-normal">発掘</span></span>
       </div>
 
       <div class="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
         <a href="#features" class="hover:text-white transition-colors">Features</a>
         <a href="#screenshots" class="hover:text-white transition-colors">Screenshots</a>
-        <a href="#privacy" class="hover:text-white transition-colors">Privacy</a>
+        <a href="privacy.html" class="hover:text-white transition-colors">Privacy Policy</a>
       </div>
 
       <div class="flex items-center gap-3">
         <a href="https://ko-fi.com/joshiminh" target="_blank" rel="noopener noreferrer" class="bg-zinc-800 border border-zinc-700 text-zinc-200 hover:text-white font-semibold text-sm px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2">
-          <img src="assets/logo/kofi.png" alt="Ko-fi" class="w-4 h-4 object-contain" />
+          <img src="public/assets/logo/kofi.png" alt="Ko-fi" class="w-4 h-4 object-contain" />
           Support on Ko-fi
         </a>
         <a href="https://chromewebstore.google.com" target="_blank" rel="noopener noreferrer" class="bg-brand-600 hover:bg-brand-500 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-all flex items-center gap-2">
-          <img src="assets/logo/chrome.png" alt="Chrome Logo" class="w-4 h-4 object-contain" />
+          <img src="public/assets/logo/chrome.png" alt="Chrome" class="w-4 h-4 object-contain" />
           Add to Chrome
         </a>
       </div>
@@ -89,25 +91,24 @@
   <section class="pt-32 pb-16 px-6">
     <div class="max-w-4xl mx-auto text-center">
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800 bg-zinc-900 text-zinc-300 text-xs font-semibold uppercase tracking-wider mb-6">
-        <img src="assets/logo/chrome.png" alt="Chrome Logo" class="w-4 h-4 object-contain" />
-        Free Chrome Extension for Japanese Learners
+        Free &amp; Open Source Japanese Immersion Tool
       </div>
 
       <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-white mb-6 leading-tight">
-        Master Japanese Directly <br class="hidden md:inline"/> As You Browse the Web
+        Master Japanese Directly <br class="hidden md:inline"/> As You Browse &amp; Watch
       </h1>
 
       <p class="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-        Instant dictionary lookups, 1-click Anki mining, dual subtitles, SRS study tools, and kanji visualizations — 100% free and private.
+        Instant dictionary lookups, 1-click AnkiConnect sentence mining, interactive dual subtitles for YouTube &amp; Netflix, SRS reviews, and pitch accent indicators — 100% free and private.
       </p>
 
       <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-        <a href="https://chromewebstore.google.com" target="_blank" rel="noopener noreferrer" class="w-full sm:w-auto bg-brand-600 hover:bg-brand-500 text-white font-bold px-8 py-3.5 rounded-xl transition-all text-center flex items-center justify-center gap-2.5">
-          <img src="assets/logo/chrome.png" alt="Chrome Logo" class="w-5 h-5 object-contain" />
+        <a href="https://chromewebstore.google.com" target="_blank" rel="noopener noreferrer" class="w-full sm:w-auto bg-brand-600 hover:bg-brand-500 text-white font-bold px-8 py-3.5 rounded-xl transition-all text-center flex items-center justify-center gap-2.5 shadow-lg shadow-brand-600/20">
+          <img src="public/assets/logo/chrome.png" alt="Chrome" class="w-5 h-5 object-contain" />
           Add to Chrome — Free
         </a>
         <a href="https://ko-fi.com/joshiminh" target="_blank" rel="noopener noreferrer" class="w-full sm:w-auto bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-semibold px-8 py-3.5 rounded-xl border border-zinc-800 transition-all text-center flex items-center justify-center gap-2">
-          <img src="assets/logo/kofi.png" alt="Ko-fi Logo" class="w-5 h-5 object-contain" />
+          <img src="public/assets/logo/kofi.png" alt="Ko-fi Logo" class="w-5 h-5 object-contain" />
           Support Development
         </a>
       </div>
@@ -118,7 +119,7 @@
   <section id="features" class="py-16 px-6 max-w-7xl mx-auto border-t border-zinc-800">
     <div class="text-center mb-12">
       <h2 class="text-3xl font-bold text-white mb-3">Designed for Seamless Immersion</h2>
-      <p class="text-zinc-400 max-w-2xl mx-auto text-sm">Read articles, watch Japanese media, and build long-term retention without leaving your current page.</p>
+      <p class="text-zinc-400 max-w-2xl mx-auto text-sm">Read articles, watch Japanese media, and build long-term vocabulary retention without leaving your current tab.</p>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -129,7 +130,7 @@
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         </div>
         <h3 class="text-lg font-bold text-white mb-2">Instant Offline Lookup</h3>
-        <p class="text-zinc-400 text-sm leading-relaxed">Hover or select Japanese text on any website to display readings, definitions, pitch accent indicators, and difficulty levels in place.</p>
+        <p class="text-zinc-400 text-sm leading-relaxed">Hover or select Japanese text on any website to display readings, definitions, pitch accent graphs, and difficulty levels in place.</p>
       </div>
 
       <!-- Feature 2 -->
@@ -180,14 +181,13 @@
     </div>
   </section>
 
-  <!-- Extension Preview / Screenshots Gallery Section -->
+  <!-- Screenshots Gallery Section -->
   <section id="screenshots" class="py-16 px-6 max-w-7xl mx-auto border-t border-zinc-800">
     <div class="text-center mb-12">
       <h2 class="text-3xl font-bold text-white mb-3">Extension Preview</h2>
       <p class="text-zinc-400 max-w-2xl mx-auto text-sm">Explore Hakkutsu's clean interface, dictionary lookups, video subtitles, SRS review, and settings.</p>
     </div>
 
-    <!-- 5 Screenshots Grid in Exact Order (01 -> 05) -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       
       <!-- Screenshot 1 -->
@@ -256,11 +256,11 @@
   <!-- Support Section -->
   <section class="py-16 px-6 max-w-4xl mx-auto border-t border-zinc-800 text-center">
     <div class="card-clean p-8 rounded-xl flex flex-col items-center justify-center gap-4">
-      <img src="assets/logo/kofi.png" alt="Ko-fi Logo" class="w-10 h-10 object-contain" />
+      <img src="public/assets/logo/kofi.png" alt="Ko-fi Logo" class="w-10 h-10 object-contain" />
       <h3 class="text-2xl font-bold text-white">Support Hakkutsu Development</h3>
       <p class="text-zinc-400 max-w-xl text-sm leading-relaxed">Hakkutsu is 100% free and open. If it helps you learn Japanese or save time sentence mining, consider supporting the project on Ko-fi.</p>
       <a href="https://ko-fi.com/joshiminh" target="_blank" rel="noopener noreferrer" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-6 py-3 rounded-xl border border-zinc-700 transition-all flex items-center gap-2">
-        <img src="assets/logo/kofi.png" alt="Ko-fi" class="w-4 h-4 object-contain" />
+        <img src="public/assets/logo/kofi.png" alt="Ko-fi" class="w-4 h-4 object-contain" />
         Support on Ko-fi (ko-fi.com/joshiminh)
       </a>
     </div>
@@ -270,7 +270,7 @@
   <footer id="privacy" class="py-10 border-t border-zinc-800 bg-dark-bg text-center text-zinc-500 text-sm">
     <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <img src="assets/icon.png" alt="Hakkutsu Logo" class="w-6 h-6 rounded" />
+        <img src="public/assets/icon.png" alt="Hakkutsu Logo" class="w-6 h-6 rounded" />
         <span class="font-bold text-white">Hakkutsu</span>
       </div>
 

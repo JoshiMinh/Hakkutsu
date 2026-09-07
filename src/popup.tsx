@@ -36,8 +36,8 @@ import type {
 } from "~lib/utils/types";
 
 import "./style.css";
-import appLogo from "data-base64:../assets/icon.png";
-import kofiSvg from "data-base64:../assets/logo/kofi.png";
+import appLogo from "~/assets/icon.png?url";
+import kofiSvg from "~/assets/logo/kofi.png?url";
 
 import SrsReview from "~components/srs-review";
 
@@ -458,17 +458,17 @@ function Popup() {
   };
 
   return (
-    <div className="hk-popup" style={{ width: "420px", maxWidth: "420px", minHeight: "360px", background: "#09090b", color: "#ffffff", boxSizing: "border-box", overflowX: "hidden" }}>
-      <header className="hk-header" style={{ padding: "12px 14px", overflowX: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <img src={appLogo} alt="Hakkutsu Logo" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "cover" }} />
-          <div>
+    <div className="hk-popup" style={{ width: "440px", height: "600px", background: "#09090b", color: "#ffffff", boxSizing: "border-box", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <header className="hk-header" style={{ padding: "12px 14px", overflowX: "hidden", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+          <img src={appLogo} alt="Hakkutsu Logo" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+          <div style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
             <div className="hk-header__title hk-brand-title" style={{ fontSize: "15px", lineHeight: "1.2", fontWeight: 800, fontFamily: "var(--hk-font-brand)", letterSpacing: "-0.015em" }}>Hakkutsu</div>
-            <div style={{ fontSize: "10px", color: "var(--hk-text-muted)" }}>{t("popup_subtitle")}</div>
+            <div style={{ fontSize: "10px", color: "var(--hk-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t("popup_subtitle")}</div>
           </div>
         </div>
 
-        <div className="hk-header__actions" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+        <div className="hk-header__actions" style={{ display: "flex", gap: "6px", alignItems: "center", flexShrink: 0 }}>
           <a 
             href="https://ko-fi.com/joshiminh"
             target="_blank"
