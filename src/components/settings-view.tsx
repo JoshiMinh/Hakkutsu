@@ -4,13 +4,13 @@ import type { ExtensionSettings } from "~lib/utils/types";
 import { t } from "~lib/locales";
 import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from "~lib/locales";
 import { ankiClient } from "~lib/services/anki-connect";
-import ankiSvg from "~/assets/logo/anki.png?url";
-import kofiSvg from "~/assets/logo/kofi.png?url";
-import usFlag from "~/assets/language/en.png?url";
-import vnFlag from "~/assets/language/vi.png?url";
-import zhFlag from "~/assets/language/zh.png?url";
-import jaFlag from "~/assets/language/ja.png?url";
-import koFlag from "~/assets/language/ko.png?url";
+const ankiSvg = "/assets/logo/anki.png";
+const kofiSvg = "/assets/logo/kofi.png";
+const usFlag = "/assets/language/en.png";
+const vnFlag = "/assets/language/vi.png";
+const zhFlag = "/assets/language/zh.png";
+const jaFlag = "/assets/language/ja.png";
+const koFlag = "/assets/language/ko.png";
 
 const FLAG_MAP: Record<string, string> = {
   vi: vnFlag,

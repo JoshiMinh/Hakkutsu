@@ -27,6 +27,7 @@ export interface HakkutsuNetflixSyncedData {
 export function runNetflixBridgeMain(): void {
   if ((window as any).__HAKKUTSU_NETFLIX_BRIDGE_INITIALIZED__) return;
   (window as any).__HAKKUTSU_NETFLIX_BRIDGE_INITIALIZED__ = true;
+  let lastPublishedSignature = "";
 
   interface NetflixTrackDef {
     id: string;
@@ -36,30 +37,6 @@ export function runNetflixBridgeMain(): void {
     bcp47: string;
     url?: string;
     isClosedCaptions: boolean;
-  }
-
-  function pollCondition<T>(fn: () => T | null | undefined | false, timeoutMs: number = 8000, intervalMs: number = 200): Promise<T | null> {
-    return new Promise((resolve) => {
-      const startTime = Date.now();
-      const check = () => {
-        try {
-          const result = fn();
-          if (result) {
-            resolve(result);
-            return;
-          }
-        } catch {
-          // ignore
-        }
-
-        if (Date.now() - startTime >= timeoutMs) {
-          resolve(null);
-        } else {
-          setTimeout(check, intervalMs);
-        }
-      };
-      check();
-    });
   }
 
   function getNetflixAPI(): any | undefined {
@@ -181,7 +158,7 @@ export function runNetflixBridgeMain(): void {
     };
   }
 
-  async function publishNetflixTracks(): Promise<void> {
+  async function publishNetflixTracks(force = false): Promise<void> {
     const np = getActivePlayer();
     if (!np) return;
 
@@ -194,6 +171,9 @@ export function runNetflixBridgeMain(): void {
       .filter((t: NetflixTrackDef | null): t is NetflixTrackDef => t !== null);
 
     const title = document.title.replace(/ - Netflix$/i, "").trim() || "Netflix Video";
+    const signature = `${title}|${tracks.map((track) => `${track.id}:${track.url || ""}`).join("|")}`;
+    if (!force && signature === lastPublishedSignature) return;
+    lastPublishedSignature = signature;
 
     document.dispatchEvent(
       new CustomEvent("hakkutsu:netflix-synced-tracks", {
@@ -225,9 +205,15 @@ export function runNetflixBridgeMain(): void {
     );
     if (targetTrack) {
       try {
+        const previousTrack = np.getTimedTextTrack?.();
         np.setTimedTextTrack?.(targetTrack);
         setTimeout(() => {
-          void publishNetflixTracks();
+          void publishNetflixTracks(true);
+          if (previousTrack && previousTrack !== targetTrack) {
+            try {
+              np.setTimedTextTrack?.(previousTrack);
+            } catch {}
+          }
         }, 800);
       } catch (err) {
         console.warn("[Hakkutsu Bridge] Set Netflix track error:", err);
@@ -236,7 +222,7 @@ export function runNetflixBridgeMain(): void {
   }
 
   document.addEventListener("hakkutsu:request-netflix-tracks", () => {
-    void publishNetflixTracks();
+    void publishNetflixTracks(true);
   });
 
   document.addEventListener("hakkutsu:netflix-lazy-load-track", (e: Event) => {
@@ -271,21 +257,21 @@ export function runNetflixBridgeMain(): void {
 }
 
 export function initNetflixPageBridge(): void {
-  if ((window as any).netflix) {
-    runNetflixBridgeMain();
+  if (typeof window === "undefined") return;
+
+  const extensionRuntime = (globalThis as any).browser?.runtime || (globalThis as any).chrome?.runtime;
+  if (extensionRuntime?.id) {
+    const scriptId = "hakkutsu-netflix-main-bridge";
+    if (!document.getElementById(scriptId)) {
+      const script = document.createElement("script");
+      script.id = scriptId;
+      script.src = extensionRuntime.getURL("content-scripts/netflix-bridge.js");
+      script.addEventListener("load", () => script.remove(), { once: true });
+      (document.head || document.documentElement).appendChild(script);
+    }
     return;
   }
 
-  if (typeof document !== "undefined") {
-    const BRIDGE_ID = "hakkutsu-netflix-main-bridge";
-    if (document.getElementById(BRIDGE_ID)) return;
-
-    try {
-      const script = document.createElement("script");
-      script.id = BRIDGE_ID;
-      script.textContent = `(${runNetflixBridgeMain.toString()})();`;
-      (document.head || document.documentElement).appendChild(script);
-    } catch {}
-  }
+  runNetflixBridgeMain();
 }
 

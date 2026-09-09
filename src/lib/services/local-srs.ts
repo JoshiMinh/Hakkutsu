@@ -286,6 +286,42 @@ class LocalSrsService {
     return cards.reverse();
   }
 
+  /** Merge a backup into the local database without discarding newer fields. */
+  async restoreSrsCards(cards: SrsCard[]): Promise<number> {
+    const db = await this.dbPromise;
+    const tx = db.transaction("cards", "readwrite");
+    const store = tx.objectStore("cards");
+    const existingCards = await store.getAll();
+    const existingByWord = new Map(
+      existingCards.map((card) => [card.word.trim().toLocaleLowerCase(), card])
+    );
+    let restored = 0;
+
+    for (const candidate of cards) {
+      if (!candidate || typeof candidate.word !== "string" || !candidate.word.trim()) continue;
+      const now = Date.now();
+      const existing = existingByWord.get(candidate.word.trim().toLocaleLowerCase());
+      const card: SrsCard = {
+        ...existing,
+        ...candidate,
+        id: existing?.id || candidate.id || crypto.randomUUID(),
+        word: candidate.word.trim(),
+        due_date: Number.isFinite(candidate.due_date) ? candidate.due_date : now,
+        interval: Number.isFinite(candidate.interval) ? candidate.interval : 0,
+        repetition: Number.isFinite(candidate.repetition) ? candidate.repetition : 0,
+        efactor: Number.isFinite(candidate.efactor) ? candidate.efactor : 2.5,
+        created_at: Number.isFinite(candidate.created_at) ? candidate.created_at : now,
+        updated_at: Number.isFinite(candidate.updated_at) ? candidate.updated_at : now,
+      };
+      await store.put(card);
+      existingByWord.set(card.word.toLocaleLowerCase(), card);
+      restored += 1;
+    }
+
+    await tx.done;
+    return restored;
+  }
+
   async submitSrsReview(cardId: string, quality: number): Promise<SrsCard> {
     const db = await this.dbPromise;
     const tx = db.transaction("cards", "readwrite");

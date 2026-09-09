@@ -105,7 +105,7 @@ export const vi = {
   vocab_th_jlpt: "JLPT",
   vocab_th_sentence: "Câu ví dụ",
   vocab_th_frequency: "Tần suất",
-  vocab_th_proficiency_status: "Độ thuộc / Trạng thái",
+  vocab_th_proficiency_status: "Trạng thái",
   vocab_th_added_date: "Ngày thêm",
   vocab_th_updated_date: "Ngày cập nhật",
   vocab_th_tags: "Thẻ",
@@ -284,4 +284,3 @@ export const vi = {
   shortcut_load_subtitles_val: "Kéo thả file .srt/.vtt",
   shortcut_btn_settings: "CÀI ĐẶT ⚙",
 };
-

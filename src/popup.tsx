@@ -36,10 +36,10 @@ import type {
 } from "~lib/utils/types";
 
 import "./style.css";
-import appLogo from "~/assets/icon.png?url";
-import kofiSvg from "~/assets/logo/kofi.png?url";
-
 import SrsReview from "~components/srs-review";
+
+const appLogo = "/assets/icon.png";
+const kofiSvg = "/assets/logo/kofi.png";
 
 interface PopupErrorBoundaryProps {
   children: ReactNode;

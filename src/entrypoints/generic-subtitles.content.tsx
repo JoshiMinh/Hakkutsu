@@ -11,7 +11,7 @@ export default defineContentScript({
     "*://*.youtube.com/*",
     "*://youtube.com/*",
   ],
-  allFrames: true,
+  registration: "runtime",
   cssInjectionMode: "ui",
   async main(ctx) {
     const ui = await createShadowRootUi(ctx, {
@@ -34,4 +34,3 @@ export default defineContentScript({
     ui.mount();
   },
 });
-

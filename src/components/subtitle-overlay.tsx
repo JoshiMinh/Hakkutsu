@@ -3,17 +3,15 @@ import { FolderOpen } from "lucide-react";
 import type {
   SubtitleSegment,
   SubtitleFetchResult,
-  AnalyzeResponse,
   TokenAnalysis,
-  AnkiExportData,
 } from "~lib/utils/types";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
-import { SelectSubtitlesModal } from "./select-subtitles-modal";
 import type { SubtitleTrackOption } from "./select-subtitles-modal";
 import { deduplicateCueText, readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
 import { distributeFurigana, containsJapanese, sanitizeReading } from "~lib/utils/japanese";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
+import { subscribeToVideoTime } from "~lib/services/video-runtime";
 
 // ── In-Memory Bounded Caches ─────────────────────────────────────────────────
 
@@ -91,19 +89,14 @@ export interface SubtitleOverlayProps {
   secondarySegment?: SubtitleSegment | null;
   videoRef: React.RefObject<HTMLVideoElement>;
   currentUrl: string;
-  videoTitle?: string;
   availableTracks?: SubtitleTrackOption[];
-  currentTrackId?: string;
   secondaryTrackId?: string;
   offset?: number;
   onToggleEnabled: () => void;
   onOffsetChange?: (offset: number) => void;
-  onSelectTrack?: (track: SubtitleTrackOption) => Promise<void> | void;
-  onSelectSecondaryTrack?: (track: SubtitleTrackOption | null) => Promise<void> | void;
   onLoadCustomSubtitles?: (result: SubtitleFetchResult) => void;
   onSeekTime?: (timeSec: number) => void;
   onSeekToCue?: (cue: SubtitleSegment) => void;
-  onOpenModal?: () => void;
 }
 
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
@@ -115,29 +108,22 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   secondarySegment,
   videoRef,
   currentUrl,
-  videoTitle = "",
   availableTracks = [],
-  currentTrackId,
   secondaryTrackId,
   offset = 0,
   onToggleEnabled,
   onOffsetChange,
-  onSelectTrack,
-  onSelectSecondaryTrack,
   onLoadCustomSubtitles,
   onSeekTime,
   onSeekToCue,
-  onOpenModal,
 }) => {
   const { settings, updateSettings } = useSettingsStore();
   const { t, isVietnamese } = useTranslation();
 
   const [analyzedTokens, setAnalyzedTokens] = useState<TokenAnalysis[] | null>(null);
   const [translatedText, setTranslatedText] = useState<string>("");
-  const [showSelectModal, setShowSelectModal] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [offsetToast, setOffsetToast] = useState<string | null>(null);
-  const [ankiSaved, setAnkiSaved] = useState(false);
 
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
 
@@ -315,37 +301,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       }
     };
 
-    video.addEventListener("timeupdate", checkAutoPause);
-
-    let playInterval: ReturnType<typeof setInterval> | null = null;
-    const startPauseTimer = () => {
-      if (!playInterval) {
-        checkAutoPause();
-        playInterval = setInterval(checkAutoPause, 100);
-      }
-    };
-    const stopPauseTimer = () => {
-      if (playInterval) {
-        clearInterval(playInterval);
-        playInterval = null;
-      }
-    };
-
-    if (!video.paused) {
-      startPauseTimer();
-    }
-
-    video.addEventListener("play", startPauseTimer);
-    video.addEventListener("pause", stopPauseTimer);
-    video.addEventListener("ended", stopPauseTimer);
-
-    return () => {
-      stopPauseTimer();
-      video.removeEventListener("timeupdate", checkAutoPause);
-      video.removeEventListener("play", startPauseTimer);
-      video.removeEventListener("pause", stopPauseTimer);
-      video.removeEventListener("ended", stopPauseTimer);
-    };
+    return subscribeToVideoTime(video, checkAutoPause);
   }, [currentSegment, settings.subtitlesAutoPause, offset, videoRef]);
 
   // ── 4. Replay / Cue Navigation ─────────────────────────────────────────────
@@ -468,79 +424,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     [offset, onOffsetChange, updateSettings, showOffsetNotification]
   );
 
-  // ── 6. Anki Card Mining ─────────────────────────────────────────────────────
-
-  const captureVideoScreenshot = (): string | undefined => {
-    const video = videoRef.current;
-    if (!video || video.videoWidth === 0 || video.videoHeight === 0) return undefined;
-    try {
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.min(video.videoWidth, 1280);
-      canvas.height = Math.round((canvas.width / video.videoWidth) * video.videoHeight);
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return undefined;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL("image/jpeg", 0.85);
-    } catch {
-      // May fail on DRM-protected content (Netflix) or cross-origin video
-      return undefined;
-    }
-  };
-
-  const handleMineToAnki = async (e: React.MouseEvent, token?: TokenAnalysis) => {
-    e.stopPropagation();
-    if (!currentSegment) return;
-
-    const video = videoRef.current;
-    const currentTime = video ? Math.floor(video.currentTime) : 0;
-    const screenshot = captureVideoScreenshot();
-
-    // Construct timestamped video URL
-    let sourceUrl = currentUrl;
-    try {
-      const urlObj = new URL(currentUrl);
-      if (urlObj.hostname.includes("youtube.com")) {
-        urlObj.searchParams.set("t", `${currentTime}s`);
-        sourceUrl = urlObj.toString();
-      }
-    } catch {
-      // keep currentUrl
-    }
-
-    const word = token ? token.dictionary_form || token.surface : currentSegment.text.trim();
-    const reading = token?.reading?.hiragana || "";
-    const meaning = token?.definitions?.[0]?.glosses?.join("; ") || translatedText || "";
-
-    const exportData: AnkiExportData = {
-      word,
-      reading,
-      meaning,
-      sentence: currentSegment.text.trim(),
-      sentenceReading: "",
-      jlptLevel: token?.jlpt_level || "",
-      pos: token?.pos || "Sentence",
-      screenshot,
-      sourceUrl,
-    };
-
-    try {
-      const response = await chrome.runtime.sendMessage({
-        type: "EXPORT_ANKI",
-        payload: { note: exportData },
-      });
-
-      if (response?.type === "ANKI_RESULT" && response.payload?.noteId) {
-        setAnkiSaved(true);
-        setTimeout(() => setAnkiSaved(false), 2000);
-      } else {
-        alert("Could not connect to AnkiConnect on localhost:8765. Make sure Anki is running.");
-      }
-    } catch (err) {
-      console.error("[Hakkutsu Subtitles] Anki export error:", err);
-    }
-  };
-
-  // ── 7. Token Click / Hover Handler ──────────────────────────────────────────
+  // ── 6. Token Click / Hover Handler ──────────────────────────────────────────
 
   const lookupDismissTimerRef = useRef<number | null>(null);
   const pausedByHoverRef = useRef<boolean>(false);
@@ -815,6 +699,30 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
   return (
     <>
+      {(loading || error) && (
+        <div
+          role={error ? "alert" : "status"}
+          aria-live="polite"
+          className="hk-sub__status"
+          style={{
+            position: "absolute",
+            top: "24px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 10000,
+            padding: "8px 14px",
+            borderRadius: "8px",
+            background: "rgba(17, 17, 20, 0.94)",
+            border: `1px solid ${error ? "rgba(248, 113, 113, 0.55)" : "rgba(192, 132, 252, 0.45)"}`,
+            color: error ? "#fecaca" : "#f4f4f5",
+            fontSize: "13px",
+            pointerEvents: "none",
+          }}
+        >
+          {error || "Loading subtitles…"}
+        </div>
+      )}
+
       {/* Toast Notification (Offset / AutoPause) */}
       {offsetToast && (
         <div
@@ -941,35 +849,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         )}
       </div>
 
-      {/* Select Subtitles Modal */}
-      <SelectSubtitlesModal
-        isOpen={showSelectModal}
-        onClose={() => setShowSelectModal(false)}
-        videoTitle={videoTitle}
-        availableTracks={availableTracks}
-        currentTrackId={currentTrackId}
-        secondaryTrackId={secondaryTrackId}
-        offset={offset}
-        onOffsetChange={(newOffset) => {
-          if (onOffsetChange) onOffsetChange(newOffset);
-          updateSettings({ subtitlesOffset: newOffset });
-        }}
-        autoPause={settings.subtitlesAutoPause}
-        onAutoPauseChange={(ap) => updateSettings({ subtitlesAutoPause: ap })}
-        showFurigana={settings.showFurigana !== false}
-        onFuriganaChange={(fg) => updateSettings({ showFurigana: fg })}
-        fontSize={fontSize}
-        onFontSizeChange={(size) => updateSettings({ subtitlesFontSize: size })}
-        onSelectTrack={(track) => {
-          if (onSelectTrack) void onSelectTrack(track);
-        }}
-        onSelectSecondaryTrack={(track) => {
-          if (onSelectSecondaryTrack) void onSelectSecondaryTrack(track);
-        }}
-        onCustomSubtitleLoaded={(result) => {
-          if (onLoadCustomSubtitles) onLoadCustomSubtitles(result);
-        }}
-      />
     </>
   );
 };

@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import type { ChangeEvent } from "react";
 import { localSrs } from "~lib/services/local-srs";
 import type { SrsCard } from "~lib/services/local-srs";
 import { 
@@ -14,9 +15,8 @@ import {
   Layers, 
   Check,
   Brain,
-  ExternalLink,
   Image as ImageIcon,
-  Tag
+  Upload
 } from "lucide-react";
 import { JlptBadge, FrequencyBadge } from "~components/badges";
 import { getHanViet } from "~lib/utils/hanviet-dict";
@@ -25,7 +25,13 @@ import { lookupWord } from "~lib/services/dictionary-lookup";
 import { useTranslation } from "~lib/locales";
 import { ankiClient } from "~lib/services/anki-connect";
 import { useSettingsStore } from "~lib/utils/settings";
-import ankiSvg from "~/assets/logo/anki.png?url";
+import {
+  createVocabularyBackup,
+  downloadVocabularyBackup,
+  restoreVocabularyBackup,
+} from "~lib/services/data-backup";
+
+const ankiSvg = "/assets/logo/anki.png";
 
 export function WordList({ 
   userId = "user_1",
@@ -40,6 +46,8 @@ export function WordList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ankiExporting, setAnkiExporting] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const backupInputRef = useRef<HTMLInputElement>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const [searchTerm, setSearchTerm] = useState("");
@@ -159,11 +167,11 @@ export function WordList({
     const headers = showHanViet ? [
       "Word", "Furigana", "Word Meaning", 
       "Han Viet", "Example Sentence", "JLPT",
-      "Frequency Rank", "Proficiency/Status", "Date Added", "Date Updated", "Tags"
+      "Frequency Rank", "Status", "Date Added", "Date Updated", "Tags"
     ] : [
       "Word", "Furigana", "Word Meaning", 
       "Example Sentence", "JLPT",
-      "Frequency Rank", "Proficiency/Status", "Date Added", "Date Updated", "Tags"
+      "Frequency Rank", "Status", "Date Added", "Date Updated", "Tags"
     ];
 
     const escapeCsv = (str?: string) => {
@@ -211,6 +219,39 @@ export function WordList({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleBackup = async () => {
+    try {
+      setBackupBusy(true);
+      const backup = await createVocabularyBackup();
+      downloadVocabularyBackup(backup);
+    } catch (err) {
+      console.error("Vocabulary backup failed:", err);
+      alert(isVietnamese ? "Không thể tạo bản sao lưu." : "Could not create the backup.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleRestore = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setBackupBusy(true);
+      const result = await restoreVocabularyBackup(file);
+      await loadCards();
+      alert(isVietnamese
+        ? `Đã khôi phục ${result.cards} thẻ. Dữ liệu hiện có được giữ lại.`
+        : `Restored ${result.cards} cards. Existing data was kept.`);
+    } catch (err) {
+      console.error("Vocabulary restore failed:", err);
+      alert(err instanceof Error ? err.message : "Could not restore this backup.");
+    } finally {
+      event.target.value = "";
+      setBackupBusy(false);
+    }
   };
 
   const handleExportAnki = async (specificCards?: SrsCard[]) => {
@@ -355,7 +396,33 @@ export function WordList({
         </div>
 
         {/* Global Action Buttons */}
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+        <div className="hk-vocab-actions">
+          <input
+            ref={backupInputRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleRestore}
+            aria-label="Choose a Hakkutsu backup to restore"
+            style={{ display: "none" }}
+          />
+          <button
+            className="hk-btn hk-btn--secondary"
+            onClick={() => backupInputRef.current?.click()}
+            disabled={backupBusy}
+            title="Restore a full vocabulary backup"
+            aria-label="Restore a full vocabulary backup"
+          >
+            <Upload size={14} />
+          </button>
+          <button
+            className="hk-btn hk-btn--secondary"
+            onClick={handleBackup}
+            disabled={backupBusy || cards.length === 0}
+            title="Back up vocabulary and review progress"
+            aria-label="Back up vocabulary and review progress"
+          >
+            <Download size={14} />
+          </button>
           {onStartReview && cards.length > 0 && (
             <button 
               className="hk-btn hk-btn--primary"
@@ -363,7 +430,7 @@ export function WordList({
               style={{ fontSize: "12px", padding: "6px 14px", gap: "6px" }}
             >
               <Brain size={14} />
-              {t("vocab_btn_learn_srs")}
+              {isVietnamese ? "Ôn tập" : "Review"}
               {dueCount > 0 && (
                 <span style={{
                   background: "#ef4444",
@@ -390,7 +457,7 @@ export function WordList({
                 style={{ fontSize: "12px", padding: "6px 12px", gap: "6px" }}
               >
                 <img src={ankiSvg} alt="Anki" style={{ width: 14, height: 14 }} />
-                {ankiExporting ? t("vocab_anki_exporting") : t("vocab_btn_export_anki")}
+                {ankiExporting ? "…" : "Anki"}
               </button>
               <button 
                 className="hk-btn hk-btn--secondary"
@@ -399,7 +466,7 @@ export function WordList({
                 style={{ fontSize: "12px", padding: "6px 12px", gap: "6px" }}
               >
                 <Download size={14} />
-                {t("vocab_btn_export_csv")}
+                CSV
               </button>
             </>
           )}
@@ -645,7 +712,26 @@ export function WordList({
           </div>
         ) : (
           <div style={{ width: "100%", overflowX: "auto" }}>
-            <table className="hk-table" style={{ width: "100%", minWidth: "1280px", borderCollapse: "collapse" }}>
+            <table
+              className="hk-table hk-vocab-table"
+              style={{ width: showHanViet ? "1566px" : "1446px" }}
+            >
+              <colgroup>
+                <col style={{ width: 36 }} />
+                <col style={{ width: 52 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 220 }} />
+                {showHanViet ? <col style={{ width: 120 }} /> : null}
+                <col style={{ width: 260 }} />
+                <col style={{ width: 60 }} />
+                <col style={{ width: 104 }} />
+                <col style={{ width: 104 }} />
+                <col style={{ width: 96 }} />
+                <col style={{ width: 96 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 68 }} />
+              </colgroup>
               <thead>
                 <tr style={{ background: "transparent", borderBottom: "1px solid rgba(255, 255, 255, 0.1)" }}>
                   {/* Select All Checkbox */}
@@ -660,11 +746,11 @@ export function WordList({
                   <th style={{ padding: "10px 6px", textAlign: "center", fontSize: "12px", width: "48px" }}>Image</th>
                   <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "90px" }}>{t("vocab_th_word")}</th>
                   <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "90px" }}>{t("vocab_th_furigana")}</th>
-                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "150px" }}>{t("vocab_th_meaning")}</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px" }}>{t("vocab_th_meaning")}</th>
                   {showHanViet && (
                     <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "90px" }}>{t("vocab_th_hanviet")}</th>
                   )}
-                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px", minWidth: "160px" }}>{t("vocab_th_sentence")}</th>
+                  <th style={{ padding: "10px 10px", textAlign: "left", fontSize: "12px" }}>{t("vocab_th_sentence")}</th>
                   <th style={{ padding: "10px 6px", textAlign: "center", fontSize: "12px", width: "52px" }}>{t("vocab_th_jlpt")}</th>
                   <th style={{ padding: "10px 8px", textAlign: "center", fontSize: "12px", width: "90px" }}>{t("vocab_th_frequency")}</th>
                   <th style={{ padding: "10px 8px", textAlign: "center", fontSize: "12px", width: "130px" }}>{t("vocab_th_proficiency_status")}</th>
@@ -711,45 +797,41 @@ export function WordList({
                       </td>
 
                       {/* 1. Word */}
-                      <td style={{ padding: "10px 12px" }}>
+                      <td className="hk-vocab-cell--clip" style={{ padding: "10px 12px" }}>
                         <div style={{
                           fontFamily: "var(--hk-font-jp)",
                           fontSize: "15px",
                           fontWeight: 700,
                           color: "#ffffff",
-                          wordBreak: "break-word"
+                          whiteSpace: "nowrap"
                         }}>
                           {card.word}
                         </div>
                       </td>
 
                       {/* 2. Furigana */}
-                      <td style={{ padding: "10px 12px" }}>
+                      <td className="hk-vocab-cell--clip" style={{ padding: "10px 12px" }}>
                         <div style={{
                           fontFamily: "var(--hk-font-jp)",
                           fontSize: "13px",
                           color: "#f472b6",
                           fontWeight: 500,
-                          wordBreak: "break-word"
+                          whiteSpace: "nowrap"
                         }}>
                           {card.reading || "—"}
                         </div>
                       </td>
 
                       {/* 3. Meaning */}
-                      <td style={{ padding: "10px 12px" }}>
+                      <td className="hk-vocab-cell--clip" style={{ padding: "10px 12px" }} title={card.meaning}>
                         <div 
                           style={{ 
                             fontSize: "12.5px", 
                             color: "var(--hk-text-primary)", 
-                            lineHeight: "1.4",
-                            wordBreak: "break-word",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 3,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden"
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis"
                           }} 
-                          title={card.meaning}
                         >
                           {card.meaning || "—"}
                         </div>
@@ -757,28 +839,24 @@ export function WordList({
 
                       {/* 4. Han-Viet (if enabled) */}
                       {showHanViet && (
-                        <td style={{ padding: "10px 12px" }}>
-                          <div style={{ fontSize: "12px", color: "#38bdf8", fontWeight: 600, letterSpacing: "0.3px", wordBreak: "break-word" }}>
+                        <td className="hk-vocab-cell--clip" style={{ padding: "10px 12px" }}>
+                          <div style={{ fontSize: "12px", color: "#38bdf8", fontWeight: 600, letterSpacing: "0.3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {card.vietnamese_sound || getHanViet(card.word) || "—"}
                           </div>
                         </td>
                       )}
 
                       {/* 5. Example Sentence */}
-                      <td style={{ padding: "10px 12px" }}>
+                      <td className="hk-vocab-cell--clip" style={{ padding: "10px 12px" }} title={card.sentence}>
                         <div 
                           style={{ 
                             fontSize: "12.5px", 
                             color: "var(--hk-text-muted)", 
                             fontFamily: "var(--hk-font-jp)", 
-                            lineHeight: "1.5",
-                            wordBreak: "break-word",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 3,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden"
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis"
                           }} 
-                          title={card.sentence}
                         >
                           {card.sentence || "—"}
                         </div>
@@ -838,9 +916,9 @@ export function WordList({
                       </td>
 
                       {/* 11. Tags */}
-                      <td style={{ padding: "10px 8px", textAlign: "left" }}>
+                      <td className="hk-vocab-cell--clip" style={{ padding: "10px 8px", textAlign: "left" }}>
                         {(card.tags && card.tags.length > 0) ? (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                          <div style={{ display: "flex", flexWrap: "nowrap", gap: "4px", overflow: "hidden" }} title={card.tags.map(tag => `#${tag}`).join(" ")}>
                             {card.tags.map(tag => (
                               <span key={tag} className="hk-badge hk-badge--tag">
                                 #{tag}

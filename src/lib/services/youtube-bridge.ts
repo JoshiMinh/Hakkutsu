@@ -291,23 +291,25 @@ export function initYouTubePageBridge(): void {
     }, 1000);
   }
 
-  // If in MAIN world, run directly
-  if (typeof window !== "undefined") {
-    bridgeMain();
-  }
+  if (typeof window === "undefined") return;
 
-  // If in isolated world, attempt DOM injection as backup
-  if (typeof document !== "undefined") {
-    const BRIDGE_ID = "hakkutsu-youtube-main-bridge";
-    if (document.getElementById(BRIDGE_ID)) return;
-
-    try {
+  // Firefox MV2 ignores the manifest's MAIN world field. In that case this
+  // entrypoint runs as an extension content script, so load the same bundled
+  // bridge through a page script. Chromium MAIN-world execution takes the
+  // direct branch and avoids duplicate injection.
+  const extensionRuntime = (globalThis as any).browser?.runtime || (globalThis as any).chrome?.runtime;
+  if (extensionRuntime?.id) {
+    const scriptId = "hakkutsu-youtube-main-bridge";
+    if (!document.getElementById(scriptId)) {
       const script = document.createElement("script");
-      script.id = BRIDGE_ID;
-      const code = `(${bridgeMain.toString()})();`;
-      script.textContent = code;
+      script.id = scriptId;
+      script.src = extensionRuntime.getURL("content-scripts/youtube-bridge.js");
+      script.addEventListener("load", () => script.remove(), { once: true });
       (document.head || document.documentElement).appendChild(script);
-    } catch {}
+    }
+    return;
   }
+
+  bridgeMain();
 }
 

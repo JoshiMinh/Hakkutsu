@@ -3,10 +3,6 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "paths": {
-      "~assets": ["./public/assets"],
-      "~assets/*": ["./public/assets/*"],
-      "~/assets": ["./public/assets"],
-      "~/assets/*": ["./public/assets/*"],
       "~components": ["./src/components"],
       "~components/*": ["./src/components/*"],
       "~lib": ["./src/lib"],

@@ -7,8 +7,6 @@ export default defineConfig({
   srcDir: "src",
   publicDir: "../public",
   alias: {
-    "~/assets": path.resolve(__dirname, "public/assets"),
-    "~assets": path.resolve(__dirname, "public/assets"),
     "~components": path.resolve(__dirname, "src/components"),
     "~lib": path.resolve(__dirname, "src/lib"),
     "~contents": path.resolve(__dirname, "src/contents"),
@@ -61,7 +59,16 @@ export default defineConfig({
     ],
     web_accessible_resources: [
       {
-        resources: ["assets/*", "icon-16.png", "icon-32.png", "icon-48.png", "icon-128.png", "icon-512.png"],
+        resources: [
+          "assets/*",
+          "icon-16.png",
+          "icon-32.png",
+          "icon-48.png",
+          "icon-128.png",
+          "icon-512.png",
+          "content-scripts/youtube-bridge.js",
+          "content-scripts/netflix-bridge.js"
+        ],
         matches: ["<all_urls>"]
       }
     ]

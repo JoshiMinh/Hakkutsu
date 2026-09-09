@@ -29,12 +29,7 @@ export default defineContentScript({
     const ui = await createShadowRootUi(ctx, {
       name: "hakkutsu-netflix-subtitles-host",
       position: "inline",
-      anchor: () => {
-        const netflixPlayer =
-          document.querySelector<HTMLElement>(".watch-video") ||
-          document.querySelector<HTMLElement>(".VideoContainer");
-        return netflixPlayer || document.body;
-      },
+      anchor: ".watch-video, .VideoContainer",
       css: cssText + youtubeSubtitleCss + netflixSpecificCss,
       onMount: (container) => {
         const root = createRoot(container);
@@ -45,7 +40,6 @@ export default defineContentScript({
         root?.unmount();
       },
     });
-    ui.mount();
+    ui.autoMount();
   },
 });
-

@@ -105,7 +105,7 @@ export const en = {
   vocab_th_jlpt: "JLPT",
   vocab_th_sentence: "Example Sentence",
   vocab_th_frequency: "Frequency",
-  vocab_th_proficiency_status: "Proficiency / Status",
+  vocab_th_proficiency_status: "Status",
   vocab_th_added_date: "Date Added",
   vocab_th_updated_date: "Date Updated",
   vocab_th_tags: "Tags",
@@ -284,4 +284,3 @@ export const en = {
   shortcut_load_subtitles_val: "Drag & Drop .srt/.vtt",
   shortcut_btn_settings: "SETTINGS ⚙",
 };
-

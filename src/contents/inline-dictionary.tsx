@@ -7,7 +7,9 @@ import { TokenDisplay } from "~components/token-display";
 import { GrammarExplanations } from "~components/grammar-explanations";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
-import logoUrl from "~/assets/icon.png?url";
+// Content scripts render inside arbitrary websites, so root-relative URLs point
+// at the host page. Resolve the packaged asset against the extension origin.
+const logoUrl = browser.runtime.getURL("/assets/icon.png");
 
 function cleanJapaneseText(raw: string): string {
   return raw

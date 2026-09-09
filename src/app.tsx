@@ -8,8 +8,9 @@ import SettingsView from "~components/settings-view";
 import { useSettingsStore } from "~lib/utils/settings";
 import type { ExtensionSettings } from "~lib/utils/types";
 import { useTranslation } from "~lib/locales";
-import logoUrl from "~/assets/icon.png?url";
 import "~style.css";
+
+const logoUrl = "/assets/icon.png";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -61,6 +62,9 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 export default function AppDashboard() {
+  const appVersion = typeof chrome !== "undefined" && chrome.runtime?.getManifest
+    ? chrome.runtime.getManifest().version
+    : "2.0.0";
   const [activeTab, setActiveTab] = useState<"dashboard" | "review" | "vocabulary" | "settings">(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -182,7 +186,7 @@ export default function AppDashboard() {
 
         <div style={{ marginTop: "auto", paddingTop: "16px", borderTop: "1px solid var(--hk-border)", padding: "12px 10px 0 10px" }}>
           <strong style={{ fontSize: "13px", fontWeight: 700, color: "var(--hk-text-primary)", display: "block" }}>
-            Hakkutsu v0.1.3
+            Hakkutsu v{appVersion}
           </strong>
           <p style={{ fontSize: "11px", color: "var(--hk-text-muted)", margin: "2px 0 0 0", lineHeight: 1.4 }}>
             Japanese Immersion Extension

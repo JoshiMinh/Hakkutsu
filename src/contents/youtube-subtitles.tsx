@@ -8,10 +8,9 @@
  * local subtitle files, immersion shortcuts, and 1-click Anki sentence mining.
  */
 
-import React, { useEffect, useState, useRef, useCallback } from "react";
-import cssText from "~/style.css?inline";
+import { useEffect, useState, useRef, useCallback } from "react";
 import type { SubtitleSegment, SubtitleFetchResult } from "~lib/utils/types";
-import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/utils/youtube-subtitle-styles";
+import { youtubeToolbarCss } from "~lib/utils/youtube-subtitle-styles";
 import { SubtitleOverlay } from "~components/subtitle-overlay";
 import { SelectSubtitlesModal, type SubtitleTrackOption } from "~components/select-subtitles-modal";
 import { useSettingsStore } from "~lib/utils/settings";
@@ -19,15 +18,12 @@ import { useTranslation } from "~lib/locales";
 import {
   parseYouTubeTimedTextXml,
   parseYouTubeJson3,
-  readSubtitleFile,
-  parsedToSubtitleFetchResult,
   deduplicateCueText,
 } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";
+import { observePrimaryVideo, subscribeToVideoTime } from "~lib/services/video-runtime";
 import {
-  initYouTubePageBridge,
   type HakkutsuYouTubeSyncedData,
-  type HakkutsuYouTubeTrack,
 } from "~lib/services/youtube-bridge";
 
 const YT_GLOBAL_STYLE_ID = "hakkutsu-yt-global-style";
@@ -142,6 +138,7 @@ export default function YouTubeSubtitlesOverlay() {
   const [secondarySegment, setSecondarySegment] = useState<SubtitleSegment | null>(null);
   const [hasLiveCues, setHasLiveCues] = useState(false);
   const [offset, setOffset] = useState(settings.subtitlesOffset || 0);
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     setIsEnabled(settings.subtitlesEnabled !== false);
@@ -152,25 +149,18 @@ export default function YouTubeSubtitlesOverlay() {
   }, [settings.subtitlesOffset]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const rafIdRef = useRef<number | null>(null);
   const currentUrlRef = useRef(window.location.href);
-
-  // ── Initialize Main-World Bridge ───────────────────────────────────────────
-
-  useEffect(() => {
-    initYouTubePageBridge();
-  }, []);
+  const currentVideoIdRef = useRef("");
+  const primaryLoadIdRef = useRef(0);
+  const secondaryLoadIdRef = useRef(0);
 
   // ── Video Reference Tracking ───────────────────────────────────────────────
 
   useEffect(() => {
-    const updateVideoRef = () => {
-      const video = document.querySelector<HTMLVideoElement>("video");
-      if (video) videoRef.current = video;
-    };
-    updateVideoRef();
-    const interval = setInterval(updateVideoRef, 1000);
-    return () => clearInterval(interval);
+    return observePrimaryVideo((video) => {
+      videoRef.current = video;
+      setVideoEl(video);
+    });
   }, []);
 
   // ── Ensure Subtitle Shadow Host is Placed Inside Player ───────────────
@@ -308,6 +298,7 @@ export default function YouTubeSubtitlesOverlay() {
 
   const handleSelectPrimaryTrack = useCallback(
     async (track: SubtitleTrackOption) => {
+      const loadId = ++primaryLoadIdRef.current;
       setCurrentTrackId(track.id);
       if (track.fetchResult) {
         setSubtitleData(track.fetchResult);
@@ -316,6 +307,7 @@ export default function YouTubeSubtitlesOverlay() {
       try {
         setLoading(true);
         const segments = await loadTrackContent(track);
+        if (loadId !== primaryLoadIdRef.current) return;
         setSubtitleData({
           videoId: "current",
           language: track.languageCode,
@@ -329,7 +321,7 @@ export default function YouTubeSubtitlesOverlay() {
       } catch (err) {
         console.warn("[Hakkutsu Subtitles] Primary track fetch failed, using live DOM fallback:", err);
       } finally {
-        setLoading(false);
+        if (loadId === primaryLoadIdRef.current) setLoading(false);
       }
     },
     [loadTrackContent]
@@ -337,6 +329,7 @@ export default function YouTubeSubtitlesOverlay() {
 
   const handleSelectSecondaryTrack = useCallback(
     async (track: SubtitleTrackOption | null) => {
+      const loadId = ++secondaryLoadIdRef.current;
       if (!track) {
         setSecondaryTrackId("");
         setSecondaryData(null);
@@ -355,6 +348,7 @@ export default function YouTubeSubtitlesOverlay() {
       }
       try {
         const segments = await loadTrackContent(track);
+        if (loadId !== secondaryLoadIdRef.current) return;
         setSecondaryData({
           videoId: "current",
           language: track.languageCode,
@@ -377,6 +371,16 @@ export default function YouTubeSubtitlesOverlay() {
     async (e: Event) => {
       const detail = (e as CustomEvent).detail as HakkutsuYouTubeSyncedData | undefined;
       if (!detail || !Array.isArray(detail.tracks)) return;
+
+      const videoChanged = detail.videoId !== currentVideoIdRef.current;
+      if (videoChanged) {
+        currentVideoIdRef.current = detail.videoId;
+        currentUrlRef.current = window.location.href;
+        setSubtitleData(null);
+        setSecondaryData(null);
+        setCurrentSegment(null);
+        setSecondarySegment(null);
+      }
 
       setVideoTitle(detail.title || document.title);
 
@@ -413,8 +417,8 @@ export default function YouTubeSubtitlesOverlay() {
       const jaAuto = options.find((t) => t.languageCode.startsWith("ja") && t.isAutoGenerated);
       const chosenJa = jaManual || jaAuto;
 
-      if (chosenJa && !subtitleData) {
-        handleSelectPrimaryTrack(chosenJa);
+      if (chosenJa && (videoChanged || !subtitleData)) {
+        void handleSelectPrimaryTrack(chosenJa);
       }
 
       // Auto-select secondary track matching user's language selected in app settings (e.g. English)
@@ -423,8 +427,8 @@ export default function YouTubeSubtitlesOverlay() {
         (t) => t.languageCode.startsWith(userTargetLang) && t.id !== chosenJa?.id
       );
 
-      if (nativeSecTrack && !secondaryData) {
-        handleSelectSecondaryTrack(nativeSecTrack);
+      if (nativeSecTrack && (videoChanged || !secondaryData)) {
+        void handleSelectSecondaryTrack(nativeSecTrack);
       } else if (!secondaryTrackId) {
         setSecondaryTrackId("__auto_translate__");
         setSecondaryData(null);
@@ -514,6 +518,9 @@ export default function YouTubeSubtitlesOverlay() {
         if (live) {
           setCurrentSegment(live);
           setHasLiveCues(true);
+        } else {
+          setCurrentSegment(null);
+          setHasLiveCues(false);
         }
 
         if (secondaryData && secondaryData.segments.length > 0) {
@@ -525,45 +532,9 @@ export default function YouTubeSubtitlesOverlay() {
       }
     };
 
-    syncCues();
-
-    let playInterval: ReturnType<typeof setInterval> | null = null;
-    const startPlayTimer = () => {
-      if (!playInterval) {
-        syncCues();
-        playInterval = setInterval(syncCues, 200);
-      }
-    };
-    const stopPlayTimer = () => {
-      if (playInterval) {
-        clearInterval(playInterval);
-        playInterval = null;
-      }
-    };
-
-    const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
-    if (video) {
-      if (!video.paused) {
-        startPlayTimer();
-      }
-      video.addEventListener("seeked", syncCues);
-      video.addEventListener("timeupdate", syncCues);
-      video.addEventListener("pause", stopPlayTimer);
-      video.addEventListener("play", startPlayTimer);
-      video.addEventListener("ended", stopPlayTimer);
-    }
-
-    return () => {
-      stopPlayTimer();
-      if (video) {
-        video.removeEventListener("seeked", syncCues);
-        video.removeEventListener("timeupdate", syncCues);
-        video.removeEventListener("pause", stopPlayTimer);
-        video.removeEventListener("play", startPlayTimer);
-        video.removeEventListener("ended", stopPlayTimer);
-      }
-    };
-  }, [isEnabled, subtitleData, secondaryData, offset, readCurrentScreenCaption]);
+    const video = videoEl || videoRef.current;
+    return video ? subscribeToVideoTime(video, syncCues) : undefined;
+  }, [isEnabled, subtitleData, secondaryData, offset, readCurrentScreenCaption, videoEl]);
 
   // ── Injected Player Toolbar Button & Hover Menu ───────────────────────────
 
@@ -791,9 +762,7 @@ export default function YouTubeSubtitlesOverlay() {
         secondarySegment={secondarySegment}
         videoRef={videoRef}
         currentUrl={currentUrlRef.current}
-        videoTitle={videoTitle}
         availableTracks={availableTracks}
-        currentTrackId={currentTrackId}
         secondaryTrackId={secondaryTrackId}
         offset={offset}
         onToggleEnabled={() => {
@@ -804,10 +773,7 @@ export default function YouTubeSubtitlesOverlay() {
           });
         }}
         onOffsetChange={(newOffset) => setOffset(newOffset)}
-        onSelectTrack={handleSelectPrimaryTrack}
-        onSelectSecondaryTrack={handleSelectSecondaryTrack}
         onLoadCustomSubtitles={handleCustomSubtitleLoaded}
-        onOpenModal={() => setIsModalOpen(true)}
         onSeekTime={(timeSec) => {
           document.dispatchEvent(
             new CustomEvent("hakkutsu:youtube-seek", {

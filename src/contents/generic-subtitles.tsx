@@ -13,16 +13,15 @@
  */
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import cssText from "~/style.css?inline";
 import type { SubtitleSegment, SubtitleFetchResult } from "~lib/utils/types";
-import { youtubeSubtitleCss, genericPlayerCss } from "~lib/utils/youtube-subtitle-styles";
 import { SubtitleOverlay } from "~components/subtitle-overlay";
 import { SelectSubtitlesModal, type SubtitleTrackOption } from "~components/select-subtitles-modal";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
 import { containsJapanese } from "~lib/utils/japanese";
-import { readSubtitleFile, parsedToSubtitleFetchResult, parseSubtitleContent } from "~lib/services/subtitle-parsers";
+import { parseSubtitleContent } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";
+import { observePrimaryVideo, subscribeToVideoTime } from "~lib/services/video-runtime";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -113,17 +112,16 @@ function saveFabPosition(right: number, bottom: number): void {
 
 /** Read <track> elements from a <video> and return SubtitleTrackOption[] */
 function readVideoTrackElements(video: HTMLVideoElement): SubtitleTrackOption[] {
-  const options: SubtitleTrackOption[] = [];
-  const seen = new Set<string>();
+  const options = new Map<string, SubtitleTrackOption>();
+  const trackId = (language: string, label: string) =>
+    `track:${language || "und"}:${label || "unlabelled"}`.toLowerCase();
 
   // Read from the TextTrack API
   for (let i = 0; i < video.textTracks.length; i++) {
     const tt = video.textTracks[i];
     if (tt.kind === "chapters" || tt.kind === "descriptions") continue;
-    const id = `track-${i}-${tt.language}-${tt.label}`;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    options.push({
+    const id = trackId(tt.language, tt.label);
+    options.set(id, {
       id,
       name: tt.label || tt.language || `Track ${i + 1}`,
       languageCode: tt.language || "und",
@@ -133,15 +131,15 @@ function readVideoTrackElements(video: HTMLVideoElement): SubtitleTrackOption[] 
 
   // Also scan <track> DOM elements for src URLs (may have URLs not yet loaded)
   const trackEls = video.querySelectorAll<HTMLTrackElement>("track[src]");
-  trackEls.forEach((el, i) => {
+  trackEls.forEach((el) => {
     const kind = el.kind;
     if (kind === "chapters" || kind === "descriptions") return;
     const lang = el.srclang || "und";
     const label = el.label || lang;
-    const id = `track-el-${i}-${lang}-${label}`;
-    if (seen.has(id)) return;
-    seen.add(id);
-    options.push({
+    const id = trackId(lang, label);
+    const existing = options.get(id);
+    options.set(id, {
+      ...existing,
       id,
       name: label,
       languageCode: lang,
@@ -150,7 +148,7 @@ function readVideoTrackElements(video: HTMLVideoElement): SubtitleTrackOption[] 
     });
   });
 
-  return options;
+  return Array.from(options.values());
 }
 
 /** Fetch a subtitle track from a URL, with background-script fallback */
@@ -412,7 +410,6 @@ export default function GenericSubtitlesOverlay() {
 
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const rafIdRef = useRef<number | null>(null);
   const currentUrlRef = useRef(window.location.href);
   const hasActiveTextTrackRef = useRef(false);
   const lastDomTextRef = useRef("");
@@ -497,26 +494,37 @@ export default function GenericSubtitlesOverlay() {
   // ── Check for a video element on this page ────────────────────────────────
 
   useEffect(() => {
-    const checkVideo = () => {
-      const videos = document.querySelectorAll<HTMLVideoElement>("video");
-      let validVid: HTMLVideoElement | null = null;
-      for (let i = 0; i < videos.length; i++) {
-        const v = videos[i];
-        if (v.src || v.currentSrc || v.readyState > 0 || v.offsetWidth > 0 || v.offsetHeight > 0 || document.body.contains(v)) {
-          validVid = v;
-          break;
-        }
+    return observePrimaryVideo((video) => {
+      if (videoRef.current && videoRef.current !== video) {
+        setAvailableTracks([]);
+        setCurrentTrackId("");
+        setSecondaryTrackId("__auto_translate__");
+        setSubtitleData(null);
+        setSecondaryData(null);
+        setCurrentSegment(null);
+        setSecondarySegment(null);
+        hasActiveTextTrackRef.current = false;
+        lastDomTextRef.current = "";
       }
-      if (validVid !== videoRef.current) {
-        videoRef.current = validVid;
-        setVideoEl(validVid);
-      }
-      setHasVideo(Boolean(validVid));
-    };
-    checkVideo();
-    const interval = setInterval(checkVideo, 500);
-    return () => clearInterval(interval);
+      videoRef.current = video;
+      currentUrlRef.current = window.location.href;
+      setVideoEl(video);
+      setHasVideo(Boolean(video));
+    });
   }, []);
+
+  useEffect(() => {
+    const placeHost = () => {
+      const host = document.getElementById("hakkutsu-generic-subtitles-host");
+      if (!host || !videoEl) return;
+      const fullscreen = document.fullscreenElement;
+      const parent = fullscreen?.contains(videoEl) ? fullscreen : videoEl.parentElement;
+      if (parent && host.parentElement !== parent) parent.appendChild(host);
+    };
+    placeHost();
+    document.addEventListener("fullscreenchange", placeHost);
+    return () => document.removeEventListener("fullscreenchange", placeHost);
+  }, [videoEl]);
 
   // ── Load per-site opt-in from chrome.storage.local (with cross-frame sync) ──
 
@@ -674,7 +682,7 @@ export default function GenericSubtitlesOverlay() {
 
         const lang = tt.language || "";
         const label = tt.label || "";
-        const trackId = `track-${i}-${lang}-${label}`;
+        const trackId = `track:${lang || "und"}:${label || "unlabelled"}`.toLowerCase();
         const isJa = lang.startsWith("ja") || /ja|jp|japanese/i.test(label);
 
         const isSelectedPrimary = currentTrackId
@@ -773,55 +781,7 @@ export default function GenericSubtitlesOverlay() {
       }
     };
 
-    let animId: number | null = null;
-    let playInterval: ReturnType<typeof setInterval> | null = null;
-
-    const tick = () => {
-      syncCues();
-      if (!video.paused) {
-        animId = requestAnimationFrame(tick);
-      }
-    };
-
-    const startPlayTimer = () => {
-      syncCues();
-      if (!playInterval) {
-        playInterval = setInterval(syncCues, 150);
-      }
-      if (!animId) {
-        animId = requestAnimationFrame(tick);
-      }
-    };
-
-    const stopPlayTimer = () => {
-      if (playInterval) {
-        clearInterval(playInterval);
-        playInterval = null;
-      }
-      if (animId) {
-        cancelAnimationFrame(animId);
-        animId = null;
-      }
-    };
-
-    if (!video.paused) {
-      startPlayTimer();
-    }
-
-    video.addEventListener("play", startPlayTimer);
-    video.addEventListener("pause", stopPlayTimer);
-    video.addEventListener("ended", stopPlayTimer);
-    video.addEventListener("seeked", syncCues);
-    video.addEventListener("timeupdate", syncCues);
-
-    return () => {
-      stopPlayTimer();
-      video.removeEventListener("play", startPlayTimer);
-      video.removeEventListener("pause", stopPlayTimer);
-      video.removeEventListener("ended", stopPlayTimer);
-      video.removeEventListener("seeked", syncCues);
-      video.removeEventListener("timeupdate", syncCues);
-    };
+    return subscribeToVideoTime(video, syncCues);
   }, [isEnabled, subtitleData, secondaryData, offset, videoEl, getLiveTextTrackCue, findSubtitleText]);
 
   const handleCustomSubtitleLoaded = useCallback((result: SubtitleFetchResult) => {
@@ -865,17 +825,12 @@ export default function GenericSubtitlesOverlay() {
             secondarySegment={secondarySegment}
             videoRef={videoRef}
             currentUrl={currentUrlRef.current}
-            videoTitle={document.title}
             availableTracks={availableTracks}
-            currentTrackId={currentTrackId}
             secondaryTrackId={secondaryTrackId}
             offset={offset}
             onToggleEnabled={handleToggle}
             onOffsetChange={(newOffset) => setOffset(newOffset)}
-            onSelectTrack={handleSelectPrimaryTrack}
-            onSelectSecondaryTrack={handleSelectSecondaryTrack}
             onLoadCustomSubtitles={handleCustomSubtitleLoaded}
-            onOpenModal={() => setIsModalOpen(true)}
             onSeekTime={(timeSec) => {
               if (videoRef.current) {
                 try {

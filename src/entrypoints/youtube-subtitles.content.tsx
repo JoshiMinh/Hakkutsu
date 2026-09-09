@@ -10,12 +10,7 @@ export default defineContentScript({
     const ui = await createShadowRootUi(ctx, {
       name: "hakkutsu-youtube-subtitles-host",
       position: "inline",
-      anchor: () => {
-        const player =
-          document.querySelector<HTMLElement>("#movie_player") ||
-          document.querySelector<HTMLElement>(".html5-video-player");
-        return player || document.body;
-      },
+      anchor: "#movie_player, .html5-video-player",
       css: cssText + youtubeSubtitleCss,
       onMount: (container) => {
         const root = createRoot(container);
@@ -26,7 +21,6 @@ export default defineContentScript({
         root?.unmount();
       },
     });
-    ui.mount();
+    ui.autoMount();
   },
 });
-

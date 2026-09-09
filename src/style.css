@@ -1838,6 +1838,58 @@ body.editor-page { height: 100vh; overflow: hidden; display: flex; flex-directio
   text-overflow: ellipsis;
 }
 
+.hk-vocab-actions {
+  display: inline-flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+
+.hk-vocab-actions .hk-btn {
+  min-height: 32px;
+  padding: 6px 10px;
+  gap: 6px;
+  border-radius: 0;
+  font-size: 12px;
+}
+
+.hk-vocab-actions .hk-btn + .hk-btn {
+  margin-left: -1px;
+}
+
+.hk-vocab-actions .hk-btn:first-of-type {
+  border-radius: 6px 0 0 6px;
+}
+
+.hk-vocab-actions .hk-btn:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.hk-vocab-table {
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.hk-vocab-table td,
+.hk-vocab-table th {
+  white-space: nowrap;
+}
+
+.hk-vocab-cell--clip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hk-frequency {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 /* ── Modal & Forms ───────────────────────────────────────────────── */
 
 .hk-modal-overlay {

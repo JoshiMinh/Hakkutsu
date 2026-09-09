@@ -8,40 +8,19 @@
  */
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import cssText from "~/style.css?inline";
 import type { SubtitleSegment, SubtitleFetchResult } from "~lib/utils/types";
-import { youtubeSubtitleCss, youtubeToolbarCss } from "~lib/utils/youtube-subtitle-styles";
+import { youtubeToolbarCss } from "~lib/utils/youtube-subtitle-styles";
 import { SubtitleOverlay } from "~components/subtitle-overlay";
 import { SelectSubtitlesModal, type SubtitleTrackOption } from "~components/select-subtitles-modal";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
 import {
   parseNetflixTtml,
-  readSubtitleFile,
-  parsedToSubtitleFetchResult,
   deduplicateCueText,
 } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";
-import { initNetflixPageBridge, type HakkutsuNetflixSyncedData, type HakkutsuNetflixTrack } from "~lib/services/netflix-bridge";
-
-const netflixSpecificCss = `
-  /* ── Subtitle container position on Netflix ── */
-  .watch-video .hk-sub__container,
-  .VideoContainer .hk-sub__container {
-    bottom: 110px;
-    transition: bottom 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
-  }
-
-  .watch-video.active .hk-sub__container,
-  .watch-video:hover .hk-sub__container,
-  .watch-video--bottom-controls-container:hover ~ * .hk-sub__container {
-    bottom: 170px;
-  }
-
-  .watch-video.inactive .hk-sub__container {
-    bottom: 90px;
-  }
-`;
+import { type HakkutsuNetflixSyncedData } from "~lib/services/netflix-bridge";
+import { observePrimaryVideo, subscribeToVideoTime } from "~lib/services/video-runtime";
 
 const NETFLIX_STYLE_ID = "hakkutsu-netflix-global-style";
 
@@ -170,18 +149,11 @@ export default function NetflixSubtitlesOverlay() {
 
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const rafIdRef = useRef<number | null>(null);
   const currentUrlRef = useRef(window.location.href);
 
   const selectedTrackIdRef = useRef<string>("");
   const isCustomTrackRef = useRef<boolean>(false);
   const selectedSecondaryTrackIdRef = useRef<string>("__auto_translate__");
-
-  // ── Initialize Main-World Bridge ───────────────────────────────────────────
-
-  useEffect(() => {
-    initNetflixPageBridge();
-  }, []);
 
   // ── Global Style & Native Caption Suppression ──────────────────────────────
 
@@ -195,16 +167,10 @@ export default function NetflixSubtitlesOverlay() {
   // ── Video Reference Tracking ───────────────────────────────────────────────
 
   useEffect(() => {
-    const updateVideoRef = () => {
-      const video = document.querySelector<HTMLVideoElement>("video");
-      if (video !== videoRef.current) {
-        videoRef.current = video;
-        setVideoEl(video);
-      }
-    };
-    updateVideoRef();
-    const interval = setInterval(updateVideoRef, 500);
-    return () => clearInterval(interval);
+    return observePrimaryVideo((video) => {
+      videoRef.current = video;
+      setVideoEl(video);
+    });
   }, []);
 
   // ── Ensure Subtitle Shadow Host is Placed Inside Player ───────────────
@@ -259,6 +225,19 @@ export default function NetflixSubtitlesOverlay() {
       const detail = (e as CustomEvent).detail as HakkutsuNetflixSyncedData | undefined;
       if (!detail || !Array.isArray(detail.tracks)) return;
 
+      const currentUrl = window.location.href;
+      const videoChanged = currentUrl !== currentUrlRef.current;
+      if (videoChanged) {
+        currentUrlRef.current = currentUrl;
+        selectedTrackIdRef.current = "";
+        selectedSecondaryTrackIdRef.current = "__auto_translate__";
+        isCustomTrackRef.current = false;
+        setSubtitleData(null);
+        setSecondaryData(null);
+        setCurrentSegment(null);
+        setSecondarySegment(null);
+      }
+
       setVideoTitle(detail.title || document.title);
 
       const options: SubtitleTrackOption[] = detail.tracks.map((t) => ({
@@ -300,7 +279,7 @@ export default function NetflixSubtitlesOverlay() {
 
       if (primaryTrack) {
         if (primaryTrack.url) {
-          if (!subtitleData || currentTrackId !== primaryTrack.id) {
+          if (videoChanged || !subtitleData || currentTrackId !== primaryTrack.id) {
             try {
               setLoading(true);
               const segments = await loadTrackContent(primaryTrack);
@@ -422,57 +401,7 @@ export default function NetflixSubtitlesOverlay() {
       }
     };
 
-    syncCues();
-
-    let animId: number | null = null;
-    let playInterval: ReturnType<typeof setInterval> | null = null;
-
-    const tick = () => {
-      syncCues();
-      if (!video.paused) {
-        animId = requestAnimationFrame(tick);
-      }
-    };
-
-    const startPlayTimer = () => {
-      syncCues();
-      if (!playInterval) {
-        playInterval = setInterval(syncCues, 150);
-      }
-      if (!animId) {
-        animId = requestAnimationFrame(tick);
-      }
-    };
-
-    const stopPlayTimer = () => {
-      if (playInterval) {
-        clearInterval(playInterval);
-        playInterval = null;
-      }
-      if (animId) {
-        cancelAnimationFrame(animId);
-        animId = null;
-      }
-    };
-
-    if (!video.paused) {
-      startPlayTimer();
-    }
-
-    video.addEventListener("seeked", syncCues);
-    video.addEventListener("timeupdate", syncCues);
-    video.addEventListener("play", startPlayTimer);
-    video.addEventListener("pause", stopPlayTimer);
-    video.addEventListener("ended", stopPlayTimer);
-
-    return () => {
-      stopPlayTimer();
-      video.removeEventListener("seeked", syncCues);
-      video.removeEventListener("timeupdate", syncCues);
-      video.removeEventListener("play", startPlayTimer);
-      video.removeEventListener("pause", stopPlayTimer);
-      video.removeEventListener("ended", stopPlayTimer);
-    };
+    return subscribeToVideoTime(video, syncCues);
   }, [isEnabled, subtitleData, secondaryData, offset, videoEl]);
 
   // ── DOM MutationObserver Fallback for Netflix ───────────────────────────────
@@ -662,9 +591,7 @@ export default function NetflixSubtitlesOverlay() {
         secondarySegment={secondarySegment}
         videoRef={videoRef}
         currentUrl={currentUrlRef.current}
-        videoTitle={videoTitle}
         availableTracks={availableTracks}
-        currentTrackId={currentTrackId}
         secondaryTrackId={secondaryTrackId}
         offset={offset}
         onToggleEnabled={() => {
@@ -675,10 +602,7 @@ export default function NetflixSubtitlesOverlay() {
           });
         }}
         onOffsetChange={(newOffset) => setOffset(newOffset)}
-        onSelectTrack={handleSelectPrimaryTrack}
-        onSelectSecondaryTrack={handleSelectSecondaryTrack}
         onLoadCustomSubtitles={handleCustomSubtitleLoaded}
-        onOpenModal={() => setIsModalOpen(true)}
         onSeekTime={(timeSec) => {
           document.dispatchEvent(
             new CustomEvent("hakkutsu:netflix-seek", {

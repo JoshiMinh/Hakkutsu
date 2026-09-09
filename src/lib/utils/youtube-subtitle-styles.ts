@@ -1,8 +1,8 @@
 /**
  * CSS styles for the YouTube subtitle overlay.
  *
- * Injected via Plasmo's getStyle() into Shadow DOM and into document head
- * for native YouTube caption suppression and player control styling.
+ * Injected by WXT into a Shadow DOM and into document head for native caption
+ * suppression and player control styling.
  */
 
 export const youtubeSubtitleCss = /* css */ `
@@ -13,23 +13,6 @@ export const youtubeSubtitleCss = /* css */ `
     height: 100% !important;
     display: block !important;
     overflow: hidden !important;
-    pointer-events: none !important;
-  }
-
-  #plasmo-shadow-container {
-    position: absolute !important;
-    inset: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    pointer-events: none !important;
-  }
-
-  .plasmo-csui-container {
-    position: absolute !important;
-    inset: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    display: block !important;
     pointer-events: none !important;
   }
 
