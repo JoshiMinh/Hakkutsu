@@ -64,7 +64,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 export default function AppDashboard() {
   const appVersion = typeof chrome !== "undefined" && chrome.runtime?.getManifest
     ? chrome.runtime.getManifest().version
-    : "2.0.0";
+    : "2.1.0";
   const [activeTab, setActiveTab] = useState<"dashboard" | "review" | "vocabulary" | "settings">(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
