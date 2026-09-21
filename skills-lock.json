@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "web-extension-auditor": {
+      "source": "JoshiMinh/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/web-extension-auditor/SKILL.md",
+      "computedHash": "fd753aaea98ade83177296f5e72731f8512c18b571e5ed72c6fc7ead4956fc21"
+    }
+  }
+}
