@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { FolderOpen } from "lucide-react";
+import { SubtitleScriptDrawer } from "./subtitle-script-drawer";
+import type { SrsCard } from "~lib/services/local-srs";
 import type {
   SubtitleSegment,
   SubtitleFetchResult,
@@ -85,14 +87,18 @@ export interface SubtitleOverlayProps {
   loading: boolean;
   error: string | null;
   subtitleData: SubtitleFetchResult | null;
+  secondaryData?: SubtitleFetchResult | null;
   currentSegment: SubtitleSegment | null;
   secondarySegment?: SubtitleSegment | null;
   videoRef: React.RefObject<HTMLVideoElement>;
   currentUrl: string;
+  videoTitle?: string;
   availableTracks?: SubtitleTrackOption[];
   secondaryTrackId?: string;
   offset?: number;
+  isDrawerOpen?: boolean;
   onToggleEnabled: () => void;
+  onToggleDrawer?: () => void;
   onOffsetChange?: (offset: number) => void;
   onLoadCustomSubtitles?: (result: SubtitleFetchResult) => void;
   onSeekTime?: (timeSec: number) => void;
@@ -104,14 +110,18 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   loading,
   error,
   subtitleData,
+  secondaryData,
   currentSegment,
   secondarySegment,
   videoRef,
   currentUrl,
+  videoTitle = "",
   availableTracks = [],
   secondaryTrackId,
   offset = 0,
+  isDrawerOpen,
   onToggleEnabled,
+  onToggleDrawer,
   onOffsetChange,
   onLoadCustomSubtitles,
   onSeekTime,
@@ -124,29 +134,61 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   const [translatedText, setTranslatedText] = useState<string>("");
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [offsetToast, setOffsetToast] = useState<string | null>(null);
+  const [internalDrawerOpen, setInternalDrawerOpen] = useState(false);
 
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
+  const [srsCardsMap, setSrsCardsMap] = useState<Map<string, SrsCard>>(new Map());
+
+  const drawerOpen = isDrawerOpen !== undefined ? isDrawerOpen : internalDrawerOpen;
+
+  const handleToggleDrawer = useCallback(() => {
+    if (onToggleDrawer) {
+      onToggleDrawer();
+    } else {
+      setInternalDrawerOpen((prev) => !prev);
+    }
+  }, [onToggleDrawer]);
 
   useEffect(() => {
     const loadSavedWords = async () => {
       try {
+        const wordSet = new Set<string>();
+        const cardMap = new Map<string, SrsCard>();
+
+        if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+          const srsRes: any = await chrome.runtime.sendMessage({ type: "GET_ALL_SRS_CARDS" }).catch(() => null);
+          if (srsRes?.payload?.cards && Array.isArray(srsRes.payload.cards)) {
+            (srsRes.payload.cards as SrsCard[]).forEach((card) => {
+              if (card.word) {
+                wordSet.add(card.word);
+                cardMap.set(card.word, card);
+              }
+              if (card.reading) {
+                wordSet.add(card.reading);
+                cardMap.set(card.reading, card);
+              }
+            });
+          }
+        }
+
         if (typeof chrome !== "undefined" && chrome.storage?.local) {
           const res = await chrome.storage.local.get("hakkutsu_vocabulary");
           const vocab = res["hakkutsu_vocabulary"] || [];
-          const wordSet = new Set<string>();
           vocab.forEach((v: any) => {
             if (v.word) wordSet.add(v.word);
             if (v.dictionaryForm) wordSet.add(v.dictionaryForm);
           });
-          setSavedWords(wordSet);
         }
+
+        setSavedWords(wordSet);
+        setSrsCardsMap(cardMap);
       } catch {}
     };
 
     void loadSavedWords();
 
     const handleStorageChange = (changes: any, areaName: string) => {
-      if (areaName === "local" && changes["hakkutsu_vocabulary"]) {
+      if (areaName === "local" && (changes["hakkutsu_vocabulary"] || changes["hakkutsu_srs"])) {
         void loadSavedWords();
       }
     };
@@ -539,7 +581,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     }, 450);
   };
 
-  // ── 8. Immersion Keyboard Shortcuts ─────────────────────────────────────────
+  // ── 7. Immersion Keyboard Shortcuts ─────────────────────────────────────────
 
   useEffect(() => {
     if (!isEnabled) return;
@@ -613,6 +655,14 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         return;
       }
 
+      // Toggle script drawer (reader mode): 'T'
+      if (e.key === "t" || e.key === "T" || e.code === "KeyT") {
+        e.preventDefault();
+        e.stopPropagation();
+        handleToggleDrawer();
+        return;
+      }
+
       // Toggle subtitle visibility: 'S'
       if (e.key === "s" || e.key === "S" || e.code === "KeyS") {
         e.preventDefault();
@@ -649,8 +699,11 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     settings.subtitlesSecondaryEnabled,
     updateSettings,
     onToggleEnabled,
+    handleToggleDrawer,
     adjustOffset,
   ]);
+
+  // ── 8. Drag and Drop Subtitle Files ─────────────────────────────────────────
 
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {
@@ -693,162 +746,182 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       window.removeEventListener("drop", handleDrop);
     };
   }, [currentUrl, onLoadCustomSubtitles]);
-  if (!isEnabled) return null;
+
+  if (!isEnabled && !drawerOpen) return null;
 
   const fontSize = settings.subtitlesFontSize || 26;
 
   return (
     <>
-      {(loading || error) && (
-        <div
-          role={error ? "alert" : "status"}
-          aria-live="polite"
-          className="hk-sub__status"
-          style={{
-            position: "absolute",
-            top: "24px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 10000,
-            padding: "8px 14px",
-            borderRadius: "8px",
-            background: "rgba(17, 17, 20, 0.94)",
-            border: `1px solid ${error ? "rgba(248, 113, 113, 0.55)" : "rgba(192, 132, 252, 0.45)"}`,
-            color: error ? "#fecaca" : "#f4f4f5",
-            fontSize: "13px",
-            pointerEvents: "none",
-          }}
-        >
-          {error || "Loading subtitles…"}
-        </div>
-      )}
-
-      {/* Toast Notification (Offset / AutoPause) */}
-      {offsetToast && (
-        <div
-          style={{
-            position: "absolute",
-            top: "24px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            backgroundColor: "rgba(17, 17, 20, 0.92)",
-            backdropFilter: "blur(12px)",
-            border: "1px solid rgba(168, 85, 247, 0.4)",
-            color: "#f4f4f5",
-            padding: "8px 18px",
-            borderRadius: "9999px",
-            fontSize: "13px",
-            fontWeight: 600,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
-            zIndex: 10000,
-            pointerEvents: "none",
-            animation: "hk-sub-fade-in 0.15s ease-out",
-          }}
-        >
-          {offsetToast}
-        </div>
-      )}
-
-      {/* Drag & Drop Overlay */}
-      {isDraggingFile && (
-        <div
-          style={{
-            position: "absolute",
-            inset: "16px",
-            border: "2px dashed #a855f7",
-            borderRadius: "16px",
-            backgroundColor: "rgba(168, 85, 247, 0.15)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "12px",
-            color: "#fff",
-            zIndex: 10000,
-            pointerEvents: "none",
-          }}
-        >
-          <FolderOpen size={48} color="#c084fc" />
-          <div style={{ fontSize: "18px", fontWeight: 700 }}>Drop Subtitle File (.srt, .vtt, .ass)</div>
-          <div style={{ fontSize: "13px", color: "#e4e4e7" }}>Instant sync with current video</div>
-        </div>
-      )}
-
-      {/* Main Subtitle Container */}
-      <div className={`hk-sub__container ${!currentSegment ? "hk-sub__container--hidden" : ""}`} ref={containerRef}>
-        {currentSegment && (
-          <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", pointerEvents: "auto" }}>
-            {/* Primary Subtitle Bar */}
-            <div className="hk-sub__bar" style={{ fontSize: `${fontSize}px` }}>
-              {analyzedTokens && analyzedTokens.length > 0 ? (
-                analyzedTokens.map((token, idx) => {
-                  const isKanji = /[\u4e00-\u9faf]/.test(token.surface);
-                  const cleanReading = sanitizeReading(token.reading?.hiragana || "", token.surface);
-                  const showRuby =
-                    settings.showFurigana !== false &&
-                    isKanji &&
-                    Boolean(cleanReading) &&
-                    cleanReading !== token.surface;
-                  const isSaved =
-                    savedWords.has(token.surface) ||
-                    Boolean(token.dictionary_form && savedWords.has(token.dictionary_form));
-                  const savedClass = isSaved ? "hk-sub__token--saved" : "";
-                  const rubySegments = showRuby
-                    ? distributeFurigana(token.surface, cleanReading)
-                    : null;
-                  const hasRuby = showRuby && rubySegments !== null && rubySegments.some((s) => s.ruby);
-
-                  return (
-                    <span
-                      key={idx}
-                      className={`hk-sub__token ${savedClass}`}
-                      onClick={(e) => handleTokenClick(e, token, idx)}
-                      onMouseEnter={(e) => handleTokenMouseEnter(e, token, idx)}
-                      onMouseLeave={handleTokenMouseLeave}
-                      title={token.definitions?.[0]?.glosses?.join("; ") || token.reading?.hiragana || token.surface}
-                    >
-                      {hasRuby && rubySegments ? (
-                        rubySegments.map((seg, sIdx) =>
-                          seg.ruby ? (
-                            <ruby key={sIdx}>
-                              {seg.text}
-                              <rt className="hk-sub__furigana">{seg.ruby}</rt>
-                            </ruby>
-                          ) : (
-                            <span key={sIdx}>{seg.text}</span>
-                          )
-                        )
-                      ) : (
-                        token.surface
-                      )}
-                    </span>
-                  );
-                })
-              ) : (
-                <span>{deduplicateCueText(currentSegment.text)}</span>
-              )}
+      {isEnabled && (
+        <>
+          {(loading || error) && (
+            <div
+              role={error ? "alert" : "status"}
+              aria-live="polite"
+              className="hk-sub__status"
+              style={{
+                position: "absolute",
+                top: "24px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 10000,
+                padding: "8px 14px",
+                borderRadius: "8px",
+                background: "rgba(17, 17, 20, 0.94)",
+                border: `1px solid ${error ? "rgba(248, 113, 113, 0.55)" : "rgba(192, 132, 252, 0.45)"}`,
+                color: error ? "#fecaca" : "#f4f4f5",
+                fontSize: "13px",
+                pointerEvents: "none",
+              }}
+            >
+              {error || "Loading subtitles…"}
             </div>
+          )}
 
-            {/* Secondary Subtitle Bar (Bilingual / Translation) */}
-            {settings.subtitlesSecondaryEnabled !== false && (secondarySegment?.text || translatedText) && (
-              <div
-                className="hk-sub__secondary-bar"
-                style={{
-                  fontSize: `${Math.max(15, Math.round(fontSize * 0.65))}px`,
-                  maxWidth: "92vw",
-                  textAlign: "center",
-                  wordBreak: "break-word",
-                  lineHeight: 1.4,
-                }}
-              >
-                {deduplicateCueText(secondarySegment?.text || translatedText)}
+          {/* Toast Notification (Offset / AutoPause) */}
+          {offsetToast && (
+            <div
+              style={{
+                position: "absolute",
+                top: "24px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                backgroundColor: "rgba(17, 17, 20, 0.92)",
+                backdropFilter: "blur(12px)",
+                border: "1px solid rgba(168, 85, 247, 0.4)",
+                color: "#f4f4f5",
+                padding: "8px 18px",
+                borderRadius: "9999px",
+                fontSize: "13px",
+                fontWeight: 600,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+                zIndex: 10000,
+                pointerEvents: "none",
+                animation: "hk-sub-fade-in 0.15s ease-out",
+              }}
+            >
+              {offsetToast}
+            </div>
+          )}
+
+          {/* Drag & Drop Overlay */}
+          {isDraggingFile && (
+            <div
+              style={{
+                position: "absolute",
+                inset: "16px",
+                border: "2px dashed #a855f7",
+                borderRadius: "16px",
+                backgroundColor: "rgba(168, 85, 247, 0.15)",
+                backdropFilter: "blur(4px)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "12px",
+                color: "#fff",
+                zIndex: 10000,
+                pointerEvents: "none",
+              }}
+            >
+              <FolderOpen size={48} color="#c084fc" />
+              <div style={{ fontSize: "18px", fontWeight: 700 }}>Drop Subtitle File (.srt, .vtt, .ass)</div>
+              <div style={{ fontSize: "13px", color: "#e4e4e7" }}>Instant sync with current video</div>
+            </div>
+          )}
+
+          {/* Main Subtitle Container */}
+          <div className={`hk-sub__container ${!currentSegment ? "hk-sub__container--hidden" : ""}`} ref={containerRef}>
+            {currentSegment && (
+              <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", pointerEvents: "auto" }}>
+                {/* Primary Subtitle Bar */}
+                <div className="hk-sub__bar" style={{ fontSize: `${fontSize}px` }}>
+                  {analyzedTokens && analyzedTokens.length > 0 ? (
+                    analyzedTokens.map((token, idx) => {
+                      const isKanji = /[\u4e00-\u9faf]/.test(token.surface);
+                      const cleanReading = sanitizeReading(token.reading?.hiragana || "", token.surface);
+                      const showRuby =
+                        settings.showFurigana !== false &&
+                        isKanji &&
+                        Boolean(cleanReading) &&
+                        cleanReading !== token.surface;
+                      const isSaved =
+                        savedWords.has(token.surface) ||
+                        Boolean(token.dictionary_form && savedWords.has(token.dictionary_form));
+                      const savedClass = isSaved ? "hk-sub__token--saved" : "";
+                      const rubySegments = showRuby
+                        ? distributeFurigana(token.surface, cleanReading)
+                        : null;
+                      const hasRuby = showRuby && rubySegments !== null && rubySegments.some((s) => s.ruby);
+
+                      return (
+                        <span
+                          key={idx}
+                          className={`hk-sub__token ${savedClass}`}
+                          onClick={(e) => handleTokenClick(e, token, idx)}
+                          onMouseEnter={(e) => handleTokenMouseEnter(e, token, idx)}
+                          onMouseLeave={handleTokenMouseLeave}
+                          title={token.definitions?.[0]?.glosses?.join("; ") || token.reading?.hiragana || token.surface}
+                        >
+                          {hasRuby && rubySegments ? (
+                            rubySegments.map((seg, sIdx) =>
+                              seg.ruby ? (
+                                <ruby key={sIdx}>
+                                  {seg.text}
+                                  <rt className="hk-sub__furigana">{seg.ruby}</rt>
+                                </ruby>
+                              ) : (
+                                <span key={sIdx}>{seg.text}</span>
+                              )
+                            )
+                          ) : (
+                            token.surface
+                          )}
+                        </span>
+                      );
+                    })
+                  ) : (
+                    <span>{deduplicateCueText(currentSegment.text)}</span>
+                  )}
+                </div>
+
+                {/* Secondary Subtitle Bar (Bilingual / Translation) */}
+                {settings.subtitlesSecondaryEnabled !== false && (secondarySegment?.text || translatedText) && (
+                  <div
+                    className="hk-sub__secondary-bar"
+                    style={{
+                      fontSize: `${Math.max(15, Math.round(fontSize * 0.65))}px`,
+                      maxWidth: "92vw",
+                      textAlign: "center",
+                      wordBreak: "break-word",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {deduplicateCueText(secondarySegment?.text || translatedText)}
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
+      {/* Synchronized Subtitle Script Drawer ("Reader Mode") */}
+      <SubtitleScriptDrawer
+        isOpen={Boolean(drawerOpen)}
+        onClose={() => handleToggleDrawer()}
+        subtitleData={subtitleData}
+        secondaryData={secondaryData}
+        currentSegment={currentSegment}
+        offset={offset}
+        videoRef={videoRef}
+        onSeekToCue={onSeekToCue}
+        onSeekTime={onSeekTime}
+        savedWords={savedWords}
+        srsCardsMap={srsCardsMap}
+        videoTitle={videoTitle}
+      />
     </>
   );
 };

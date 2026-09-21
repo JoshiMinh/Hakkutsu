@@ -315,5 +315,32 @@ export const ja = {
   shortcut_load_subtitles: "字幕読み込み",
   shortcut_load_subtitles_val: ".srt/.vtt ファイルをドラッグ＆ドロップ",
   shortcut_btn_settings: "設定 ⚙",
+
+  // Video Subtitle Script Drawer ("Reader Mode")
+  drawer_title: "スクリプト台本",
+  drawer_subtitle: "リーダーモード＆セリフ検索",
+  drawer_search_placeholder: "日本語セリフや訳文を検索...",
+  drawer_matches_count: "件一致",
+  drawer_no_matches: "一致するセリフは見つかりませんでした",
+  drawer_stats_lines: "行",
+  drawer_stats_chars: "文字",
+  drawer_stats_known: "習得済み",
+  drawer_stats_unlearned: "未習得",
+  drawer_btn_resume_sync: "自動スクロール再開",
+  drawer_btn_mine_srs: "SRSに追加",
+  drawer_btn_mined: "保存済み",
+  drawer_btn_copy: "セリフをコピー",
+  drawer_btn_play: "ここから再生",
+  drawer_btn_tts: "音声を再生",
+  drawer_filter_all: "すべての行",
+  drawer_filter_matched: "一致した行のみ",
+  drawer_btn_toggle_drawer: "台本ドロワー (T)",
+  drawer_empty_no_cues: "この動画の字幕スクリプトはありません。",
+  drawer_toggle_translation: "翻訳表示の切替",
+  drawer_toggle_furigana: "ルビ表示の切替",
+  drawer_toggle_sync: "自動スクロール同期",
+  drawer_jump_to_current: "再生中の行へスクロール",
+  btn_open: "開く",
 };
+
 

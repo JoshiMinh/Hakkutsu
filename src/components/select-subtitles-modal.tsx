@@ -31,6 +31,7 @@ export interface SelectSubtitlesModalProps {
   onSelectTrack: (track: SubtitleTrackOption) => Promise<void> | void;
   onSelectSecondaryTrack: (track: SubtitleTrackOption | null) => Promise<void> | void;
   onCustomSubtitleLoaded: (result: SubtitleFetchResult) => void;
+  onOpenScriptDrawer?: () => void;
 }
 
 interface TrackSelectProps {
@@ -59,7 +60,6 @@ function CustomTrackDropdown({
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
-
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const path = (e.composedPath && e.composedPath()) || [];
@@ -256,6 +256,7 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
   onSelectTrack,
   onSelectSecondaryTrack,
   onCustomSubtitleLoaded,
+  onOpenScriptDrawer,
 }) => {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -662,66 +663,57 @@ export const SelectSubtitlesModal: React.FC<SelectSubtitlesModalProps> = ({
             />
           </div>
 
-          {/* Local File Picker Button */}
-          <div style={{ marginTop: "16px" }}>
+          {onOpenScriptDrawer && (
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                onOpenScriptDrawer();
+                onClose();
+              }}
               style={{
-                width: "100%",
-                padding: "12px",
+                marginTop: "4px",
+                padding: "12px 16px",
                 borderRadius: "10px",
-                backgroundColor: "rgba(255, 255, 255, 0.05)",
-                border: "1px dashed rgba(255, 255, 255, 0.2)",
-                color: "#f4f4f5",
-                fontSize: "13px",
-                fontWeight: 600,
-                cursor: "pointer",
+                backgroundColor: "rgba(168, 85, 247, 0.15)",
+                border: "1px solid rgba(168, 85, 247, 0.4)",
+                color: "#c084fc",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "8px",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "rgba(168, 85, 247, 0.1)";
-                e.currentTarget.style.borderColor = "#a855f7";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.05)";
-                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)";
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
               }}
             >
-              <FolderOpen size={16} color="#c084fc" />
-              <span>{t("sub_modal_btn_open_files")}</span>
+              <Subtitles size={16} />
+              <span>{t("drawer_title")}</span>
             </button>
-          </div>
+          )}
         </div>
 
         {/* Footer */}
         <div
           style={{
-            padding: "12px 20px",
-            backgroundColor: "#141418",
+            padding: "16px 20px",
             borderTop: "1px solid rgba(255, 255, 255, 0.08)",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            fontSize: "11px",
-            color: "#71717a",
+            justifyContent: "flex-end",
+            backgroundColor: "#18181c",
+            flexShrink: 0,
           }}
         >
-          <span>{t("sub_modal_tip")}</span>
           <button
             type="button"
             onClick={onClose}
             style={{
-              padding: "6px 16px",
-              borderRadius: "6px",
+              padding: "8px 20px",
+              borderRadius: "8px",
               backgroundColor: "#a855f7",
               border: "none",
               color: "#fff",
-              fontSize: "12px",
+              fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
             }}

@@ -67,6 +67,7 @@ function injectNetflixGlobalStyle(hideNative: boolean): void {
       padding: 0 !important;
       margin: 0 !important;
       appearance: none !important;
+
       -webkit-appearance: none !important;
       flex-shrink: 0 !important;
       transition: background 0.15s ease, transform 0.15s ease !important;
@@ -124,6 +125,7 @@ export default function NetflixSubtitlesOverlay() {
 
   const [isEnabled, setIsEnabled] = useState(settings.subtitlesEnabled !== false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -163,6 +165,31 @@ export default function NetflixSubtitlesOverlay() {
       injectNetflixGlobalStyle(false);
     };
   }, [isEnabled, subtitleData]);
+
+  // ── Keyboard shortcut T to toggle script drawer ───────────────────────────
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "t" || e.key === "T" || e.code === "KeyT") {
+        e.preventDefault();
+        setIsEnabled(true);
+        updateSettings({ subtitlesEnabled: true });
+        setIsDrawerOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [updateSettings]);
 
   // ── Video Reference Tracking ───────────────────────────────────────────────
 
@@ -584,6 +611,11 @@ export default function NetflixSubtitlesOverlay() {
     <>
       <FloatingNetflixButton
         onOpenModal={() => setIsModalOpen(true)}
+        onToggleDrawer={() => {
+          setIsEnabled(true);
+          updateSettings({ subtitlesEnabled: true });
+          setIsDrawerOpen((prev) => !prev);
+        }}
         onToggle={() => {
           setIsEnabled((prev) => {
             const next = !prev;
@@ -599,13 +631,17 @@ export default function NetflixSubtitlesOverlay() {
         loading={loading}
         error={error}
         subtitleData={subtitleData}
+        secondaryData={secondaryData}
         currentSegment={currentSegment}
         secondarySegment={secondarySegment}
         videoRef={videoRef}
         currentUrl={currentUrlRef.current}
+        videoTitle={videoTitle || "Netflix Video"}
         availableTracks={availableTracks}
         secondaryTrackId={secondaryTrackId}
         offset={offset}
+        isDrawerOpen={isDrawerOpen}
+        onToggleDrawer={() => setIsDrawerOpen((prev) => !prev)}
         onToggleEnabled={() => {
           setIsEnabled((prev) => {
             const next = !prev;
@@ -615,20 +651,6 @@ export default function NetflixSubtitlesOverlay() {
         }}
         onOffsetChange={(newOffset) => setOffset(newOffset)}
         onLoadCustomSubtitles={handleCustomSubtitleLoaded}
-        onSeekTime={(timeSec) => {
-          document.dispatchEvent(
-            new CustomEvent("hakkutsu:netflix-seek", {
-              detail: { timeMs: Math.max(0, Math.round(timeSec * 1000)) },
-            })
-          );
-        }}
-        onSeekToCue={(cue) => {
-          document.dispatchEvent(
-            new CustomEvent("hakkutsu:netflix-seek", {
-              detail: { timeMs: Math.max(0, Math.round((cue.start + offset) * 1000)) },
-            })
-          );
-        }}
       />
 
       <SelectSubtitlesModal
@@ -652,16 +674,22 @@ export default function NetflixSubtitlesOverlay() {
         onSelectTrack={handleSelectPrimaryTrack}
         onSelectSecondaryTrack={handleSelectSecondaryTrack}
         onCustomSubtitleLoaded={handleCustomSubtitleLoaded}
+        onOpenScriptDrawer={() => {
+          setIsEnabled(true);
+          updateSettings({ subtitlesEnabled: true });
+          setIsDrawerOpen(true);
+        }}
       />
     </>
   );
-}
+};
 
 const FloatingNetflixButton: React.FC<{
   onOpenModal: () => void;
+  onToggleDrawer?: () => void;
   onToggle: () => void;
   isEnabled: boolean;
-}> = ({ onOpenModal, onToggle, isEnabled }) => {
+}> = ({ onOpenModal, onToggleDrawer, onToggle, isEnabled }) => {
   const { settings, updateSettings } = useSettingsStore();
   const { t } = useTranslation();
 
@@ -872,6 +900,32 @@ const FloatingNetflixButton: React.FC<{
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ color: "#a1a1aa" }}>{t("shortcut_toggle_translation")}</span>
               <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>V</kbd>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("drawer_title")}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowHoverMenu(false);
+                    onToggleDrawer?.();
+                  }}
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    background: "rgba(168,85,247,0.2)",
+                    border: "1px solid rgba(168,85,247,0.3)",
+                    color: "#c084fc",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t("btn_open")}
+                </button>
+                <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>T</kbd>
+              </div>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "6px", marginTop: "2px" }}>

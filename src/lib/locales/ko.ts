@@ -315,5 +315,32 @@ export const ko = {
   shortcut_load_subtitles: "자막 불러오기",
   shortcut_load_subtitles_val: ".srt/.vtt 파일 끌어놓기",
   shortcut_btn_settings: "설정 ⚙",
+
+  // Video Subtitle Script Drawer ("Reader Mode")
+  drawer_title: "영상 대본 스크립트",
+  drawer_subtitle: "리더 모드 및 대사 검색",
+  drawer_search_placeholder: "일본어 대사 또는 번역 검색...",
+  drawer_matches_count: "개 일치",
+  drawer_no_matches: "일치하는 대사를 찾을 수 없습니다",
+  drawer_stats_lines: "개 대사",
+  drawer_stats_chars: "자",
+  drawer_stats_known: "학습 완료",
+  drawer_stats_unlearned: "새 단어",
+  drawer_btn_resume_sync: "자동 스크롤 재개",
+  drawer_btn_mine_srs: "SRS에 저장",
+  drawer_btn_mined: "저장됨",
+  drawer_btn_copy: "대사 복사",
+  drawer_btn_play: "여기서 재생",
+  drawer_btn_tts: "발음 듣기",
+  drawer_filter_all: "전체 대사",
+  drawer_filter_matched: "일치하는 대사만",
+  drawer_btn_toggle_drawer: "대본 열기 (T)",
+  drawer_empty_no_cues: "이 영상에 사용 가능한 자막 대본이 없습니다.",
+  drawer_toggle_translation: "번역 표시 전환",
+  drawer_toggle_furigana: "후리가나 표시 전환",
+  drawer_toggle_sync: "자동 스크롤 동기화",
+  drawer_jump_to_current: "재생 중인 대사로 스크롤",
+  btn_open: "열기",
 };
+
 

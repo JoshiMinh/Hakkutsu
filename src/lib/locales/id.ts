@@ -315,5 +315,32 @@ export const id = {
   shortcut_load_subtitles: "Muat Subtitle",
   shortcut_load_subtitles_val: "Seret & Lepas .srt/.vtt",
   shortcut_btn_settings: "PENGATURAN ⚙",
+
+  // Video Subtitle Script Drawer ("Reader Mode")
+  drawer_title: "Naskah Subtitle",
+  drawer_subtitle: "Mode Membaca & Pencarian Dialog",
+  drawer_search_placeholder: "Cari dialog dalam bahasa Jepang atau terjemahan...",
+  drawer_matches_count: "cocok",
+  drawer_no_matches: "Tidak ada dialog yang cocok",
+  drawer_stats_lines: "baris",
+  drawer_stats_chars: "karakter",
+  drawer_stats_known: "Dipelajari",
+  drawer_stats_unlearned: "Kata Baru",
+  drawer_btn_resume_sync: "Lanjutkan Gulir Otomatis",
+  drawer_btn_mine_srs: "Simpan ke SRS",
+  drawer_btn_mined: "Tersimpan",
+  drawer_btn_copy: "Salin Dialog",
+  drawer_btn_play: "Putar Bagian Ini",
+  drawer_btn_tts: "Dengarkan Audio",
+  drawer_filter_all: "Semua Baris",
+  drawer_filter_matched: "Hanya yang Cocok",
+  drawer_btn_toggle_drawer: "Naskah Subtitle (T)",
+  drawer_empty_no_cues: "Belum ada naskah subtitle untuk video ini.",
+  drawer_toggle_translation: "Alihkan Terjemahan",
+  drawer_toggle_furigana: "Alihkan Furigana",
+  drawer_toggle_sync: "Sinkronisasi Gulir Otomatis",
+  drawer_jump_to_current: "Gulir ke Baris Aktif",
+  btn_open: "Buka",
 };
+
 

@@ -10,6 +10,7 @@
  *  - Reads <track kind="subtitles|captions"> elements from the <video> for available tracks.
  *  - Accepts drag & drop .srt/.vtt/.ass files for custom subtitles.
  *  - Draggable floating pill button, position persisted in sessionStorage.
+ *  - Synchronized Subtitle Script Drawer ("Reader Mode for Video") with <kbd>T</kbd> shortcut.
  */
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
@@ -183,10 +184,12 @@ function DraggableFab({
   isEnabled,
   onToggle,
   onOpenModal,
+  onToggleDrawer,
 }: {
   isEnabled: boolean;
   onToggle: () => void;
   onOpenModal: () => void;
+  onToggleDrawer?: () => void;
 }) {
   const { t } = useTranslation();
   const defaultPos = loadFabPosition() || { right: 24, bottom: 24 };
@@ -369,6 +372,25 @@ function DraggableFab({
               <span style={{ color: "#a1a1aa" }}>{t("shortcut_toggle_translation")}</span>
               <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>V</kbd>
             </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ color: "#a1a1aa" }}>{t("drawer_title")}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                {onToggleDrawer && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowHoverMenu(false);
+                      onToggleDrawer();
+                    }}
+                    style={{ fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", background: "rgba(168,85,247,0.2)", border: "1px solid rgba(168,85,247,0.3)", color: "#c084fc", cursor: "pointer" }}
+                  >
+                    {t("btn_open")}
+                  </button>
+                )}
+                <kbd style={{ padding: "2px 6px", borderRadius: "4px", background: "rgba(255,255,255,0.15)", color: "#fff", fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>T</kbd>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -395,6 +417,7 @@ export default function GenericSubtitlesOverlay() {
 
   const [isEnabled, setIsEnabled] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -413,6 +436,35 @@ export default function GenericSubtitlesOverlay() {
   const currentUrlRef = useRef(window.location.href);
   const hasActiveTextTrackRef = useRef(false);
   const lastDomTextRef = useRef("");
+
+  // ── Keyboard shortcut T to toggle drawer ────────────────────────────────────
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "t" || e.key === "T" || e.code === "KeyT") {
+        e.preventDefault();
+        if (!siteEnabled) {
+          setSiteEnabled_(true);
+          setSiteEnabled(true);
+        }
+        setIsEnabled(true);
+        updateSettings({ subtitlesEnabled: true });
+        setIsDrawerOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [siteEnabled, updateSettings]);
 
   // ── Inject CSS to hide raw player subtitles ─────────────────────────────────
 
@@ -818,71 +870,90 @@ export default function GenericSubtitlesOverlay() {
   }, [secondaryTrackId, availableTracks, handleSelectSecondaryTrack]);
 
   if (!hasVideo || !siteChecked) return null;
+
   return (
     <>
       <DraggableFab
         isEnabled={siteEnabled}
         onToggle={handleToggle}
         onOpenModal={() => setIsModalOpen(true)}
+        onToggleDrawer={() => {
+          if (!siteEnabled) {
+            setSiteEnabled_(true);
+            setSiteEnabled(true);
+          }
+          setIsEnabled(true);
+          updateSettings({ subtitlesEnabled: true });
+          setIsDrawerOpen((prev) => !prev);
+        }}
       />
 
-      {isEnabled && (
-        <>
-          <SubtitleOverlay
-            isEnabled={isEnabled}
-            loading={loading}
-            error={error}
-            subtitleData={subtitleData}
-            currentSegment={currentSegment}
-            secondarySegment={secondarySegment}
-            videoRef={videoRef}
-            currentUrl={currentUrlRef.current}
-            availableTracks={availableTracks}
-            secondaryTrackId={secondaryTrackId}
-            offset={offset}
-            onToggleEnabled={handleToggle}
-            onOffsetChange={(newOffset) => setOffset(newOffset)}
-            onLoadCustomSubtitles={handleCustomSubtitleLoaded}
-            onSeekTime={(timeSec) => {
-              if (videoRef.current) {
-                try {
-                  videoRef.current.currentTime = Math.max(0, timeSec);
-                } catch {}
-              }
-            }}
-            onSeekToCue={(cue) => {
-              if (videoRef.current) {
-                try {
-                  videoRef.current.currentTime = Math.max(0, cue.start + offset);
-                } catch {}
-              }
-            }}
-          />
+      <SubtitleOverlay
+        isEnabled={isEnabled}
+        loading={loading}
+        error={error}
+        subtitleData={subtitleData}
+        secondaryData={secondaryData}
+        currentSegment={currentSegment}
+        secondarySegment={secondarySegment}
+        videoRef={videoRef}
+        currentUrl={currentUrlRef.current}
+        videoTitle={document.title}
+        availableTracks={availableTracks}
+        secondaryTrackId={secondaryTrackId}
+        offset={offset}
+        isDrawerOpen={isDrawerOpen}
+        onToggleEnabled={handleToggle}
+        onToggleDrawer={() => setIsDrawerOpen((prev) => !prev)}
+        onOffsetChange={(newOffset) => setOffset(newOffset)}
+        onLoadCustomSubtitles={handleCustomSubtitleLoaded}
+        onSeekTime={(timeSec) => {
+          if (videoRef.current) {
+            try {
+              videoRef.current.currentTime = Math.max(0, timeSec);
+            } catch {}
+          }
+        }}
+        onSeekToCue={(cue) => {
+          if (videoRef.current) {
+            try {
+              videoRef.current.currentTime = Math.max(0, cue.start + offset);
+            } catch {}
+          }
+        }}
+      />
 
-          <SelectSubtitlesModal
-            isOpen={isModalOpen}
-            onClose={() => setIsModalOpen(false)}
-            videoTitle={document.title}
-            availableTracks={availableTracks}
-            currentTrackId={currentTrackId}
-            secondaryTrackId={secondaryTrackId}
-            offset={offset}
-            onOffsetChange={(newOffset) => {
-              setOffset(newOffset);
-              updateSettings({ subtitlesOffset: newOffset });
-            }}
-            autoPause={settings.subtitlesAutoPause}
-            onAutoPauseChange={(ap) => updateSettings({ subtitlesAutoPause: ap })}
-            showFurigana={settings.showFurigana !== false}
-            onFuriganaChange={(fg) => updateSettings({ showFurigana: fg })}
-            fontSize={settings.subtitlesFontSize || 26}
-            onFontSizeChange={(size) => updateSettings({ subtitlesFontSize: size })}
-            onSelectTrack={handleSelectPrimaryTrack}
-            onSelectSecondaryTrack={handleSelectSecondaryTrack}
-            onCustomSubtitleLoaded={handleCustomSubtitleLoaded}
-          />
-        </>
-      )}
+      <SelectSubtitlesModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        videoTitle={document.title}
+        availableTracks={availableTracks}
+        currentTrackId={currentTrackId}
+        secondaryTrackId={secondaryTrackId}
+        offset={offset}
+        onOffsetChange={(newOffset) => {
+          setOffset(newOffset);
+          updateSettings({ subtitlesOffset: newOffset });
+        }}
+        autoPause={settings.subtitlesAutoPause}
+        onAutoPauseChange={(ap) => updateSettings({ subtitlesAutoPause: ap })}
+        showFurigana={settings.showFurigana !== false}
+        onFuriganaChange={(fg) => updateSettings({ showFurigana: fg })}
+        fontSize={settings.subtitlesFontSize || 26}
+        onFontSizeChange={(size) => updateSettings({ subtitlesFontSize: size })}
+        onSelectTrack={handleSelectPrimaryTrack}
+        onSelectSecondaryTrack={handleSelectSecondaryTrack}
+        onCustomSubtitleLoaded={handleCustomSubtitleLoaded}
+        onOpenScriptDrawer={() => {
+          if (!siteEnabled) {
+            setSiteEnabled_(true);
+            setSiteEnabled(true);
+          }
+          setIsEnabled(true);
+          updateSettings({ subtitlesEnabled: true });
+          setIsDrawerOpen(true);
+        }}
+      />
     </>
   );
 }

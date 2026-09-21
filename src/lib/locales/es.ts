@@ -315,5 +315,32 @@ export const es = {
   shortcut_load_subtitles: "Cargar Subtítulos",
   shortcut_load_subtitles_val: "Arrastrar y Soltar .srt/.vtt",
   shortcut_btn_settings: "AJUSTES ⚙",
+
+  // Video Subtitle Script Drawer ("Reader Mode")
+  drawer_title: "Guion de Subtítulos",
+  drawer_subtitle: "Modo Lectura y Búsqueda de Diálogo",
+  drawer_search_placeholder: "Buscar diálogo en japonés o traducción...",
+  drawer_matches_count: "coincidencias",
+  drawer_no_matches: "No se encontraron diálogos coincidentes",
+  drawer_stats_lines: "líneas",
+  drawer_stats_chars: "caracteres",
+  drawer_stats_known: "Aprendidas",
+  drawer_stats_unlearned: "Nuevas",
+  drawer_btn_resume_sync: "Reanudar Desplazamiento",
+  drawer_btn_mine_srs: "Guardar en SRS",
+  drawer_btn_mined: "Guardado",
+  drawer_btn_copy: "Copiar Diálogo",
+  drawer_btn_play: "Reproducir Línea",
+  drawer_btn_tts: "Escuchar Audio",
+  drawer_filter_all: "Todas las Líneas",
+  drawer_filter_matched: "Solo Coincidencias",
+  drawer_btn_toggle_drawer: "Panel de Guion (T)",
+  drawer_empty_no_cues: "No hay guion de subtítulos disponible para este video.",
+  drawer_toggle_translation: "Alternar Traducción",
+  drawer_toggle_furigana: "Alternar Furigana",
+  drawer_toggle_sync: "Sincronización Automática",
+  drawer_jump_to_current: "Desplazar a la Línea Activa",
+  btn_open: "Abrir",
 };
+
 

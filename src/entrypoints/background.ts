@@ -683,6 +683,11 @@ async function handleMessage(
       return { type: "SMART_DECK_FILTERS_RESULT", payload: filters };
     }
 
+    case "GET_ALL_SRS_CARDS": {
+      const cards = await localSrs.getAllSrsCards();
+      return { type: "ALL_SRS_CARDS_RESULT", payload: { cards } };
+    }
+
     default:
       return { type: "ERROR", payload: { error: `Unknown message type: ${message.type}` } };
   }

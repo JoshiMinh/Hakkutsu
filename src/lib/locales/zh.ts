@@ -315,5 +315,32 @@ export const zh = {
   shortcut_load_subtitles: "加载字幕",
   shortcut_load_subtitles_val: "拖放 .srt/.vtt",
   shortcut_btn_settings: "设置 ⚙",
+
+  // Video Subtitle Script Drawer ("Reader Mode")
+  drawer_title: "视频台词脚本",
+  drawer_subtitle: "阅读模式与台词搜索",
+  drawer_search_placeholder: "搜索日文台词或翻译...",
+  drawer_matches_count: "条匹配",
+  drawer_no_matches: "未找到匹配的台词",
+  drawer_stats_lines: "行",
+  drawer_stats_chars: "字",
+  drawer_stats_known: "已掌握",
+  drawer_stats_unlearned: "新词",
+  drawer_btn_resume_sync: "恢复自动滚动",
+  drawer_btn_mine_srs: "加入 SRS",
+  drawer_btn_mined: "已保存",
+  drawer_btn_copy: "复制台词",
+  drawer_btn_play: "跳转播放",
+  drawer_btn_tts: "播放发音",
+  drawer_filter_all: "全部台词",
+  drawer_filter_matched: "仅显示匹配",
+  drawer_btn_toggle_drawer: "台词抽屉 (T)",
+  drawer_empty_no_cues: "此视频暂无可用的字幕脚本。",
+  drawer_toggle_translation: "切换翻译显示",
+  drawer_toggle_furigana: "切换假名标注",
+  drawer_toggle_sync: "自动滚动同步",
+  drawer_jump_to_current: "滚动至正在播放的台词",
+  btn_open: "打开",
 };
+
 
