@@ -2,10 +2,10 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { localSrs } from "~lib/services/local-srs";
 import type { SrsCard, SrsStats } from "~lib/services/local-srs";
 import type { SmartDeckFilter, SmartDeckFilterOptions } from "~lib/utils/types";
-import { PartyPopper, Volume2, RotateCcw, Filter, AlertTriangle, Flame, Layers, Sparkles, Check, CheckCircle2, Headphones, Activity } from "lucide-react";
+import { PartyPopper, Volume2, RotateCcw, Filter, AlertTriangle, Flame, Layers, Sparkles, Check, CheckCircle2, Headphones, Activity, BookOpen, HelpCircle } from "lucide-react";
 import { useTranslation } from "~lib/locales";
 import { ttsService } from "~lib/services/tts-service";
-import { distributeFurigana } from "~lib/utils/japanese";
+import { distributeFurigana, generateClozeSentence } from "~lib/utils/japanese";
 import { useSettingsStore } from "~lib/utils/settings";
 
 function RenderFurigana({ text, reading, className }: { text: string; reading?: string; className?: string }) {
@@ -41,12 +41,21 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   // Audio-First Review Mode State
   const [audioFirstMode, setAudioFirstMode] = useState<boolean>(() => !!settings.audioFirstReviewMode);
 
-  // Sync default setting change
+  // Cloze Deletion Review Mode State
+  const [clozeMode, setClozeMode] = useState<boolean>(() => !!settings.clozeReviewMode);
+
+  // Sync default setting changes
   useEffect(() => {
     if (settings.audioFirstReviewMode !== undefined) {
       setAudioFirstMode(settings.audioFirstReviewMode);
     }
   }, [settings.audioFirstReviewMode]);
+
+  useEffect(() => {
+    if (settings.clozeReviewMode !== undefined) {
+      setClozeMode(settings.clozeReviewMode);
+    }
+  }, [settings.clozeReviewMode]);
 
   // Smart Deck Filter State
   const [activeFilterType, setActiveFilterType] = useState<"all" | "jlpt" | "domain" | "leech">("all");
@@ -351,6 +360,30 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
             <Headphones size={13} style={{ color: audioFirstMode ? "#c084fc" : "inherit" }} />
             <span>{t("srs_audio_first_toggle")}: {audioFirstMode ? "ON" : "OFF"}</span>
           </button>
+
+          {/* Cloze Deletion SRS Mode Toggle */}
+          <button
+            type="button"
+            onClick={() => setClozeMode((prev) => !prev)}
+            style={{
+              padding: "4px 10px",
+              borderRadius: "6px",
+              fontSize: "11px",
+              fontWeight: 600,
+              background: clozeMode ? "rgba(56, 189, 248, 0.2)" : "rgba(255, 255, 255, 0.05)",
+              border: clozeMode ? "1px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.1)",
+              color: clozeMode ? "#38bdf8" : "var(--hk-text-secondary)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+              transition: "all 0.2s ease",
+            }}
+            title={t("settings_cloze_mode_desc")}
+          >
+            <Sparkles size={13} style={{ color: clozeMode ? "#38bdf8" : "inherit" }} />
+            <span>{t("srs_cloze_toggle")}: {clozeMode ? "ON" : "OFF"}</span>
+          </button>
         </div>
 
         {/* Due Only vs Practice All toggle */}
@@ -456,8 +489,53 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
           )}
 
           <div className="hk-srs-card">
-            {/* Front Card Rendering: Masked Audio-First vs Text View */}
-            {!showAnswer && audioFirstMode ? (
+            {/* Front Card Rendering: Cloze Deletion vs Audio-First vs Text View */}
+            {!showAnswer && clozeMode ? (
+              <div className="hk-cloze-mask hk-fade-in">
+                <div className="hk-cloze-header">
+                  <Sparkles size={15} style={{ color: "#38bdf8" }} />
+                  <span>{t("srs_cloze_prompt")}</span>
+                </div>
+
+                {(() => {
+                  const cloze = generateClozeSentence(
+                    currentCard.sentence,
+                    currentCard.word,
+                    currentCard.sentence_furigana,
+                    currentCard.word_furigana,
+                    currentCard.reading
+                  );
+                  return (
+                    <div className="hk-cloze-sentence-display">
+                      <RenderFurigana text={cloze.prefix} />
+                      <span className="hk-cloze-blank" title="Cloze Blank">［ …… ］</span>
+                      <RenderFurigana text={cloze.suffix} />
+                    </div>
+                  );
+                })()}
+
+                {currentCard.sentence_meaning && (
+                  <div className="hk-cloze-hint hk-fade-in">
+                    <span className="hk-cloze-hint__badge">{t("srs_cloze_hint")}</span>
+                    <span className="hk-cloze-hint__text">{currentCard.sentence_meaning}</span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    speakText(currentCard.sentence || currentCard.word);
+                  }}
+                  className="hk-btn hk-btn--secondary"
+                  style={{ fontSize: "12px", padding: "5px 14px", borderRadius: "999px", gap: "6px", cursor: "pointer", marginTop: "4px" }}
+                  title={t("def_play_audio_jp")}
+                >
+                  <Volume2 size={14} />
+                  <span>{isVietnamese ? "Nghe câu ví dụ" : "Play Sentence Audio"}</span>
+                </button>
+              </div>
+            ) : !showAnswer && audioFirstMode ? (
               <div className="hk-audio-first-mask hk-fade-in">
                 <div className="hk-audio-first-wave">
                   <span className="hk-wave-bar bar-1"></span>
@@ -506,6 +584,46 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
             
             {showAnswer && (
               <div className="hk-fade-in-up hk-srs-card__answer">
+                {/* Cloze Revealed Sentence Highlight if Cloze mode active */}
+                {clozeMode && (currentCard.sentence || currentCard.sentence_furigana) && (
+                  (() => {
+                    const cloze = generateClozeSentence(
+                      currentCard.sentence,
+                      currentCard.word,
+                      currentCard.sentence_furigana,
+                      currentCard.word_furigana,
+                      currentCard.reading
+                    );
+                    return (
+                      <div className="hk-cloze-revealed-banner hk-fade-in">
+                        <div className="hk-cloze-revealed-sentence">
+                          <RenderFurigana text={cloze.prefix} />
+                          <span className="hk-cloze-revealed">
+                            <RenderFurigana text={cloze.target} reading={currentCard.reading} />
+                          </span>
+                          <RenderFurigana text={cloze.suffix} />
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
+
+                {/* Standalone Target Word View in Answer */}
+                <div className="hk-srs-card__word" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", flexWrap: "wrap", margin: clozeMode ? "10px 0" : "0 0 10px" }}>
+                  <RenderFurigana text={currentCard.word_furigana || currentCard.word} reading={currentCard.reading} />
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      speakText(currentCard.word);
+                    }}
+                    className="hk-btn hk-btn--ghost hk-btn--icon"
+                    style={{ padding: "6px", borderRadius: "50%", cursor: "pointer" }}
+                    title={t("def_play_audio_jp")}
+                  >
+                    <Volume2 size={22} style={{ color: "var(--hk-text-secondary)" }} />
+                  </button>
+                </div>
+
                 {/* Badges Row */}
                 {(currentCard.jlpt || (showHanViet && currentCard.vietnamese_sound) || currentCard.source_domain || currentCard.retrievability !== undefined || currentCard.stability !== undefined) && (
                   <div className="hk-srs-card__badges">
@@ -556,8 +674,8 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
                   </div>
                 )}
 
-                {/* Sentence Context */}
-                {(currentCard.sentence || currentCard.sentence_furigana) && (
+                {/* Sentence Context (if not clozeMode or if detailed meaning context needed) */}
+                {(currentCard.sentence || currentCard.sentence_furigana) && !clozeMode && (
                   <>
                     <hr className="hk-srs-context-divider" />
                     <div className="hk-srs-card__sentence-group">
@@ -571,6 +689,11 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
                       )}
                     </div>
                   </>
+                )}
+                {clozeMode && currentCard.sentence_meaning && (
+                  <div className="hk-srs-card__sentence-meaning" style={{ marginTop: "10px", textAlign: "center", fontStyle: "italic" }}>
+                    "{currentCard.sentence_meaning}"
+                  </div>
                 )}
               </div>
             )}

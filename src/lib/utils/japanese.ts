@@ -425,3 +425,163 @@ export function segmentText(
 
   return segments;
 }
+
+export interface ClozeSentenceResult {
+  hasMatch: boolean;
+  prefix: string;
+  target: string;
+  suffix: string;
+  revealedTarget: string;
+  revealedFurigana: string;
+  clozeSentence: string;
+  fullSentence: string;
+}
+
+/**
+ * Automatically generates fill-in-the-blank cloze data from a context sentence and target word.
+ * Handles bracketed furigana, verb/adjective stem inflections, and fallbacks.
+ *
+ * Example:
+ * Input: sentence="今日は寿司を食べた", targetWord="寿司"
+ * Output: clozeSentence="今日は［ …… ］を食べた"
+ */
+export function generateClozeSentence(
+  sentence: string | undefined,
+  targetWord: string,
+  sentenceFurigana?: string,
+  wordFurigana?: string,
+  reading?: string
+): ClozeSentenceResult {
+  const cleanWord = (targetWord || "").trim();
+  if (!cleanWord) {
+    return {
+      hasMatch: false,
+      prefix: "",
+      target: "",
+      suffix: "",
+      revealedTarget: "",
+      revealedFurigana: "",
+      clozeSentence: "［ …… ］",
+      fullSentence: "",
+    };
+  }
+
+  let sourceText = (sentenceFurigana && sentenceFurigana.trim().length > 0)
+    ? sentenceFurigana.trim()
+    : (sentence && sentence.trim().length > 0)
+      ? sentence.trim()
+      : "";
+
+  // If no sentence is available or sentence is just the word itself, construct a contextual fallback
+  if (!sourceText || sourceText === cleanWord) {
+    const fallbackSentence = `${cleanWord}の意味を覚えます。`;
+    const fallbackFurigana = wordFurigana ? `${wordFurigana}のいみをおぼえます。` : fallbackSentence;
+    return {
+      hasMatch: true,
+      prefix: "",
+      target: cleanWord,
+      suffix: "の意味を覚えます。",
+      revealedTarget: cleanWord,
+      revealedFurigana: fallbackFurigana,
+      clozeSentence: "［ …… ］の意味を覚えます。",
+      fullSentence: fallbackSentence,
+    };
+  }
+
+  // 1. Try matching bracketed furigana pattern for the word in sentence
+  // e.g. target "彼女", sentence contains "彼女[かのじょ]"
+  const escapedWord = cleanWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const bracketPattern = new RegExp(`(${escapedWord}\\[[^\\]]+\\]|${escapedWord})`);
+  const bracketMatch = sourceText.match(bracketPattern);
+
+  if (bracketMatch && bracketMatch.index !== undefined) {
+    const matchIdx = bracketMatch.index;
+    const matchLen = bracketMatch[0].length;
+    const prefix = sourceText.slice(0, matchIdx);
+    const matchedTarget = bracketMatch[0];
+    const suffix = sourceText.slice(matchIdx + matchLen);
+
+    return {
+      hasMatch: true,
+      prefix,
+      target: matchedTarget,
+      suffix,
+      revealedTarget: cleanWord,
+      revealedFurigana: sourceText,
+      clozeSentence: `${prefix}［ …… ］${suffix}`,
+      fullSentence: sentence || sourceText.replace(/\[[^\]]+\]/g, ""),
+    };
+  }
+
+  // 2. Try stem matching for verbs / adjectives with inflections
+  // e.g. target "食べる" (stem "食"), sentence contains "食[た]べた" or "食べた" or "食べました"
+  if (hasKanji(cleanWord)) {
+    // Extract kanji stem (leading kanji sequence)
+    const kanjiStemMatch = cleanWord.match(/^([\u4E00-\u9FFF\u3400-\u4DBF]+)/);
+    if (kanjiStemMatch) {
+      const stem = kanjiStemMatch[1];
+      const escapedStem = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // Match stem with optional furigana bracket followed by 1 to 5 hiragana characters (inflection)
+      const stemPattern = new RegExp(`(${escapedStem}(\\[[^\\]]+\\])?([ぁ-ん]{1,5}))`);
+      const stemMatch = sourceText.match(stemPattern);
+
+      if (stemMatch && stemMatch.index !== undefined) {
+        const matchIdx = stemMatch.index;
+        const matchLen = stemMatch[0].length;
+        const prefix = sourceText.slice(0, matchIdx);
+        const matchedTarget = stemMatch[0];
+        const suffix = sourceText.slice(matchIdx + matchLen);
+
+        return {
+          hasMatch: true,
+          prefix,
+          target: matchedTarget,
+          suffix,
+          revealedTarget: matchedTarget.replace(/\[[^\]]+\]/g, ""),
+          revealedFurigana: sourceText,
+          clozeSentence: `${prefix}［ …… ］${suffix}`,
+          fullSentence: sentence || sourceText.replace(/\[[^\]]+\]/g, ""),
+        };
+      }
+    }
+  }
+
+  // 3. Try reading / kana matching if reading is provided
+  if (reading && reading.trim().length > 0 && reading !== cleanWord) {
+    const cleanReading = reading.trim();
+    const escapedReading = cleanReading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const readingPattern = new RegExp(`(${escapedReading})`);
+    const readingMatch = sourceText.match(readingPattern);
+
+    if (readingMatch && readingMatch.index !== undefined) {
+      const matchIdx = readingMatch.index;
+      const matchLen = readingMatch[0].length;
+      const prefix = sourceText.slice(0, matchIdx);
+      const matchedTarget = readingMatch[0];
+      const suffix = sourceText.slice(matchIdx + matchLen);
+
+      return {
+        hasMatch: true,
+        prefix,
+        target: matchedTarget,
+        suffix,
+        revealedTarget: cleanWord,
+        revealedFurigana: sourceText,
+        clozeSentence: `${prefix}［ …… ］${suffix}`,
+        fullSentence: sentence || sourceText.replace(/\[[^\]]+\]/g, ""),
+      };
+    }
+  }
+
+  // 4. Fallback if target word is not directly inside context sentence
+  return {
+    hasMatch: false,
+    prefix: sourceText,
+    target: cleanWord,
+    suffix: "",
+    revealedTarget: cleanWord,
+    revealedFurigana: wordFurigana || cleanWord,
+    clozeSentence: `${sourceText} （［ …… ］）`,
+    fullSentence: sentence || sourceText.replace(/\[[^\]]+\]/g, ""),
+  };
+}

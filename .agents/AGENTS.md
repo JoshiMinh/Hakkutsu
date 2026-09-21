@@ -40,7 +40,7 @@ src/
 ├── contents/                           # Content scripts: inline-dictionary, youtube-subtitles, netflix-subtitles, generic-subtitles
 ├── entrypoints/                        # WXT entrypoints (background.ts, app, popup, options, content scripts)
 └── lib/
-    ├── locales/                        # 5-Language i18n dictionaries (en, vi, ja, ko, zh)
+    ├── locales/                        # 8-Language i18n dictionaries (en, vi, ja, zh, ko, es, fr, id)
     ├── services/                       # Business logic: local-srs, fsrs-engine, local-lookup, local-tokenizer, 
     │                                   # dictionary-lookup, anki-connect, subtitle-parsers, video-runtime, tts-service, analytics-service
     └── utils/                          # Types, settings store, japanese text helpers, jlpt-classifier, hanviet-dict
@@ -64,11 +64,11 @@ src/
 * **Leech Management:** Automatically flags cards failing review $\ge \text{srsLeechThreshold}$ (default: 4 lapses) for targeted retraining.
 * **Smart Decks:** Multi-attribute filtering by JLPT level (`N5`–`N1`), source domain (`YouTube`, `Netflix`, etc.), custom tags, and due/leech status.
 
-### C. Audio-First Review Experience (`src/components/srs-review.tsx`)
-* When Audio-First mode is active, the Japanese text on the front card is masked with a soundwave pulse animation.
-* Japanese TTS audio auto-plays on card load.
-* <kbd>R</kbd> keyboard shortcut replays audio at any time.
-* <kbd>Space</kbd> or <kbd>Enter</kbd> reveals `<ruby>` furigana, reading, definition, Sino-Vietnamese (Hán-Việt), illustration image, sentence context, and FSRS metrics ($S$, $R$).
+### C. Audio-First & Cloze Deletion Review Experience (`src/components/srs-review.tsx`)
+* **Audio-First Mode:** Front card Japanese text is masked with a soundwave pulse animation while Japanese TTS audio plays automatically.
+* **Cloze Deletion Mode:** Mined context sentences dynamically mask the target word/inflected stem with a styled `［ …… ］` blank to train contextual recall.
+* <kbd>R</kbd> keyboard shortcut replays word or context sentence audio at any time.
+* <kbd>Space</kbd> or <kbd>Enter</kbd> reveals `<ruby>` furigana, reading, definition, Sino-Vietnamese (Hán-Việt), illustration image, highlighted sentence context, and FSRS metrics ($S$, $R$).
 
 ### D. Subtitle Engine & Video Runtime (`src/components/subtitle-overlay.tsx`, `video-runtime.ts`)
 * Time synchronization via video element `timeupdate` + 100ms interval fallback.
@@ -103,12 +103,15 @@ pnpm build:firefox  # Firefox MV2 (.output/firefox-mv2)
 ```
 * Verify both targets compile assets, manifest, background service worker, and content scripts without warnings.
 
-### Step 3: 5-Language i18n Parity Audit
-* Verify that all translation keys in `src/lib/locales/en.ts` exist with matching keys in:
+### Step 3: 8-Language i18n Parity Audit
+* Verify that all translation keys in `src/lib/locales/en.ts` exist with matching keys across all 8 supported locales:
   * `src/lib/locales/vi.ts` (Vietnamese)
   * `src/lib/locales/ja.ts` (Japanese)
-  * `src/lib/locales/ko.ts` (Korean)
   * `src/lib/locales/zh.ts` (Chinese)
+  * `src/lib/locales/ko.ts` (Korean)
+  * `src/lib/locales/es.ts` (Spanish)
+  * `src/lib/locales/fr.ts` (French)
+  * `src/lib/locales/id.ts` (Indonesian)
 
 ### Step 4: Memory Leak & Event Listener Lifecycle Audit
 * Inspect all `useEffect` hooks in content scripts and UI components:

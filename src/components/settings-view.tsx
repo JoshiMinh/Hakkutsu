@@ -11,13 +11,19 @@ const vnFlag = "/assets/language/vi.png";
 const zhFlag = "/assets/language/zh.png";
 const jaFlag = "/assets/language/ja.png";
 const koFlag = "/assets/language/ko.png";
+const esFlag = "/assets/language/es.png";
+const frFlag = "/assets/language/fr.png";
+const idFlag = "/assets/language/id.png";
 
 const FLAG_MAP: Record<string, string> = {
-  vi: vnFlag,
   en: usFlag,
-  zh: zhFlag,
+  vi: vnFlag,
   ja: jaFlag,
+  zh: zhFlag,
   ko: koFlag,
+  es: esFlag,
+  fr: frFlag,
+  id: idFlag,
 };
 
 function CustomLanguageDropdown({
@@ -677,6 +683,30 @@ export function SettingsView({
                     type="checkbox"
                     checked={!!settings.audioFirstReviewMode}
                     onChange={(e) => onUpdate({ audioFirstReviewMode: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
+            {/* Default Cloze Deletion Review Mode */}
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="clozeReviewMode" className="hk-settings-row__label">
+                  {t("settings_cloze_mode", currentLang)}
+                </label>
+                <div id="clozeReviewMode-desc" className="hk-settings-row__desc">
+                  {t("settings_cloze_mode_desc", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="clozeReviewMode">
+                  <input
+                    id="clozeReviewMode"
+                    aria-describedby="clozeReviewMode-desc"
+                    type="checkbox"
+                    checked={!!settings.clozeReviewMode}
+                    onChange={(e) => onUpdate({ clozeReviewMode: e.target.checked })}
                   />
                   <span className="hk-toggle__slider" />
                 </label>

@@ -5,11 +5,14 @@
  */
 
 import { useSettingsStore } from "~lib/utils/settings";
-import { vi } from "./vi";
 import { en } from "./en";
-import { zh } from "./zh";
+import { vi } from "./vi";
 import { ja } from "./ja";
+import { zh } from "./zh";
 import { ko } from "./ko";
+import { es } from "./es";
+import { fr } from "./fr";
+import { id } from "./id";
 
 export interface LanguageConfig {
   code: string;
@@ -23,16 +26,6 @@ export interface LanguageConfig {
 }
 
 export const SUPPORTED_LANGUAGES: Record<string, LanguageConfig> = {
-  vi: {
-    code: "vi",
-    name: "Vietnamese",
-    nativeName: "Tiếng Việt",
-    flag: "🇻🇳",
-    ttsLangCode: "vi-VN",
-    googleTranslateCode: "vi",
-    supportsHanViet: true,
-    dictionaryName: "Mazii / Hán-Việt",
-  },
   en: {
     code: "en",
     name: "English",
@@ -43,15 +36,15 @@ export const SUPPORTED_LANGUAGES: Record<string, LanguageConfig> = {
     supportsHanViet: false,
     dictionaryName: "Jisho / JMdict",
   },
-  zh: {
-    code: "zh",
-    name: "Chinese",
-    nativeName: "中文",
-    flag: "🇨🇳",
-    ttsLangCode: "zh-CN",
-    googleTranslateCode: "zh-CN",
-    supportsHanViet: false,
-    dictionaryName: "Mazii / CEDICT",
+  vi: {
+    code: "vi",
+    name: "Vietnamese",
+    nativeName: "Tiếng Việt",
+    flag: "🇻🇳",
+    ttsLangCode: "vi-VN",
+    googleTranslateCode: "vi",
+    supportsHanViet: true,
+    dictionaryName: "Mazii / Hán-Việt",
   },
   ja: {
     code: "ja",
@@ -63,6 +56,16 @@ export const SUPPORTED_LANGUAGES: Record<string, LanguageConfig> = {
     supportsHanViet: false,
     dictionaryName: "JMdict / 国語",
   },
+  zh: {
+    code: "zh",
+    name: "Chinese",
+    nativeName: "中文",
+    flag: "🇨🇳",
+    ttsLangCode: "zh-CN",
+    googleTranslateCode: "zh-CN",
+    supportsHanViet: false,
+    dictionaryName: "Mazii / CEDICT",
+  },
   ko: {
     code: "ko",
     name: "Korean",
@@ -73,23 +76,56 @@ export const SUPPORTED_LANGUAGES: Record<string, LanguageConfig> = {
     supportsHanViet: false,
     dictionaryName: "Mazii / KRdict",
   },
+  es: {
+    code: "es",
+    name: "Spanish",
+    nativeName: "Español",
+    flag: "🇪🇸",
+    ttsLangCode: "es-ES",
+    googleTranslateCode: "es",
+    supportsHanViet: false,
+    dictionaryName: "JMdict / Español",
+  },
+  fr: {
+    code: "fr",
+    name: "French",
+    nativeName: "Français",
+    flag: "🇫🇷",
+    ttsLangCode: "fr-FR",
+    googleTranslateCode: "fr",
+    supportsHanViet: false,
+    dictionaryName: "JMdict / Français",
+  },
+  id: {
+    code: "id",
+    name: "Indonesian",
+    nativeName: "Bahasa Indonesia",
+    flag: "🇮🇩",
+    ttsLangCode: "id-ID",
+    googleTranslateCode: "id",
+    supportsHanViet: false,
+    dictionaryName: "JMdict / Indonesia",
+  },
 };
 
-export type SupportedLanguageCode = "vi" | "en" | "zh" | "ja" | "ko";
+export type SupportedLanguageCode = "en" | "vi" | "ja" | "zh" | "ko" | "es" | "fr" | "id";
 
 export function getLanguageConfig(langCode?: string): LanguageConfig {
   if (langCode && SUPPORTED_LANGUAGES[langCode]) {
     return SUPPORTED_LANGUAGES[langCode];
   }
-  return SUPPORTED_LANGUAGES.vi; // Default to Vietnamese
+  return SUPPORTED_LANGUAGES.en; // Fallback
 }
 
 export const translations: Record<string, Record<string, string>> = {
-  vi,
   en,
-  zh,
+  vi,
   ja,
+  zh,
   ko,
+  es,
+  fr,
+  id,
 };
 
 export type TranslationKey = keyof typeof en;

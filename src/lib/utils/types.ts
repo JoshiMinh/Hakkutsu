@@ -218,7 +218,7 @@ export type SelectiveFuriganaMode = "all" | "unlearned" | "n3_plus" | "n2_plus" 
 export type SrsAlgorithmType = "fsrs" | "sm2";
 
 export interface ExtensionSettings {
-  targetLanguage: "vi" | "en" | "zh" | "ja" | "ko";
+  targetLanguage: "en" | "vi" | "ja" | "zh" | "ko" | "es" | "fr" | "id";
   showHanViet: boolean;
   ankiEnabled: boolean;
   ankiDeck: string;
@@ -247,6 +247,7 @@ export interface ExtensionSettings {
   srsAlgorithm?: SrsAlgorithmType;
   fsrsRequestRetention?: number;
   audioFirstReviewMode?: boolean;
+  clozeReviewMode?: boolean;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -279,6 +280,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   srsAlgorithm: "fsrs",
   fsrsRequestRetention: 0.90,
   audioFirstReviewMode: false,
+  clozeReviewMode: false,
 };
 
 export interface DailyActivity {

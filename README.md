@@ -13,7 +13,8 @@ Hakkutsu is a local-first browser extension for Japanese immersion. It combines 
 - **Inline lookup:** select Japanese text on a webpage to see readings, definitions, JLPT level, frequency rank, and pitch-accent information.
 - **Video subtitles:** interactive subtitle overlays for YouTube, Netflix, and compatible HTML5 video sites.
 - **Sentence mining:** save the current word, sentence, source, image, tags, and learning metadata as a vocabulary card.
-- **Spaced repetition:** review cards locally with due dates, intervals, repetition counts, and progress statistics.
+- **Spaced repetition:** review cards locally with due dates, intervals, repetition counts, progress statistics, Audio-First mode, and Cloze Deletion (fill-in-the-blank) context recall.
+- **Multi-language support:** 8 UI & definition languages — English, Tiếng Việt (Vietnamese), 日本語 (Japanese), 中文 (Chinese), 한국語 (Korean), Español (Spanish), Français (French), and Bahasa Indonesia (Indonesian).
 - **AnkiConnect export:** send cards to a configurable local Anki deck and note model.
 - **Portable data:** export CSV for interoperability or a full JSON backup that preserves SRS progress and can be merged back into the extension.
 

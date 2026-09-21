@@ -496,7 +496,16 @@ export async function fetchExampleSentences(
   // 2. Fallback to Tatoeba API if Mazii returned no results
   if (results.length === 0) {
     try {
-      const tatoebaLangMap: Record<string, string> = { vi: "vie", en: "eng", zh: "cmn", ko: "kor", ja: "jpn" };
+      const tatoebaLangMap: Record<string, string> = {
+        vi: "vie",
+        en: "eng",
+        zh: "cmn",
+        ko: "kor",
+        ja: "jpn",
+        es: "spa",
+        fr: "fra",
+        id: "ind",
+      };
       const tatoebaLang = tatoebaLangMap[lang] || "eng";
       const res = await fetch(
         `https://tatoeba.org/en/api_v0/search?from=jpn&to=${tatoebaLang}&query=${encodeURIComponent(key)}`

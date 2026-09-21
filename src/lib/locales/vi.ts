@@ -147,6 +147,9 @@ export const vi = {
   srs_audio_first_toggle: "Nghe trước",
   srs_audio_first_prompt: "Đang phát âm thanh... Hãy đoán từ và ý nghĩa",
   srs_audio_first_replay: "Phát lại âm thanh (R)",
+  srs_cloze_toggle: "Chế độ Cloze",
+  srs_cloze_prompt: "Ngữ cảnh Cloze: Đoán từ còn thiếu trong câu",
+  srs_cloze_hint: "Gợi ý nghĩa câu",
 
   // Dashboard Overview
   dash_title: "Trung tâm học tập",
@@ -211,6 +214,8 @@ export const vi = {
   settings_fsrs_retention_desc: "Tỉ lệ nhớ mong muốn (Khuyên dùng 90% để cân bằng khối lượng ôn tập)",
   settings_audio_first: "Chế độ ôn tập Nghe Trước (Audio-First)",
   settings_audio_first_desc: "Ẩn văn bản tiếng Nhật và phát âm thanh trước, kiểm tra khả năng nhận diện nghe hiểu",
+  settings_cloze_mode: "Chế độ Ôn tập Điền vào chỗ trống (Cloze Deletion)",
+  settings_cloze_mode_desc: "Tự động tạo thẻ điền từ còn thiếu từ câu ngữ cảnh đã lưu (Ví dụ: 今日は［……］を食べた)",
   settings_autodetect: "Tự động phát hiện tiếng Nhật",
   settings_autodetect_desc: "Tự động quét và hỗ trợ trên các trang có văn bản tiếng Nhật",
   settings_furigana: "Hiện Furigana",

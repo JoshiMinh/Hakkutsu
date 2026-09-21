@@ -312,6 +312,135 @@ body.hk-popup-body .hk-popup {
   }
 }
 
+/* ── Cloze Deletion SRS Mode ──────────────────────────────────── */
+
+.hk-cloze-mask {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 8px 8px;
+}
+
+.hk-cloze-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #38bdf8;
+  letter-spacing: 0.2px;
+}
+
+.hk-cloze-sentence-display {
+  font-family: var(--hk-font-jp);
+  font-size: 20px;
+  line-height: 1.6;
+  font-weight: 600;
+  color: var(--hk-text-primary);
+  text-align: center;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.hk-cloze-blank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 12px;
+  margin: 0 6px;
+  border-radius: 8px;
+  border: 1.5px dashed #38bdf8;
+  background: rgba(56, 189, 248, 0.14);
+  color: #38bdf8;
+  font-weight: 700;
+  letter-spacing: 2px;
+  animation: hk-cloze-glow-pulse 2.2s ease-in-out infinite alternate;
+  vertical-align: middle;
+}
+
+@keyframes hk-cloze-glow-pulse {
+  0% {
+    border-color: rgba(56, 189, 248, 0.5);
+    background: rgba(56, 189, 248, 0.1);
+    box-shadow: 0 0 4px rgba(56, 189, 248, 0.2);
+  }
+  100% {
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.22);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+  }
+}
+
+.hk-cloze-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--hk-text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  max-width: 90%;
+  text-align: center;
+}
+
+.hk-cloze-hint__badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.hk-cloze-hint__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: italic;
+}
+
+.hk-cloze-revealed-banner {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.hk-cloze-revealed-sentence {
+  font-family: var(--hk-font-jp);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--hk-text-primary);
+}
+
+.hk-cloze-revealed {
+  display: inline-block;
+  padding: 1px 8px;
+  margin: 0 3px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.22);
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  color: #ffffff;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+  vertical-align: baseline;
+}
+
 .hk-srs-badge--fsrs {
   color: #38bdf8;
   background: rgba(56, 189, 248, 0.12);

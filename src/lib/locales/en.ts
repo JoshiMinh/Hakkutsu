@@ -147,6 +147,9 @@ export const en = {
   srs_audio_first_toggle: "Audio-First",
   srs_audio_first_prompt: "Listening... Guess word and meaning",
   srs_audio_first_replay: "Replay Audio (R)",
+  srs_cloze_toggle: "Cloze Mode",
+  srs_cloze_prompt: "Context Cloze: Guess the missing Japanese word",
+  srs_cloze_hint: "Context Meaning",
 
   // Dashboard Overview
   dash_title: "Learning Hub",
@@ -211,6 +214,8 @@ export const en = {
   settings_fsrs_retention_desc: "Optimal retention percentage (90% recommended for balanced review load)",
   settings_audio_first: "Audio-First SRS Review",
   settings_audio_first_desc: "Play audio first and mask Japanese text until revealed, testing listening recall",
+  settings_cloze_mode: "Cloze Deletion SRS Mode",
+  settings_cloze_mode_desc: "Automatically generate fill-in-the-blank review cards from mined sentences (e.g., 今日は［……］を食べた)",
   settings_autodetect: "Auto-detect Japanese",
   settings_autodetect_desc: "Automatically detect and assist on Japanese web pages",
   settings_furigana: "Show Furigana",
