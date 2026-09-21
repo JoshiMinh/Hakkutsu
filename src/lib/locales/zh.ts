@@ -139,6 +139,9 @@ export const zh = {
   srs_interval: "间隔",
   srs_streak: "连续天数",
   srs_reviewed_today: "今天已复习",
+  srs_audio_first_toggle: "听力优先",
+  srs_audio_first_prompt: "正在播放音频... 推测词义与读音",
+  srs_audio_first_replay: "重播音频 (R)",
 
   // Dashboard Overview
   dash_title: "学习中心",
@@ -195,6 +198,14 @@ export const zh = {
   settings_study_section: "通用设置",
   settings_srs: "启用间隔重复 (SRS)",
   settings_srs_desc: "启用本地词汇保存与自动间隔重复复习",
+  settings_srs_algorithm: "SRS 调度算法",
+  settings_srs_algorithm_desc: "选择现代 FSRS 记忆保留模型或经典 SM-2 算法",
+  settings_srs_algo_fsrs: "FSRS-4.5 / 5 (现代 DSR 模型 - 推荐)",
+  settings_srs_algo_sm2: "SM-2 (经典 Anki 标准)",
+  settings_fsrs_retention: "FSRS 目标记忆保留率",
+  settings_fsrs_retention_desc: "目标保留率（推荐 90% 以平衡复习量）",
+  settings_audio_first: "听力优先 SRS 复习模式",
+  settings_audio_first_desc: "在显示答案前隐藏日语文本并先播放音频，测试听力理解与记忆",
   settings_autodetect: "自动检测日语",
   settings_autodetect_desc: "在日文网页上自动检测并辅助",
   settings_furigana: "显示振假名",
@@ -215,6 +226,22 @@ export const zh = {
   settings_sub_autopause_desc: "在每句字幕结束后自动暂停播放",
   settings_jimaku_key: "Jimaku.cc API 密钥",
   settings_jimaku_key_desc: "用于从 Jimaku.cc 数据库搜索和下载日文字幕的 API 密钥",
+
+  // Web Immersion & Density / Selective Furigana
+  settings_immersion_reading_section: "网页阅读沉浸 & 选择性假名",
+  settings_density_badge: "网页难度分析徽章",
+  settings_density_badge_desc: "显示悬浮徽章分析日语 JLPT 构成比例（N5-N1）及未掌握汉字密度",
+  settings_selective_furigana: "选择性注入注音假名 (Furigana)",
+  settings_selective_furigana_desc: "根据您的学习阶段，选择性为网页文本中的汉字注入假名注音",
+  settings_furigana_mode: "注音假名显示模式",
+  settings_furigana_mode_desc: "选择需要显示假名注音的汉字范围",
+  settings_furigana_mode_unlearned: "仅未掌握汉字 (SRS 中或尚未复习)",
+  settings_furigana_mode_n3: "N3、N2 与 N1 汉字",
+  settings_furigana_mode_n2: "N2 与 N1 汉字",
+  settings_furigana_mode_n1: "仅 N1 汉字",
+  settings_furigana_mode_all: "所有汉字",
+  settings_leech_threshold: "SRS 顽固卡片 (Leech) 阈值",
+  settings_leech_threshold_desc: "卡片复习失败达到此次数后自动标记为顽固卡片以便专项强化",
 
   // Subtitle Overlay & Modal
   sub_overlay_loading: "正在加载日文字幕...",

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Check, ChevronDown, Database, Film, GraduationCap, Languages, RefreshCw, Settings as SettingsIcon } from "lucide-react";
-import type { ExtensionSettings } from "~lib/utils/types";
+import { Check, ChevronDown, Database, Film, GraduationCap, Languages, RefreshCw, Settings as SettingsIcon, BookOpen, Sparkles, Layers } from "lucide-react";
+import type { ExtensionSettings, SelectiveFuriganaMode } from "~lib/utils/types";
 import { t } from "~lib/locales";
 import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from "~lib/locales";
 import { ankiClient } from "~lib/services/anki-connect";
@@ -506,6 +506,19 @@ export function SettingsView({
     { value: "backHtml", label: "Formatted Back Card (Default HTML)" },
   ];
 
+  const furiganaModeOptions: CustomSelectOption[] = [
+    { value: "unlearned", label: t("settings_furigana_mode_unlearned", currentLang) },
+    { value: "n3_plus", label: t("settings_furigana_mode_n3", currentLang) },
+    { value: "n2_plus", label: t("settings_furigana_mode_n2", currentLang) },
+    { value: "n1_only", label: t("settings_furigana_mode_n1", currentLang) },
+    { value: "all", label: t("settings_furigana_mode_all", currentLang) },
+  ];
+
+  const srsAlgoOptions: CustomSelectOption[] = [
+    { value: "fsrs", label: t("settings_srs_algo_fsrs", currentLang) },
+    { value: "sm2", label: t("settings_srs_algo_sm2", currentLang) },
+  ];
+
   return (
     <div className="hk-content hk-fade-in">
       <div className="hk-settings-header">
@@ -599,6 +612,77 @@ export function SettingsView({
               </div>
             </div>
 
+            {/* SRS Algorithm Switcher */}
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label className="hk-settings-row__label">
+                  {t("settings_srs_algorithm", currentLang)}
+                </label>
+                <div className="hk-settings-row__desc">
+                  {t("settings_srs_algorithm_desc", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <CustomSelect
+                  value={settings.srsAlgorithm || "fsrs"}
+                  onChange={(val) => onUpdate({ srsAlgorithm: val as any })}
+                  options={srsAlgoOptions}
+                  width="280px"
+                />
+              </div>
+            </div>
+
+            {/* FSRS Target Retention Slider */}
+            {settings.srsAlgorithm !== "sm2" && (
+              <div className="hk-settings-row">
+                <div className="hk-settings-row__info">
+                  <label htmlFor="fsrsRequestRetention" className="hk-settings-row__label">
+                    {t("settings_fsrs_retention", currentLang)} ({Math.round((settings.fsrsRequestRetention ?? 0.90) * 100)}%)
+                  </label>
+                  <div id="fsrsRequestRetention-desc" className="hk-settings-row__desc">
+                    {t("settings_fsrs_retention_desc", currentLang)}
+                  </div>
+                </div>
+                <div className="hk-settings-row__control" style={{ width: "160px" }}>
+                  <input
+                    id="fsrsRequestRetention"
+                    aria-describedby="fsrsRequestRetention-desc"
+                    type="range"
+                    min="80"
+                    max="97"
+                    step="1"
+                    value={Math.round((settings.fsrsRequestRetention ?? 0.90) * 100)}
+                    onChange={(e) => onUpdate({ fsrsRequestRetention: Number(e.target.value) / 100 })}
+                    style={{ width: "100%", accentColor: "var(--hk-accent-primary)" }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Default Audio-First Review Mode */}
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="audioFirstReviewMode" className="hk-settings-row__label">
+                  {t("settings_audio_first", currentLang)}
+                </label>
+                <div id="audioFirstReviewMode-desc" className="hk-settings-row__desc">
+                  {t("settings_audio_first_desc", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="audioFirstReviewMode">
+                  <input
+                    id="audioFirstReviewMode"
+                    aria-describedby="audioFirstReviewMode-desc"
+                    type="checkbox"
+                    checked={!!settings.audioFirstReviewMode}
+                    onChange={(e) => onUpdate({ audioFirstReviewMode: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
             <div className="hk-settings-row">
               <div className="hk-settings-row__info">
                 <label htmlFor="autoDetect" className="hk-settings-row__label">{t("settings_autodetect", currentLang)}</label>
@@ -653,6 +737,106 @@ export function SettingsView({
                   />
                   <span className="hk-toggle__slider" />
                 </label>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="srsLeechThreshold" className="hk-settings-row__label">
+                  {t("settings_leech_threshold", currentLang)} ({settings.srsLeechThreshold || 4} lapses)
+                </label>
+                <div id="srsLeechThreshold-desc" className="hk-settings-row__desc">
+                  {t("settings_leech_threshold_desc", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control" style={{ width: "160px" }}>
+                <input
+                  id="srsLeechThreshold"
+                  aria-describedby="srsLeechThreshold-desc"
+                  type="range"
+                  min="2"
+                  max="8"
+                  value={settings.srsLeechThreshold || 4}
+                  onChange={(e) => onUpdate({ srsLeechThreshold: Number(e.target.value) })}
+                  style={{ width: "100%", accentColor: "var(--hk-accent-primary)" }}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Web Immersion & Selective Furigana Card */}
+        <section className="hk-settings-card">
+          <header className="hk-settings-card__header">
+            <div className="hk-settings-card__icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <BookOpen size={18} />
+            </div>
+            <h3 className="hk-settings-card__title">{t("settings_immersion_reading_section", currentLang)}</h3>
+          </header>
+
+          <div className="hk-settings-card__body">
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="webpageDensityBadgeEnabled" className="hk-settings-row__label">
+                  {t("settings_density_badge", currentLang)}
+                </label>
+                <div id="webpageDensityBadgeEnabled-desc" className="hk-settings-row__desc">
+                  {t("settings_density_badge_desc", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="webpageDensityBadgeEnabled">
+                  <input
+                    id="webpageDensityBadgeEnabled"
+                    aria-describedby="webpageDensityBadgeEnabled-desc"
+                    type="checkbox"
+                    checked={settings.webpageDensityBadgeEnabled !== false}
+                    onChange={(e) => onUpdate({ webpageDensityBadgeEnabled: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="selectiveFuriganaEnabled" className="hk-settings-row__label">
+                  {t("settings_selective_furigana", currentLang)}
+                </label>
+                <div id="selectiveFuriganaEnabled-desc" className="hk-settings-row__desc">
+                  {t("settings_selective_furigana_desc", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="selectiveFuriganaEnabled">
+                  <input
+                    id="selectiveFuriganaEnabled"
+                    aria-describedby="selectiveFuriganaEnabled-desc"
+                    type="checkbox"
+                    checked={!!settings.selectiveFuriganaEnabled}
+                    onChange={(e) => onUpdate({ selectiveFuriganaEnabled: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label className="hk-settings-row__label">
+                  {t("settings_furigana_mode", currentLang)}
+                </label>
+                <div className="hk-settings-row__desc">
+                  {t("settings_furigana_mode_desc", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <CustomSelect
+                  value={settings.selectiveFuriganaMode || "unlearned"}
+                  onChange={(val) => onUpdate({ selectiveFuriganaMode: val as SelectiveFuriganaMode })}
+                  options={furiganaModeOptions}
+                  width="280px"
+                />
               </div>
             </div>
           </div>

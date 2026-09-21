@@ -1,21 +1,25 @@
 import { useState, useEffect } from "react";
 import { localSrs } from "~lib/services/local-srs";
 import type { SrsStats } from "~lib/services/local-srs";
+import { analyticsService } from "~lib/services/analytics-service";
+import type { OverallAnalyticsSummary } from "~lib/utils/types";
 import { 
   Play,
   Volume2, 
   ArrowRight,
-  Sparkles,
   BookOpen,
   Calendar,
   Layers,
-  CheckCircle2,
   Clock,
-  LayoutDashboard
+  LayoutDashboard,
+  Film,
+  Flame,
+  AlertTriangle
 } from "lucide-react";
 import { useTranslation } from "~lib/locales";
 import { JlptBadge } from "~components/badges";
 import { ttsService } from "~lib/services/tts-service";
+import { ActivityHeatmap } from "./activity-heatmap";
 
 export function StatsOverview({ 
   onNavigate 
@@ -24,6 +28,7 @@ export function StatsOverview({
 }) {
   const { t, isVietnamese, showHanViet } = useTranslation();
   const [stats, setStats] = useState<SrsStats | null>(null);
+  const [analytics, setAnalytics] = useState<OverallAnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,13 +39,26 @@ export function StatsOverview({
   const loadStats = async () => {
     try {
       setLoading(true);
-      const data = await localSrs.getSrsStats();
-      setStats(data);
+      const [srsData, analyticsData] = await Promise.all([
+        localSrs.getSrsStats(),
+        analyticsService.getOverallAnalytics().catch(() => null),
+      ]);
+      setStats(srsData);
+      setAnalytics(analyticsData);
     } catch (err: any) {
       setError(err.message || "Failed to load statistics");
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatVideoTime = (seconds: number): string => {
+    if (!seconds || seconds <= 0) return "0m";
+    const mins = Math.floor(seconds / 60);
+    const hrs = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    if (hrs > 0) return `${hrs}h ${remMins}m`;
+    return `${mins}m`;
   };
 
   if (loading) {
@@ -60,6 +78,11 @@ export function StatsOverview({
   }
 
   if (!stats) return null;
+
+  const totalChars = analytics?.totalCharactersRead || 0;
+  const todayChars = analytics?.todayCharactersRead || 0;
+  const totalVideoSecs = analytics?.totalVideoImmersionSeconds || 0;
+  const todayVideoSecs = analytics?.todayVideoImmersionSeconds || 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px", paddingBottom: "32px" }} className="hk-fade-in">
@@ -82,8 +105,8 @@ export function StatsOverview({
           </div>
           <p style={{ fontSize: "12.5px", color: "var(--hk-text-muted)", margin: 0 }}>
             {isVietnamese 
-              ? "Theo dõi tiến độ ghi nhớ SRS và kho từ vựng tiếng Nhật" 
-              : "Track your Spaced Repetition progress and vocabulary mastery"}
+              ? "Theo dõi tiến độ tiếp xúc tiếng Nhật thực tế và ghi nhớ từ vựng SRS" 
+              : "Track your Japanese immersion analytics and Spaced Repetition progress"}
           </p>
         </div>
 
@@ -120,8 +143,20 @@ export function StatsOverview({
         )}
       </div>
 
-      {/* ── Key Metrics: Clean Minimalist Tiles ────────────────────────────── */}
+      {/* ── Key Metrics: 4 Primary Immersion & Study Tiles ──────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
+        <StatTile 
+          label={isVietnamese ? "Ký Tự Đã Đọc" : "Characters Read"} 
+          value={totalChars > 0 ? totalChars.toLocaleString() : "0"} 
+          valueColor="#38bdf8"
+          hint={todayChars > 0 ? (isVietnamese ? `+${todayChars.toLocaleString()} hôm nay` : `+${todayChars.toLocaleString()} today`) : (isVietnamese ? "Web & Phụ đề" : "Web & subtitles")}
+        />
+        <StatTile 
+          label={isVietnamese ? "Thời Gian Xem Video" : "Video Immersion"} 
+          value={formatVideoTime(totalVideoSecs)} 
+          valueColor="#a855f7"
+          hint={todayVideoSecs > 0 ? (isVietnamese ? `+${formatVideoTime(todayVideoSecs)} hôm nay` : `+${formatVideoTime(todayVideoSecs)} today`) : (isVietnamese ? "YouTube & Netflix" : "YouTube & Netflix")}
+        />
         <StatTile 
           label={t("dash_total_vocab")} 
           value={stats.total} 
@@ -133,18 +168,16 @@ export function StatsOverview({
           valueColor={stats.due > 0 ? "#f43f5e" : "#10b981"}
           hint={stats.due > 0 ? (isVietnamese ? "Cần hoàn thành" : "Pending reviews") : (isVietnamese ? "Đã xong hôm nay" : "All completed")}
         />
-        <StatTile 
-          label={t("dash_cards_studied")} 
-          value={stats.cardsReviewedToday} 
-          hint={isVietnamese ? `${stats.streakDays} ngày liên tiếp` : `${stats.streakDays} day streak`}
-        />
-        <StatTile 
-          label={t("dash_retention")} 
-          value={`${stats.retentionRate}%`} 
-          valueColor="#38bdf8"
-          hint={isVietnamese ? "Thành thục & Đang ôn" : "Mature retention"}
-        />
       </div>
+
+      {/* ── GitHub-Style Immersion & Study Heatmap ─────────────────────────── */}
+      {analytics && analytics.recentDailyActivities && (
+        <ActivityHeatmap
+          activities={analytics.recentDailyActivities}
+          streakDays={analytics.currentStreakDays}
+          longestStreakDays={analytics.longestStreakDays}
+        />
+      )}
 
       {/* ── Forecast & JLPT Breakdown ──────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "16px" }}>
@@ -245,15 +278,23 @@ export function StatsOverview({
         </div>
       </div>
 
-      {/* ── Card Maturity ──────────────────────────────────────────────────── */}
+      {/* ── Card Maturity & Leech Status ───────────────────────────────────── */}
       <div style={{
         background: "var(--hk-bg-secondary)",
         border: "1px solid var(--hk-border)",
         borderRadius: "10px",
         padding: "16px 18px"
       }}>
-        <div style={{ fontSize: "12px", color: "var(--hk-text-muted)", marginBottom: "12px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-          {t("dash_maturity_title")}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+          <div style={{ fontSize: "12px", color: "var(--hk-text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            {t("dash_maturity_title")}
+          </div>
+          {stats.leechCount > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#f87171", fontSize: "11.5px", fontWeight: 600 }}>
+              <AlertTriangle size={13} />
+              <span>{stats.leechCount} {isVietnamese ? "thẻ leech (sai ≥4 lần)" : "leech cards (failed ≥4x)"}</span>
+            </div>
+          )}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px" }}>
@@ -322,6 +363,11 @@ export function StatsOverview({
                       </span>
                     )}
                     {card.jlpt && <JlptBadge level={card.jlpt} />}
+                    {card.is_leech && (
+                      <span style={{ fontSize: "10px", color: "#f87171", background: "rgba(239,68,68,0.15)", padding: "1px 4px", borderRadius: "3px", fontWeight: 700 }}>
+                        Leech
+                      </span>
+                    )}
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>

@@ -266,6 +266,58 @@ body.hk-popup-body .hk-popup {
   line-height: 1.4;
 }
 
+/* ── Audio-First SRS Mode ──────────────────────────────────────── */
+
+.hk-audio-first-mask {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px 0 10px;
+}
+
+.hk-audio-first-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 38px;
+}
+
+.hk-wave-bar {
+  display: inline-block;
+  width: 4px;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #c084fc, #7c3aed);
+  animation: hk-soundwave-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.hk-wave-bar.bar-1 { height: 16px; animation-delay: 0.1s; }
+.hk-wave-bar.bar-2 { height: 28px; animation-delay: 0.25s; }
+.hk-wave-bar.bar-3 { height: 38px; animation-delay: 0.4s; }
+.hk-wave-bar.bar-4 { height: 24px; animation-delay: 0.2s; }
+.hk-wave-bar.bar-5 { height: 14px; animation-delay: 0.05s; }
+
+@keyframes hk-soundwave-pulse {
+  0% {
+    transform: scaleY(0.35);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.hk-srs-badge--fsrs {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
 .hk-srs-actions {
   margin-top: auto;
   padding-top: 6px;

@@ -327,6 +327,15 @@ export function WordList({
     }
   };
 
+  const handleResetLeech = async (id: string) => {
+    try {
+      const updated = await localSrs.resetLeechStatus(id);
+      setCards(cards.map(c => c.id === id ? updated : c));
+    } catch (err) {
+      console.error("Failed to reset leech status:", err);
+    }
+  };
+
   const filteredCards = cards.filter(c => {
     const term = searchTerm.trim().toLowerCase();
     const matchesSearch = !term || 
@@ -341,6 +350,7 @@ export function WordList({
     if (filterState === "new") return c.repetition === 0;
     if (filterState === "learning") return c.repetition > 0 && c.interval < 21;
     if (filterState === "graduated") return c.interval >= 21;
+    if (filterState === "leech") return c.is_leech || (c.lapse_count || 0) >= 4;
     return true;
   });
 
@@ -361,6 +371,7 @@ export function WordList({
   const newCount = cards.filter(c => c.repetition === 0).length;
   const learningCount = cards.filter(c => c.repetition > 0 && c.interval < 21).length;
   const graduatedCount = cards.filter(c => c.interval >= 21).length;
+  const leechCount = cards.filter(c => c.is_leech || (c.lapse_count || 0) >= 4).length;
   const allDisplayedSelected = displayedCards.length > 0 && displayedCards.every(c => selectedIds.has(c.id));
 
   return (
@@ -570,6 +581,9 @@ export function WordList({
               <option value="graduated" style={{ backgroundColor: "#18181b", color: "#f4f4f5" }}>
                 {t("vocab_filter_graduated")} ({graduatedCount})
               </option>
+              <option value="leech" style={{ backgroundColor: "#18181b", color: "#ef4444" }}>
+                🔥 {isVietnamese ? "Thẻ khó (Leech)" : "Leech Cards"} ({leechCount})
+              </option>
             </select>
           </div>
 
@@ -680,7 +694,7 @@ export function WordList({
           </div>
         </div>
       )}
-      
+
       {/* ── Data Table / Empty State ────────────────────────────────────── */}
       <div style={{ width: "100%" }}>
         {filteredCards.length === 0 ? (

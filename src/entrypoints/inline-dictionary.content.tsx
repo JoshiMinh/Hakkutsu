@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import cssText from "~/style.css?inline";
 import InlineDictionary from "~/contents/inline-dictionary";
+import { ImmersionDensityBadge } from "~components/immersion-density-badge";
 
 const customCss =
   cssText +
@@ -99,7 +100,12 @@ export default defineContentScript({
       css: customCss,
       onMount: (container) => {
         const root = createRoot(container);
-        root.render(<InlineDictionary />);
+        root.render(
+          <>
+            <ImmersionDensityBadge />
+            <InlineDictionary />
+          </>
+        );
         return root;
       },
       onRemove: (root) => {

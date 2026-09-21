@@ -139,6 +139,9 @@ export const ko = {
   srs_interval: "간격",
   srs_streak: "연속 학습일",
   srs_reviewed_today: "오늘 복습함",
+  srs_audio_first_toggle: "음성 우선",
+  srs_audio_first_prompt: "음성 재생 중... 단어와 의미를 맞춰보세요",
+  srs_audio_first_replay: "음성 다시 재생 (R)",
 
   // Dashboard Overview
   dash_title: "학습 센터",
@@ -195,6 +198,14 @@ export const ko = {
   settings_study_section: "일반 설정",
   settings_srs: "간격 반복 (SRS) 활성화",
   settings_srs_desc: "로컬 단어 저장 및 자동 간격 반복 복습 활성화",
+  settings_srs_algorithm: "SRS 스케줄링 알고리즘",
+  settings_srs_algorithm_desc: "최신 FSRS 기억 정착 모델 또는 클래식 SM-2 알고리즘 선택",
+  settings_srs_algo_fsrs: "FSRS-4.5 / 5 (최신 DSR 모델 - 권장)",
+  settings_srs_algo_sm2: "SM-2 (클래식 Anki 표준)",
+  settings_fsrs_retention: "FSRS 목표 기억 정착률",
+  settings_fsrs_retention_desc: "목표 기억 유지율 (복습 부담 균형을 위해 90% 권장)",
+  settings_audio_first: "음성 우선 SRS 복습 모드",
+  settings_audio_first_desc: "정답을 확인하기 전 텍스트를 숨기고 음성을 먼저 재생하여 청취 기억력을 테스트합니다",
   settings_autodetect: "일본어 자동 감지",
   settings_autodetect_desc: "일본어 웹페이지에서 자동으로 감지하고 보조",
   settings_furigana: "후리가나 표시",
@@ -215,6 +226,22 @@ export const ko = {
   settings_sub_autopause_desc: "각 자막 구문이 끝난 후 자동 정지",
   settings_jimaku_key: "Jimaku.cc API 키",
   settings_jimaku_key_desc: "Jimaku.cc 데이터베이스에서 일본어 자막을 검색하고 다운로드하는 API 키",
+
+  // Web Immersion & Density / Selective Furigana
+  settings_immersion_reading_section: "웹 독해 몰입 & 선택적 후리가나",
+  settings_density_badge: "웹페이지 난이도 배지",
+  settings_density_badge_desc: "JLPT 구성 비율(N5~N1)과 미학습 한자 밀도를 분석하는 플로팅 배지 표시",
+  settings_selective_furigana: "선택적 후리가나 삽입",
+  settings_selective_furigana_desc: "학습 레벨에 맞춰 웹페이지 텍스트에 후리가나를 선택적으로 주입",
+  settings_furigana_mode: "후리가나 표시 모드",
+  settings_furigana_mode_desc: "후리가나를 표시할 한자 범위 선택",
+  settings_furigana_mode_unlearned: "미학습 한자만 (SRS 또는 미복습)",
+  settings_furigana_mode_n3: "N3, N2 & N1 한자",
+  settings_furigana_mode_n2: "N2 & N1 한자",
+  settings_furigana_mode_n1: "N1 한자만",
+  settings_furigana_mode_all: "모든 한자",
+  settings_leech_threshold: "SRS 취약 카드 (Leech) 기준 횟수",
+  settings_leech_threshold_desc: "취약 카드로 지정되기 전까지의 복습 실패 횟수",
 
   // Subtitle Overlay & Modal
   sub_overlay_loading: "일본어 자막 불러오는 중...",

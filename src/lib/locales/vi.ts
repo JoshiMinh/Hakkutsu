@@ -144,6 +144,9 @@ export const vi = {
   srs_interval: "Khoảng cách",
   srs_streak: "Chuỗi nhớ",
   srs_reviewed_today: "Đã ôn hôm nay",
+  srs_audio_first_toggle: "Nghe trước",
+  srs_audio_first_prompt: "Đang phát âm thanh... Hãy đoán từ và ý nghĩa",
+  srs_audio_first_replay: "Phát lại âm thanh (R)",
 
   // Dashboard Overview
   dash_title: "Trung tâm học tập",
@@ -200,6 +203,14 @@ export const vi = {
   settings_study_section: "General",
   settings_srs: "Bật ôn tập SRS",
   settings_srs_desc: "Bật tính năng lưu từ vựng và tạo phiên ôn tập lặp lại ngắt quãng cục bộ",
+  settings_srs_algorithm: "Thuật toán lên lịch SRS",
+  settings_srs_algorithm_desc: "Lựa chọn giữa mô hình trí nhớ hiện đại FSRS hoặc thuật toán SM-2 cổ điển",
+  settings_srs_algo_fsrs: "FSRS-4.5 / 5 (Mô hình DSR Hiện đại - Khuyên dùng)",
+  settings_srs_algo_sm2: "SM-2 (Tiêu chuẩn Anki Cổ điển)",
+  settings_fsrs_retention: "Tỉ lệ mục tiêu duy trì trí nhớ FSRS",
+  settings_fsrs_retention_desc: "Tỉ lệ nhớ mong muốn (Khuyên dùng 90% để cân bằng khối lượng ôn tập)",
+  settings_audio_first: "Chế độ ôn tập Nghe Trước (Audio-First)",
+  settings_audio_first_desc: "Ẩn văn bản tiếng Nhật và phát âm thanh trước, kiểm tra khả năng nhận diện nghe hiểu",
   settings_autodetect: "Tự động phát hiện tiếng Nhật",
   settings_autodetect_desc: "Tự động quét và hỗ trợ trên các trang có văn bản tiếng Nhật",
   settings_furigana: "Hiện Furigana",
@@ -220,6 +231,22 @@ export const vi = {
   settings_sub_autopause_desc: "Tự động dừng phát sau mỗi câu để đọc kỹ và phân tích từ vựng",
   settings_jimaku_key: "Khóa Jimaku.cc API Key",
   settings_jimaku_key_desc: "Khóa API để tìm kiếm và tải phụ đề tiếng Nhật từ kho dữ liệu Jimaku.cc",
+
+  // Web Immersion & Density / Selective Furigana
+  settings_immersion_reading_section: "Web Luyện Đọc & Furigana Chọn Lọc",
+  settings_density_badge: "Huy hiệu phân tích độ khó trang web",
+  settings_density_badge_desc: "Hiển thị huy hiệu nổi phân tích tỷ lệ JLPT (N5-N1) và mật độ chữ Hán chưa học",
+  settings_selective_furigana: "Chèn Furigana có chọn lọc",
+  settings_selective_furigana_desc: "Tự động chèn cách đọc Furigana vào trang web theo đúng trình độ bạn chọn",
+  settings_furigana_mode: "Chế độ Furigana chọn lọc",
+  settings_furigana_mode_desc: "Chọn nhóm chữ Hán sẽ được hiển thị Furigana",
+  settings_furigana_mode_unlearned: "Chỉ chữ Hán chưa học (trong SRS hoặc chưa ôn)",
+  settings_furigana_mode_n3: "Chữ Hán N3, N2 & N1",
+  settings_furigana_mode_n2: "Chữ Hán N2 & N1",
+  settings_furigana_mode_n1: "Chỉ chữ Hán N1",
+  settings_furigana_mode_all: "Tất cả chữ Hán",
+  settings_leech_threshold: "Ngưỡng gắn thẻ Thẻ Khó (Leech)",
+  settings_leech_threshold_desc: "Số lần quên/thất bại trong SRS trước khi thẻ được đánh dấu Leech để ôn luyện lại",
 
   // Subtitle Overlay & Modal
   sub_overlay_loading: "Đang tải phụ đề tiếng Nhật...",

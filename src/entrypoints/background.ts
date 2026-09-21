@@ -10,6 +10,7 @@ import { apiClient } from "~lib/services/api-client";
 import { localSrs } from "~lib/services/local-srs";
 import { ankiClient } from "~lib/services/anki-connect";
 import { llmService } from "~lib/services/llm-service";
+import { analyticsService } from "~lib/services/analytics-service";
 import type {
   ExtensionMessage,
   AnalyzeRequest,
@@ -651,6 +652,35 @@ async function handleMessage(
     case "OPEN_APP": {
       chrome.tabs.create({ url: chrome.runtime.getURL("options.html") });
       return { type: "OPEN_APP_RESULT", payload: {} };
+    }
+
+    case "TRACK_CHARACTERS_READ": {
+      const { count } = (message.payload || {}) as { count: number };
+      await analyticsService.recordCharactersRead(count || 0);
+      return { type: "TRACK_CHARACTERS_READ_RESULT", payload: { success: true } };
+    }
+
+    case "TRACK_VIDEO_IMMERSION": {
+      const { seconds } = (message.payload || {}) as { seconds: number };
+      await analyticsService.recordVideoImmersion(seconds || 0);
+      return { type: "TRACK_VIDEO_IMMERSION_RESULT", payload: { success: true } };
+    }
+
+    case "GET_IMMERSION_ANALYTICS": {
+      const summary = await analyticsService.getOverallAnalytics();
+      return { type: "IMMERSION_ANALYTICS_RESULT", payload: summary };
+    }
+
+    case "RESET_LEECH_STATUS": {
+      const { cardId } = (message.payload || {}) as { cardId: string };
+      if (!cardId) return { type: "ERROR", payload: { error: "Missing cardId" } };
+      const card = await localSrs.resetLeechStatus(cardId);
+      return { type: "RESET_LEECH_RESULT", payload: card };
+    }
+
+    case "GET_SMART_DECK_FILTERS": {
+      const filters = await localSrs.getAvailableSmartDeckFilters();
+      return { type: "SMART_DECK_FILTERS_RESULT", payload: filters };
     }
 
     default:

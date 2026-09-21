@@ -214,6 +214,8 @@ export interface HealthResponse {
  */
 
 export type ExtensionView = "translate" | "srs";
+export type SelectiveFuriganaMode = "all" | "unlearned" | "n3_plus" | "n2_plus" | "n1_only";
+export type SrsAlgorithmType = "fsrs" | "sm2";
 
 export interface ExtensionSettings {
   targetLanguage: "vi" | "en" | "zh" | "ja" | "ko";
@@ -238,6 +240,13 @@ export interface ExtensionSettings {
   subtitlesAutoPause: boolean;
   subtitlesOffset: number;
   netflixBtnPosition?: { x: number; y: number } | null;
+  selectiveFuriganaEnabled: boolean;
+  selectiveFuriganaMode: SelectiveFuriganaMode;
+  webpageDensityBadgeEnabled: boolean;
+  srsLeechThreshold?: number;
+  srsAlgorithm?: SrsAlgorithmType;
+  fsrsRequestRetention?: number;
+  audioFirstReviewMode?: boolean;
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -263,7 +272,83 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   subtitlesAutoPause: false,
   subtitlesOffset: 0,
   netflixBtnPosition: null,
+  selectiveFuriganaEnabled: false,
+  selectiveFuriganaMode: "unlearned",
+  webpageDensityBadgeEnabled: true,
+  srsLeechThreshold: 4,
+  srsAlgorithm: "fsrs",
+  fsrsRequestRetention: 0.90,
+  audioFirstReviewMode: false,
 };
+
+export interface DailyActivity {
+  date: string; // "YYYY-MM-DD"
+  charactersRead: number;
+  videoImmersionSeconds: number;
+  miningVolume: number;
+  reviewsCount: number;
+  passedReviewsCount: number;
+  retentionRate: number;
+}
+
+export interface OverallAnalyticsSummary {
+  totalCharactersRead: number;
+  totalVideoImmersionSeconds: number;
+  totalCardsMined: number;
+  totalReviewsCompleted: number;
+  averageRetentionRate: number;
+  currentStreakDays: number;
+  longestStreakDays: number;
+  todayCharactersRead: number;
+  todayVideoImmersionSeconds: number;
+  todayCardsMined: number;
+  todayReviewsCount: number;
+  todayRetentionRate: number;
+  recentDailyActivities: DailyActivity[];
+}
+
+export interface SmartDeckFilter {
+  jlptLevels?: string[];
+  domains?: string[];
+  tags?: string[];
+  leechesOnly?: boolean;
+  dueOnly?: boolean;
+  limit?: number;
+}
+
+export interface SmartDeckFilterOptions {
+  jlptLevels: Array<{ level: string; count: number; dueCount: number }>;
+  domains: Array<{ domain: string; count: number; dueCount: number }>;
+  tags: Array<{ tag: string; count: number; dueCount: number }>;
+  leechCount: number;
+  dueLeechCount: number;
+}
+
+export interface PageDensityAnalysis {
+  url: string;
+  totalJapaneseChars: number;
+  totalKanji: number;
+  uniqueKanji: number;
+  jlptDistribution: {
+    N5: number;
+    N4: number;
+    N3: number;
+    N2: number;
+    N1: number;
+    unranked: number;
+  };
+  percentages: {
+    N5: number;
+    N4: number;
+    N3: number;
+    N2: number;
+    N1: number;
+    unranked: number;
+  };
+  dominantLevel: string;
+  unlearnedCount: number;
+  immersionScore: number;
+}
 
 export interface VocabularyEntry {
   id: string;
@@ -323,6 +408,18 @@ export type MessageType =
   | "MOUNT_GENERIC_SUBTITLES"
   | "OCR_IMAGE"
   | "OCR_RESULT"
+  | "TRACK_CHARACTERS_READ"
+  | "TRACK_CHARACTERS_READ_RESULT"
+  | "TRACK_VIDEO_IMMERSION"
+  | "TRACK_VIDEO_IMMERSION_RESULT"
+  | "GET_IMMERSION_ANALYTICS"
+  | "IMMERSION_ANALYTICS_RESULT"
+  | "ANALYZE_PAGE_DENSITY"
+  | "PAGE_DENSITY_RESULT"
+  | "RESET_LEECH_STATUS"
+  | "RESET_LEECH_RESULT"
+  | "GET_SMART_DECK_FILTERS"
+  | "SMART_DECK_FILTERS_RESULT"
   | "IGNORED"
   | "ERROR";
 

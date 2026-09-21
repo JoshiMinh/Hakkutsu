@@ -128,3 +128,79 @@ export function subscribeToVideoTime(video: HTMLVideoElement, onTime: () => void
     video.removeEventListener("loadedmetadata", onTime);
   };
 }
+
+/**
+ * Track immersion seconds during active video playback.
+ * Sends TRACK_VIDEO_IMMERSION messages periodically (every 10s of active playback and on pause/unload).
+ */
+export function trackVideoImmersion(video: HTMLVideoElement): () => void {
+  let accumulatedSeconds = 0;
+  let lastTimestamp = Date.now();
+  let intervalTimer: number | null = null;
+
+  const flush = () => {
+    if (accumulatedSeconds >= 1 && typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+      const secondsToSend = Math.floor(accumulatedSeconds);
+      accumulatedSeconds -= secondsToSend;
+      chrome.runtime.sendMessage({
+        type: "TRACK_VIDEO_IMMERSION",
+        payload: { seconds: secondsToSend },
+      }).catch(() => {});
+    }
+  };
+
+  const startTracking = () => {
+    lastTimestamp = Date.now();
+    if (intervalTimer !== null) clearInterval(intervalTimer);
+    intervalTimer = window.setInterval(() => {
+      if (!video.paused && !video.ended && video.isConnected) {
+        const now = Date.now();
+        const deltaSec = (now - lastTimestamp) / 1000;
+        lastTimestamp = now;
+        if (deltaSec > 0 && deltaSec < 30) {
+          accumulatedSeconds += deltaSec;
+          if (accumulatedSeconds >= 10) {
+            flush();
+          }
+        }
+      } else {
+        lastTimestamp = Date.now();
+      }
+    }, 5000);
+  };
+
+  const stopTracking = () => {
+    if (!video.paused && !video.ended) {
+      const now = Date.now();
+      const deltaSec = (now - lastTimestamp) / 1000;
+      if (deltaSec > 0 && deltaSec < 30) {
+        accumulatedSeconds += deltaSec;
+      }
+    }
+    flush();
+    if (intervalTimer !== null) {
+      clearInterval(intervalTimer);
+      intervalTimer = null;
+    }
+  };
+
+  video.addEventListener("play", startTracking);
+  video.addEventListener("playing", startTracking);
+  video.addEventListener("pause", stopTracking);
+  video.addEventListener("ended", stopTracking);
+  window.addEventListener("beforeunload", flush);
+
+  if (!video.paused && !video.ended) {
+    startTracking();
+  }
+
+  return () => {
+    stopTracking();
+    video.removeEventListener("play", startTracking);
+    video.removeEventListener("playing", startTracking);
+    video.removeEventListener("pause", stopTracking);
+    video.removeEventListener("ended", stopTracking);
+    window.removeEventListener("beforeunload", flush);
+  };
+}
+

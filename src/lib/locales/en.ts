@@ -144,6 +144,9 @@ export const en = {
   srs_interval: "Interval",
   srs_streak: "Streak",
   srs_reviewed_today: "Reviewed today",
+  srs_audio_first_toggle: "Audio-First",
+  srs_audio_first_prompt: "Listening... Guess word and meaning",
+  srs_audio_first_replay: "Replay Audio (R)",
 
   // Dashboard Overview
   dash_title: "Learning Hub",
@@ -200,6 +203,14 @@ export const en = {
   settings_study_section: "General",
   settings_srs: "Enable Spaced Repetition (SRS)",
   settings_srs_desc: "Enable local vocabulary saving and automatic spaced repetition review sessions",
+  settings_srs_algorithm: "SRS Scheduling Algorithm",
+  settings_srs_algorithm_desc: "Choose between modern FSRS memory retention model or classic SM-2 algorithm",
+  settings_srs_algo_fsrs: "FSRS-4.5 / 5 (Modern DSR Model - Recommended)",
+  settings_srs_algo_sm2: "SM-2 (Classic Anki Standard)",
+  settings_fsrs_retention: "FSRS Target Memory Retention",
+  settings_fsrs_retention_desc: "Optimal retention percentage (90% recommended for balanced review load)",
+  settings_audio_first: "Audio-First SRS Review",
+  settings_audio_first_desc: "Play audio first and mask Japanese text until revealed, testing listening recall",
   settings_autodetect: "Auto-detect Japanese",
   settings_autodetect_desc: "Automatically detect and assist on Japanese web pages",
   settings_furigana: "Show Furigana",
@@ -220,6 +231,22 @@ export const en = {
   settings_sub_autopause_desc: "Automatically pause playback after each subtitle line for study",
   settings_jimaku_key: "Jimaku.cc API Key",
   settings_jimaku_key_desc: "API key to search and download Japanese subtitles from Jimaku.cc database",
+
+  // Web Immersion & Density / Selective Furigana
+  settings_immersion_reading_section: "Web Immersion & Selective Furigana",
+  settings_density_badge: "Webpage Japanese Difficulty Badge",
+  settings_density_badge_desc: "Display a floating badge analyzing Japanese JLPT composition (N5-N1) and unlearned kanji density",
+  settings_selective_furigana: "Selective Furigana Injection",
+  settings_selective_furigana_desc: "Selectively inject furigana annotations into webpage text matching your study level",
+  settings_furigana_mode: "Selective Furigana Filter Mode",
+  settings_furigana_mode_desc: "Choose which kanji receive furigana reading annotations",
+  settings_furigana_mode_unlearned: "Unlearned Kanji Only (In SRS or unreviewed)",
+  settings_furigana_mode_n3: "N3, N2 & N1 Kanji",
+  settings_furigana_mode_n2: "N2 & N1 Kanji",
+  settings_furigana_mode_n1: "N1 Kanji Only",
+  settings_furigana_mode_all: "All Kanji",
+  settings_leech_threshold: "SRS Leech Threshold (Lapses)",
+  settings_leech_threshold_desc: "Number of failed reviews before a card is marked as a leech for targeted retraining",
 
   // Subtitle Overlay & Modal
   sub_overlay_loading: "Loading Japanese subtitles...",

@@ -21,7 +21,7 @@ import {
   deduplicateCueText,
 } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";
-import { observePrimaryVideo, subscribeToVideoTime } from "~lib/services/video-runtime";
+import { observePrimaryVideo, subscribeToVideoTime, trackVideoImmersion } from "~lib/services/video-runtime";
 import {
   type HakkutsuYouTubeSyncedData,
 } from "~lib/services/youtube-bridge";
@@ -157,10 +157,22 @@ export default function YouTubeSubtitlesOverlay() {
   // ── Video Reference Tracking ───────────────────────────────────────────────
 
   useEffect(() => {
-    return observePrimaryVideo((video) => {
+    let unbindImmersion: (() => void) | null = null;
+    const unbindObserver = observePrimaryVideo((video) => {
       videoRef.current = video;
       setVideoEl(video);
+      if (unbindImmersion) {
+        unbindImmersion();
+        unbindImmersion = null;
+      }
+      if (video) {
+        unbindImmersion = trackVideoImmersion(video);
+      }
     });
+    return () => {
+      unbindObserver();
+      if (unbindImmersion) unbindImmersion();
+    };
   }, []);
 
   // ── Ensure Subtitle Shadow Host is Placed Inside Player ───────────────

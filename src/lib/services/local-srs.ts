@@ -4,6 +4,9 @@ import { getHanViet } from "~lib/utils/hanviet-dict";
 import { lookupWord } from "./dictionary-lookup";
 import { googleTranslateService } from "./google-translate";
 import { getSettings } from "./storage";
+import { analyticsService } from "./analytics-service";
+import { fsrsEngine, type FsrsRating, type FsrsState } from "./fsrs-engine";
+import type { SmartDeckFilter, SmartDeckFilterOptions } from "~lib/utils/types";
 
 export interface SrsCard {
   id: string;
@@ -13,6 +16,7 @@ export interface SrsCard {
   sentence?: string;
   source_url?: string;
   source_title?: string;
+  source_domain?: string;
   image_url?: string;
   
   word_furigana?: string;
@@ -25,7 +29,20 @@ export interface SrsCard {
   frequency_rank?: number | null;
   tags?: string[];
 
-  // SRS data
+  // Leech & lapse management
+  lapse_count?: number; // count of times card failed review (quality < 3 or rating 1)
+  is_leech?: boolean;   // true if lapse_count >= leechThreshold
+
+  // FSRS DSR memory state
+  stability?: number;       // S (in days)
+  difficulty?: number;      // D (scale 1.0 to 10.0)
+  state?: number;           // 0: New, 1: Learning, 2: Review, 3: Relearning
+  last_review?: number;     // timestamp (ms)
+  retrievability?: number;  // R (0.0 to 1.0)
+  elapsed_days?: number;
+  scheduled_days?: number;
+
+  // SRS data (SM-2 & general scheduling)
   due_date: number; // timestamp
   interval: number; // days
   repetition: number;
@@ -43,6 +60,7 @@ export interface SrsStats {
   graduated: number;
   total: number;
   mined: number;
+  leechCount: number;
   forecast: number[]; // counts of cards due today, tomorrow, etc. (7 days)
   cardsReviewedToday: number;
   streakDays: number;
@@ -94,6 +112,7 @@ class LocalSrsService {
     vietnamese_sound?: string;
     source_url?: string;
     source_title?: string;
+    source_domain?: string;
     image_url?: string;
     target_word?: string;
     jlpt?: string;
@@ -167,12 +186,18 @@ class LocalSrsService {
       }
     }
 
-    // Default tags setup
+    // Default tags and domain setup
     const initialTags = data.tags ? [...data.tags] : [];
     if (jlpt && !initialTags.includes(jlpt)) {
       initialTags.push(jlpt.toUpperCase().startsWith("N") ? jlpt.toUpperCase() : `N${jlpt}`);
     }
+
+    let source_domain = data.source_domain;
     if (data.source_url) {
+      try {
+        source_domain = source_domain || new URL(data.source_url).hostname.replace(/^www\./, "");
+      } catch {}
+
       if (data.source_url.includes("youtube.com") && !initialTags.includes("YouTube")) {
         initialTags.push("YouTube");
       } else if (data.source_url.includes("netflix.com") && !initialTags.includes("Netflix")) {
@@ -193,9 +218,14 @@ class LocalSrsService {
       sentence_meaning,
       source_url: data.source_url,
       source_title: data.source_title,
+      source_domain,
       image_url: data.image_url,
       frequency_rank: frequency_rank ?? null,
       tags: initialTags,
+
+      lapse_count: 0,
+      is_leech: false,
+      state: 0,
       
       due_date: now,
       interval: 0,
@@ -207,6 +237,7 @@ class LocalSrsService {
     };
     
     await db.put("cards", card);
+    analyticsService.recordCardMined().catch(() => {});
     return card;
   }
 
@@ -286,6 +317,142 @@ class LocalSrsService {
     return cards.reverse();
   }
 
+  /** Smart Decks Filter Query */
+  async getFilteredCards(filters: SmartDeckFilter = {}): Promise<SrsCard[]> {
+    const allCards = await this.getAllSrsCards();
+    const now = Date.now();
+
+    return allCards.filter((card) => {
+      // Due only check
+      if (filters.dueOnly && card.due_date > now) {
+        return false;
+      }
+
+      // Leech only check
+      if (filters.leechesOnly && !card.is_leech && (card.lapse_count || 0) < 4) {
+        return false;
+      }
+
+      // JLPT level filter
+      if (filters.jlptLevels && filters.jlptLevels.length > 0) {
+        const cardJlpt = (card.jlpt || "unranked").toUpperCase().replace("JLPT-", "");
+        const matched = filters.jlptLevels.some((lvl) => {
+          const cleanLvl = lvl.toUpperCase().replace("JLPT-", "");
+          if (cleanLvl === "UNRANKED") return !card.jlpt || cardJlpt === "UNRANKED";
+          return cardJlpt === cleanLvl;
+        });
+        if (!matched) return false;
+      }
+
+      // Domain filter
+      if (filters.domains && filters.domains.length > 0) {
+        const domain = card.source_domain || "";
+        const matched = filters.domains.some((d) =>
+          domain.toLowerCase().includes(d.toLowerCase()) ||
+          (card.source_url && card.source_url.toLowerCase().includes(d.toLowerCase()))
+        );
+        if (!matched) return false;
+      }
+
+      // Tag filter
+      if (filters.tags && filters.tags.length > 0) {
+        const cardTags = (card.tags || []).map((t) => t.toLowerCase());
+        const matched = filters.tags.some((t) => cardTags.includes(t.toLowerCase().replace(/^#/, "")));
+        if (!matched) return false;
+      }
+
+      return true;
+    }).slice(0, filters.limit || 500);
+  }
+
+  /** Aggregate available smart deck filter options with counts and due counts */
+  async getAvailableSmartDeckFilters(): Promise<SmartDeckFilterOptions> {
+    const cards = await this.getAllSrsCards();
+    const now = Date.now();
+
+    const jlptMap = new Map<string, { count: number; dueCount: number }>();
+    const domainMap = new Map<string, { count: number; dueCount: number }>();
+    const tagMap = new Map<string, { count: number; dueCount: number }>();
+    let leechCount = 0;
+    let dueLeechCount = 0;
+
+    for (const card of cards) {
+      const isDue = card.due_date <= now;
+      const isLeech = card.is_leech || (card.lapse_count || 0) >= 4;
+      if (isLeech) {
+        leechCount += 1;
+        if (isDue) dueLeechCount += 1;
+      }
+
+      // JLPT
+      const lvl = (card.jlpt || "Unranked").toUpperCase().replace("JLPT-", "");
+      const cleanLvl = ["N5", "N4", "N3", "N2", "N1"].includes(lvl) ? lvl : "Unranked";
+      const jEntry = jlptMap.get(cleanLvl) || { count: 0, dueCount: 0 };
+      jEntry.count += 1;
+      if (isDue) jEntry.dueCount += 1;
+      jlptMap.set(cleanLvl, jEntry);
+
+      // Domain
+      let domain = card.source_domain;
+      if (!domain && card.source_url) {
+        try {
+          domain = new URL(card.source_url).hostname.replace(/^www\./, "");
+        } catch {}
+      }
+      if (domain) {
+        const dEntry = domainMap.get(domain) || { count: 0, dueCount: 0 };
+        dEntry.count += 1;
+        if (isDue) dEntry.dueCount += 1;
+        domainMap.set(domain, dEntry);
+      }
+
+      // Tags
+      if (card.tags && Array.isArray(card.tags)) {
+        for (const tag of card.tags) {
+          if (!tag) continue;
+          const cleanTag = tag.trim();
+          const tEntry = tagMap.get(cleanTag) || { count: 0, dueCount: 0 };
+          tEntry.count += 1;
+          if (isDue) tEntry.dueCount += 1;
+          tagMap.set(cleanTag, tEntry);
+        }
+      }
+    }
+
+    const standardJlptOrder = ["N5", "N4", "N3", "N2", "N1", "Unranked"];
+    const jlptLevels = standardJlptOrder
+      .filter((lvl) => jlptMap.has(lvl))
+      .map((lvl) => ({
+        level: lvl,
+        count: jlptMap.get(lvl)!.count,
+        dueCount: jlptMap.get(lvl)!.dueCount,
+      }));
+
+    const domains = Array.from(domainMap.entries())
+      .map(([domain, data]) => ({ domain, count: data.count, dueCount: data.dueCount }))
+      .sort((a, b) => b.count - a.count);
+
+    const tags = Array.from(tagMap.entries())
+      .map(([tag, data]) => ({ tag, count: data.count, dueCount: data.dueCount }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      jlptLevels,
+      domains,
+      tags,
+      leechCount,
+      dueLeechCount,
+    };
+  }
+
+  /** Reset leech status and lapse counter */
+  async resetLeechStatus(cardId: string): Promise<SrsCard> {
+    return this.updateSrsCard(cardId, {
+      lapse_count: 0,
+      is_leech: false,
+    });
+  }
+
   /** Merge a backup into the local database without discarding newer fields. */
   async restoreSrsCards(cards: SrsCard[]): Promise<number> {
     const db = await this.dbPromise;
@@ -306,6 +473,16 @@ class LocalSrsService {
         ...candidate,
         id: existing?.id || candidate.id || crypto.randomUUID(),
         word: candidate.word.trim(),
+        lapse_count: Number.isFinite(candidate.lapse_count) ? candidate.lapse_count : existing?.lapse_count || 0,
+        is_leech: candidate.is_leech ?? existing?.is_leech ?? false,
+        source_domain: candidate.source_domain || existing?.source_domain,
+        stability: Number.isFinite(candidate.stability) ? candidate.stability : existing?.stability,
+        difficulty: Number.isFinite(candidate.difficulty) ? candidate.difficulty : existing?.difficulty,
+        state: Number.isFinite(candidate.state) ? candidate.state : existing?.state,
+        last_review: Number.isFinite(candidate.last_review) ? candidate.last_review : existing?.last_review,
+        retrievability: Number.isFinite(candidate.retrievability) ? candidate.retrievability : existing?.retrievability,
+        elapsed_days: Number.isFinite(candidate.elapsed_days) ? candidate.elapsed_days : existing?.elapsed_days,
+        scheduled_days: Number.isFinite(candidate.scheduled_days) ? candidate.scheduled_days : existing?.scheduled_days,
         due_date: Number.isFinite(candidate.due_date) ? candidate.due_date : now,
         interval: Number.isFinite(candidate.interval) ? candidate.interval : 0,
         repetition: Number.isFinite(candidate.repetition) ? candidate.repetition : 0,
@@ -332,38 +509,95 @@ class LocalSrsService {
       throw new Error(`SRS Card not found: ${cardId}`);
     }
 
-    let interval = card.interval;
-    let repetition = card.repetition;
-    let efactor = card.efactor;
+    const settings = await getSettings().catch(() => ({
+      srsAlgorithm: "fsrs" as const,
+      fsrsRequestRetention: 0.90,
+      srsLeechThreshold: 4,
+    }));
+    const algorithm = settings.srsAlgorithm || "fsrs";
+    const leechThreshold = settings.srsLeechThreshold || 4;
+    const now = Date.now();
 
-    if (quality >= 3) {
-      if (repetition === 0) {
-        interval = 1;
-      } else if (repetition === 1) {
-        interval = 6;
-      } else {
-        interval = Math.round(interval * efactor);
-      }
-      repetition += 1;
+    if (algorithm === "fsrs") {
+      // Map review quality to FSRS Rating: 1: Again, 2: Hard, 3: Good, 4: Easy
+      const fsrsRating: FsrsRating = quality <= 1 ? 1 : quality <= 3 ? 2 : quality === 4 ? 3 : 4;
+      fsrsEngine.setTargetRetention(settings.fsrsRequestRetention || 0.90);
+
+      const fsrsOutput = fsrsEngine.review(
+        {
+          stability: card.stability,
+          difficulty: card.difficulty,
+          state: (card.state as FsrsState) ?? 0,
+          last_review: card.last_review || card.created_at,
+          reps: card.repetition || 0,
+          lapses: card.lapse_count || 0,
+          elapsed_days: card.elapsed_days,
+          scheduled_days: card.scheduled_days,
+        },
+        fsrsRating,
+        now
+      );
+
+      card.stability = fsrsOutput.stability;
+      card.difficulty = fsrsOutput.difficulty;
+      card.state = fsrsOutput.state;
+      card.interval = fsrsOutput.interval;
+      card.due_date = fsrsOutput.due_date;
+      card.retrievability = fsrsOutput.retrievability;
+      card.repetition = fsrsOutput.reps;
+      card.lapse_count = fsrsOutput.lapses;
+      card.is_leech = card.lapse_count >= leechThreshold;
+      card.last_review = now;
+      card.elapsed_days = fsrsOutput.elapsed_days;
+      card.scheduled_days = fsrsOutput.scheduled_days;
+      card.updated_at = now;
     } else {
-      repetition = 0;
-      interval = 1;
+      // Classic SM-2 Algorithm Fallback
+      let interval = card.interval;
+      let repetition = card.repetition;
+      let efactor = card.efactor;
+      let lapse_count = card.lapse_count || 0;
+      let is_leech = card.is_leech || false;
+
+      if (quality >= 3) {
+        if (repetition === 0) {
+          interval = 1;
+        } else if (repetition === 1) {
+          interval = 6;
+        } else {
+          interval = Math.round(interval * efactor);
+        }
+        repetition += 1;
+      } else {
+        repetition = 0;
+        interval = 1;
+        lapse_count += 1;
+        if (lapse_count >= leechThreshold) {
+          is_leech = true;
+        }
+      }
+
+      efactor = efactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+      if (efactor < 1.3) efactor = 1.3;
+
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const dueDate = now + interval * oneDayMs;
+
+      card.interval = interval;
+      card.repetition = repetition;
+      card.efactor = efactor;
+      card.due_date = dueDate;
+      card.lapse_count = lapse_count;
+      card.is_leech = is_leech;
+      card.last_review = now;
+      card.updated_at = now;
     }
-
-    efactor = efactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
-    if (efactor < 1.3) efactor = 1.3;
-
-    const oneDayMs = 24 * 60 * 60 * 1000;
-    const dueDate = Date.now() + interval * oneDayMs;
-
-    card.interval = interval;
-    card.repetition = repetition;
-    card.efactor = efactor;
-    card.due_date = dueDate;
-    card.updated_at = Date.now();
 
     await store.put(card);
     await tx.done;
+
+    // Record review to analytics asynchronously
+    analyticsService.recordReview(quality).catch(() => {});
 
     return card;
   }
@@ -415,6 +649,7 @@ class LocalSrsService {
     let review = 0;
     let graduated = 0;
     let mined = 0;
+    let leechCount = 0;
     let cardsReviewedToday = 0;
 
     const forecast = [0, 0, 0, 0, 0, 0, 0];
@@ -424,6 +659,11 @@ class LocalSrsService {
       // Due count
       if (card.due_date <= now) {
         due += 1;
+      }
+
+      // Leech count
+      if (card.is_leech || (card.lapse_count || 0) >= 4) {
+        leechCount += 1;
       }
 
       // Card maturity
@@ -484,6 +724,7 @@ class LocalSrsService {
       graduated,
       total: cards.length,
       mined,
+      leechCount,
       forecast,
       cardsReviewedToday,
       streakDays: cardsReviewedToday > 0 ? 3 : 2,

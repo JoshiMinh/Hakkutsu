@@ -139,6 +139,9 @@ export const ja = {
   srs_interval: "間隔",
   srs_streak: "連続日",
   srs_reviewed_today: "本日復習済み",
+  srs_audio_first_toggle: "音声先行",
+  srs_audio_first_prompt: "音声を再生中... 単語と意味を推測",
+  srs_audio_first_replay: "音声をもう一度再生 (R)",
 
   // Dashboard Overview
   dash_title: "ラーニングハブ",
@@ -195,6 +198,14 @@ export const ja = {
   settings_study_section: "一般設定",
   settings_srs: "間隔反復 (SRS) を有効化",
   settings_srs_desc: "ローカル単語保存と自動間隔反復復習を有効にする",
+  settings_srs_algorithm: "SRS スケジューリングアルゴリズム",
+  settings_srs_algorithm_desc: "最新のFSRS記憶定着モデルまたは従来のSM-2アルゴリズムを選択",
+  settings_srs_algo_fsrs: "FSRS-4.5 / 5 (最新 DSR モデル - 推奨)",
+  settings_srs_algo_sm2: "SM-2 (従来の Anki 標準)",
+  settings_fsrs_retention: "FSRS 目標記憶定着率",
+  settings_fsrs_retention_desc: "目標とする定着率（復習負荷のバランスのため90%を推奨）",
+  settings_audio_first: "音声先行 SRS 復習モード",
+  settings_audio_first_desc: "回答を表示するまでテキストを隠して音声を先行再生し、聴解力を鍛えます",
   settings_autodetect: "日本語を自動検出",
   settings_autodetect_desc: "日本語ウェブページで自動検出して補助",
   settings_furigana: "ルビ（ふりがな）を表示",
@@ -215,6 +226,22 @@ export const ja = {
   settings_sub_autopause_desc: "各字幕フレーズの終了時に自動停止",
   settings_jimaku_key: "Jimaku.cc API キー",
   settings_jimaku_key_desc: "Jimaku.cc から日本語字幕を検索・ダウンロードするAPIキー",
+
+  // Web Immersion & Density / Selective Furigana
+  settings_immersion_reading_section: "Web読解イマージョン & 選択的ふりがな",
+  settings_density_badge: "Webページ難易度バッジ",
+  settings_density_badge_desc: "JLPT構成比（N5〜N1）と未習得漢字の密度を分析するフローティングバッジを表示",
+  settings_selective_furigana: "選択的ふりがな挿入",
+  settings_selective_furigana_desc: "学習レベルに合わせてWebページのテキストにふりがなを選択注入",
+  settings_furigana_mode: "ふりがな表示モード",
+  settings_furigana_mode_desc: "ふりがなを表示する漢字の範囲を選択",
+  settings_furigana_mode_unlearned: "未習得漢字のみ (SRSまたは未復習)",
+  settings_furigana_mode_n3: "N3・N2・N1 漢字",
+  settings_furigana_mode_n2: "N2・N1 漢字",
+  settings_furigana_mode_n1: "N1 漢字のみ",
+  settings_furigana_mode_all: "すべての漢字",
+  settings_leech_threshold: "SRS 苦手カード (Leech) の基準回数",
+  settings_leech_threshold_desc: "苦手カードとしてマークされるまでの復習失敗回数",
 
   // Subtitle Overlay & Modal
   sub_overlay_loading: "日本語字幕を読み込み中...",

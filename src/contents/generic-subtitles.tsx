@@ -21,7 +21,7 @@ import { useTranslation } from "~lib/locales";
 import { containsJapanese } from "~lib/utils/japanese";
 import { parseSubtitleContent } from "~lib/services/subtitle-parsers";
 import { findSmartCue, buildSmartCues } from "~lib/services/smart-cue";
-import { observePrimaryVideo, subscribeToVideoTime } from "~lib/services/video-runtime";
+import { observePrimaryVideo, subscribeToVideoTime, trackVideoImmersion } from "~lib/services/video-runtime";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -494,7 +494,8 @@ export default function GenericSubtitlesOverlay() {
   // ── Check for a video element on this page ────────────────────────────────
 
   useEffect(() => {
-    return observePrimaryVideo((video) => {
+    let unbindImmersion: (() => void) | null = null;
+    const unbindObserver = observePrimaryVideo((video) => {
       if (videoRef.current && videoRef.current !== video) {
         setAvailableTracks([]);
         setCurrentTrackId("");
@@ -510,7 +511,18 @@ export default function GenericSubtitlesOverlay() {
       currentUrlRef.current = window.location.href;
       setVideoEl(video);
       setHasVideo(Boolean(video));
+      if (unbindImmersion) {
+        unbindImmersion();
+        unbindImmersion = null;
+      }
+      if (video) {
+        unbindImmersion = trackVideoImmersion(video);
+      }
     });
+    return () => {
+      unbindObserver();
+      if (unbindImmersion) unbindImmersion();
+    };
   }, []);
 
   useEffect(() => {
