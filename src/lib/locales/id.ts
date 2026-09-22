@@ -341,6 +341,24 @@ export const id = {
   drawer_toggle_sync: "Sinkronisasi Gulir Otomatis",
   drawer_jump_to_current: "Gulir ke Baris Aktif",
   btn_open: "Buka",
+
+  // Box OCR & Manga Extraction
+  ocr_title: "Box OCR (Manga & Gambar)",
+  ocr_subtitle: "Pengenalan teks bahasa Jepang lokal untuk manga, komik web, dan canvas",
+  ocr_btn_trigger: "Box OCR (Alt+S)",
+  ocr_overlay_hint: "Tarik kotak pada teks manga • Tekan Esc untuk batal",
+  ocr_orientation_auto: "Deteksi Otomatis",
+  ocr_orientation_vertical: "Vertikal (縦書き)",
+  ocr_orientation_horizontal: "Horizontal (横書き)",
+  ocr_recognizing: "Mengenali teks bahasa Jepang...",
+  ocr_preprocess: "Filter Kontras Manga",
+  ocr_preprocess_desc: "Pra-proses gambar untuk menghilangkan screentone agar teks lebih jelas",
+  ocr_shortcut: "Pintasan Box OCR",
+  ocr_shortcut_desc: "Pintasan keyboard untuk mengaktifkan pemindaian OCR di halaman mana pun",
+  ocr_edit_hint: "Edit teks hasil pindaian jika diperlukan",
+  ocr_reanalyze: "Analisis Ulang",
+  ocr_no_text: "Tidak ada teks bahasa Jepang yang terdeteksi di kotak pilihan. Coba sesuaikan kotak atau kontras.",
+  settings_ocr_section: "Box OCR (Manga & Pemindaian)",
 };
 
 

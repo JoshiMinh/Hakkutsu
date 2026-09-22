@@ -1,12 +1,36 @@
 import { useEffect, useState, useRef } from "react";
-import { X, Loader2, Sparkles, Languages, Zap, Check, BookmarkPlus, AlertCircle } from "lucide-react";
+import {
+  X,
+  Loader2,
+  Sparkles,
+  Languages,
+  Zap,
+  Check,
+  BookmarkPlus,
+  AlertCircle,
+  Crop,
+  RefreshCw,
+  Edit3,
+  ArrowDownUp,
+  ArrowLeftRight,
+} from "lucide-react";
 import { containsJapanese } from "~lib/utils/japanese";
-import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis, AnkiExportData } from "~lib/utils/types";
+import type {
+  AnalyzeResponse,
+  PhraseAnalyzeResponse,
+  TokenAnalysis,
+  AnkiExportData,
+  BoxOcrCoordinates,
+} from "~lib/utils/types";
 import { DefinitionCard } from "~components/definition-card";
 import { TokenDisplay } from "~components/token-display";
 import { GrammarExplanations } from "~components/grammar-explanations";
+import { BoxOcrOverlay } from "~components/box-ocr-overlay";
+import { ocrEngine } from "~lib/services/ocr-engine";
+import { cropViewportBox } from "~lib/services/image-cropper";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
+
 // Content scripts render inside arbitrary websites, so root-relative URLs point
 // at the host page. Resolve the packaged asset against the extension origin.
 const logoUrl = browser.runtime.getURL("/assets/icon.png");
@@ -122,6 +146,13 @@ const InlineDictionary = () => {
   const [srsAdded, setSrsAdded] = useState(false);
   const [srsError, setSrsError] = useState<string | null>(null);
   const [hoverHighlightRects, setHoverHighlightRects] = useState<DOMRect[] | null>(null);
+  const [isOcrSelecting, setIsOcrSelecting] = useState(false);
+  const [ocrCroppedImage, setOcrCroppedImage] = useState<string | null>(null);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
+  const [ocrOrientation, setOcrOrientation] = useState<"auto" | "vertical" | "horizontal">("auto");
+  const [isEditingOcrText, setIsEditingOcrText] = useState(false);
+  const [editedOcrText, setEditedOcrText] = useState("");
   const { settings, isHydrated } = useSettingsStore();
   const { t, isVietnamese, lang } = useTranslation();
 
@@ -143,6 +174,22 @@ const InlineDictionary = () => {
         }
       })
       .catch(() => setAnkiConnected(false));
+  }, []);
+
+  // Listen for runtime messages (e.g. from background context menu or keyboard shortcut)
+  useEffect(() => {
+    const handleRuntimeMessage = (message: any, _sender: any, sendResponse: any) => {
+      if (message?.type === "TRIGGER_BOX_OCR") {
+        setIsOcrSelecting(true);
+        setPosition(null);
+        setHoverHighlightRects(null);
+        sendResponse?.({ success: true });
+      }
+    };
+    chrome.runtime.onMessage.addListener(handleRuntimeMessage);
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleRuntimeMessage);
+    };
   }, []);
 
   // Ensure shadow host is placed inside the active fullscreen or player element
@@ -168,11 +215,13 @@ const InlineDictionary = () => {
 
     document.addEventListener("fullscreenchange", syncHostPlacement);
     window.addEventListener("hakkutsu:analyze", syncHostPlacement);
+    window.addEventListener("hakkutsu:start-box-ocr", () => setIsOcrSelecting(true));
     syncHostPlacement();
 
     return () => {
       document.removeEventListener("fullscreenchange", syncHostPlacement);
       window.removeEventListener("hakkutsu:analyze", syncHostPlacement);
+      window.removeEventListener("hakkutsu:start-box-ocr", () => setIsOcrSelecting(true));
     };
   }, []);
 
@@ -193,6 +242,7 @@ const InlineDictionary = () => {
         (el: any) =>
           el?.id === "hakkutsu-inline-dictionary" ||
           el?.id === "hakkutsu-inline-dictionary-host" ||
+          el?.id === "hakkutsu-box-ocr-overlay" ||
           el?.classList?.contains?.("hk-popup") ||
           el?.classList?.contains?.("hk-sub-token")
       );
@@ -235,6 +285,7 @@ const InlineDictionary = () => {
           setInputText(res.text);
           setSentenceMode(false);
           setTransientMode(true);
+          setOcrCroppedImage(null);
           analyzeText(res.text, false, true);
         } else {
           lastHoverWordRef.current = null;
@@ -342,6 +393,7 @@ const InlineDictionary = () => {
           above: placeAbove,
         });
         setInputText(selectedText);
+        setOcrCroppedImage(null);
         analyzeText(selectedText, false, true);
         window.dispatchEvent(new CustomEvent("hakkutsu:analysis-opened"));
       };
@@ -355,7 +407,24 @@ const InlineDictionary = () => {
     const onDoubleClick = (e: MouseEvent) => handleSelection(e, true);
 
     const onKeyDown = (e: KeyboardEvent) => {
+      // Toggle Box OCR using Alt+S shortcut
+      if (e.altKey && (e.key === "s" || e.key === "S" || e.code === "KeyS")) {
+        const activeEl = document.activeElement;
+        const isInputFocused =
+          activeEl instanceof HTMLInputElement ||
+          activeEl instanceof HTMLTextAreaElement ||
+          activeEl?.getAttribute("contenteditable") === "true";
+        if (!isInputFocused && settingsRef.current.ocrEnabled !== false) {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOcrSelecting((prev) => !prev);
+          setPosition(null);
+          return;
+        }
+      }
+
       if (e.key === "Escape") {
+        setIsOcrSelecting(false);
         setPosition(null);
         setHoverHighlightRects(null);
         window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
@@ -386,6 +455,7 @@ const InlineDictionary = () => {
               : "anchor",
         });
         setInputText(e.detail.text);
+        setOcrCroppedImage(null);
         const mode = String(e.detail.mode || "dictionary");
         const isDeepPhrase = mode === "phrase";
         const selectedIndex = Number.isInteger(e.detail.selectedIndex)
@@ -460,6 +530,82 @@ const InlineDictionary = () => {
     };
   }, []);
 
+  // Handle Box OCR Bounding Selection Complete
+  const handleBoxOcrComplete = async (
+    box: BoxOcrCoordinates,
+    selectedOrientation: "auto" | "vertical" | "horizontal"
+  ) => {
+    setIsOcrSelecting(false);
+    setOcrLoading(true);
+    setError(null);
+    setOcrCroppedImage(null);
+    setOcrConfidence(null);
+    setOcrOrientation(selectedOrientation);
+    setIsEditingOcrText(false);
+
+    // Position popup adjacent to the bounding box
+    const x = Math.max(16, Math.min(box.x, window.innerWidth - 340));
+    const placeAbove = window.innerHeight - (box.y + box.height) < 360 && box.y > 360;
+    setPosition({
+      x,
+      y: placeAbove ? box.y : box.y + box.height,
+      placement: "anchor",
+      above: placeAbove,
+    });
+    setSentenceMode(true);
+    setTransientMode(false);
+
+    try {
+      // 1. Capture viewport screenshot via background service
+      const screenshotResponse = await chrome.runtime.sendMessage({
+        type: "CAPTURE_SCREENSHOT",
+      });
+      if (screenshotResponse?.type === "ERROR" || !screenshotResponse?.payload?.dataUrl) {
+        throw new Error(screenshotResponse?.payload?.error || "Failed to capture viewport screenshot");
+      }
+
+      const screenshotDataUrl = screenshotResponse.payload.dataUrl as string;
+
+      // 2. Crop bounding box with high-DPI scaling and optional manga pre-processing
+      const croppedDataUrl = await cropViewportBox(
+        screenshotDataUrl,
+        box,
+        settingsRef.current.ocrPreprocessEnabled !== false
+      );
+      setOcrCroppedImage(croppedDataUrl);
+
+      // 3. Execute client-side WebAssembly OCR
+      const ocrResult = await ocrEngine.recognize(croppedDataUrl, {
+        orientation:
+          selectedOrientation === "auto"
+            ? (settingsRef.current.ocrDefaultOrientation || "auto")
+            : selectedOrientation,
+        boxWidth: box.width,
+        boxHeight: box.height,
+      });
+
+      if (!ocrResult.text || !containsJapanese(ocrResult.text)) {
+        if (ocrResult.text) {
+          setInputText(ocrResult.text);
+          setEditedOcrText(ocrResult.text);
+          analyzeText(ocrResult.text, false, true);
+        } else {
+          setError(t("ocr_no_text") || "No Japanese text detected in selected box. Try adjusting box or contrast.");
+        }
+      } else {
+        setInputText(ocrResult.text);
+        setEditedOcrText(ocrResult.text);
+        setOcrConfidence(ocrResult.confidence);
+        analyzeText(ocrResult.text, false, true);
+      }
+    } catch (err: any) {
+      console.error("[Hakkutsu Box OCR] Recognition error:", err);
+      setError(err?.message || "Box OCR recognition failed. Please retry.");
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
   const analyzeText = async (
     text: string,
     deepPhraseAnalysis: boolean,
@@ -483,11 +629,11 @@ const InlineDictionary = () => {
             : "ANALYZE_TEXT",
         payload: { text, include_definitions: includeDefinitions },
       });
-      
+
       if (response?.type === "ERROR") {
         throw new Error(response.payload.error);
       }
-      
+
       if (
         response?.type === "ANALYZE_RESULT" ||
         response?.type === "ANALYZE_PHRASE_RESULT"
@@ -495,10 +641,14 @@ const InlineDictionary = () => {
         const analyzeResponse = response.payload as AnalyzeResponse | PhraseAnalyzeResponse;
         if (requestId !== analysisRequestRef.current) return;
         if (analyzeResponse.text.trim() !== expectedText) {
-          throw new Error(isVietnamese ? "Backend trả kết quả của một câu khác. Vui lòng thử lại." : "Analysis result text mismatch. Please retry.");
+          throw new Error(
+            isVietnamese
+              ? "Backend trả kết quả của một câu khác. Vui lòng thử lại."
+              : "Analysis result text mismatch. Please retry."
+          );
         }
         setResult(analyzeResponse);
-        
+
         // Prefer selecting token matching expectedText if present, or first Japanese token
         const matchingTokenIndex = analyzeResponse.tokens.findIndex(
           (t) => t.surface === expectedText || t.dictionary_form === expectedText
@@ -533,7 +683,11 @@ const InlineDictionary = () => {
     try {
       await chrome.runtime.sendMessage({
         type: "EXPORT_ANKI",
-        payload: data,
+        payload: {
+          ...data,
+          screenshot: ocrCroppedImage || data.screenshot,
+          imageUrl: ocrCroppedImage || data.imageUrl,
+        },
       });
     } catch (e) {
       console.error("Export failed", e);
@@ -549,7 +703,7 @@ const InlineDictionary = () => {
       try {
         await chrome.runtime.sendMessage({
           type: "REMOVE_SRS_CARD",
-          payload: { word }
+          payload: { word },
         });
         setSrsAdded(false);
         setSrsError(null);
@@ -560,7 +714,7 @@ const InlineDictionary = () => {
       const meanings = selectedTokenData.definitions
         .flatMap((d) => d.glosses)
         .join("; ");
-        
+
       try {
         await chrome.runtime.sendMessage({
           type: "ADD_SRS_CARD",
@@ -574,7 +728,7 @@ const InlineDictionary = () => {
             sentence_meaning: phraseTranslation,
             vietnamese_sound: selectedTokenData.vietnamese_sound,
             jlpt: selectedTokenData.jlpt_level,
-            image_url: selectedImageUrl,
+            image_url: selectedImageUrl || ocrCroppedImage || undefined,
           },
         });
         setSrsAdded(true);
@@ -597,24 +751,27 @@ const InlineDictionary = () => {
     if (!word) return;
 
     if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
-      chrome.runtime.sendMessage({
-        type: "CHECK_CARD_EXISTS",
-        payload: { word }
-      }).then((res) => {
-        if (res && res.type === "CARD_EXISTS_RESULT" && res.payload?.exists) {
-          setSrsAdded(true);
-        } else {
-          setSrsAdded(false);
-        }
-      }).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          type: "CHECK_CARD_EXISTS",
+          payload: { word },
+        })
+        .then((res) => {
+          if (res && res.type === "CARD_EXISTS_RESULT" && res.payload?.exists) {
+            setSrsAdded(true);
+          } else {
+            setSrsAdded(false);
+          }
+        })
+        .catch(() => {});
     }
   }, [selectedTokenData]);
 
-  if (!position && (!hoverHighlightRects || hoverHighlightRects.length === 0)) return null;
   const phraseTranslation =
     result && "translation" in result
       ? String((result as any).translation || "").trim()
       : "";
+
   const handleTokenSelect = (index: number) => {
     const token = result?.tokens[index];
     if (
@@ -629,6 +786,7 @@ const InlineDictionary = () => {
     }
     setSelectedToken(index);
   };
+
   const cardWidth = Math.min(420, Math.max(320, window.innerWidth - 32));
   const usePlayerOverlay = position?.placement === "player-overlay";
 
@@ -676,10 +834,19 @@ const InlineDictionary = () => {
 
   return (
     <>
+      {/* Box OCR Interactive Drag Selection Overlay */}
+      {isOcrSelecting && (
+        <BoxOcrOverlay
+          onComplete={handleBoxOcrComplete}
+          onCancel={() => setIsOcrSelecting(false)}
+        />
+      )}
+
       {/* Yomichan-style soft blue hover highlight overlay */}
       {hoverHighlightRects &&
         hoverHighlightRects.map((rect, idx) => (
           <div
+            key={idx}
             style={{
               position: "fixed",
               top: `${rect.top}px`,
@@ -710,7 +877,9 @@ const InlineDictionary = () => {
             if (transientModeRef.current) {
               window.setTimeout(() => {
                 if (!isMouseOverPopupRef.current) {
-                  window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss", { detail: { force: true } }));
+                  window.dispatchEvent(
+                    new CustomEvent("hakkutsu:analysis-dismiss", { detail: { force: true } })
+                  );
                 }
               }, 250);
             }
@@ -720,130 +889,293 @@ const InlineDictionary = () => {
           <header className="hk-header">
             <div className="hk-header__logo">
               <img src={logoUrl} alt="Hakkutsu" style={{ width: 18, height: 18, borderRadius: "4px" }} />
-              <h2 className="hk-header__title hk-brand-title">Hakkutsu Lookup</h2>
+              <h2 className="hk-header__title hk-brand-title">
+                {ocrCroppedImage ? "Hakkutsu Box OCR" : "Hakkutsu Lookup"}
+              </h2>
             </div>
-            <button
-              className="hk-btn-icon-subtle"
-              onClick={() => {
-                setPosition(null);
-                setHoverHighlightRects(null);
-              }}
-              title={t("dict_btn_close")}
-              style={{ width: "24px", height: "24px" }}
-            >
-              <X size={15} />
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              {/* Trigger Box OCR Button */}
+              <button
+                type="button"
+                className="hk-btn-icon-subtle"
+                onClick={() => {
+                  setPosition(null);
+                  setIsOcrSelecting(true);
+                }}
+                title={t("ocr_btn_trigger") || "Box OCR (Alt+S)"}
+                style={{ width: "24px", height: "24px", color: isOcrSelecting ? "#38bdf8" : undefined }}
+              >
+                <Crop size={14} />
+              </button>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                className="hk-btn-icon-subtle"
+                onClick={() => {
+                  setPosition(null);
+                  setHoverHighlightRects(null);
+                  setOcrCroppedImage(null);
+                }}
+                title={t("dict_btn_close")}
+                style={{ width: "24px", height: "24px" }}
+              >
+                <X size={15} />
+              </button>
+            </div>
           </header>
 
-      {/* Main Scrollable Content */}
-      <div className="hk-content" style={{ overflowY: "auto", flex: 1 }}>
-        {loading && (
-          <div className="hk-loading">
-            <Loader2 className="hk-spin" size={20} style={{ color: "#a855f7", margin: "0 auto 8px" }} />
-            <div style={{ color: "#a1a1aa", fontSize: "13px" }}>
-              {phraseMode
-                ? t("dict_loading_phrase")
-                : t("dict_loading_syntax")}
-            </div>
-          </div>
-        )}
-        
-        {error && (
-          <div className="hk-error-box">
-            {error}
-          </div>
-        )}
-        
-        {result && !loading && (
-          <>
-
-            {/* Target Language sentence translation */}
-            {phraseTranslation && (
-              <div className="hk-dict-section hk-dict-section--highlight">
-                <div className="hk-dict-label" style={{ color: "#14b8a6", display: "flex", alignItems: "center", gap: "5px" }}>
-                  <Languages size={13} />
-                  {t("dict_label_translation")}
-                </div>
-                <div className="hk-translation-text">
-                  {phraseTranslation}
+          {/* Main Scrollable Content */}
+          <div className="hk-content" style={{ overflowY: "auto", flex: 1 }}>
+            {/* Box OCR Cropped Snippet & Editable Text Area */}
+            {ocrCroppedImage && (
+              <div
+                style={{
+                  margin: "8px 12px 10px 12px",
+                  padding: "10px",
+                  backgroundColor: "rgba(255, 255, 255, 0.04)",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  borderRadius: "10px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <img
+                    src={ocrCroppedImage}
+                    alt="Manga Snippet"
+                    style={{
+                      maxHeight: "56px",
+                      maxWidth: "100px",
+                      objectFit: "contain",
+                      borderRadius: "6px",
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
+                      backgroundColor: "#000",
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      <span style={{ fontSize: "11px", fontWeight: 600, color: "#38bdf8" }}>
+                        {t("ocr_title") || "Manga OCR"}
+                      </span>
+                      {ocrConfidence !== null && (
+                        <span style={{ fontSize: "10px", color: "var(--hk-text-muted)" }}>
+                          {Math.round(ocrConfidence)}% confidence
+                        </span>
+                      )}
+                    </div>
+                    {isEditingOcrText ? (
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <input
+                          type="text"
+                          value={editedOcrText}
+                          onChange={(e) => setEditedOcrText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              setInputText(editedOcrText);
+                              setIsEditingOcrText(false);
+                              analyzeText(editedOcrText, false, true);
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: "4px 8px",
+                            backgroundColor: "rgba(0, 0, 0, 0.5)",
+                            border: "1px solid #38bdf8",
+                            borderRadius: "6px",
+                            color: "#fff",
+                            fontSize: "12px",
+                          }}
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInputText(editedOcrText);
+                            setIsEditingOcrText(false);
+                            analyzeText(editedOcrText, false, true);
+                          }}
+                          style={{
+                            padding: "4px 8px",
+                            backgroundColor: "#38bdf8",
+                            border: "none",
+                            borderRadius: "6px",
+                            color: "#0f172a",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          OK
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "6px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            fontWeight: 600,
+                            color: "#f8fafc",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {inputText || "—"}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditedOcrText(inputText);
+                            setIsEditingOcrText(true);
+                          }}
+                          title={t("ocr_edit_hint") || "Edit text"}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "var(--hk-text-muted)",
+                            cursor: "pointer",
+                            padding: "2px",
+                          }}
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Selected Token Definition Card (Without trapped action button) */}
-            <div>
-              {selectedTokenData && selectedTokenData.is_japanese ? (
-                <DefinitionCard
-                  token={selectedTokenData}
-                  onExport={handleExport}
-                  ankiConnected={ankiConnected}
-                  originalText={result.text}
-                  sentenceReading={result.sentence_reading}
-                  onSrsAdd={handleSrsAdd}
-                  hideBottomAction={true}
+            {/* OCR / Translation Loading State */}
+            {(loading || ocrLoading) && (
+              <div className="hk-loading">
+                <Loader2
+                  className="hk-spin"
+                  size={20}
+                  style={{ color: "#38bdf8", margin: "0 auto 8px" }}
                 />
-              ) : (
-                <div className="hk-empty">
-                  <p className="hk-empty__text">
-                    {transientMode
-                      ? t("dict_empty_transient")
-                      : t("dict_empty_select")}
-                  </p>
+                <div style={{ color: "#a1a1aa", fontSize: "13px" }}>
+                  {ocrLoading
+                    ? t("ocr_recognizing") || "Recognizing Japanese text..."
+                    : phraseMode
+                      ? t("dict_loading_phrase")
+                      : t("dict_loading_syntax")}
                 </div>
-              )}
+              </div>
+            )}
+
+            {/* Error Box */}
+            {error && <div className="hk-error-box">{error}</div>}
+
+            {result && !loading && !ocrLoading && (
+              <>
+                {/* Target Language sentence translation */}
+                {phraseTranslation && (
+                  <div className="hk-dict-section hk-dict-section--highlight">
+                    <div
+                      className="hk-dict-label"
+                      style={{ color: "#14b8a6", display: "flex", alignItems: "center", gap: "5px" }}
+                    >
+                      <Languages size={13} />
+                      {t("dict_label_translation")}
+                    </div>
+                    <div className="hk-translation-text">{phraseTranslation}</div>
+                  </div>
+                )}
+
+                {/* Selected Token Definition Card */}
+                <div>
+                  {selectedTokenData && selectedTokenData.is_japanese ? (
+                    <DefinitionCard
+                      token={selectedTokenData}
+                      onExport={handleExport}
+                      ankiConnected={ankiConnected}
+                      originalText={result.text}
+                      sentenceReading={result.sentence_reading}
+                      onSrsAdd={handleSrsAdd}
+                      hideBottomAction={true}
+                    />
+                  ) : (
+                    <div className="hk-empty">
+                      <p className="hk-empty__text">
+                        {transientMode ? t("dict_empty_transient") : t("dict_empty_select")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Grammar Patterns */}
+                {result.grammar_patterns && result.grammar_patterns.length > 0 && (
+                  <GrammarExplanations patterns={result.grammar_patterns} />
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Pinned Bottom Footer Action */}
+          {selectedTokenData && selectedTokenData.is_japanese && (
+            <div
+              className="hk-popup__footer"
+              style={{
+                padding: "10px 14px",
+                background: "#141418",
+                borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                flexShrink: 0,
+              }}
+            >
+              <button
+                className={`hk-btn ${
+                  srsError ? "hk-btn--danger" : srsAdded ? "hk-btn--success" : "hk-btn--primary"
+                }`}
+                onClick={() => handleSrsAdd(ocrCroppedImage || undefined)}
+                title={srsError || (srsAdded ? t("def_btn_added_library") : t("def_btn_add_library"))}
+                style={{
+                  width: "100%",
+                  justifyContent: "center",
+                  padding: "8px 16px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  borderRadius: "8px",
+                  gap: "6px",
+                  backgroundColor: srsError ? "#ef4444" : undefined,
+                  borderColor: srsError ? "#ef4444" : undefined,
+                  color: srsError ? "#ffffff" : undefined,
+                }}
+              >
+                {srsError ? (
+                  <>
+                    <AlertCircle size={14} /> {srsError}
+                  </>
+                ) : srsAdded ? (
+                  <>
+                    <Check size={14} /> {t("def_btn_added_library")}
+                  </>
+                ) : (
+                  <>
+                    <BookmarkPlus size={14} /> {t("def_btn_add_library")}
+                  </>
+                )}
+              </button>
             </div>
-
-            {/* Grammar Patterns */}
-            {result.grammar_patterns && result.grammar_patterns.length > 0 && (
-              <GrammarExplanations patterns={result.grammar_patterns} />
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Pinned Bottom Footer Action (Outside the meaning scroll container) */}
-      {selectedTokenData && selectedTokenData.is_japanese && (
-        <div className="hk-popup__footer" style={{
-          padding: "10px 14px",
-          background: "#141418",
-          borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-          flexShrink: 0
-        }}>
-          <button
-            className={`hk-btn ${srsError ? "hk-btn--danger" : srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
-            onClick={() => handleSrsAdd()}
-            title={srsError || (srsAdded ? t("def_btn_added_library") : t("def_btn_add_library"))}
-            style={{
-              width: "100%",
-              justifyContent: "center",
-              padding: "8px 16px",
-              fontSize: "13px",
-              fontWeight: 600,
-              borderRadius: "8px",
-              gap: "6px",
-              backgroundColor: srsError ? "#ef4444" : undefined,
-              borderColor: srsError ? "#ef4444" : undefined,
-              color: srsError ? "#ffffff" : undefined
-            }}
-          >
-            {srsError ? (
-              <>
-                <AlertCircle size={14} /> {srsError}
-              </>
-            ) : srsAdded ? (
-              <>
-                <Check size={14} /> {t("def_btn_added_library")}
-              </>
-            ) : (
-              <>
-                <BookmarkPlus size={14} /> {t("def_btn_add_library")}
-              </>
-            )}
-          </button>
+          )}
         </div>
       )}
-    </div>
-    )}
     </>
   );
 };

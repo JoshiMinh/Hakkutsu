@@ -341,6 +341,24 @@ export const es = {
   drawer_toggle_sync: "Sincronización Automática",
   drawer_jump_to_current: "Desplazar a la Línea Activa",
   btn_open: "Abrir",
+
+  // Box OCR & Manga Extraction
+  ocr_title: "Box OCR (Manga e Imágenes)",
+  ocr_subtitle: "Reconocimiento de texto en japonés local para manga, cómics y canvas",
+  ocr_btn_trigger: "Box OCR (Alt+S)",
+  ocr_overlay_hint: "Arrastra un cuadro sobre el texto del manga • Esc para cancelar",
+  ocr_orientation_auto: "Detección Automática",
+  ocr_orientation_vertical: "Vertical (縦書き)",
+  ocr_orientation_horizontal: "Horizontal (横書き)",
+  ocr_recognizing: "Reconociendo texto en japonés...",
+  ocr_preprocess: "Filtro de Contraste para Manga",
+  ocr_preprocess_desc: "Preprocesa la imagen para eliminar tramas y mejorar la precisión",
+  ocr_shortcut: "Atajo de Box OCR",
+  ocr_shortcut_desc: "Atajo de teclado para activar el recorte OCR en cualquier página",
+  ocr_edit_hint: "Edita el texto reconocido si es necesario",
+  ocr_reanalyze: "Reanalizar",
+  ocr_no_text: "No se detectó texto japonés en el recuadro seleccionado. Ajusta el recuadro o el contraste.",
+  settings_ocr_section: "Box OCR (Manga y Escaneos)",
 };
 
 

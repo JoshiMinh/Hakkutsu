@@ -341,6 +341,24 @@ export const ko = {
   drawer_toggle_sync: "자동 스크롤 동기화",
   drawer_jump_to_current: "재생 중인 대사로 스크롤",
   btn_open: "열기",
+
+  // Box OCR & Manga Extraction
+  ocr_title: "박스 OCR (만화 및 이미지 영역 추출)",
+  ocr_subtitle: "만화 스캔본 및 웹툰의 일본어 텍스트를 브라우저 내에서 즉시 로컬 OCR로 인식",
+  ocr_btn_trigger: "박스 OCR (Alt+S)",
+  ocr_overlay_hint: "만화 대사를 드래그하여 영역 선택 • Esc 취소",
+  ocr_orientation_auto: "자동 감지",
+  ocr_orientation_vertical: "세로쓰기 (縦書き)",
+  ocr_orientation_horizontal: "가로쓰기 (横書き)",
+  ocr_recognizing: "일본어 텍스트 인식 중...",
+  ocr_preprocess: "만화 스크린톤 대비 강화 필터",
+  ocr_preprocess_desc: "스크린톤 배경 노이즈를 제거하여 인식 정확도를 높입니다",
+  ocr_shortcut: "박스 OCR 단축키",
+  ocr_shortcut_desc: "어떤 페이지에서든 영역 OCR을 활성화하는 단축키",
+  ocr_edit_hint: "인식된 텍스트를 직접 수정할 수 있습니다",
+  ocr_reanalyze: "다시 분석",
+  ocr_no_text: "선택한 영역에서 일본어 텍스트를 찾을 수 없습니다. 영역이나 대비를 조절해 보세요.",
+  settings_ocr_section: "박스 OCR (만화 및 이미지 인식)",
 };
 
 

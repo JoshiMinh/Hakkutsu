@@ -248,6 +248,11 @@ export interface ExtensionSettings {
   fsrsRequestRetention?: number;
   audioFirstReviewMode?: boolean;
   clozeReviewMode?: boolean;
+  ocrEnabled: boolean;
+  ocrDefaultOrientation: "auto" | "vertical" | "horizontal";
+  ocrPreprocessEnabled: boolean;
+  ocrShortcut: string;
+  ocrModel: "tesseract" | "manga-ocr";
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -281,6 +286,11 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   fsrsRequestRetention: 0.90,
   audioFirstReviewMode: false,
   clozeReviewMode: false,
+  ocrEnabled: true,
+  ocrDefaultOrientation: "auto",
+  ocrPreprocessEnabled: true,
+  ocrShortcut: "Alt+S",
+  ocrModel: "tesseract",
 };
 
 export interface DailyActivity {
@@ -373,6 +383,27 @@ export interface SelectionEvent {
   sourceUrl: string;
 }
 
+export interface BoxOcrCoordinates {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  dpr: number;
+}
+
+export interface BoxOcrRequest {
+  box: BoxOcrCoordinates;
+  orientation?: "auto" | "vertical" | "horizontal";
+  preprocess?: boolean;
+}
+
+export interface BoxOcrResult {
+  text: string;
+  confidence: number;
+  orientation: "vertical" | "horizontal";
+  croppedImageUrl: string;
+}
+
 /** Message types for communication between content scripts and background */
 export type MessageType =
   | "ANALYZE_TEXT"
@@ -401,6 +432,11 @@ export type MessageType =
   | "TTS_AUDIO_RESULT"
   | "START_OCR_FLOW"
   | "START_OCR_FLOW_RESULT"
+  | "TRIGGER_BOX_OCR"
+  | "EXECUTE_BOX_OCR"
+  | "EXECUTE_BOX_OCR_RESULT"
+  | "CAPTURE_AND_CROP_BOX"
+  | "CAPTURE_AND_CROP_BOX_RESULT"
   | "CAPTURE_SCREENSHOT"
   | "SCREENSHOT_RESULT"
   | "FETCH_IMAGE"

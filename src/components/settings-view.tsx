@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Check, ChevronDown, Database, Film, GraduationCap, Languages, RefreshCw, Settings as SettingsIcon, BookOpen, Sparkles, Layers } from "lucide-react";
+import { Check, ChevronDown, Database, Film, GraduationCap, Languages, RefreshCw, Settings as SettingsIcon, BookOpen, Sparkles, Layers, Crop } from "lucide-react";
 import type { ExtensionSettings, SelectiveFuriganaMode } from "~lib/utils/types";
 import { t } from "~lib/locales";
 import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from "~lib/locales";
@@ -525,6 +525,12 @@ export function SettingsView({
     { value: "sm2", label: t("settings_srs_algo_sm2", currentLang) },
   ];
 
+  const ocrOrientationOptions: CustomSelectOption[] = [
+    { value: "auto", label: t("ocr_orientation_auto", currentLang) || "Auto Detect" },
+    { value: "vertical", label: t("ocr_orientation_vertical", currentLang) || "Vertical (縦書き)" },
+    { value: "horizontal", label: t("ocr_orientation_horizontal", currentLang) || "Horizontal (横書き)" },
+  ];
+
   return (
     <div className="hk-content hk-fade-in">
       <div className="hk-settings-header">
@@ -1006,6 +1012,112 @@ export function SettingsView({
                     style={{ width: "100%", accentColor: "var(--hk-accent-primary)" }}
                   />
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Box OCR (Manga & Scans) Card */}
+        <section className="hk-settings-card">
+          <header className="hk-settings-card__header">
+            <div className="hk-settings-card__icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Crop size={18} />
+            </div>
+            <h3 className="hk-settings-card__title">{t("settings_ocr_section", currentLang)}</h3>
+          </header>
+
+          <div className="hk-settings-card__body">
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="ocrEnabled" className="hk-settings-row__label">
+                  {t("ocr_title", currentLang)}
+                </label>
+                <div id="ocrEnabled-desc" className="hk-settings-row__desc">
+                  {t("ocr_subtitle", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="ocrEnabled">
+                  <input
+                    id="ocrEnabled"
+                    aria-describedby="ocrEnabled-desc"
+                    type="checkbox"
+                    checked={settings.ocrEnabled !== false}
+                    onChange={(e) => onUpdate({ ocrEnabled: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label className="hk-settings-row__label">
+                  {t("ocr_shortcut", currentLang)}
+                </label>
+                <div className="hk-settings-row__desc">
+                  {t("ocr_shortcut_desc", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <kbd
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    backgroundColor: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(255, 255, 255, 0.16)",
+                    color: "var(--hk-accent-light, #38bdf8)",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  {settings.ocrShortcut || "Alt+S"}
+                </kbd>
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label className="hk-settings-row__label">
+                  Text Orientation Mode
+                </label>
+                <div className="hk-settings-row__desc">
+                  Default orientation for Japanese text recognition (Auto detects tall vs wide bounding boxes)
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <CustomSelect
+                  value={settings.ocrDefaultOrientation || "auto"}
+                  onChange={(val) => onUpdate({ ocrDefaultOrientation: val as any })}
+                  options={ocrOrientationOptions}
+                  width="260px"
+                />
+              </div>
+            </div>
+
+            <div className="hk-settings-row">
+              <div className="hk-settings-row__info">
+                <label htmlFor="ocrPreprocessEnabled" className="hk-settings-row__label">
+                  {t("ocr_preprocess", currentLang)}
+                </label>
+                <div id="ocrPreprocessEnabled-desc" className="hk-settings-row__desc">
+                  {t("ocr_preprocess_desc", currentLang)}
+                </div>
+              </div>
+              <div className="hk-settings-row__control">
+                <label className="hk-toggle" htmlFor="ocrPreprocessEnabled">
+                  <input
+                    id="ocrPreprocessEnabled"
+                    aria-describedby="ocrPreprocessEnabled-desc"
+                    type="checkbox"
+                    checked={settings.ocrPreprocessEnabled !== false}
+                    onChange={(e) => onUpdate({ ocrPreprocessEnabled: e.target.checked })}
+                  />
+                  <span className="hk-toggle__slider" />
+                </label>
               </div>
             </div>
           </div>

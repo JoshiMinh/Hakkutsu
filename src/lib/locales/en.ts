@@ -341,5 +341,23 @@ export const en = {
   drawer_toggle_sync: "Auto-Scroll Sync",
   drawer_jump_to_current: "Scroll to Active Line",
   btn_open: "Open",
+
+  // Box OCR & Manga Extraction
+  ocr_title: "Box OCR (Manga & Images)",
+  ocr_subtitle: "Client-side Japanese text recognition for manga, comics, and canvas",
+  ocr_btn_trigger: "Box OCR (Alt+S)",
+  ocr_overlay_hint: "Drag a box over manga text • Esc to cancel",
+  ocr_orientation_auto: "Auto Detect",
+  ocr_orientation_vertical: "Vertical (縦書き)",
+  ocr_orientation_horizontal: "Horizontal (横書き)",
+  ocr_recognizing: "Recognizing Japanese text...",
+  ocr_preprocess: "Manga Contrast Filter",
+  ocr_preprocess_desc: "Pre-process image to remove screentones and halftones before recognition",
+  ocr_shortcut: "Box OCR Shortcut",
+  ocr_shortcut_desc: "Keyboard shortcut to activate bounding box OCR on any page",
+  ocr_edit_hint: "Edit recognized text if needed",
+  ocr_reanalyze: "Re-analyze",
+  ocr_no_text: "No Japanese text detected in selected box. Try adjusting box or contrast.",
+  settings_ocr_section: "Box OCR (Manga & Scans)",
 };
 

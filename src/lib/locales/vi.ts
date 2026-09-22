@@ -341,5 +341,23 @@ export const vi = {
   drawer_toggle_sync: "Đồng bộ cuộn tự động",
   drawer_jump_to_current: "Cuộn tới câu đang phát",
   btn_open: "Mở",
+
+  // Box OCR & Manga Extraction
+  ocr_title: "Quét chữ Box OCR (Manga & Ảnh)",
+  ocr_subtitle: "Nhận dạng chữ tiếng Nhật trực tiếp trên trình duyệt cho truyện tranh manga và canvas",
+  ocr_btn_trigger: "Quét Box OCR (Alt+S)",
+  ocr_overlay_hint: "Kéo thả khung chọn vùng chữ manga • Phím Esc để huỷ",
+  ocr_orientation_auto: "Tự động nhận diện",
+  ocr_orientation_vertical: "Chữ dọc (縦書き)",
+  ocr_orientation_horizontal: "Chữ ngang (横書き)",
+  ocr_recognizing: "Đang nhận dạng chữ tiếng Nhật...",
+  ocr_preprocess: "Bộ lọc tăng tương phản Manga",
+  ocr_preprocess_desc: "Xử lý ảnh khử hạt trame screentone giúp nhận diện chữ chính xác hơn",
+  ocr_shortcut: "Phím tắt Box OCR",
+  ocr_shortcut_desc: "Phím tắt kích hoạt khung quét chữ OCR trên mọi trang web",
+  ocr_edit_hint: "Chỉnh sửa chữ nhận dạng nếu cần",
+  ocr_reanalyze: "Phân tích lại",
+  ocr_no_text: "Không nhận diện được chữ tiếng Nhật trong khung chọn. Hãy thử chọn lại hoặc tăng tương phản.",
+  settings_ocr_section: "Quét chữ Box OCR (Manga & Truyện tranh)",
 };
 

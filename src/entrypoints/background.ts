@@ -30,6 +30,37 @@ import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
 
 export default defineBackground(() => {
+  // Setup context menu item for Box OCR
+  if (chrome.contextMenus) {
+    chrome.runtime.onInstalled.addListener(() => {
+      chrome.contextMenus.create({
+        id: "hakkutsu-box-ocr",
+        title: "OCR Japanese Selection (Hakkutsu)",
+        contexts: ["page", "image", "video", "selection"],
+      }, () => {
+        // Ignore duplicate id error if any
+        if (chrome.runtime.lastError) {
+          /* noop */
+        }
+      });
+    });
+
+    chrome.contextMenus.onClicked.addListener((info, tab) => {
+      if (info.menuItemId === "hakkutsu-box-ocr" && tab?.id) {
+        chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_BOX_OCR" }).catch(() => {});
+      }
+    });
+  }
+
+  // Setup keyboard shortcut command listener
+  if (chrome.commands?.onCommand) {
+    chrome.commands.onCommand.addListener((command, tab) => {
+      if (command === "trigger-box-ocr" && tab?.id) {
+        chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_BOX_OCR" }).catch(() => {});
+      }
+    });
+  }
+
   // Listen for messages from popup and content scripts
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleMessage(message, sender)

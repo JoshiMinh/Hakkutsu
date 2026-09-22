@@ -4,6 +4,7 @@ allowBuilds:
   protobufjs: true
   sharp: true
   spawn-sync: true
+  tesseract.js: true
 overrides:
   vite: "^5.4.14"
   "@vitejs/plugin-react": "^4.3.4"

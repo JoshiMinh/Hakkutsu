@@ -46,8 +46,18 @@ export default defineConfig({
       "scripting",
       "tabs",
       "storage",
-      "activeTab"
+      "activeTab",
+      "contextMenus"
     ],
+    commands: {
+      "trigger-box-ocr": {
+        suggested_key: {
+          default: "Alt+S",
+          mac: "Alt+S"
+        },
+        description: "Trigger Hakkutsu Box OCR selection on the current page"
+      }
+    },
     host_permissions: [
       "https://*/*",
       "http://localhost:3000/*",
