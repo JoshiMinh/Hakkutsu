@@ -129,7 +129,9 @@ export function applyMangaPreprocess(
 /**
  * Crops a viewport screenshot to the specified bounding box coordinates.
  *
- * Handles High-DPI screens via devicePixelRatio.
+ * Maps CSS viewport coordinates onto the actual captured bitmap. This is more
+ * reliable than devicePixelRatio alone because browser zoom and platform
+ * screenshot behavior can change the bitmap scale independently.
  */
 export async function cropViewportBox(
   fullScreenshotDataUrl: string,
@@ -139,11 +141,17 @@ export async function cropViewportBox(
   const img = await loadImage(fullScreenshotDataUrl);
 
   // Safety checks on box dimensions
-  const dpr = box.dpr || (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1;
-  const cropX = Math.max(0, Math.round(box.x * dpr));
-  const cropY = Math.max(0, Math.round(box.y * dpr));
-  const cropW = Math.min(Math.round(box.width * dpr), img.naturalWidth - cropX);
-  const cropH = Math.min(Math.round(box.height * dpr), img.naturalHeight - cropY);
+  const fallbackScale = box.dpr || (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1;
+  const scaleX = box.viewportWidth && box.viewportWidth > 0
+    ? img.naturalWidth / box.viewportWidth
+    : fallbackScale;
+  const scaleY = box.viewportHeight && box.viewportHeight > 0
+    ? img.naturalHeight / box.viewportHeight
+    : fallbackScale;
+  const cropX = Math.min(img.naturalWidth, Math.max(0, Math.round(box.x * scaleX)));
+  const cropY = Math.min(img.naturalHeight, Math.max(0, Math.round(box.y * scaleY)));
+  const cropW = Math.min(Math.round(box.width * scaleX), img.naturalWidth - cropX);
+  const cropH = Math.min(Math.round(box.height * scaleY), img.naturalHeight - cropY);
 
   if (cropW <= 0 || cropH <= 0) {
     throw new Error("Invalid crop dimensions (width or height is 0)");
@@ -173,4 +181,3 @@ export async function cropViewportBox(
 
   return canvas.toDataURL("image/png");
 }
-

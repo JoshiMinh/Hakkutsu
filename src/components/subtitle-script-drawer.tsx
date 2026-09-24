@@ -156,7 +156,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   const listContainerRef = useRef<HTMLDivElement | null>(null);
   const activeCueRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const scrollTimeoutRef = useRef<number | null>(null);
+  const openTimerRef = useRef<number | null>(null);
+  const copyTimerRef = useRef<number | null>(null);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const segments = subtitleData?.segments || [];
   const secondarySegments = secondaryData?.segments || [];
@@ -279,7 +281,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     const next = (currentMatchIdx + 1) % matchedCueIndices.length;
     setCurrentMatchIdx(next);
     const cueIdx = matchedCueIndices[next];
-    const el = document.getElementById(`hk-script-cue-${cueIdx}`);
+    const el = listContainerRef.current?.querySelector<HTMLElement>(`#hk-script-cue-${cueIdx}`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
     }
@@ -290,7 +292,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     const prev = (currentMatchIdx - 1 + matchedCueIndices.length) % matchedCueIndices.length;
     setCurrentMatchIdx(prev);
     const cueIdx = matchedCueIndices[prev];
-    const el = document.getElementById(`hk-script-cue-${cueIdx}`);
+    const el = listContainerRef.current?.querySelector<HTMLElement>(`#hk-script-cue-${cueIdx}`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
     }
@@ -301,7 +303,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   const scrollToActiveCue = useCallback(
     (smooth = true) => {
       if (activeCueIndex < 0) return;
-      const el = document.getElementById(`hk-script-cue-${activeCueIndex}`);
+      const el = listContainerRef.current?.querySelector<HTMLElement>(`#hk-script-cue-${activeCueIndex}`);
       if (el && listContainerRef.current) {
         el.scrollIntoView({
           behavior: smooth ? "smooth" : "auto",
@@ -323,17 +325,39 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   // Focus search on open
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => {
+      openTimerRef.current = window.setTimeout(() => {
         scrollToActiveCue(false);
+        searchInputRef.current?.focus({ preventScroll: true });
       }, 150);
     }
+    return () => {
+      if (openTimerRef.current !== null) window.clearTimeout(openTimerRef.current);
+    };
   }, [isOpen, scrollToActiveCue]);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+      activeAudioRef.current?.pause();
+      activeAudioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [isOpen, onClose]);
 
   // Handle manual user scrolling
   const handleScroll = () => {
-    if (scrollTimeoutRef.current) {
-      window.clearTimeout(scrollTimeoutRef.current);
-    }
     // Mark user as scrolled if they scroll during playback
     setUserHasScrolled(true);
   };
@@ -359,12 +383,15 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     setUserHasScrolled(false);
   };
 
-  const handleCopyCue = (cueText: string, idx: number) => {
+  const handleCopyCue = async (cueText: string, idx: number) => {
     try {
-      void navigator.clipboard.writeText(deduplicateCueText(cueText));
+      await navigator.clipboard.writeText(deduplicateCueText(cueText));
       setCopiedCueIdx(idx);
-      setTimeout(() => setCopiedCueIdx(null), 1500);
-    } catch {}
+      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = window.setTimeout(() => setCopiedCueIdx(null), 1500);
+    } catch (err) {
+      console.warn("[Hakkutsu] Copy transcript cue failed:", err);
+    }
   };
 
   const handleMineToSrs = async (cue: SubtitleSegment, idx: number) => {
@@ -396,6 +423,8 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   };
 
   const handlePlayTts = async (cueText: string, idx: number) => {
+    activeAudioRef.current?.pause();
+    activeAudioRef.current = null;
     setPlayingTtsIdx(idx);
     try {
       const clean = deduplicateCueText(cueText).slice(0, 200);
@@ -405,8 +434,13 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
       });
       if (res?.payload?.dataUrl) {
         const audio = new Audio(res.payload.dataUrl);
-        audio.onended = () => setPlayingTtsIdx(null);
-        audio.onerror = () => setPlayingTtsIdx(null);
+        activeAudioRef.current = audio;
+        const finish = () => {
+          if (activeAudioRef.current === audio) activeAudioRef.current = null;
+          setPlayingTtsIdx(null);
+        };
+        audio.onended = finish;
+        audio.onerror = finish;
         await audio.play();
       } else {
         setPlayingTtsIdx(null);
@@ -490,16 +524,19 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   if (!isOpen) return null;
 
   const visibleSegments = filterMode === "matched" && searchQuery.trim()
-    ? segments.filter((_, idx) => matchedCueIndices.includes(idx))
-    : segments;
+    ? segments.map((cue, index) => ({ cue, index })).filter(({ index }) => matchedCueIndices.includes(index))
+    : segments.map((cue, index) => ({ cue, index }));
 
   return (
-    <div
+    <aside
       className={`hk-script-drawer ${isWide ? "hk-script-drawer--wide" : ""}`}
       style={{
         width: isWide ? "520px" : "380px",
       }}
       onClick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="false"
+      aria-label={t("drawer_title")}
     >
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className="hk-script-drawer__header">
@@ -518,6 +555,8 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
               className={`hk-script-btn-icon ${showStats ? "hk-script-btn-icon--active" : ""}`}
               onClick={() => setShowStats(!showStats)}
               title="Script Vocabulary & JLPT Analytics"
+              aria-label="Toggle transcript statistics"
+              aria-pressed={showStats}
             >
               <BarChart2 size={16} />
             </button>
@@ -528,6 +567,8 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
               className="hk-script-btn-icon"
               onClick={() => setIsWide(!isWide)}
               title={isWide ? "Compact Width" : "Wide Width"}
+              aria-label={isWide ? "Use compact transcript width" : "Use wide transcript width"}
+              aria-pressed={isWide}
             >
               {isWide ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
@@ -538,6 +579,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
               className="hk-script-btn-icon hk-script-btn-icon--close"
               onClick={onClose}
               title="Close Script Drawer (Esc / T)"
+              aria-label="Close transcript"
             >
               <X size={17} />
             </button>
@@ -555,6 +597,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
               placeholder={t("drawer_search_placeholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label={t("drawer_search_placeholder")}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -570,6 +613,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
                 type="button"
                 className="hk-script-search-clear"
                 onClick={() => setSearchQuery("")}
+                aria-label="Clear transcript search"
               >
                 <X size={13} />
               </button>
@@ -586,6 +630,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
                 className="hk-script-search-nav-btn"
                 onClick={jumpToPrevMatch}
                 title="Previous Match (Shift+Enter)"
+                aria-label="Previous search match"
               >
                 <ChevronUp size={14} />
               </button>
@@ -594,6 +639,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
                 className="hk-script-search-nav-btn"
                 onClick={jumpToNextMatch}
                 title="Next Match (Enter)"
+                aria-label="Next search match"
               >
                 <ChevronDown size={14} />
               </button>
@@ -608,6 +654,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
               type="button"
               className={`hk-script-filter-chip ${filterMode === "all" ? "hk-script-filter-chip--active" : ""}`}
               onClick={() => setFilterMode("all")}
+              aria-pressed={filterMode === "all"}
             >
               {t("drawer_filter_all")}
             </button>
@@ -616,6 +663,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
                 type="button"
                 className={`hk-script-filter-chip ${filterMode === "matched" ? "hk-script-filter-chip--active" : ""}`}
                 onClick={() => setFilterMode("matched")}
+                aria-pressed={filterMode === "matched"}
               >
                 {t("drawer_filter_matched")} ({matchedCueIndices.length})
               </button>
@@ -628,6 +676,8 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
               className={`hk-script-toggle-btn ${settings.showFurigana !== false ? "hk-script-toggle-btn--active" : ""}`}
               onClick={() => updateSettings({ showFurigana: settings.showFurigana === false })}
               title="Toggle Furigana (F)"
+              aria-label={t("drawer_toggle_furigana")}
+              aria-pressed={settings.showFurigana !== false}
             >
               <span style={{ fontSize: "11px", fontWeight: 700 }}>ルビ</span>
             </button>
@@ -637,6 +687,8 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
               className={`hk-script-toggle-btn ${settings.subtitlesSecondaryEnabled !== false ? "hk-script-toggle-btn--active" : ""}`}
               onClick={() => updateSettings({ subtitlesSecondaryEnabled: settings.subtitlesSecondaryEnabled === false })}
               title="Toggle Translation (V)"
+              aria-label={t("drawer_toggle_translation")}
+              aria-pressed={settings.subtitlesSecondaryEnabled !== false}
             >
               <span style={{ fontSize: "11px", fontWeight: 700 }}>訳</span>
             </button>
@@ -650,6 +702,8 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
                 if (next) scrollToActiveCue(true);
               }}
               title="Toggle Auto-Scroll Sync"
+              aria-label={t("drawer_toggle_sync")}
+              aria-pressed={isSyncEnabled}
             >
               <ArrowDownCircle size={13} />
             </button>
@@ -708,8 +762,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
             {searchQuery ? t("drawer_no_matches") : t("drawer_empty_no_cues")}
           </div>
         ) : (
-          visibleSegments.map((cue, vIdx) => {
-            const originalIdx = segments.indexOf(cue);
+          visibleSegments.map(({ cue, index: originalIdx }) => {
             const isActive = originalIdx === activeCueIndex;
             const isMined = minedCueIndices.has(originalIdx);
             const secKey = Math.round(cue.start * 2) / 2;
@@ -724,14 +777,18 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
                 id={`hk-script-cue-${originalIdx}`}
                 ref={isActive ? activeCueRef : null}
                 className={`hk-script-cue ${isActive ? "hk-script-cue--active" : ""} ${isSearchMatch && searchQuery ? "hk-script-cue--matched" : ""}`}
-                onClick={() => handleSeek(cue)}
               >
                 {/* Cue header (Timestamp & Quick Actions) */}
                 <div className="hk-script-cue__meta">
-                  <span className="hk-script-cue__time">
+                  <button
+                    type="button"
+                    className="hk-script-cue__time"
+                    onClick={() => handleSeek(cue)}
+                    aria-label={`${t("drawer_btn_play")} ${formatTimestamp(cue.start + offset)}`}
+                  >
                     <Play size={11} className="hk-script-cue__play-icon" />
                     {formatTimestamp(cue.start + offset)}
-                  </span>
+                  </button>
 
                   <div className="hk-script-cue__actions" onClick={(e) => e.stopPropagation()}>
                     {/* TTS Audio */}
@@ -740,6 +797,8 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
                       className={`hk-script-action-btn ${playingTtsIdx === originalIdx ? "hk-script-action-btn--active" : ""}`}
                       onClick={() => handlePlayTts(cleanText, originalIdx)}
                       title={t("drawer_btn_tts")}
+                      aria-label={t("drawer_btn_tts")}
+                      aria-pressed={playingTtsIdx === originalIdx}
                     >
                       <Volume2 size={13} />
                     </button>
@@ -750,6 +809,8 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
                       className={`hk-script-action-btn ${isMined ? "hk-script-action-btn--mined" : ""}`}
                       onClick={() => handleMineToSrs(cue, originalIdx)}
                       title={isMined ? t("drawer_btn_mined") : t("drawer_btn_mine_srs")}
+                      aria-label={isMined ? t("drawer_btn_mined") : t("drawer_btn_mine_srs")}
+                      disabled={isMined}
                     >
                       {isMined ? <Check size={13} color="#4ade80" /> : <Star size={13} />}
                     </button>
@@ -758,8 +819,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
                     <button
                       type="button"
                       className="hk-script-action-btn"
-                      onClick={() => handleCopyCue(cleanText, originalIdx)}
+                      onClick={() => void handleCopyCue(cleanText, originalIdx)}
                       title={t("drawer_btn_copy")}
+                      aria-label={t("drawer_btn_copy")}
                     >
                       {copiedCueIdx === originalIdx ? <Check size={13} color="#4ade80" /> : <Copy size={13} />}
                     </button>
@@ -800,7 +862,15 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
                       <span
                         key={tIdx}
                         className={tokenClass}
+                        role="button"
+                        tabIndex={0}
                         onClick={(e) => handleTokenClick(e, token)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleTokenClick(e as unknown as React.MouseEvent, token);
+                          }
+                        }}
                         onMouseEnter={(e) => handleTokenMouseEnter(e, token)}
                         onMouseLeave={handleTokenMouseLeave}
                         title={
@@ -857,7 +927,6 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
           </span>
         </button>
       )}
-    </div>
+    </aside>
   );
 };
-

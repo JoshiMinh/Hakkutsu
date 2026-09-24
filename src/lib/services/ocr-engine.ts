@@ -7,6 +7,10 @@
 
 import { createWorker, type Worker } from "tesseract.js";
 
+const extensionAssetUrl = (path: string) => browser.runtime.getURL(path as never);
+const workerUrl = extensionAssetUrl("/ocr/worker.min.js");
+const coreUrl = extensionAssetUrl("/ocr/tesseract-core-simd-lstm.js");
+
 export type OcrOrientation = "auto" | "vertical" | "horizontal";
 
 export interface OcrExecutionResult {
@@ -29,6 +33,9 @@ class OcrEngineService {
     if (!this.workers.has(lang)) {
       const workerPromise = (async () => {
         const worker = await createWorker(lang, 1, {
+          workerPath: workerUrl,
+          corePath: coreUrl,
+          workerBlobURL: false,
           logger: (m) => {
             if (onProgress && m.status && typeof m.progress === "number") {
               onProgress({ status: m.status, progress: m.progress });
@@ -39,6 +46,11 @@ class OcrEngineService {
       })();
 
       this.workers.set(lang, workerPromise);
+      workerPromise.catch(() => {
+        if (this.workers.get(lang) === workerPromise) {
+          this.workers.delete(lang);
+        }
+      });
     }
 
     return this.workers.get(lang)!;
@@ -192,4 +204,3 @@ class OcrEngineService {
 }
 
 export const ocrEngine = new OcrEngineService();
-

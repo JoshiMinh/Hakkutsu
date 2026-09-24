@@ -4,34 +4,25 @@
  * Single-view design combining Japanese text analysis, translation, and SRS reviews.
  */
 
-import { useCallback, useEffect, useState, Suspense, lazy, Component } from "react";
+import { useCallback, useEffect, useRef, useState, Suspense, Component } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { 
   Brain, 
   Languages, 
-  BookMarked, 
   ExternalLink,
-  Search,
-  Wifi,
-  WifiOff,
-  Settings as SettingsIcon,
   RefreshCw,
-  Sparkles,
   Trash2,
   CornerDownLeft,
-  ChevronRight,
   Volume2
 } from "lucide-react";
 
 import { apiClient } from "~lib/services/api-client";
 import { ankiClient } from "~lib/services/anki-connect";
 import { useSettingsStore } from "~lib/utils/settings";
-import { containsJapanese } from "~lib/utils/japanese";
 import { ttsService } from "~lib/services/tts-service";
 import { useTranslation } from "~lib/locales";
 import type {
   PhraseAnalyzeResponse,
-  ExtensionSettings,
   ExtensionView,
 } from "~lib/utils/types";
 
@@ -101,50 +92,48 @@ function LoadingSpinner({ text = "Analyzing..." }: { text?: string }) {
 
 // ── Translate (Quick) View ──────────────────────────────────────────
 
-function TranslateQuickView({
-  ankiConnected,
-}: {
-  ankiConnected: boolean;
-}) {
+function TranslateQuickView() {
   const { t, lang, isVietnamese } = useTranslation();
   const [inputText, setInputText] = useState("");
   const [result, setResult] = useState<PhraseAnalyzeResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [usedFallback, setUsedFallback] = useState(false);
+  const requestIdRef = useRef(0);
 
-  useEffect(() => {
-    const listener = (message: { type: string; payload: { text: string } }) => {
-      if (message.type === "TEXT_SELECTED" && message.payload?.text) {
-        setInputText(message.payload.text);
-        handleTranslate(message.payload.text);
-      }
-    };
-    chrome.runtime?.onMessage?.addListener(listener);
-    return () => chrome.runtime?.onMessage?.removeListener(listener);
-  }, []);
+  const handleTranslate = useCallback(async (text?: string) => {
+    const textToAnalyze = (text ?? inputText).trim();
+    if (!textToAnalyze) return;
 
-  const handleTranslate = async (text?: string) => {
-    const textToAnalyze = text || inputText;
-    if (!textToAnalyze.trim()) return;
-
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     setResult(null);
-    setUsedFallback(false);
 
     try {
       const response = await apiClient.analyzePhrase({
         text: textToAnalyze,
         include_definitions: true,
       });
-      setResult(response);
+      if (requestId === requestIdRef.current) setResult(response);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("popup_error_generic"));
+      if (requestId === requestIdRef.current) {
+        setError(e instanceof Error ? e.message : t("popup_error_generic"));
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
-  };
+  }, [inputText, t]);
+
+  useEffect(() => {
+    const listener = (message: { type: string; payload: { text: string } }) => {
+      if (message.type === "TEXT_SELECTED" && message.payload?.text) {
+        setInputText(message.payload.text);
+        void handleTranslate(message.payload.text);
+      }
+    };
+    chrome.runtime?.onMessage?.addListener(listener);
+    return () => chrome.runtime?.onMessage?.removeListener(listener);
+  }, [handleTranslate]);
 
   const handlePlayJapanese = () => {
     if (result?.text) {
@@ -190,6 +179,7 @@ function TranslateQuickView({
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder={t("popup_input_placeholder")}
+          aria-label={t("popup_input_placeholder")}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
               e.preventDefault();
@@ -222,7 +212,14 @@ function TranslateQuickView({
             </span>
             {inputText && (
               <button
-                onClick={() => setInputText("")}
+                type="button"
+                onClick={() => {
+                  requestIdRef.current += 1;
+                  setInputText("");
+                  setResult(null);
+                  setError(null);
+                  setLoading(false);
+                }}
                 style={{
                   background: "transparent",
                   border: "none",
@@ -234,6 +231,7 @@ function TranslateQuickView({
                   borderRadius: "4px"
                 }}
                 title="Clear text"
+                aria-label="Clear text"
               >
                 <Trash2 size={13} />
               </button>
@@ -241,7 +239,8 @@ function TranslateQuickView({
           </div>
 
           <button
-            onClick={() => handleTranslate()}
+            type="button"
+            onClick={() => void handleTranslate()}
             disabled={loading || !inputText.trim()}
             style={{
               display: "inline-flex",
@@ -276,13 +275,13 @@ function TranslateQuickView({
           fontSize: 13,
           borderRadius: "8px",
           marginBottom: "16px"
-        }}>
+        }} role="alert">
           <div>{error}</div>
         </div>
       )}
 
       {loading && (
-        <div style={{ textAlign: "center", padding: "28px 0", color: "var(--hk-text-muted)" }}>
+        <div role="status" aria-live="polite" style={{ textAlign: "center", padding: "28px 0", color: "var(--hk-text-muted)" }}>
           <RefreshCw size={22} className="hk-spin" style={{ color: "var(--hk-accent-primary)", marginBottom: "8px" }} />
           <div style={{ fontSize: "13px" }}>{t("popup_analyzing")}</div>
         </div>
@@ -405,7 +404,7 @@ function TranslateQuickView({
 
 function Popup() {
   const [activeView, setActiveView] = useState<ExtensionView>("translate");
-  const { settings, updateSettings } = useSettingsStore();
+  const { settings } = useSettingsStore();
   const { t } = useTranslation();
   const [ankiConnected, setAnkiConnected] = useState(false);
 
@@ -427,10 +426,6 @@ function Popup() {
       setActiveView("translate");
     }
   }, [settings.srsEnabled, activeView]);
-
-  const handleUpdateSettings = (patch: Partial<ExtensionSettings>) => {
-    updateSettings(patch);
-  };
 
   const tabs: Array<{ id: ExtensionView; label: string; icon: React.ReactNode }> = [
     { id: "translate", label: t("popup_tab_translate"), icon: <Languages size={15} /> },
@@ -508,7 +503,9 @@ function Popup() {
             <ExternalLink size={12} /> {t("popup_btn_app")}
           </button>
           
-          <div 
+          <div
+            role="status"
+            aria-label={ankiConnected ? t("settings_anki_status_running") : t("settings_anki_status_disconnected")}
             title={ankiConnected ? t("settings_anki_status_running") : t("settings_anki_status_disconnected")} 
             style={{
               width: 8,
@@ -524,12 +521,14 @@ function Popup() {
 
       {/* Segmented Pill Tabs — rendered only when multiple views are active */}
       {tabs.length > 1 && (
-        <nav className="hk-nav">
+        <nav className="hk-nav" role="tablist" aria-label="Popup views">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               className={`hk-nav__tab ${activeView === tab.id ? "hk-nav__tab--active" : ""}`}
               onClick={() => setActiveView(tab.id)}
+              role="tab"
+              aria-selected={activeView === tab.id}
             >
               {tab.icon} {tab.label}
             </button>
@@ -540,9 +539,7 @@ function Popup() {
       <ErrorBoundary>
         <Suspense fallback={<LoadingSpinner text="Loading view..." />}>
           {activeView === "translate" && (
-            <TranslateQuickView
-              ankiConnected={ankiConnected}
-            />
+            <TranslateQuickView />
           )}
           {activeView === "srs" && (
             <SrsReview />

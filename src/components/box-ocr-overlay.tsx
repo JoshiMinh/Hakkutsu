@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Crop, Sparkles, X, Check, ArrowDownUp, ArrowLeftRight } from "lucide-react";
+import { Crop, Sparkles, X, ArrowDownUp, ArrowLeftRight } from "lucide-react";
 import type { BoxOcrCoordinates } from "~lib/utils/types";
 
 interface BoxOcrOverlayProps {
@@ -56,20 +56,22 @@ export const BoxOcrOverlay: React.FC<BoxOcrOverlayProps> = ({ onComplete, onCanc
     };
   }, [onCancel]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return; // Left click only
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setIsDragging(true);
     setStartPoint({ x: e.clientX, y: e.clientY });
     setCurrentPoint({ x: e.clientX, y: e.clientY });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging) return;
     setCurrentPoint({ x: e.clientX, y: e.clientY });
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
     if (!isDragging) return;
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     setIsDragging(false);
 
     if (rect && rect.width >= 12 && rect.height >= 12) {
@@ -80,6 +82,8 @@ export const BoxOcrOverlay: React.FC<BoxOcrOverlayProps> = ({ onComplete, onCanc
           width: rect.width,
           height: rect.height,
           dpr: window.devicePixelRatio || 1,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
         },
         orientationMode
       );
@@ -94,9 +98,13 @@ export const BoxOcrOverlay: React.FC<BoxOcrOverlayProps> = ({ onComplete, onCanc
     <div
       ref={overlayRef}
       id="hakkutsu-box-ocr-overlay"
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Hakkutsu Box OCR selection"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       style={{
         position: "fixed",
         inset: 0,
@@ -139,6 +147,7 @@ export const BoxOcrOverlay: React.FC<BoxOcrOverlayProps> = ({ onComplete, onCanc
         </span>
         <button
           type="button"
+          aria-label="Change text orientation"
           onClick={(e) => {
             e.stopPropagation();
             setOrientationMode((prev) =>
@@ -177,6 +186,7 @@ export const BoxOcrOverlay: React.FC<BoxOcrOverlayProps> = ({ onComplete, onCanc
         </button>
         <button
           type="button"
+          aria-label="Cancel OCR selection"
           onClick={(e) => {
             e.stopPropagation();
             onCancel();
@@ -242,4 +252,3 @@ export const BoxOcrOverlay: React.FC<BoxOcrOverlayProps> = ({ onComplete, onCanc
     </div>
   );
 };
-

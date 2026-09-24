@@ -26,7 +26,6 @@ import { DefinitionCard } from "~components/definition-card";
 import { TokenDisplay } from "~components/token-display";
 import { GrammarExplanations } from "~components/grammar-explanations";
 import { BoxOcrOverlay } from "~components/box-ocr-overlay";
-import { ocrEngine } from "~lib/services/ocr-engine";
 import { cropViewportBox } from "~lib/services/image-cropper";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
@@ -149,6 +148,7 @@ const InlineDictionary = () => {
   const [isOcrSelecting, setIsOcrSelecting] = useState(false);
   const [ocrCroppedImage, setOcrCroppedImage] = useState<string | null>(null);
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
   const [ocrOrientation, setOcrOrientation] = useState<"auto" | "vertical" | "horizontal">("auto");
   const [isEditingOcrText, setIsEditingOcrText] = useState(false);
@@ -180,6 +180,10 @@ const InlineDictionary = () => {
   useEffect(() => {
     const handleRuntimeMessage = (message: any, _sender: any, sendResponse: any) => {
       if (message?.type === "TRIGGER_BOX_OCR") {
+        if (window.top !== window || settingsRef.current.ocrEnabled === false) {
+          sendResponse?.({ success: false });
+          return;
+        }
         setIsOcrSelecting(true);
         setPosition(null);
         setHoverHighlightRects(null);
@@ -215,13 +219,14 @@ const InlineDictionary = () => {
 
     document.addEventListener("fullscreenchange", syncHostPlacement);
     window.addEventListener("hakkutsu:analyze", syncHostPlacement);
-    window.addEventListener("hakkutsu:start-box-ocr", () => setIsOcrSelecting(true));
+    const startBoxOcr = () => setIsOcrSelecting(true);
+    window.addEventListener("hakkutsu:start-box-ocr", startBoxOcr);
     syncHostPlacement();
 
     return () => {
       document.removeEventListener("fullscreenchange", syncHostPlacement);
       window.removeEventListener("hakkutsu:analyze", syncHostPlacement);
-      window.removeEventListener("hakkutsu:start-box-ocr", () => setIsOcrSelecting(true));
+      window.removeEventListener("hakkutsu:start-box-ocr", startBoxOcr);
     };
   }, []);
 
@@ -537,25 +542,33 @@ const InlineDictionary = () => {
   ) => {
     setIsOcrSelecting(false);
     setOcrLoading(true);
+    setOcrProgress(0);
     setError(null);
     setOcrCroppedImage(null);
     setOcrConfidence(null);
     setOcrOrientation(selectedOrientation);
     setIsEditingOcrText(false);
 
-    // Position popup adjacent to the bounding box
+    // Prepare the popup position, but do not render it until after capture or
+    // it may be included in the screenshot and obscure the selected text.
     const x = Math.max(16, Math.min(box.x, window.innerWidth - 340));
     const placeAbove = window.innerHeight - (box.y + box.height) < 360 && box.y > 360;
-    setPosition({
+    const nextPosition = {
       x,
       y: placeAbove ? box.y : box.y + box.height,
-      placement: "anchor",
+      placement: "anchor" as const,
       above: placeAbove,
-    });
+    };
     setSentenceMode(true);
     setTransientMode(false);
 
     try {
+      // React state updates are asynchronous. Wait until the selection overlay
+      // has left the painted frame before asking Chrome for the screenshot.
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+
       // 1. Capture viewport screenshot via background service
       const screenshotResponse = await chrome.runtime.sendMessage({
         type: "CAPTURE_SCREENSHOT",
@@ -565,6 +578,7 @@ const InlineDictionary = () => {
       }
 
       const screenshotDataUrl = screenshotResponse.payload.dataUrl as string;
+      setPosition(nextPosition);
 
       // 2. Crop bounding box with high-DPI scaling and optional manga pre-processing
       const croppedDataUrl = await cropViewportBox(
@@ -575,6 +589,8 @@ const InlineDictionary = () => {
       setOcrCroppedImage(croppedDataUrl);
 
       // 3. Execute client-side WebAssembly OCR
+      // Defer OCR initialization until the user makes an explicit selection.
+      const { ocrEngine } = await import("~lib/services/ocr-engine");
       const ocrResult = await ocrEngine.recognize(croppedDataUrl, {
         orientation:
           selectedOrientation === "auto"
@@ -582,6 +598,7 @@ const InlineDictionary = () => {
             : selectedOrientation,
         boxWidth: box.width,
         boxHeight: box.height,
+        onProgress: ({ progress }) => setOcrProgress(Math.round(progress * 100)),
       });
 
       if (!ocrResult.text || !containsJapanese(ocrResult.text)) {
@@ -600,9 +617,11 @@ const InlineDictionary = () => {
       }
     } catch (err: any) {
       console.error("[Hakkutsu Box OCR] Recognition error:", err);
+      setPosition(nextPosition);
       setError(err?.message || "Box OCR recognition failed. Please retry.");
     } finally {
       setOcrLoading(false);
+      setOcrProgress(0);
     }
   };
 
@@ -1072,7 +1091,7 @@ const InlineDictionary = () => {
                 />
                 <div style={{ color: "#a1a1aa", fontSize: "13px" }}>
                   {ocrLoading
-                    ? t("ocr_recognizing") || "Recognizing Japanese text..."
+                      ? `${t("ocr_recognizing") || "Recognizing Japanese text..."}${ocrProgress > 0 ? ` ${ocrProgress}%` : ""}`
                     : phraseMode
                       ? t("dict_loading_phrase")
                       : t("dict_loading_syntax")}

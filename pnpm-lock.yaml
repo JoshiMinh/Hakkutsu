@@ -42,6 +42,9 @@ importers:
       tesseract.js:
         specifier: ^7.0.0
         version: 7.0.0
+      tesseract.js-core:
+        specifier: ^7.0.0
+        version: 7.0.0
       zustand:
         specifier: ^5.0.14
         version: 5.0.15(@types/react@18.2.48)(react@18.2.0)

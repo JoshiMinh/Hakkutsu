@@ -389,6 +389,8 @@ export interface BoxOcrCoordinates {
   width: number;
   height: number;
   dpr: number;
+  viewportWidth?: number;
+  viewportHeight?: number;
 }
 
 export interface BoxOcrRequest {

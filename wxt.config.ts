@@ -1,5 +1,9 @@
 import { defineConfig } from "wxt";
 import path from "node:path";
+import { readFileSync } from "node:fs";
+
+const tesseractAsset = (fileName: string) =>
+  path.resolve(__dirname, "node_modules/tesseract.js-core", fileName);
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -17,6 +21,36 @@ export default defineConfig({
     esbuild: {
       jsx: "automatic",
     },
+    plugins: [
+      {
+        name: "hakkutsu-local-tesseract-assets",
+        apply: "build",
+        buildStart() {
+          const assets = [
+            {
+              fileName: "ocr/worker.min.js",
+              sourcePath: path.resolve(__dirname, "node_modules/tesseract.js/dist/worker.min.js"),
+            },
+            {
+              fileName: "ocr/tesseract-core-simd-lstm.js",
+              sourcePath: tesseractAsset("tesseract-core-simd-lstm.js"),
+            },
+            {
+              fileName: "ocr/tesseract-core-simd-lstm.wasm",
+              sourcePath: tesseractAsset("tesseract-core-simd-lstm.wasm"),
+            },
+          ];
+
+          for (const asset of assets) {
+            this.emitFile({
+              type: "asset",
+              fileName: asset.fileName,
+              source: readFileSync(asset.sourcePath),
+            });
+          }
+        },
+      },
+    ],
     optimizeDeps: {
       include: ["react", "react-dom"],
     },
@@ -41,6 +75,9 @@ export default defineConfig({
         "48": "icon-48.png",
         "128": "icon-128.png"
       }
+    },
+    content_security_policy: {
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
     },
     permissions: [
       "scripting",
@@ -69,6 +106,7 @@ export default defineConfig({
       {
         resources: [
           "assets/*",
+          "ocr/*",
           "icon-16.png",
           "icon-32.png",
           "icon-48.png",
