@@ -19,6 +19,7 @@ export interface HakkutsuNetflixTrack {
 }
 
 export interface HakkutsuNetflixSyncedData {
+  videoId: string;
   title: string;
   tracks: HakkutsuNetflixTrack[];
   error?: string;
@@ -28,6 +29,8 @@ export function runNetflixBridgeMain(): void {
   if ((window as any).__HAKKUTSU_NETFLIX_BRIDGE_INITIALIZED__) return;
   (window as any).__HAKKUTSU_NETFLIX_BRIDGE_INITIALIZED__ = true;
   let lastPublishedSignature = "";
+  let lazyLoadQueue: Promise<void> = Promise.resolve();
+  const pendingTrackIds = new Set<string>();
 
   interface NetflixTrackDef {
     id: string;
@@ -158,7 +161,7 @@ export function runNetflixBridgeMain(): void {
     };
   }
 
-  async function publishNetflixTracks(force = false): Promise<void> {
+  async function publishNetflixTracks(force = false, error?: string): Promise<void> {
     const np = getActivePlayer();
     if (!np) return;
 
@@ -171,15 +174,18 @@ export function runNetflixBridgeMain(): void {
       .filter((t: NetflixTrackDef | null): t is NetflixTrackDef => t !== null);
 
     const title = document.title.replace(/ - Netflix$/i, "").trim() || "Netflix Video";
-    const signature = `${title}|${tracks.map((track) => `${track.id}:${track.url || ""}`).join("|")}`;
+    const videoId = /\/watch\/([^/?]+)/.exec(window.location.pathname)?.[1] || "";
+    const signature = `${videoId}|${title}|${tracks.map((track) => `${track.id}:${track.url || ""}`).join("|")}`;
     if (!force && signature === lastPublishedSignature) return;
     lastPublishedSignature = signature;
 
     document.dispatchEvent(
       new CustomEvent("hakkutsu:netflix-synced-tracks", {
         detail: {
+          videoId,
           title,
           tracks,
+          error,
         },
       })
     );
@@ -192,7 +198,7 @@ export function runNetflixBridgeMain(): void {
     const targetTrackIdStr = String(targetTrackId);
     const urls = findCadmiumTimedTextUrls();
     if (urls.has(targetTrackIdStr)) {
-      void publishNetflixTracks();
+      void publishNetflixTracks(true);
       return;
     }
 
@@ -204,19 +210,26 @@ export function runNetflixBridgeMain(): void {
         String(t.bcp47?.toLowerCase()) === targetTrackIdStr.toLowerCase()
     );
     if (targetTrack) {
+      const previousTrack = np.getTimedTextTrack?.();
+      const watchPath = window.location.pathname;
       try {
-        const previousTrack = np.getTimedTextTrack?.();
         np.setTimedTextTrack?.(targetTrack);
-        setTimeout(() => {
-          void publishNetflixTracks(true);
-          if (previousTrack && previousTrack !== targetTrack) {
-            try {
-              np.setTimedTextTrack?.(previousTrack);
-            } catch {}
-          }
-        }, 800);
+        // CDN URLs may appear after more than one render cycle on a slow connection.
+        for (let attempt = 0; attempt < 20; attempt++) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 250));
+          if (getActivePlayer() !== np || window.location.pathname !== watchPath) return;
+          if (findCadmiumTimedTextUrls().has(targetTrackIdStr)) break;
+        }
+        const loaded = findCadmiumTimedTextUrls().has(targetTrackIdStr);
+        await publishNetflixTracks(true, loaded ? undefined : "Failed to load Netflix subtitle track");
       } catch (err) {
         console.warn("[Hakkutsu Bridge] Set Netflix track error:", err);
+      } finally {
+        // Preserve a native track chosen by the user while lazy loading was in progress.
+        if (previousTrack && previousTrack !== targetTrack && getActivePlayer() === np &&
+            window.location.pathname === watchPath && np.getTimedTextTrack?.() === targetTrack) {
+          try { np.setTimedTextTrack?.(previousTrack); } catch {}
+        }
       }
     }
   }
@@ -227,8 +240,15 @@ export function runNetflixBridgeMain(): void {
 
   document.addEventListener("hakkutsu:netflix-lazy-load-track", (e: Event) => {
     const trackId = (e as CustomEvent).detail?.trackId;
-    if (trackId) {
-      void fetchTrackUrlForLanguage(trackId);
+    if (typeof trackId === "string" && !pendingTrackIds.has(trackId)) {
+      const watchPath = window.location.pathname;
+      pendingTrackIds.add(trackId);
+      lazyLoadQueue = lazyLoadQueue
+        .then(() => {
+          if (window.location.pathname === watchPath) return fetchTrackUrlForLanguage(trackId);
+        })
+        .catch((err) => console.warn("[Hakkutsu Bridge] Lazy track load error:", err))
+        .finally(() => pendingTrackIds.delete(trackId));
     }
   });
 

@@ -152,19 +152,23 @@ export default function NetflixSubtitlesOverlay() {
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const currentUrlRef = useRef(window.location.href);
+  const currentVideoIdRef = useRef(/\/watch\/([^/?]+)/.exec(window.location.pathname)?.[1] || "");
 
   const selectedTrackIdRef = useRef<string>("");
   const isCustomTrackRef = useRef<boolean>(false);
   const selectedSecondaryTrackIdRef = useRef<string>("__auto_translate__");
+  const primaryLoadIdRef = useRef(0);
+  const secondaryLoadIdRef = useRef(0);
+  const loadedSecondaryTrackRef = useRef("");
 
   // ── Global Style & Native Caption Suppression ──────────────────────────────
 
   useEffect(() => {
-    injectNetflixGlobalStyle(isEnabled && Boolean(subtitleData));
+    injectNetflixGlobalStyle(isEnabled && (Boolean(subtitleData?.segments.length) || Boolean(currentSegment)));
     return () => {
       injectNetflixGlobalStyle(false);
     };
-  }, [isEnabled, subtitleData]);
+  }, [isEnabled, subtitleData, currentSegment]);
 
   // ── Keyboard shortcut T to toggle script drawer ───────────────────────────
 
@@ -216,7 +220,7 @@ export default function NetflixSubtitlesOverlay() {
 
   useEffect(() => {
     const syncHostPlacement = () => {
-      const host = document.getElementById("hakkutsu-netflix-subtitles-host");
+      const host = document.querySelector("hakkutsu-netflix-subtitles-host");
       if (!host) return;
 
       const fsEl = document.fullscreenElement as HTMLElement | null;
@@ -254,6 +258,7 @@ export default function NetflixSubtitlesOverlay() {
     const content = await res.text();
 
     const segments = parseNetflixTtml(content);
+    if (segments.length === 0) throw new Error("Subtitle track contains no readable cues");
     return buildSmartCues(segments, false);
   }, []);
 
@@ -265,8 +270,12 @@ export default function NetflixSubtitlesOverlay() {
       if (!detail || !Array.isArray(detail.tracks)) return;
 
       const currentUrl = window.location.href;
-      const videoChanged = currentUrl !== currentUrlRef.current;
+      const videoChanged = detail.videoId !== currentVideoIdRef.current;
       if (videoChanged) {
+        currentVideoIdRef.current = detail.videoId;
+        ++primaryLoadIdRef.current;
+        ++secondaryLoadIdRef.current;
+        loadedSecondaryTrackRef.current = "";
         currentUrlRef.current = currentUrl;
         selectedTrackIdRef.current = "";
         selectedSecondaryTrackIdRef.current = "__auto_translate__";
@@ -275,9 +284,16 @@ export default function NetflixSubtitlesOverlay() {
         setSecondaryData(null);
         setCurrentSegment(null);
         setSecondarySegment(null);
+        setCurrentTrackId("");
+        setLoading(false);
+        setError(null);
       }
 
       setVideoTitle(detail.title || document.title);
+      if (detail.error) {
+        setError(detail.error);
+        setLoading(false);
+      }
 
       const options: SubtitleTrackOption[] = detail.tracks.map((t) => ({
         id: t.id,
@@ -288,7 +304,7 @@ export default function NetflixSubtitlesOverlay() {
 
       // Preserve any custom subtitle track loaded by the user
       setAvailableTracks((prev) => {
-        const customTracks = prev.filter((t) => t.id.startsWith("custom-"));
+        const customTracks = videoChanged ? [] : prev.filter((t) => t.id.startsWith("custom-"));
         return [...customTracks, ...options];
       });
 
@@ -319,9 +335,11 @@ export default function NetflixSubtitlesOverlay() {
       if (primaryTrack) {
         if (primaryTrack.url) {
           if (videoChanged || !subtitleData || currentTrackId !== primaryTrack.id) {
+            const loadId = ++primaryLoadIdRef.current;
             try {
               setLoading(true);
               const segments = await loadTrackContent(primaryTrack);
+              if (loadId !== primaryLoadIdRef.current || selectedTrackIdRef.current !== primaryTrack.id) return;
               setSubtitleData({
                 videoId: "netflix",
                 language: primaryTrack.languageCode,
@@ -334,13 +352,14 @@ export default function NetflixSubtitlesOverlay() {
               setCurrentTrackId(primaryTrack.id);
               setError(null);
             } catch (err) {
+              if (loadId !== primaryLoadIdRef.current) return;
               console.warn("[Hakkutsu Subtitles] Failed to fetch Netflix TTML:", err);
               setError("Failed to load Netflix subtitles");
             } finally {
-              setLoading(false);
+              if (loadId === primaryLoadIdRef.current) setLoading(false);
             }
           }
-        } else if (!subtitleData || currentTrackId !== primaryTrack.id) {
+        } else if (!detail.error && (!subtitleData || currentTrackId !== primaryTrack.id)) {
           // Track URL is lazy; request bridge to fetch it
           document.dispatchEvent(
             new CustomEvent("hakkutsu:netflix-lazy-load-track", {
@@ -356,9 +375,17 @@ export default function NetflixSubtitlesOverlay() {
         setSecondaryData(null);
       } else if (selectedSecondaryTrackIdRef.current) {
         const secondary = options.find((t) => t.id === selectedSecondaryTrackIdRef.current);
-        if (secondary && secondary.url) {
+        if (secondary && !secondary.url && !detail.error) {
+          document.dispatchEvent(new CustomEvent("hakkutsu:netflix-lazy-load-track", {
+            detail: { trackId: secondary.id },
+          }));
+        }
+        if (secondary?.url && loadedSecondaryTrackRef.current !== `${secondary.id}:${secondary.url}`) {
+          const loadId = ++secondaryLoadIdRef.current;
           try {
             const secSegments = await loadTrackContent(secondary);
+            if (loadId !== secondaryLoadIdRef.current || selectedSecondaryTrackIdRef.current !== secondary.id) return;
+            loadedSecondaryTrackRef.current = `${secondary.id}:${secondary.url}`;
             setSecondaryData({
               videoId: "netflix",
               language: secondary.languageCode,
@@ -370,47 +397,24 @@ export default function NetflixSubtitlesOverlay() {
             });
           } catch {}
         }
-      } else {
-        const targetLang = settings.targetLanguage || "en";
-        const secondaryMatch = options.find(
-          (t) =>
-            t.languageCode === targetLang ||
-            t.languageCode.startsWith(`${targetLang}-`) ||
-            t.languageCode.startsWith(targetLang)
-        );
-
-        if (secondaryMatch && secondaryMatch.url) {
-          selectedSecondaryTrackIdRef.current = secondaryMatch.id;
-          setSecondaryTrackId(secondaryMatch.id);
-          try {
-            const secSegments = await loadTrackContent(secondaryMatch);
-            setSecondaryData({
-              videoId: "netflix",
-              language: secondaryMatch.languageCode,
-              trackName: secondaryMatch.name,
-              segments: secSegments,
-              fullText: secSegments.map((s) => s.text).join(" "),
-              isAutoGenerated: false,
-              source: "player",
-            });
-          } catch {}
-        } else {
-          setSecondaryTrackId("__auto_translate__");
-          setSecondaryData(null);
-        }
       }
     },
-    [loadTrackContent, settings.targetLanguage, subtitleData, currentTrackId]
+    [loadTrackContent, subtitleData, currentTrackId]
   );
 
+  const syncedTracksHandlerRef = useRef(handleSyncedTracks);
+  syncedTracksHandlerRef.current = handleSyncedTracks;
   useEffect(() => {
-    document.addEventListener("hakkutsu:netflix-synced-tracks", handleSyncedTracks);
+    const listener = (event: Event) => void syncedTracksHandlerRef.current(event);
+    document.addEventListener("hakkutsu:netflix-synced-tracks", listener);
     document.dispatchEvent(new CustomEvent("hakkutsu:request-netflix-tracks"));
 
     return () => {
-      document.removeEventListener("hakkutsu:netflix-synced-tracks", handleSyncedTracks);
+      document.removeEventListener("hakkutsu:netflix-synced-tracks", listener);
+      ++primaryLoadIdRef.current;
+      ++secondaryLoadIdRef.current;
     };
-  }, [handleSyncedTracks]);
+  }, []);
 
   // ── Event-Driven & Continuous Cue Sync ───────────────────────────────────────
 
@@ -509,19 +513,20 @@ export default function NetflixSubtitlesOverlay() {
 
   // ── Floating Netflix Button Component ─────────────────────────────────────
 
-  useEffect(() => {
-    injectNetflixGlobalStyle(isEnabled);
-  }, [isEnabled]);
-
   // ── Track Selection & Custom File Handlers ─────────────────────────────────
 
   const handleSelectPrimaryTrack = async (track: SubtitleTrackOption) => {
+    const loadId = ++primaryLoadIdRef.current;
     selectedTrackIdRef.current = track.id;
     setCurrentTrackId(track.id);
+    setSubtitleData(null);
+    setCurrentSegment(null);
+    setError(null);
 
     if (track.fetchResult) {
       isCustomTrackRef.current = true;
       setSubtitleData(track.fetchResult);
+      setLoading(false);
       setIsEnabled(true);
       return;
     }
@@ -539,6 +544,7 @@ export default function NetflixSubtitlesOverlay() {
     try {
       setLoading(true);
       const segments = await loadTrackContent(track);
+      if (loadId !== primaryLoadIdRef.current) return;
       setSubtitleData({
         videoId: "netflix",
         language: track.languageCode,
@@ -550,13 +556,19 @@ export default function NetflixSubtitlesOverlay() {
       });
       setIsEnabled(true);
     } catch (err) {
+      if (loadId !== primaryLoadIdRef.current) return;
+      setError("Failed to load Netflix subtitles");
       console.error("Failed to switch Netflix track:", err);
     } finally {
-      setLoading(false);
+      if (loadId === primaryLoadIdRef.current) setLoading(false);
     }
   };
 
   const handleSelectSecondaryTrack = async (track: SubtitleTrackOption | null) => {
+    const loadId = ++secondaryLoadIdRef.current;
+    loadedSecondaryTrackRef.current = "";
+    setSecondaryData(null);
+    setSecondarySegment(null);
     if (!track) {
       selectedSecondaryTrackIdRef.current = "";
       setSecondaryTrackId("");
@@ -579,6 +591,8 @@ export default function NetflixSubtitlesOverlay() {
     if (track.url) {
       try {
         const segments = await loadTrackContent(track);
+        if (loadId !== secondaryLoadIdRef.current) return;
+        loadedSecondaryTrackRef.current = `${track.id}:${track.url}`;
         setSecondaryData({
           videoId: "netflix",
           language: track.languageCode,
@@ -591,6 +605,10 @@ export default function NetflixSubtitlesOverlay() {
       } catch {
         // keep fallback
       }
+    } else {
+      document.dispatchEvent(new CustomEvent("hakkutsu:netflix-lazy-load-track", {
+        detail: { trackId: track.id },
+      }));
     }
   };
 
@@ -604,6 +622,7 @@ export default function NetflixSubtitlesOverlay() {
     isCustomTrackRef.current = true;
     selectedTrackIdRef.current = customOption.id;
     setAvailableTracks((prev) => [customOption, ...prev]);
+    void handleSelectPrimaryTrack(customOption);
     setIsEnabled(true);
   };
 

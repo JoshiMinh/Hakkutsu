@@ -152,6 +152,14 @@ export const ko = {
   srs_cloze_hint: "문맥 의미 힌트",
 
   // Dashboard Overview
+  dash_characters: "읽은 글자",
+  dash_video_time: "영상 몰입 시간",
+  dash_with_context: "문맥 포함",
+  dash_analytics_unavailable: "활동 데이터를 불러올 수 없습니다",
+  dash_retry: "다시 시도",
+  dash_leeches: "주의가 필요한 카드",
+  dash_longest_streak: "최장 연속 기록",
+  dash_activity_empty: "아직 활동 기록이 없습니다.",
   dash_title: "학습 센터",
   dash_greeting_morning: "좋은 아침입니다",
   dash_greeting_afternoon: "좋은 오후입니다",
@@ -203,6 +211,10 @@ export const ko = {
   settings_llm_custom_url: "사용자 지정 Endpoint URL",
   settings_llm_custom_url_desc: "예: OpenRouter 또는 OpenAI 호환 엔드포인트",
   
+  settings_reading_group: "읽기",
+  settings_review_group: "복습",
+  settings_advanced_review: "고급 복습 설정",
+  settings_card_images: "카드 삽화",
   settings_study_section: "일반 설정",
   settings_srs: "간격 반복 (SRS) 활성화",
   settings_srs_desc: "로컬 단어 저장 및 자동 간격 반복 복습 활성화",
@@ -225,7 +237,7 @@ export const ko = {
   settings_hover_key: "마우스 호버 검색 단축키",
   settings_hover_key_desc: "이 키를 누른 채 일본어 단어에 마우스를 올리면 클릭 없이 즉시 검색",
 
-  settings_video_section: "Immersion",
+  settings_video_section: "스트리밍 자막",
   settings_autofetch_sub: "비디오 자막 활성화",
   settings_autofetch_sub_desc: "YouTube, Netflix 및 동영상 플레이어에서 일본어 자막 및 컨트롤 활성화",
   settings_universal_video: "범용 HTML5 동영상 지원",

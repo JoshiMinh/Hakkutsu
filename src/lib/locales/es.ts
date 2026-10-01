@@ -152,6 +152,14 @@ export const es = {
   srs_cloze_hint: "Pista de Significado",
 
   // Dashboard Overview
+  dash_characters: "Caracteres leídos",
+  dash_video_time: "Inmersión en vídeo",
+  dash_with_context: "con contexto",
+  dash_analytics_unavailable: "Datos de actividad no disponibles",
+  dash_retry: "Reintentar",
+  dash_leeches: "Tarjetas que requieren atención",
+  dash_longest_streak: "Mejor racha",
+  dash_activity_empty: "Aún no hay actividad registrada.",
   dash_title: "Centro de Aprendizaje",
   dash_greeting_morning: "Buenos días",
   dash_greeting_afternoon: "Buenas tardes",
@@ -203,6 +211,10 @@ export const es = {
   settings_llm_custom_url: "URL de Endpoint Personalizado",
   settings_llm_custom_url_desc: "Ej.: endpoint compatible con OpenAI u OpenRouter",
   
+  settings_reading_group: "Lectura",
+  settings_review_group: "Repasos",
+  settings_advanced_review: "Ajustes avanzados de repaso",
+  settings_card_images: "Ilustraciones de tarjetas",
   settings_study_section: "General",
   settings_srs: "Habilitar Repetición Espaciada (SRS)",
   settings_srs_desc: "Habilita el guardado local de vocabulario y sesiones automáticas de repaso espaciado",
@@ -225,7 +237,7 @@ export const es = {
   settings_hover_key: "Tecla Modificadora de Puntero (Sin Clic)",
   settings_hover_key_desc: "Mantén presionada esta tecla al pasar el ratón sobre texto en japonés para buscar palabras sin hacer clic",
 
-  settings_video_section: "Inmersión",
+  settings_video_section: "Subtítulos de streaming",
   settings_autofetch_sub: "Habilitar Subtítulos de Vídeo",
   settings_autofetch_sub_desc: "Habilita subtítulos interactivos en japonés, traducciones duales y controles flotantes",
   settings_universal_video: "Soporte Universal de Vídeo HTML5",

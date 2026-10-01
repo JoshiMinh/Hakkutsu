@@ -152,6 +152,14 @@ export const zh = {
   srs_cloze_hint: "例句语境含义提示",
 
   // Dashboard Overview
+  dash_characters: "已读字符",
+  dash_video_time: "视频沉浸时间",
+  dash_with_context: "含语境",
+  dash_analytics_unavailable: "活动数据不可用",
+  dash_retry: "重试",
+  dash_leeches: "需要关注的卡片",
+  dash_longest_streak: "最长连续天数",
+  dash_activity_empty: "尚无活动记录。",
   dash_title: "学习中心",
   dash_greeting_morning: "早上好",
   dash_greeting_afternoon: "下午好",
@@ -203,6 +211,10 @@ export const zh = {
   settings_llm_custom_url: "自定义 Endpoint URL",
   settings_llm_custom_url_desc: "例如：OpenRouter 或 OpenAI 兼容端点",
   
+  settings_reading_group: "阅读",
+  settings_review_group: "复习",
+  settings_advanced_review: "高级复习设置",
+  settings_card_images: "卡片插图",
   settings_study_section: "通用设置",
   settings_srs: "启用间隔重复 (SRS)",
   settings_srs_desc: "启用本地词汇保存与自动间隔重复复习",
@@ -225,7 +237,7 @@ export const zh = {
   settings_hover_key: "悬停查词修饰键 (Hover Key)",
   settings_hover_key_desc: "按住此键并将鼠标悬停在日文文本上即可查词，无需点击",
 
-  settings_video_section: "Immersion",
+  settings_video_section: "流媒体字幕",
   settings_autofetch_sub: "启用视频字幕",
   settings_autofetch_sub_desc: "在 YouTube、Netflix 和视频播放器上启用互动日文字幕及控制按钮",
   settings_universal_video: "通用 HTML5 视频支持",

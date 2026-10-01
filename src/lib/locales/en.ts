@@ -152,6 +152,14 @@ export const en = {
   srs_cloze_hint: "Context Meaning",
 
   // Dashboard Overview
+  dash_characters: "Characters read",
+  dash_video_time: "Video immersion",
+  dash_with_context: "with context",
+  dash_analytics_unavailable: "Activity data unavailable",
+  dash_retry: "Try again",
+  dash_leeches: "Cards needing attention",
+  dash_longest_streak: "Best streak",
+  dash_activity_empty: "No activity recorded yet.",
   dash_title: "Learning Hub",
   dash_greeting_morning: "Good morning",
   dash_greeting_afternoon: "Good afternoon",
@@ -203,6 +211,10 @@ export const en = {
   settings_llm_custom_url: "Custom Endpoint URL",
   settings_llm_custom_url_desc: "E.g., OpenRouter or OpenAI-compatible endpoint",
   
+  settings_reading_group: "Reading",
+  settings_review_group: "Reviews",
+  settings_advanced_review: "Advanced review settings",
+  settings_card_images: "Card illustrations",
   settings_study_section: "General",
   settings_srs: "Enable Spaced Repetition (SRS)",
   settings_srs_desc: "Enable local vocabulary saving and automatic spaced repetition review sessions",
@@ -225,7 +237,7 @@ export const en = {
   settings_hover_key: "Hover Modifier Key (Without Click)",
   settings_hover_key_desc: "Hold this key while hovering mouse over Japanese text to look up words without clicking",
 
-  settings_video_section: "Immersion",
+  settings_video_section: "Streaming Subtitles",
   settings_autofetch_sub: "Enable Video Subtitles",
   settings_autofetch_sub_desc: "Enable interactive Japanese subtitles, dual translations, and floating player controls",
   settings_universal_video: "Universal HTML5 Video Support",

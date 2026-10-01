@@ -565,6 +565,9 @@ async function handleMessage(
     }
 
     case "RUN_MANGA_OCR": {
+      if ((await getSettings()).mangaOcrEnabled === false) {
+        return { type: "ERROR", payload: { error: "Manga OCR is disabled in settings." } };
+      }
       const payload = message.payload as {
         imageDataUrl: string;
         orientation?: "auto" | "vertical" | "horizontal";

@@ -89,9 +89,6 @@ export function initYouTubePageBridge(): void {
       try {
         const url = new URL(rawUrl, window.location.href);
         url.searchParams.set("fmt", "srv3");
-        const ytcfg = (window as any).ytcfg;
-        const clientName = ytcfg?.get?.("INNERTUBE_CLIENT_NAME") || "WEB";
-        url.searchParams.set("c", clientName);
         return url.toString();
       } catch {
         return rawUrl;
@@ -186,9 +183,14 @@ export function initYouTubePageBridge(): void {
       return null;
     }
 
-    function tracksFromInitialResponse(): { title: string; tracks: HakkutsuYouTubeTrack[] } | null {
+    function tracksFromInitialResponse(videoId: string): { title: string; tracks: HakkutsuYouTubeTrack[] } | null {
       try {
-        const response = (window as any).ytInitialPlayerResponse;
+        const player = document.querySelector<any>("#movie_player");
+        const playerResponse = player?.getPlayerResponse?.();
+        const response = playerResponse?.videoDetails?.videoId === videoId
+          ? playerResponse
+          : (window as any).ytInitialPlayerResponse;
+        if (response?.videoDetails?.videoId !== videoId) return null;
         const captionTracks = response?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
         const title = response?.videoDetails?.title || document.title;
 
@@ -214,7 +216,7 @@ export function initYouTubePageBridge(): void {
       let tracks: HakkutsuYouTubeTrack[] = [];
 
       // 1. Instant check from initial player response
-      const initialResult = tracksFromInitialResponse();
+      const initialResult = tracksFromInitialResponse(videoId);
       if (initialResult && initialResult.tracks.length > 0) {
         title = initialResult.title;
         tracks = initialResult.tracks;

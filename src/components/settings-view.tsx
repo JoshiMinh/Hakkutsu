@@ -344,6 +344,30 @@ function OptionButton({
   );
 }
 
+function FeatureSwitch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (enabled: boolean) => void }) {
+  return <label className="hk-toggle hk-feature-switch">
+    <input type="checkbox" role="switch" aria-label={label} checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    <span className="hk-toggle__slider" />
+  </label>;
+}
+
+function CompactToggle({ id, label, description, checked, onChange }: {
+  id: string; label: string; description: string; checked: boolean; onChange: (enabled: boolean) => void;
+}) {
+  return <div className="hk-settings-row">
+    <div className="hk-settings-row__info">
+      <label className="hk-settings-row__label" htmlFor={id}>{label}</label>
+      <div id={`${id}-desc`} className="hk-settings-row__desc">{description}</div>
+    </div>
+    <div className="hk-settings-row__control">
+      <label className="hk-toggle" htmlFor={id}>
+        <input id={id} type="checkbox" aria-describedby={`${id}-desc`} checked={checked} onChange={(event) => onChange(event.target.checked)} />
+        <span className="hk-toggle__slider" />
+      </label>
+    </div>
+  </div>;
+}
+
 export function SettingsView({
   settings,
   onUpdate,
@@ -393,8 +417,9 @@ export function SettingsView({
   }, [settings.ankiModel]);
 
   useEffect(() => {
-    fetchAnkiData();
-  }, []);
+    if (settings.ankiEnabled !== false) void fetchAnkiData();
+    else { setAnkiConnected(false); setDecks([]); setModels([]); setFields([]); }
+  }, [settings.ankiEnabled, fetchAnkiData]);
 
   const inferDefaultMapping = (fieldName: string): string => {
     const lower = fieldName.toLowerCase().replace(/[-_]/g, " ");
@@ -595,287 +620,68 @@ export function SettingsView({
           </div>
         </section>
 
-        {/* General Card */}
-        <section className="hk-settings-card">
+        {/* General: everyday reading and review preferences */}
+        <section className="hk-settings-card hk-general-card">
           <header className="hk-settings-card__header">
-            <div className="hk-settings-card__icon">
-              <GraduationCap size={18} />
-            </div>
+            <div className="hk-settings-card__icon"><GraduationCap size={18} /></div>
             <h3 className="hk-settings-card__title">{t("settings_study_section", currentLang)}</h3>
           </header>
-          
-          <div className="hk-settings-card__body">
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="srsEnabled" className="hk-settings-row__label">{t("settings_srs", currentLang)}</label>
-                <div id="srsEnabled-desc" className="hk-settings-row__desc">{t("settings_srs_desc", currentLang)}</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="srsEnabled">
-                  <input
-                    id="srsEnabled"
-                    aria-describedby="srsEnabled-desc"
-                    type="checkbox"
-                    checked={settings.srsEnabled !== false}
-                    onChange={(e) => onUpdate({ srsEnabled: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            {/* SRS Algorithm Switcher */}
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label className="hk-settings-row__label">
-                  {t("settings_srs_algorithm", currentLang)}
-                </label>
-                <div className="hk-settings-row__desc">
-                  {t("settings_srs_algorithm_desc", currentLang)}
-                </div>
-              </div>
-              <div className="hk-settings-row__control">
-                <CustomSelect
-                  value={settings.srsAlgorithm || "fsrs"}
-                  onChange={(val) => onUpdate({ srsAlgorithm: val as any })}
-                  options={srsAlgoOptions}
-                  width="280px"
-                />
-              </div>
-            </div>
-
-            {/* FSRS Target Retention Slider */}
-            {settings.srsAlgorithm !== "sm2" && (
-              <div className="hk-settings-row">
-                <div className="hk-settings-row__info">
-                  <label htmlFor="fsrsRequestRetention" className="hk-settings-row__label">
-                    {t("settings_fsrs_retention", currentLang)} ({Math.round((settings.fsrsRequestRetention ?? 0.90) * 100)}%)
-                  </label>
-                  <div id="fsrsRequestRetention-desc" className="hk-settings-row__desc">
-                    {t("settings_fsrs_retention_desc", currentLang)}
-                  </div>
-                </div>
-                <div className="hk-settings-row__control" style={{ width: "160px" }}>
-                  <input
-                    id="fsrsRequestRetention"
-                    aria-describedby="fsrsRequestRetention-desc"
-                    type="range"
-                    min="80"
-                    max="97"
-                    step="1"
-                    value={Math.round((settings.fsrsRequestRetention ?? 0.90) * 100)}
-                    onChange={(e) => onUpdate({ fsrsRequestRetention: Number(e.target.value) / 100 })}
-                    style={{ width: "100%", accentColor: "var(--hk-accent-primary)" }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Default Audio-First Review Mode */}
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="audioFirstReviewMode" className="hk-settings-row__label">
-                  {t("settings_audio_first", currentLang)}
-                </label>
-                <div id="audioFirstReviewMode-desc" className="hk-settings-row__desc">
-                  {t("settings_audio_first_desc", currentLang)}
-                </div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="audioFirstReviewMode">
-                  <input
-                    id="audioFirstReviewMode"
-                    aria-describedby="audioFirstReviewMode-desc"
-                    type="checkbox"
-                    checked={!!settings.audioFirstReviewMode}
-                    onChange={(e) => onUpdate({ audioFirstReviewMode: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            {/* Default Cloze Deletion Review Mode */}
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="clozeReviewMode" className="hk-settings-row__label">
-                  {t("settings_cloze_mode", currentLang)}
-                </label>
-                <div id="clozeReviewMode-desc" className="hk-settings-row__desc">
-                  {t("settings_cloze_mode_desc", currentLang)}
-                </div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="clozeReviewMode">
-                  <input
-                    id="clozeReviewMode"
-                    aria-describedby="clozeReviewMode-desc"
-                    type="checkbox"
-                    checked={!!settings.clozeReviewMode}
-                    onChange={(e) => onUpdate({ clozeReviewMode: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="autoDetect" className="hk-settings-row__label">{t("settings_autodetect", currentLang)}</label>
-                <div id="autoDetect-desc" className="hk-settings-row__desc">{t("settings_autodetect_desc", currentLang)}</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="autoDetect">
-                  <input
-                    id="autoDetect"
-                    aria-describedby="autoDetect-desc"
-                    type="checkbox"
-                    checked={!!settings.autoDetect}
-                    onChange={(e) => onUpdate({ autoDetect: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="showFurigana" className="hk-settings-row__label">{t("settings_furigana", currentLang)}</label>
-                <div id="showFurigana-desc" className="hk-settings-row__desc">{t("settings_furigana_desc", currentLang)}</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="showFurigana">
-                  <input
-                    id="showFurigana"
-                    aria-describedby="showFurigana-desc"
-                    type="checkbox"
-                    checked={settings.showFurigana !== false}
-                    onChange={(e) => onUpdate({ showFurigana: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="includeImages" className="hk-settings-row__label">Include Illustrations & Images</label>
-                <div id="includeImages-desc" className="hk-settings-row__desc">Automatically attach Irasutoya illustration images to cards and Anki exports</div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="includeImages">
-                  <input
-                    id="includeImages"
-                    aria-describedby="includeImages-desc"
-                    type="checkbox"
-                    checked={settings.includeImages !== false}
-                    onChange={(e) => onUpdate({ includeImages: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="srsLeechThreshold" className="hk-settings-row__label">
-                  {t("settings_leech_threshold", currentLang)} ({settings.srsLeechThreshold || 4} lapses)
-                </label>
-                <div id="srsLeechThreshold-desc" className="hk-settings-row__desc">
-                  {t("settings_leech_threshold_desc", currentLang)}
-                </div>
-              </div>
-              <div className="hk-settings-row__control" style={{ width: "160px" }}>
-                <input
-                  id="srsLeechThreshold"
-                  aria-describedby="srsLeechThreshold-desc"
-                  type="range"
-                  min="2"
-                  max="8"
-                  value={settings.srsLeechThreshold || 4}
-                  onChange={(e) => onUpdate({ srsLeechThreshold: Number(e.target.value) })}
-                  style={{ width: "100%", accentColor: "var(--hk-accent-primary)" }}
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Web Immersion & Selective Furigana Card */}
-        <section className="hk-settings-card">
-          <header className="hk-settings-card__header">
-            <div className="hk-settings-card__icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <BookOpen size={18} />
-            </div>
-            <h3 className="hk-settings-card__title">{t("settings_immersion_reading_section", currentLang)}</h3>
-          </header>
-
-          <div className="hk-settings-card__body">
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="webpageDensityBadgeEnabled" className="hk-settings-row__label">
-                  {t("settings_density_badge", currentLang)}
-                </label>
-                <div id="webpageDensityBadgeEnabled-desc" className="hk-settings-row__desc">
-                  {t("settings_density_badge_desc", currentLang)}
-                </div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="webpageDensityBadgeEnabled">
-                  <input
-                    id="webpageDensityBadgeEnabled"
-                    aria-describedby="webpageDensityBadgeEnabled-desc"
-                    type="checkbox"
-                    checked={settings.webpageDensityBadgeEnabled !== false}
-                    onChange={(e) => onUpdate({ webpageDensityBadgeEnabled: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="selectiveFuriganaEnabled" className="hk-settings-row__label">
-                  {t("settings_selective_furigana", currentLang)}
-                </label>
-                <div id="selectiveFuriganaEnabled-desc" className="hk-settings-row__desc">
-                  {t("settings_selective_furigana_desc", currentLang)}
-                </div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="selectiveFuriganaEnabled">
-                  <input
-                    id="selectiveFuriganaEnabled"
-                    aria-describedby="selectiveFuriganaEnabled-desc"
-                    type="checkbox"
-                    checked={!!settings.selectiveFuriganaEnabled}
-                    onChange={(e) => onUpdate({ selectiveFuriganaEnabled: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label className="hk-settings-row__label">
-                  {t("settings_furigana_mode", currentLang)}
-                </label>
-                <div className="hk-settings-row__desc">
-                  {t("settings_furigana_mode_desc", currentLang)}
-                </div>
-              </div>
-              <div className="hk-settings-row__control">
-                <CustomSelect
+          <div className="hk-general-grid">
+            <section className="hk-general-group" aria-labelledby="general-reading-title">
+              <h4 id="general-reading-title">{t("settings_reading_group", currentLang)}</h4>
+              <CompactToggle id="autoDetect" label={t("settings_autodetect", currentLang)} description={t("settings_autodetect_desc", currentLang)}
+                checked={!!settings.autoDetect} onChange={(enabled) => onUpdate({ autoDetect: enabled })} />
+              <CompactToggle id="showFurigana" label={t("settings_furigana", currentLang)} description={t("settings_furigana_desc", currentLang)}
+                checked={settings.showFurigana !== false} onChange={(enabled) => onUpdate({ showFurigana: enabled })} />
+              <CompactToggle id="webpageDensityBadgeEnabled" label={t("settings_density_badge", currentLang)} description={t("settings_density_badge_desc", currentLang)}
+                checked={settings.webpageDensityBadgeEnabled !== false} onChange={(enabled) => onUpdate({ webpageDensityBadgeEnabled: enabled })} />
+              <CompactToggle id="selectiveFuriganaEnabled" label={t("settings_selective_furigana", currentLang)} description={t("settings_selective_furigana_desc", currentLang)}
+                checked={!!settings.selectiveFuriganaEnabled} onChange={(enabled) => onUpdate({ selectiveFuriganaEnabled: enabled })} />
+              {settings.selectiveFuriganaEnabled && <div className="hk-general-field">
+                <label className="hk-settings-row__label" htmlFor="selectiveFuriganaMode">{t("settings_furigana_mode", currentLang)}</label>
+                <select id="selectiveFuriganaMode" className="hk-general-select" title={t("settings_furigana_mode_desc", currentLang)}
                   value={settings.selectiveFuriganaMode || "unlearned"}
-                  onChange={(val) => onUpdate({ selectiveFuriganaMode: val as SelectiveFuriganaMode })}
-                  options={furiganaModeOptions}
-                  width="280px"
-                />
-              </div>
-            </div>
+                  onChange={(event) => onUpdate({ selectiveFuriganaMode: event.target.value as SelectiveFuriganaMode })}>
+                  {furiganaModeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>}
+            </section>
+            <section className="hk-general-group" aria-labelledby="general-review-title">
+              <h4 id="general-review-title">{t("settings_review_group", currentLang)}</h4>
+              <CompactToggle id="srsEnabled" label={t("settings_srs", currentLang)} description={t("settings_srs_desc", currentLang)}
+                checked={settings.srsEnabled !== false} onChange={(enabled) => onUpdate({ srsEnabled: enabled })} />
+              <fieldset className="hk-general-review-options" disabled={settings.srsEnabled === false}>
+                <CompactToggle id="audioFirstReviewMode" label={t("settings_audio_first", currentLang)} description={t("settings_audio_first_desc", currentLang)}
+                  checked={!!settings.audioFirstReviewMode} onChange={(enabled) => onUpdate({ audioFirstReviewMode: enabled })} />
+                <CompactToggle id="clozeReviewMode" label={t("settings_cloze_mode", currentLang)} description={t("settings_cloze_mode_desc", currentLang)}
+                  checked={!!settings.clozeReviewMode} onChange={(enabled) => onUpdate({ clozeReviewMode: enabled })} />
+              </fieldset>
+              <CompactToggle id="includeImages" label={t("settings_card_images", currentLang)} description="Automatically attach illustrations to cards and Anki exports"
+                checked={settings.includeImages !== false} onChange={(enabled) => onUpdate({ includeImages: enabled })} />
+            </section>
           </div>
+          <details className="hk-general-advanced">
+            <summary>{t("settings_advanced_review", currentLang)}</summary>
+            <fieldset className="hk-general-advanced__fields" disabled={settings.srsEnabled === false}>
+              <div className="hk-general-field">
+                <label className="hk-settings-row__label" htmlFor="srsAlgorithm">{t("settings_srs_algorithm", currentLang)}</label>
+                <select id="srsAlgorithm" className="hk-general-select" title={t("settings_srs_algorithm_desc", currentLang)}
+                  value={settings.srsAlgorithm || "fsrs"} onChange={(event) => onUpdate({ srsAlgorithm: event.target.value as ExtensionSettings["srsAlgorithm"] })}>
+                  {srsAlgoOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
+              {settings.srsAlgorithm !== "sm2" && <div className="hk-general-field">
+                <label className="hk-settings-row__label" htmlFor="fsrsRequestRetention">{t("settings_fsrs_retention", currentLang)} <output htmlFor="fsrsRequestRetention">{Math.round((settings.fsrsRequestRetention ?? 0.90) * 100)}%</output></label>
+                <input id="fsrsRequestRetention" type="range" min="80" max="97" step="1" title={t("settings_fsrs_retention_desc", currentLang)}
+                  value={Math.round((settings.fsrsRequestRetention ?? 0.90) * 100)} onChange={(event) => onUpdate({ fsrsRequestRetention: Number(event.target.value) / 100 })} />
+              </div>}
+              <div className="hk-general-field">
+                <label className="hk-settings-row__label" htmlFor="srsLeechThreshold">{t("settings_leech_threshold", currentLang)} <output htmlFor="srsLeechThreshold">{settings.srsLeechThreshold || 4}</output></label>
+                <input id="srsLeechThreshold" type="range" min="2" max="8" title={t("settings_leech_threshold_desc", currentLang)}
+                  value={settings.srsLeechThreshold || 4} onChange={(event) => onUpdate({ srsLeechThreshold: Number(event.target.value) })} />
+              </div>
+            </fieldset>
+          </details>
         </section>
 
         {/* Immersion Card */}
@@ -885,39 +691,10 @@ export function SettingsView({
               <Film size={18} />
             </div>
             <h3 className="hk-settings-card__title">{t("settings_video_section", currentLang)}</h3>
+            <FeatureSwitch label={t("settings_video_section", currentLang)} checked={settings.subtitlesEnabled !== false} onChange={(enabled) => onUpdate({ subtitlesEnabled: enabled })} />
           </header>
 
-          <div className="hk-settings-card__body">
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label htmlFor="subtitlesEnabled" className="hk-settings-row__label">
-                  {t("settings_autofetch_sub", currentLang) || "Enable Video Subtitles"}
-                </label>
-                <div id="subtitlesEnabled-desc" className="hk-settings-row__desc">
-                  {t("settings_autofetch_sub_desc", currentLang) || "Enable interactive Japanese subtitles on YouTube and Netflix"}
-                </div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="subtitlesEnabled">
-                  <input
-                    id="subtitlesEnabled"
-                    aria-describedby="subtitlesEnabled-desc"
-                    type="checkbox"
-                    checked={settings.subtitlesEnabled !== false}
-                    onChange={(e) => onUpdate({ subtitlesEnabled: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            <div
-              style={{
-                opacity: settings.subtitlesEnabled !== false ? 1 : 0.45,
-                pointerEvents: settings.subtitlesEnabled !== false ? "auto" : "none",
-                transition: "opacity 0.2s ease",
-              }}
-            >
+          <fieldset className="hk-settings-card__body hk-feature-body" disabled={settings.subtitlesEnabled === false}>
               <div className="hk-settings-row">
                 <div className="hk-settings-row__info">
                   <label htmlFor="subtitlesSecondary" className="hk-settings-row__label">
@@ -1013,8 +790,7 @@ export function SettingsView({
                   />
                 </div>
               </div>
-            </div>
-          </div>
+          </fieldset>
         </section>
 
         {/* Manga OCR image settings */}
@@ -1024,9 +800,10 @@ export function SettingsView({
               <Crop size={18} />
             </div>
             <h3 className="hk-settings-card__title">{t("settings_ocr_section", currentLang)}</h3>
+            <FeatureSwitch label={t("settings_ocr_section", currentLang)} checked={settings.mangaOcrEnabled !== false} onChange={(enabled) => onUpdate({ mangaOcrEnabled: enabled })} />
           </header>
 
-          <div className="hk-settings-card__body">
+          <fieldset className="hk-settings-card__body hk-feature-body" disabled={settings.mangaOcrEnabled === false}>
             <div className="hk-settings-row">
               <div className="hk-settings-row__info">
                 <label className="hk-settings-row__label">
@@ -1068,42 +845,45 @@ export function SettingsView({
                 </label>
               </div>
             </div>
-          </div>
+          </fieldset>
         </section>
 
         {/* Anki Integration Card */}
         <section className="hk-settings-card">
-          <header className="hk-settings-card__header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <header className="hk-settings-card__header hk-anki-header">
+            <div className="hk-anki-header__title">
               <div className="hk-settings-card__icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <img src={ankiSvg} alt="Anki" style={{ width: 17, height: 17 }} />
               </div>
               <h3 className="hk-settings-card__title">{t("settings_anki_section", currentLang)}</h3>
+              <button
+                type="button"
+                onClick={() => fetchAnkiData()}
+                disabled={loadingAnki || settings.ankiEnabled === false}
+                className="hk-anki-refresh"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "5px 10px",
+                  fontSize: "12px",
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid var(--hk-border)",
+                  borderRadius: "6px",
+                  color: "#e4e4e7",
+                  cursor: loadingAnki ? "not-allowed" : "pointer",
+                }}
+              >
+                <RefreshCw size={13} className={loadingAnki ? "hk-spin" : ""} />
+                {loadingAnki ? "Refreshing..." : "Refresh Anki"}
+              </button>
             </div>
-            
-            <button
-              type="button"
-              onClick={() => fetchAnkiData()}
-              disabled={loadingAnki}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "5px 10px",
-                fontSize: "12px",
-                backgroundColor: "rgba(255, 255, 255, 0.05)",
-                border: "1px solid var(--hk-border)",
-                borderRadius: "6px",
-                color: "#e4e4e7",
-                cursor: loadingAnki ? "not-allowed" : "pointer",
-              }}
-            >
-              <RefreshCw size={13} className={loadingAnki ? "hk-spin" : ""} />
-              {loadingAnki ? "Refreshing..." : "Refresh Anki"}
-            </button>
+
+            <FeatureSwitch label={t("settings_anki_section", currentLang)} checked={settings.ankiEnabled !== false} onChange={(enabled) => onUpdate({ ankiEnabled: enabled })} />
+
           </header>
           
-          <div className="hk-settings-card__body">
+          <fieldset className="hk-settings-card__body hk-feature-body" disabled={settings.ankiEnabled === false}>
             <div className="hk-settings-row">
               <div className="hk-settings-row__info">
                 <label htmlFor="ankiModel" className="hk-settings-row__label">{t("settings_anki_model", currentLang)}</label>
@@ -1247,7 +1027,7 @@ export function SettingsView({
                 ⚠️ AnkiConnect not detected. Ensure Anki app is running with AnkiConnect add-on enabled, then click "Refresh Anki".
               </div>
             )}
-          </div>
+          </fieldset>
         </section>
 
         {/* Ko-fi Support Card */}

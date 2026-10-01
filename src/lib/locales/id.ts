@@ -152,6 +152,14 @@ export const id = {
   srs_cloze_hint: "Petunjuk Arti Kalimat",
 
   // Dashboard Overview
+  dash_characters: "Karakter dibaca",
+  dash_video_time: "Imersi video",
+  dash_with_context: "dengan konteks",
+  dash_analytics_unavailable: "Data aktivitas tidak tersedia",
+  dash_retry: "Coba lagi",
+  dash_leeches: "Kartu yang perlu diperhatikan",
+  dash_longest_streak: "Rangkaian terlama",
+  dash_activity_empty: "Belum ada aktivitas tercatat.",
   dash_title: "Pusat Pembelajaran",
   dash_greeting_morning: "Selamat pagi",
   dash_greeting_afternoon: "Selamat siang",
@@ -203,6 +211,10 @@ export const id = {
   settings_llm_custom_url: "URL Endpoint Kustom",
   settings_llm_custom_url_desc: "Misal: endpoint yang kompatibel dengan OpenAI atau OpenRouter",
   
+  settings_reading_group: "Membaca",
+  settings_review_group: "Ulasan",
+  settings_advanced_review: "Pengaturan ulasan lanjutan",
+  settings_card_images: "Ilustrasi kartu",
   settings_study_section: "Umum",
   settings_srs: "Aktifkan Repetisi Berjarak (SRS)",
   settings_srs_desc: "Aktifkan penyimpanan kosakata lokal dan sesi ulasan berjarak otomatis",
@@ -225,7 +237,7 @@ export const id = {
   settings_hover_key: "Tombol Pengubah Arahkan Kursor (Tanpa Klik)",
   settings_hover_key_desc: "Tahan tombol ini saat mengarahkan kursor ke teks bahasa Jepang untuk mencari kata tanpa klik",
 
-  settings_video_section: "Imersi",
+  settings_video_section: "Subtitle Streaming",
   settings_autofetch_sub: "Aktifkan Subtitle Video",
   settings_autofetch_sub_desc: "Aktifkan subtitle interaktif bahasa Jepang, terjemahan ganda, dan kontrol pemutar mengambang",
   settings_universal_video: "Dukungan Video HTML5 Universal",

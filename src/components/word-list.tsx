@@ -463,7 +463,7 @@ export function WordList({
               <button 
                 className="hk-btn hk-btn--secondary"
                 onClick={() => handleExportAnki()}
-                disabled={ankiExporting}
+                disabled={ankiExporting || settings.ankiEnabled === false}
                 title={t("vocab_btn_export_anki")}
                 style={{ fontSize: "12px", padding: "6px 12px", gap: "6px" }}
               >
@@ -661,7 +661,7 @@ export function WordList({
             <button
               className="hk-btn hk-btn--secondary"
               onClick={() => handleExportAnki()}
-              disabled={ankiExporting}
+              disabled={ankiExporting || settings.ankiEnabled === false}
               style={{ fontSize: "11.5px", padding: "4px 10px", gap: "5px" }}
             >
               <img src={ankiSvg} alt="Anki" style={{ width: 13, height: 13 }} />

@@ -13,6 +13,8 @@ import type {
   AnkiExportData,
 } from "~lib/utils/types";
 
+import { getSettings } from "~lib/services/storage";
+
 class AnkiConnectClient {
   private url: string;
 
@@ -25,6 +27,9 @@ class AnkiConnectClient {
     action: string,
     params?: Record<string, unknown>
   ): Promise<unknown> {
+    if ((await getSettings()).ankiEnabled === false) {
+      throw new Error("AnkiConnect is disabled in settings.");
+    }
     const request: AnkiConnectRequest = {
       action,
       version: ANKI_CONNECT_VERSION,

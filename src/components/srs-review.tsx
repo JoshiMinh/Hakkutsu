@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { localSrs } from "~lib/services/local-srs";
 import type { SrsCard, SrsStats } from "~lib/services/local-srs";
 import type { SmartDeckFilter, SmartDeckFilterOptions } from "~lib/utils/types";
-import { PartyPopper, Volume2, RotateCcw, Filter, AlertTriangle, Flame, Layers, Sparkles, Check, CheckCircle2, Headphones, Activity, BookOpen, HelpCircle } from "lucide-react";
+import { Brain, PartyPopper, Volume2, RotateCcw, Filter, AlertTriangle, Flame, Layers, Sparkles, Check, CheckCircle2, Headphones, Activity, BookOpen, HelpCircle } from "lucide-react";
 import { useTranslation } from "~lib/locales";
 import { ttsService } from "~lib/services/tts-service";
 import { distributeFurigana, generateClozeSentence } from "~lib/utils/japanese";
@@ -28,7 +28,7 @@ function RenderFurigana({ text, reading, className }: { text: string; reading?: 
   );
 }
 
-export function SrsReview({ userId = "user_1" }: { userId?: string }) {
+export function SrsReview({ userId = "user_1", compact = false }: { userId?: string; compact?: boolean }) {
   const { t, isVietnamese, showHanViet } = useTranslation();
   const settings = useSettingsStore((s) => s.settings);
   const [cards, setCards] = useState<SrsCard[]>([]);
@@ -38,24 +38,9 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   
-  // Audio-First Review Mode State
-  const [audioFirstMode, setAudioFirstMode] = useState<boolean>(() => !!settings.audioFirstReviewMode);
-
-  // Cloze Deletion Review Mode State
-  const [clozeMode, setClozeMode] = useState<boolean>(() => !!settings.clozeReviewMode);
-
-  // Sync default setting changes
-  useEffect(() => {
-    if (settings.audioFirstReviewMode !== undefined) {
-      setAudioFirstMode(settings.audioFirstReviewMode);
-    }
-  }, [settings.audioFirstReviewMode]);
-
-  useEffect(() => {
-    if (settings.clozeReviewMode !== undefined) {
-      setClozeMode(settings.clozeReviewMode);
-    }
-  }, [settings.clozeReviewMode]);
+  const updateSettings = useSettingsStore((state) => state.updateSettings);
+  const audioFirstMode = !!settings.audioFirstReviewMode;
+  const clozeMode = !!settings.clozeReviewMode;
 
   // Smart Deck Filter State
   const [activeFilterType, setActiveFilterType] = useState<"all" | "jlpt" | "domain" | "leech">("all");
@@ -151,7 +136,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   // Keyboard accessibility (Space/Enter to reveal, 1-4 to grade, R to replay audio)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) {
+      if (e.isComposing || (e.target instanceof Element && e.target.closest("input, textarea, select, button, a, [contenteditable='true'], [role='tab']"))) {
         return;
       }
 
@@ -198,214 +183,50 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
   }, [showAnswer, handleReview, currentCard, speakText]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "14px", width: "100%" }}>
-      {/* ── Smart Deck Filter Selector Toolbar ─────────────────────────────── */}
-      <div
-        style={{
-          background: "var(--hk-bg-secondary)",
-          border: "1px solid var(--hk-border)",
-          borderRadius: "10px",
-          padding: "10px 14px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "10px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "var(--hk-text-muted)", fontSize: "12px", fontWeight: 600 }}>
-            <Filter size={13} style={{ color: "var(--hk-accent-light, #c084fc)" }} />
-            <span>{isVietnamese ? "Bộ Thẻ Thông Minh:" : "Smart Deck:"}</span>
-          </div>
-
-          {/* Quick Preset Buttons */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveFilterType("all");
-              setSelectedJlpt("ALL");
-              setSelectedDomain("ALL");
-            }}
-            style={{
-              padding: "4px 10px",
-              borderRadius: "6px",
-              fontSize: "11.5px",
-              fontWeight: 600,
-              border: activeFilterType === "all" ? "1px solid var(--hk-accent-primary)" : "1px solid rgba(255,255,255,0.08)",
-              background: activeFilterType === "all" ? "rgba(168, 85, 247, 0.2)" : "transparent",
-              color: activeFilterType === "all" ? "#ffffff" : "var(--hk-text-secondary)",
-              cursor: "pointer",
-            }}
-          >
-            {isVietnamese ? "Tất cả" : "All Decks"}
+    <div className="hk-review-view">
+      {!compact && <header className="hk-review-heading">
+        <h2 className="hk-review-heading__title"><Brain size={22} aria-hidden="true" />{t("srs_title")}</h2>
+      <div className="hk-smartdeck" role="group" aria-label={isVietnamese ? "Bộ thẻ thông minh" : "Smart Deck"}>
+        <div className="hk-smartdeck__filters">
+          <Filter size={14} className="hk-smartdeck__icon" aria-hidden="true" />
+          <button type="button" className="hk-smartdeck__control" aria-pressed={activeFilterType === "all"}
+            onClick={() => { setActiveFilterType("all"); setSelectedJlpt("ALL"); setSelectedDomain("ALL"); }}>
+            {isVietnamese ? "Tất cả" : "All decks"}
           </button>
-
-          {/* JLPT Select */}
-          <select
-            value={activeFilterType === "jlpt" ? selectedJlpt : "ALL"}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === "ALL") {
-                setActiveFilterType("all");
-                setSelectedJlpt("ALL");
-              } else {
-                setActiveFilterType("jlpt");
-                setSelectedJlpt(val);
-              }
-            }}
-            style={{
-              padding: "4px 8px",
-              borderRadius: "6px",
-              fontSize: "11.5px",
-              background: activeFilterType === "jlpt" ? "rgba(168, 85, 247, 0.2)" : "#18181c",
-              border: activeFilterType === "jlpt" ? "1px solid var(--hk-accent-primary)" : "1px solid rgba(255,255,255,0.1)",
-              color: "#ffffff",
-              outline: "none",
-              cursor: "pointer",
-            }}
-          >
-            <option value="ALL">JLPT (N5 - N1)</option>
-            {["N5", "N4", "N3", "N2", "N1"].map((lvl) => {
-              const found = filterOptions?.jlptLevels.find((j) => j.level === lvl);
-              return (
-                <option key={lvl} value={lvl}>
-                  {lvl} ({found ? `${found.dueCount} due / ${found.count}` : "0"})
-                </option>
-              );
+          <select className="hk-smartdeck__control" aria-label="JLPT" value={activeFilterType === "jlpt" ? selectedJlpt : "ALL"}
+            onChange={(event) => { setSelectedJlpt(event.target.value); setActiveFilterType(event.target.value === "ALL" ? "all" : "jlpt"); }}>
+            <option value="ALL">JLPT</option>
+            {["N5", "N4", "N3", "N2", "N1"].map((level) => {
+              const counts = filterOptions?.jlptLevels.find((item) => item.level === level);
+              return <option key={level} value={level}>{level} ({counts?.dueCount ?? 0} / {counts?.count ?? 0})</option>;
             })}
           </select>
-
-          {/* Domain Select (YouTube, Netflix, etc.) */}
-          {filterOptions && filterOptions.domains.length > 0 && (
-            <select
-              value={activeFilterType === "domain" ? selectedDomain : "ALL"}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === "ALL") {
-                  setActiveFilterType("all");
-                  setSelectedDomain("ALL");
-                } else {
-                  setActiveFilterType("domain");
-                  setSelectedDomain(val);
-                }
-              }}
-              style={{
-                padding: "4px 8px",
-                borderRadius: "6px",
-                fontSize: "11.5px",
-                background: activeFilterType === "domain" ? "rgba(168, 85, 247, 0.2)" : "#18181c",
-                border: activeFilterType === "domain" ? "1px solid var(--hk-accent-primary)" : "1px solid rgba(255,255,255,0.1)",
-                color: "#ffffff",
-                outline: "none",
-                cursor: "pointer",
-                maxWidth: "140px",
-              }}
-            >
-              <option value="ALL">{isVietnamese ? "Nguồn Domain" : "Source Domain"}</option>
-              {filterOptions.domains.map((d) => (
-                <option key={d.domain} value={d.domain}>
-                  {d.domain} ({d.dueCount} due)
-                </option>
-              ))}
-            </select>
-          )}
-
-          {/* Leech Retraining Button */}
-          {filterOptions && filterOptions.leechCount > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                setActiveFilterType("leech");
-              }}
-              style={{
-                padding: "4px 10px",
-                borderRadius: "6px",
-                fontSize: "11.5px",
-                fontWeight: 700,
-                border: activeFilterType === "leech" ? "1px solid #ef4444" : "1px solid rgba(239, 68, 68, 0.3)",
-                background: activeFilterType === "leech" ? "rgba(239, 68, 68, 0.25)" : "rgba(239, 68, 68, 0.1)",
-                color: "#f87171",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-              }}
-            >
-              <Flame size={12} />
-              {isVietnamese ? "Luyện Thẻ Leech" : "Leech Retraining"} ({filterOptions.leechCount})
-            </button>
-          )}
-
-          {/* Audio-First SRS Mode Toggle */}
-          <button
-            type="button"
-            onClick={() => setAudioFirstMode((prev) => !prev)}
-            style={{
-              padding: "4px 10px",
-              borderRadius: "6px",
-              fontSize: "11px",
-              fontWeight: 600,
-              background: audioFirstMode ? "rgba(168, 85, 247, 0.2)" : "rgba(255, 255, 255, 0.05)",
-              border: audioFirstMode ? "1px solid var(--hk-accent-primary)" : "1px solid rgba(255, 255, 255, 0.1)",
-              color: audioFirstMode ? "#c084fc" : "var(--hk-text-secondary)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-              transition: "all 0.2s ease",
-            }}
-            title={t("settings_audio_first_desc")}
-          >
-            <Headphones size={13} style={{ color: audioFirstMode ? "#c084fc" : "inherit" }} />
-            <span>{t("srs_audio_first_toggle")}: {audioFirstMode ? "ON" : "OFF"}</span>
-          </button>
-
-          {/* Cloze Deletion SRS Mode Toggle */}
-          <button
-            type="button"
-            onClick={() => setClozeMode((prev) => !prev)}
-            style={{
-              padding: "4px 10px",
-              borderRadius: "6px",
-              fontSize: "11px",
-              fontWeight: 600,
-              background: clozeMode ? "rgba(56, 189, 248, 0.2)" : "rgba(255, 255, 255, 0.05)",
-              border: clozeMode ? "1px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.1)",
-              color: clozeMode ? "#38bdf8" : "var(--hk-text-secondary)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-              transition: "all 0.2s ease",
-            }}
-            title={t("settings_cloze_mode_desc")}
-          >
-            <Sparkles size={13} style={{ color: clozeMode ? "#38bdf8" : "inherit" }} />
-            <span>{t("srs_cloze_toggle")}: {clozeMode ? "ON" : "OFF"}</span>
-          </button>
+          {filterOptions && filterOptions.domains.length > 0 && <select className="hk-smartdeck__control hk-smartdeck__source"
+            aria-label={isVietnamese ? "Nguồn" : "Source"} value={activeFilterType === "domain" ? selectedDomain : "ALL"}
+            onChange={(event) => { setSelectedDomain(event.target.value); setActiveFilterType(event.target.value === "ALL" ? "all" : "domain"); }}>
+            <option value="ALL">{isVietnamese ? "Nguồn" : "Source"}</option>
+            {filterOptions.domains.map((item) => <option key={item.domain} value={item.domain}>{item.domain} ({item.dueCount})</option>)}
+          </select>}
+          {filterOptions && filterOptions.leechCount > 0 && <button type="button" className="hk-smartdeck__control"
+            aria-pressed={activeFilterType === "leech"} onClick={() => setActiveFilterType("leech")}>
+            <Flame size={13} /> {isVietnamese ? "Thẻ khó" : "Leeches"} {filterOptions.leechCount}
+          </button>}
         </div>
-
-        {/* Due Only vs Practice All toggle */}
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <button
-            type="button"
-            onClick={() => setDueOnly(!dueOnly)}
-            style={{
-              padding: "4px 10px",
-              borderRadius: "6px",
-              fontSize: "11px",
-              fontWeight: 600,
-              background: dueOnly ? "rgba(168, 85, 247, 0.15)" : "rgba(59, 130, 246, 0.15)",
-              border: dueOnly ? "1px solid rgba(168, 85, 247, 0.3)" : "1px solid rgba(59, 130, 246, 0.3)",
-              color: dueOnly ? "#c084fc" : "#60a5fa",
-              cursor: "pointer",
-            }}
-          >
-            {dueOnly ? (isVietnamese ? "Chỉ thẻ đến hạn" : "Due Only") : (isVietnamese ? "Luyện tập tất cả" : "Practice All")}
+        <div className="hk-smartdeck__modes">
+          <button type="button" className="hk-smartdeck__control" aria-pressed={audioFirstMode}
+            title={t("settings_audio_first_desc")} onClick={() => updateSettings({ audioFirstReviewMode: !audioFirstMode })}>
+            <Headphones size={13} /> {t("srs_audio_first_toggle")}
+          </button>
+          <button type="button" className="hk-smartdeck__control" aria-pressed={clozeMode}
+            title={t("settings_cloze_mode_desc")} onClick={() => updateSettings({ clozeReviewMode: !clozeMode })}>
+            <Sparkles size={13} /> {t("srs_cloze_toggle")}
+          </button>
+          <button type="button" className="hk-smartdeck__control" aria-pressed={dueOnly} onClick={() => setDueOnly(!dueOnly)}>
+            {dueOnly ? (isVietnamese ? "Đến hạn" : "Due only") : (isVietnamese ? "Tất cả thẻ" : "Practice all")}
           </button>
         </div>
       </div>
+      </header>}
 
       {loading && (
         <div className="hk-srs-container hk-flex-center" style={{ minHeight: "350px", justifyContent: "center", alignItems: "center" }}>
@@ -561,13 +382,9 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
                   <span>{t("srs_audio_first_replay")}</span>
                 </button>
               </div>
-            ) : (
+            ) : !showAnswer ? (
               <div className="hk-srs-card__word" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", flexWrap: "wrap" }}>
-                {showAnswer ? (
-                  <RenderFurigana text={currentCard.word_furigana || currentCard.word} reading={currentCard.reading} />
-                ) : (
-                  <span>{currentCard.word}</span>
-                )}
+                <span>{currentCard.word}</span>
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
@@ -580,7 +397,7 @@ export function SrsReview({ userId = "user_1" }: { userId?: string }) {
                   <Volume2 size={22} style={{ color: "var(--hk-text-secondary)" }} />
                 </button>
               </div>
-            )}
+            ) : null}
             
             {showAnswer && (
               <div className="hk-fade-in-up hk-srs-card__answer">

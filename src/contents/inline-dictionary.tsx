@@ -152,6 +152,7 @@ const InlineDictionary = () => {
   isHydratedRef.current = isHydrated;
 
   useEffect(() => {
+    if (settings.ankiEnabled === false) { setAnkiConnected(false); return; }
     chrome.runtime
       .sendMessage({ type: "CHECK_ANKI" })
       .then((response) => {
@@ -160,7 +161,7 @@ const InlineDictionary = () => {
         }
       })
       .catch(() => setAnkiConnected(false));
-  }, []);
+  }, [settings.ankiEnabled]);
 
   // Ensure shadow host is placed inside the active fullscreen or player element
   useEffect(() => {
@@ -715,7 +716,7 @@ const InlineDictionary = () => {
 
   return (
     <>
-      <MangaOcrImages />
+      {settings.mangaOcrEnabled !== false && <MangaOcrImages />}
 
       {/* Yomichan-style soft blue hover highlight overlay */}
       {hoverHighlightRects &&
@@ -829,7 +830,7 @@ const InlineDictionary = () => {
                     <DefinitionCard
                       token={selectedTokenData}
                       onExport={handleExport}
-                      ankiConnected={ankiConnected}
+                      ankiConnected={settings.ankiEnabled !== false && ankiConnected}
                       originalText={result.text}
                       sentenceReading={result.sentence_reading}
                       onSrsAdd={handleSrsAdd}

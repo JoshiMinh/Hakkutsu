@@ -15,7 +15,10 @@ const VOCAB_KEY = "hakkutsu_vocabulary";
 export async function getSettings(): Promise<ExtensionSettings> {
   try {
     const result = await chrome.storage.sync.get(SETTINGS_KEY);
-    return { ...DEFAULT_SETTINGS, ...result[SETTINGS_KEY] };
+    const stored = result[SETTINGS_KEY];
+    const parsed = typeof stored === "string" ? JSON.parse(stored) : stored;
+    // Zustand persists a JSON envelope; older versions stored settings directly.
+    return { ...DEFAULT_SETTINGS, ...(parsed?.state?.settings ?? parsed ?? {}) };
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -27,7 +30,7 @@ export async function saveSettings(
 ): Promise<void> {
   const current = await getSettings();
   const updated = { ...current, ...settings };
-  await chrome.storage.sync.set({ [SETTINGS_KEY]: updated });
+  await chrome.storage.sync.set({ [SETTINGS_KEY]: JSON.stringify({ state: { settings: updated }, version: 0 }) });
 }
 
 /** Get vocabulary history from chrome.storage.local */

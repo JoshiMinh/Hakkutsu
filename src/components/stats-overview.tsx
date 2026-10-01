@@ -1,469 +1,304 @@
-import { useState, useEffect } from "react";
-import { localSrs } from "~lib/services/local-srs";
-import type { SrsStats } from "~lib/services/local-srs";
-import { analyticsService } from "~lib/services/analytics-service";
-import type { OverallAnalyticsSummary } from "~lib/utils/types";
-import { 
-  Play,
-  Volume2, 
+import { useEffect, useState } from "react";
+import {
   ArrowRight,
   BookOpen,
-  Calendar,
-  Layers,
-  Clock,
-  LayoutDashboard,
+  CheckCircle2,
   Film,
-  Flame,
-  AlertTriangle
+  LayoutDashboard,
+  Play,
+  RefreshCw,
+  Volume2,
 } from "lucide-react";
-import { useTranslation } from "~lib/locales";
-import { JlptBadge } from "~components/badges";
+import { localSrs, type SrsStats } from "~lib/services/local-srs";
+import { analyticsService } from "~lib/services/analytics-service";
 import { ttsService } from "~lib/services/tts-service";
+import type { OverallAnalyticsSummary } from "~lib/utils/types";
+import { useSettingsStore } from "~lib/utils/settings";
+import { useTranslation } from "~lib/locales";
+import { JlptBadge } from "./badges";
 import { ActivityHeatmap } from "./activity-heatmap";
+import { DashboardForecast, DashboardBreakdown } from "./dashboard-insights";
 
-export function StatsOverview({ 
-  onNavigate 
-}: { 
-  onNavigate?: (tab: "review" | "vocabulary" | "settings") => void 
+function formatVideoTime(seconds: number) {
+  const minutes = Math.floor(Math.max(0, seconds) / 60);
+  return minutes >= 60
+    ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+    : `${minutes}m`;
+}
+
+export function StatsOverview({
+  onNavigate,
+}: {
+  onNavigate?: (tab: "review" | "vocabulary" | "settings") => void;
 }) {
-  const { t, isVietnamese, showHanViet } = useTranslation();
+  const { t, lang, showHanViet } = useTranslation();
+  const srsEnabled = useSettingsStore(
+    (state) => state.settings.srsEnabled !== false,
+  );
   const [stats, setStats] = useState<SrsStats | null>(null);
-  const [analytics, setAnalytics] = useState<OverallAnalyticsSummary | null>(null);
+  const [analytics, setAnalytics] = useState<OverallAnalyticsSummary | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    loadStats();
-  }, []);
+    let active = true;
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      localSrs.getSrsStats(),
+      analyticsService.getOverallAnalytics().catch(() => null),
+    ])
+      .then(([srs, activity]) => {
+        if (active) {
+          setStats(srs);
+          setAnalytics(activity);
+        }
+      })
+      .catch((cause) => {
+        if (active)
+          setError(
+            cause instanceof Error ? cause.message : t("popup_error_generic"),
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [attempt]);
 
-  const loadStats = async () => {
-    try {
-      setLoading(true);
-      const [srsData, analyticsData] = await Promise.all([
-        localSrs.getSrsStats(),
-        analyticsService.getOverallAnalytics().catch(() => null),
-      ]);
-      setStats(srsData);
-      setAnalytics(analyticsData);
-    } catch (err: any) {
-      setError(err.message || "Failed to load statistics");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatVideoTime = (seconds: number): string => {
-    if (!seconds || seconds <= 0) return "0m";
-    const mins = Math.floor(seconds / 60);
-    const hrs = Math.floor(mins / 60);
-    const remMins = mins % 60;
-    if (hrs > 0) return `${hrs}h ${remMins}m`;
-    return `${mins}m`;
-  };
-
-  if (loading) {
+  if (loading)
     return (
-      <div style={{ padding: "60px 20px", textAlign: "center", color: "var(--hk-text-muted)" }}>
-        <div className="hk-loading-spinner" style={{ margin: "0 auto 12px" }} />
+      <div
+        className="hk-dashboard hk-dashboard--loading"
+        role="status"
+        aria-label={t("nav_dashboard")}
+        aria-busy="true"
+      >
+        <div className="hk-dashboard-skeleton hk-dashboard-skeleton--heading" />
+        <div className="hk-dashboard-skeleton hk-dashboard-skeleton--session" />
+        <div className="hk-dashboard-skeleton hk-dashboard-skeleton--activity" />
       </div>
     );
-  }
-
-  if (error) {
+  if (error || !stats)
     return (
-      <div style={{ padding: "30px", color: "var(--hk-accent-crimson)", textAlign: "center" }}>
-        {error}
+      <div className="hk-dashboard-status" role="alert">
+        <p>{error || t("popup_error_generic")}</p>
+        <button
+          type="button"
+          className="hk-btn hk-btn--secondary"
+          onClick={() => setAttempt((value) => value + 1)}
+        >
+          <RefreshCw size={14} />
+          {t("dash_retry")}
+        </button>
       </div>
     );
-  }
 
-  if (!stats) return null;
-
-  const totalChars = analytics?.totalCharactersRead || 0;
-  const todayChars = analytics?.todayCharactersRead || 0;
-  const totalVideoSecs = analytics?.totalVideoImmersionSeconds || 0;
-  const todayVideoSecs = analytics?.todayVideoImmersionSeconds || 0;
-
+  const recent = stats.recentCards ?? [];
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px", paddingBottom: "32px" }} className="hk-fade-in">
-      
-      {/* ── Header Toolbar: Clean & Purposeful ─────────────────────────────── */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        flexWrap: "wrap",
-        gap: "14px",
-        paddingBottom: "4px"
-      }}>
+    <div className="hk-dashboard hk-fade-in">
+      <header className="hk-dashboard-heading">
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: "4px" }}>
-            <LayoutDashboard size={20} style={{ color: "var(--hk-accent-light, #c084fc)" }} />
-            <h2 style={{ fontSize: "20px", fontWeight: 700, color: "#ffffff", margin: 0 }}>
-              {t("nav_dashboard")}
-            </h2>
-          </div>
-          <p style={{ fontSize: "12.5px", color: "var(--hk-text-muted)", margin: 0 }}>
-            {isVietnamese 
-              ? "Theo dõi tiến độ tiếp xúc tiếng Nhật thực tế và ghi nhớ từ vựng SRS" 
-              : "Track your Japanese immersion analytics and Spaced Repetition progress"}
+          <h2>
+            <LayoutDashboard size={21} aria-hidden="true" />
+            {t("nav_dashboard")}
+          </h2>
+          <p className="hk-dashboard-date">
+            {new Date().toLocaleDateString(lang, {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}
           </p>
         </div>
-
         {onNavigate && (
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button
-              onClick={() => onNavigate("review")}
-              className="hk-btn hk-btn--primary"
-              style={{
-                padding: "8px 16px",
-                fontSize: "12.5px",
-                fontWeight: 600,
-                borderRadius: "8px",
-                gap: "6px"
-              }}
-            >
-              <Play size={13} fill="currentColor" />
-              {stats.due > 0 ? `${t("dash_start_review")} (${stats.due})` : t("srs_title")}
-            </button>
-            <button
-              onClick={() => onNavigate("vocabulary")}
-              className="hk-btn hk-btn--secondary"
-              style={{
-                padding: "8px 14px",
-                fontSize: "12.5px",
-                borderRadius: "8px",
-                gap: "6px"
-              }}
-            >
-              <BookOpen size={13} />
-              {t("nav_vocabulary")}
-            </button>
-          </div>
+          <button
+            type="button"
+            className="hk-btn hk-btn--ghost hk-btn--sm"
+            onClick={() => onNavigate("vocabulary")}
+          >
+            <BookOpen size={15} />
+            {t("nav_vocabulary")}
+            <ArrowRight size={14} />
+          </button>
         )}
-      </div>
+      </header>
 
-      {/* ── Key Metrics: 4 Primary Immersion & Study Tiles ──────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
-        <StatTile 
-          label={isVietnamese ? "Ký Tự Đã Đọc" : "Characters Read"} 
-          value={totalChars > 0 ? totalChars.toLocaleString() : "0"} 
-          valueColor="#38bdf8"
-          hint={todayChars > 0 ? (isVietnamese ? `+${todayChars.toLocaleString()} hôm nay` : `+${todayChars.toLocaleString()} today`) : (isVietnamese ? "Web & Phụ đề" : "Web & subtitles")}
-        />
-        <StatTile 
-          label={isVietnamese ? "Thời Gian Xem Video" : "Video Immersion"} 
-          value={formatVideoTime(totalVideoSecs)} 
-          valueColor="#a855f7"
-          hint={todayVideoSecs > 0 ? (isVietnamese ? `+${formatVideoTime(todayVideoSecs)} hôm nay` : `+${formatVideoTime(todayVideoSecs)} today`) : (isVietnamese ? "YouTube & Netflix" : "YouTube & Netflix")}
-        />
-        <StatTile 
-          label={t("dash_total_vocab")} 
-          value={stats.total} 
-          hint={isVietnamese ? `${stats.mined} câu ví dụ` : `${stats.mined} with context`}
-        />
-        <StatTile 
-          label={t("dash_cards_due")} 
-          value={stats.due} 
-          valueColor={stats.due > 0 ? "#f43f5e" : "#10b981"}
-          hint={stats.due > 0 ? (isVietnamese ? "Cần hoàn thành" : "Pending reviews") : (isVietnamese ? "Đã xong hôm nay" : "All completed")}
-        />
-      </div>
-
-      {/* ── GitHub-Style Immersion & Study Heatmap ─────────────────────────── */}
-      {analytics && analytics.recentDailyActivities && (
-        <ActivityHeatmap
-          activities={analytics.recentDailyActivities}
-          streakDays={analytics.currentStreakDays}
-          longestStreakDays={analytics.longestStreakDays}
-        />
-      )}
-
-      {/* ── Forecast & JLPT Breakdown ──────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "16px" }}>
-        
-        {/* 7-Day Forecast */}
-        <div style={{
-          background: "var(--hk-bg-secondary)",
-          border: "1px solid var(--hk-border)",
-          borderRadius: "10px",
-          padding: "18px 20px"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-            <Calendar size={15} style={{ color: "var(--hk-accent-primary)" }} />
-            <h3 style={{ margin: 0, fontSize: "13.5px", fontWeight: 600, color: "#ffffff" }}>
-              {t("dash_forecast_title")}
-            </h3>
+      <section
+        className="hk-dashboard-session"
+        aria-labelledby="dashboard-today"
+      >
+        <div className="hk-dashboard-session__main">
+          <span className="hk-dashboard-eyebrow" id="dashboard-today">
+            {t("dash_today")}
+          </span>
+          <div className="hk-dashboard-session__count">
+            <strong>{stats.due.toLocaleString()}</strong>
+            <span>{t("dash_cards_due")}</span>
           </div>
-
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", height: "110px", gap: "6px", paddingBottom: "4px" }}>
-            {stats.forecast.map((count, index) => {
-              const maxVal = Math.max(1, ...stats.forecast);
-              const heightPercent = Math.max(10, Math.round((count / maxVal) * 100));
-              const isToday = index === 0;
-
-              return (
-                <div key={index} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", height: "100%", justifyContent: "flex-end" }}>
-                  <span style={{ fontSize: "10.5px", fontWeight: 600, color: isToday ? "var(--hk-accent-primary)" : "var(--hk-text-muted)" }}>
-                    {count}
-                  </span>
-                  <div style={{
-                    width: "100%",
-                    maxWidth: "28px",
-                    height: `${heightPercent}%`,
-                    borderRadius: "4px 4px 2px 2px",
-                    background: isToday ? "var(--hk-accent-primary)" : "rgba(255, 255, 255, 0.08)",
-                    transition: "all 0.2s ease"
-                  }} />
-                  <span style={{ fontSize: "10px", color: isToday ? "var(--hk-accent-primary)" : "var(--hk-text-muted)", fontWeight: isToday ? 600 : 400 }}>
-                    {isToday ? t("dash_today") : `+${index}d`}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* JLPT Breakdown */}
-        <div style={{
-          background: "var(--hk-bg-secondary)",
-          border: "1px solid var(--hk-border)",
-          borderRadius: "10px",
-          padding: "18px 20px"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
-            <Layers size={15} style={{ color: "#38bdf8" }} />
-            <h3 style={{ margin: 0, fontSize: "13.5px", fontWeight: 600, color: "#ffffff" }}>
-              {t("dash_jlpt_mastery")}
-            </h3>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {[
-              { level: "N5", count: stats.jlptCounts.N5, color: "#10b981" },
-              { level: "N4", count: stats.jlptCounts.N4, color: "#06b6d4" },
-              { level: "N3", count: stats.jlptCounts.N3, color: "#3b82f6" },
-              { level: "N2", count: stats.jlptCounts.N2, color: "#f59e0b" },
-              { level: "N1", count: stats.jlptCounts.N1, color: "#ef4444" },
-            ].map(item => {
-              const percent = stats.total > 0 ? Math.round((item.count / stats.total) * 100) : 0;
-              return (
-                <div key={item.level} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <span style={{ 
-                    width: "28px", 
-                    fontSize: "10.5px", 
-                    fontWeight: 700, 
-                    color: item.color
-                  }}>
-                    {item.level}
-                  </span>
-                  
-                  <div style={{ flex: 1, height: "6px", background: "rgba(255, 255, 255, 0.05)", borderRadius: "3px", overflow: "hidden" }}>
-                    <div style={{
-                      width: `${percent}%`,
-                      height: "100%",
-                      borderRadius: "3px",
-                      background: item.color,
-                      transition: "width 0.3s ease"
-                    }} />
-                  </div>
-                  
-                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--hk-text-primary)", width: "45px", textAlign: "right" }}>
-                    {item.count} <span style={{ color: "var(--hk-text-muted)", fontSize: "9.5px", fontWeight: 400 }}>({percent}%)</span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Card Maturity & Leech Status ───────────────────────────────────── */}
-      <div style={{
-        background: "var(--hk-bg-secondary)",
-        border: "1px solid var(--hk-border)",
-        borderRadius: "10px",
-        padding: "16px 18px"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-          <div style={{ fontSize: "12px", color: "var(--hk-text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            {t("dash_maturity_title")}
-          </div>
-          {stats.leechCount > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#f87171", fontSize: "11.5px", fontWeight: 600 }}>
-              <AlertTriangle size={13} />
-              <span>{stats.leechCount} {isVietnamese ? "thẻ leech (sai ≥4 lần)" : "leech cards (failed ≥4x)"}</span>
-            </div>
+          {stats.due === 0 && (
+            <p className="hk-dashboard-session__complete">
+              <CheckCircle2 size={15} />
+              {t("dash_no_reviews_today")}
+            </p>
           )}
         </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px" }}>
-          <MaturityTile label={t("dash_maturity_new")} count={stats.new} color="#ef4444" total={stats.total} />
-          <MaturityTile label={t("dash_maturity_learning")} count={stats.learning} color="#f59e0b" total={stats.total} />
-          <MaturityTile label={t("dash_maturity_review")} count={stats.review} color="#3b82f6" total={stats.total} />
-          <MaturityTile label={t("dash_maturity_graduated")} count={stats.graduated} color="#10b981" total={stats.total} />
+        <div className="hk-dashboard-session__aside">
+          <div>
+            <strong>{stats.cardsReviewedToday.toLocaleString()}</strong>
+            <span>{t("dash_cards_studied")}</span>
+          </div>
+          {onNavigate && (
+            <button
+              type="button"
+              className="hk-btn hk-btn--primary"
+              onClick={() => onNavigate(srsEnabled ? "review" : "settings")}
+            >
+              {srsEnabled ? <Play size={15} /> : <ArrowRight size={15} />}
+              {srsEnabled
+                ? t(stats.due > 0 ? "dash_start_review" : "srs_title")
+                : t("nav_settings")}
+            </button>
+          )}
         </div>
-      </div>
+      </section>
 
-      {/* ── Recent Cards Preview ───────────────────────────────────────────── */}
-      {stats.recentCards && stats.recentCards.length > 0 && (
-        <div style={{
-          background: "var(--hk-bg-secondary)",
-          border: "1px solid var(--hk-border)",
-          borderRadius: "10px",
-          padding: "18px 20px"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
-              <Clock size={14} style={{ color: "var(--hk-accent-primary)" }} />
-              <h3 style={{ margin: 0, fontSize: "13.5px", fontWeight: 600, color: "#ffffff" }}>
-                {t("dash_recent_vocab")}
-              </h3>
-            </div>
-
-            {onNavigate && (
+      <div className="hk-dashboard-workspace">
+        <div className="hk-dashboard-main">
+          {analytics ? (
+            <ActivityHeatmap
+              activities={analytics.recentDailyActivities}
+              streakDays={analytics.currentStreakDays}
+              longestStreakDays={analytics.longestStreakDays}
+            />
+          ) : (
+            <div className="hk-dashboard-notice" role="status">
+              <span>{t("dash_analytics_unavailable")}</span>
               <button
-                onClick={() => onNavigate("vocabulary")}
+                type="button"
                 className="hk-btn hk-btn--ghost hk-btn--sm"
-                style={{ fontSize: "11.5px", gap: "4px", color: "var(--hk-accent-primary)", padding: "2px 6px" }}
+                onClick={() => setAttempt((value) => value + 1)}
               >
-                {t("dash_view_all_vocab")} <ArrowRight size={12} />
+                {t("dash_retry")}
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "8px" }}>
-            {stats.recentCards.map((card) => (
-              <div
-                key={card.id}
-                style={{
-                  background: "rgba(255, 255, 255, 0.02)",
-                  border: "1px solid rgba(255, 255, 255, 0.05)",
-                  borderRadius: "8px",
-                  padding: "10px 12px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "10px"
-                }}
-              >
-                <div style={{ overflow: "hidden" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
-                    <span style={{
-                      fontFamily: "var(--hk-font-jp)",
-                      fontSize: "14px",
-                      fontWeight: 700,
-                      color: "#ffffff"
-                    }}>
-                      {card.word}
-                    </span>
-                    {card.reading && (
-                      <span style={{ fontSize: "11.5px", color: "#f472b6", fontFamily: "var(--hk-font-jp)" }}>
-                        {card.reading}
-                      </span>
-                    )}
-                    {card.jlpt && <JlptBadge level={card.jlpt} />}
-                    {card.is_leech && (
-                      <span style={{ fontSize: "10px", color: "#f87171", background: "rgba(239,68,68,0.15)", padding: "1px 4px", borderRadius: "3px", fontWeight: 700 }}>
-                        Leech
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    {showHanViet && card.vietnamese_sound && (
-                      <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#38bdf8", padding: "1px 3px", background: "rgba(56, 189, 248, 0.1)", borderRadius: "3px" }}>
-                        {card.vietnamese_sound}
-                      </span>
-                    )}
-                    <span style={{ fontSize: "11.5px", color: "var(--hk-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "150px" }}>
-                      {card.meaning || "—"}
-                    </span>
-                  </div>
-                </div>
-
+          <section
+            className="hk-dashboard-panel hk-dashboard-recent"
+            aria-labelledby="dashboard-recent"
+          >
+            <header className="hk-dashboard-panel__heading">
+              <h3 id="dashboard-recent">{t("dash_recent_vocab")}</h3>
+              {onNavigate && (
                 <button
-                  onClick={() => ttsService.playJapanese(card.word)}
-                  className="hk-btn hk-btn--ghost hk-btn--icon"
-                  style={{ padding: "5px", color: "var(--hk-text-muted)", flexShrink: 0 }}
-                  title="Play Japanese pronunciation"
+                  type="button"
+                  className="hk-btn hk-btn--ghost hk-btn--sm"
+                  onClick={() => onNavigate("vocabulary")}
                 >
-                  <Volume2 size={14} />
+                  {t("dash_view_all_vocab")}
+                  <ArrowRight size={14} />
                 </button>
+              )}
+            </header>
+            {recent.length > 0 ? (
+              <ul className="hk-dashboard-words">
+                {recent.map((card) => (
+                  <li key={card.id}>
+                    <div className="hk-dashboard-word">
+                      <div className="hk-dashboard-word__heading">
+                        <strong lang="ja">{card.word}</strong>
+                        {card.reading && <span lang="ja">{card.reading}</span>}
+                        {card.jlpt && <JlptBadge level={card.jlpt} />}
+                      </div>
+                      <p>
+                        {showHanViet && card.vietnamese_sound && (
+                          <span className="hk-dashboard-word__hanviet">
+                            {card.vietnamese_sound} ·{" "}
+                          </span>
+                        )}
+                        {card.meaning || "—"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="hk-btn hk-btn--ghost hk-btn--icon"
+                      aria-label={`${t("def_play_audio_jp")}: ${card.word}`}
+                      title={t("def_play_audio_jp")}
+                      onClick={() => ttsService.playJapanese(card.word)}
+                    >
+                      <Volume2 size={16} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="hk-dashboard-empty">{t("vocab_empty")}</p>
+            )}
+          </section>
+        </div>
+        <aside className="hk-dashboard-sidebar" aria-label={t("dash_title")}>
+          <section
+            className="hk-dashboard-panel hk-dashboard-library"
+            aria-labelledby="dashboard-library"
+          >
+            <header className="hk-dashboard-panel__heading">
+              <h3 id="dashboard-library">{t("dash_title")}</h3>
+            </header>
+            <dl className="hk-dashboard-metrics">
+              <div>
+                <dt>
+                  <BookOpen size={15} />
+                  {t("dash_total_vocab")}
+                </dt>
+                <dd>{stats.total.toLocaleString()}</dd>
+                <dd className="hk-dashboard-metric__hint">
+                  {stats.mined.toLocaleString()} · {t("dash_with_context")}
+                </dd>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StatTile({ 
-  label, 
-  value, 
-  hint, 
-  valueColor = "#ffffff" 
-}: { 
-  label: string; 
-  value: number | string; 
-  hint?: string; 
-  valueColor?: string; 
-}) {
-  return (
-    <div style={{
-      background: "var(--hk-bg-secondary)",
-      border: "1px solid var(--hk-border)",
-      borderRadius: "8px",
-      padding: "14px 16px",
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "space-between"
-    }}>
-      <div style={{ fontSize: "11.5px", color: "var(--hk-text-muted)", fontWeight: 500, marginBottom: "6px" }}>
-        {label}
+              <div>
+                <dt>
+                  <BookOpen size={15} />
+                  {t("dash_characters")}
+                </dt>
+                <dd>
+                  {analytics
+                    ? analytics.totalCharactersRead.toLocaleString()
+                    : "—"}
+                </dd>
+                <dd className="hk-dashboard-metric__hint">
+                  {analytics
+                    ? `+${analytics.todayCharactersRead.toLocaleString()} · ${t("dash_today")}`
+                    : t("dash_analytics_unavailable")}
+                </dd>
+              </div>
+              <div>
+                <dt>
+                  <Film size={15} />
+                  {t("dash_video_time")}
+                </dt>
+                <dd>
+                  {analytics
+                    ? formatVideoTime(analytics.totalVideoImmersionSeconds)
+                    : "—"}
+                </dd>
+                <dd className="hk-dashboard-metric__hint">
+                  {analytics
+                    ? `+${formatVideoTime(analytics.todayVideoImmersionSeconds)} · ${t("dash_today")}`
+                    : t("dash_analytics_unavailable")}
+                </dd>
+              </div>
+            </dl>
+          </section>
+          <DashboardForecast stats={stats} />
+          <DashboardBreakdown stats={stats} />
+        </aside>
       </div>
-      <div style={{ fontSize: "22px", fontWeight: 800, color: valueColor, lineHeight: "1.1", marginBottom: "4px" }}>
-        {value}
-      </div>
-      {hint && (
-        <div style={{ fontSize: "10.5px", color: "var(--hk-text-muted)" }}>
-          {hint}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MaturityTile({ 
-  label, 
-  count, 
-  color, 
-  total 
-}: { 
-  label: string; 
-  count: number; 
-  color: string; 
-  total: number; 
-}) {
-  const percent = total > 0 ? Math.round((count / total) * 100) : 0;
-  return (
-    <div style={{
-      background: "rgba(255, 255, 255, 0.02)",
-      border: "1px solid rgba(255, 255, 255, 0.04)",
-      borderRadius: "6px",
-      padding: "10px 12px",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between"
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-        <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: color }} />
-        <span style={{ fontSize: "11.5px", color: "var(--hk-text-primary)" }}>{label}</span>
-      </div>
-      <span style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff" }}>
-        {count} <span style={{ color: "var(--hk-text-muted)", fontSize: "9.5px", fontWeight: 400 }}>({percent}%)</span>
-      </span>
     </div>
   );
 }

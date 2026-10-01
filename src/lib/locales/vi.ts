@@ -152,6 +152,14 @@ export const vi = {
   srs_cloze_hint: "Gợi ý nghĩa câu",
 
   // Dashboard Overview
+  dash_characters: "Ký tự đã đọc",
+  dash_video_time: "Thời gian xem",
+  dash_with_context: "có ngữ cảnh",
+  dash_analytics_unavailable: "Chưa tải được dữ liệu hoạt động",
+  dash_retry: "Thử lại",
+  dash_leeches: "Thẻ cần chú ý",
+  dash_longest_streak: "Chuỗi dài nhất",
+  dash_activity_empty: "Chưa có hoạt động.",
   dash_title: "Trung tâm học tập",
   dash_greeting_morning: "Chào buổi sáng",
   dash_greeting_afternoon: "Chào buổi chiều",
@@ -203,6 +211,10 @@ export const vi = {
   settings_llm_custom_url: "Địa chỉ Custom API",
   settings_llm_custom_url_desc: "Ví dụ: endpoint tương thích OpenAI hoặc OpenRouter",
   
+  settings_reading_group: "Đọc",
+  settings_review_group: "Ôn tập",
+  settings_advanced_review: "Cài đặt ôn tập nâng cao",
+  settings_card_images: "Minh họa thẻ",
   settings_study_section: "General",
   settings_srs: "Bật ôn tập SRS",
   settings_srs_desc: "Bật tính năng lưu từ vựng và tạo phiên ôn tập lặp lại ngắt quãng cục bộ",
@@ -225,7 +237,7 @@ export const vi = {
   settings_hover_key: "Phím phím tắt di chuột tra từ (Hover Key)",
   settings_hover_key_desc: "Giữ phím này và di chuột qua từ tiếng Nhật để tra từ không cần click",
 
-  settings_video_section: "Immersion",
+  settings_video_section: "Phụ đề trực tuyến",
   settings_autofetch_sub: "Bật phụ đề Video",
   settings_autofetch_sub_desc: "Bật phụ đề tiếng Nhật tương tác, dịch song ngữ và nút điều khiển trên video",
   settings_universal_video: "Bật hỗ trợ video trên mọi trang web",

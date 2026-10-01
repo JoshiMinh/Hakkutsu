@@ -152,6 +152,14 @@ export const ja = {
   srs_cloze_hint: "文脈の意味ヒント",
 
   // Dashboard Overview
+  dash_characters: "読んだ文字数",
+  dash_video_time: "動画学習時間",
+  dash_with_context: "文脈あり",
+  dash_analytics_unavailable: "活動データを取得できません",
+  dash_retry: "再試行",
+  dash_leeches: "注意が必要なカード",
+  dash_longest_streak: "最長連続日数",
+  dash_activity_empty: "まだ活動の記録がありません。",
   dash_title: "ラーニングハブ",
   dash_greeting_morning: "おはようございます",
   dash_greeting_afternoon: "こんにちは",
@@ -203,6 +211,10 @@ export const ja = {
   settings_llm_custom_url: "カスタム Endpoint URL",
   settings_llm_custom_url_desc: "例: OpenRouter または OpenAI 互換エンドポイント",
   
+  settings_reading_group: "読書",
+  settings_review_group: "復習",
+  settings_advanced_review: "復習の詳細設定",
+  settings_card_images: "カードのイラスト",
   settings_study_section: "一般設定",
   settings_srs: "間隔反復 (SRS) を有効化",
   settings_srs_desc: "ローカル単語保存と自動間隔反復復習を有効にする",
@@ -225,7 +237,7 @@ export const ja = {
   settings_hover_key: "ホバー検索修飾キー",
   settings_hover_key_desc: "このキーを押しながら日本語にマウスホバーで即座に単語検索",
 
-  settings_video_section: "Immersion",
+  settings_video_section: "ストリーミング字幕",
   settings_autofetch_sub: "ビデオ字幕を有効化",
   settings_autofetch_sub_desc: "YouTube、Netflix、および動画プレイヤーで日本語字幕とコントロールを有効化",
   settings_universal_video: "ユニバーサル HTML5 動画サポート",

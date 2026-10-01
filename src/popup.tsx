@@ -13,11 +13,10 @@ import {
   RefreshCw,
   Trash2,
   CornerDownLeft,
-  Volume2
+  Volume2, Settings
 } from "lucide-react";
 
 import { apiClient } from "~lib/services/api-client";
-import { ankiClient } from "~lib/services/anki-connect";
 import { useSettingsStore } from "~lib/utils/settings";
 import { ttsService } from "~lib/services/tts-service";
 import { useTranslation } from "~lib/locales";
@@ -150,52 +149,23 @@ function TranslateQuickView() {
   };
 
   return (
-    <div className="hk-content hk-fade-in" style={{ padding: "16px" }}>
-      {/* Sleek Modern Input Card */}
-      <div style={{
-        background: "#141418",
-        border: "1px solid rgba(255, 255, 255, 0.1)",
-        borderRadius: "10px",
-        padding: "12px 14px",
-        marginBottom: "16px",
-        boxShadow: "0 2px 12px rgba(0, 0, 0, 0.25)"
-      }}>
-        <textarea
-          rows={3}
-          style={{
-            width: "100%",
-            minHeight: "72px",
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            color: "#ffffff",
-            fontFamily: "var(--hk-font-jp)",
-            fontSize: "14.5px",
-            lineHeight: "1.6",
-            padding: "0",
-            boxSizing: "border-box",
-            resize: "none"
-          }}
+    <div className="hk-content hk-fade-in hk-translate-view">
+      <div className="hk-translate-editor">
+        <label className="hk-translate-editor__label" htmlFor="popup-text">{t("popup_tab_translate")}</label>
+        <textarea id="popup-text" rows={4} className="hk-translate-editor__input"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder={t("popup_input_placeholder")}
           aria-label={t("popup_input_placeholder")}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
               e.preventDefault();
               handleTranslate();
             }
           }}
         />
 
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          paddingTop: "10px",
-          borderTop: "1px solid rgba(255, 255, 255, 0.06)",
-          marginTop: "6px"
-        }}>
+        <div className="hk-translate-editor__actions">
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span style={{
               fontSize: "11px",
@@ -242,23 +212,7 @@ function TranslateQuickView() {
             type="button"
             onClick={() => void handleTranslate()}
             disabled={loading || !inputText.trim()}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "7px 16px",
-              background: inputText.trim() && !loading
-                ? "linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)"
-                : "rgba(255, 255, 255, 0.08)",
-              color: inputText.trim() && !loading ? "#ffffff" : "var(--hk-text-muted)",
-              border: "none",
-              borderRadius: "8px",
-              fontSize: "12.5px",
-              fontWeight: 600,
-              cursor: inputText.trim() && !loading ? "pointer" : "not-allowed",
-              boxShadow: inputText.trim() && !loading ? "0 4px 14px rgba(168, 85, 247, 0.35)" : "none",
-              transition: "all 0.2s ease"
-            }}
+            className="hk-btn hk-btn--primary hk-btn--sm"
           >
             {loading ? <RefreshCw size={13} className="hk-spin" style={{ marginRight: "4px" }} /> : null} 
             {t("popup_btn_translate")}
@@ -392,7 +346,8 @@ function TranslateQuickView() {
       )}
 
       {!result && !loading && !error && (
-        <div style={{ textAlign: "center", padding: "24px 0", color: "var(--hk-text-muted)", fontSize: "13px" }}>
+        <div className="hk-popup-empty">
+          <Languages size={28} aria-hidden="true" />
           {t("popup_empty_state")}
         </div>
       )}
@@ -406,21 +361,6 @@ function Popup() {
   const [activeView, setActiveView] = useState<ExtensionView>("translate");
   const { settings } = useSettingsStore();
   const { t } = useTranslation();
-  const [ankiConnected, setAnkiConnected] = useState(false);
-
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const connected = await ankiClient.isConnected();
-        setAnkiConnected(connected);
-      } catch {
-        setAnkiConnected(false);
-      }
-    };
-
-    init();
-  }, []);
-
   useEffect(() => {
     if (settings.srsEnabled === false && activeView === "srs") {
       setActiveView("translate");
@@ -453,81 +393,46 @@ function Popup() {
   };
 
   return (
-    <div className="hk-popup" style={{ width: "440px", height: "600px", background: "#09090b", color: "#ffffff", boxSizing: "border-box", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <header className="hk-header" style={{ padding: "12px 14px", overflowX: "hidden", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", boxSizing: "border-box" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-          <img src={appLogo} alt="Hakkutsu Logo" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
-          <div style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-            <div className="hk-header__title hk-brand-title" style={{ fontSize: "15px", lineHeight: "1.2", fontWeight: 800, fontFamily: "var(--hk-font-brand)", letterSpacing: "-0.015em" }}>Hakkutsu</div>
-            <div style={{ fontSize: "10px", color: "var(--hk-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t("popup_subtitle")}</div>
-          </div>
+    <div className="hk-popup">
+      <header className="hk-popup-header">
+        <div className="hk-popup-brand">
+          <img src={appLogo} alt="" width={28} height={28} />
+          <div><div className="hk-brand-title">Hakkutsu</div><div className="hk-popup-brand__subtitle">{t("popup_subtitle")}</div></div>
         </div>
-
-        <div className="hk-header__actions" style={{ display: "flex", gap: "6px", alignItems: "center", flexShrink: 0 }}>
-          <a 
-            href="https://ko-fi.com/joshiminh"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hk-btn hk-btn--secondary hk-btn--sm"
-            title="Support on Ko-fi"
-            style={{
-              padding: "4px 8px",
-              fontSize: "11.5px",
-              background: "rgba(255, 94, 91, 0.15)",
-              color: "#ff5e5b",
-              border: "1px solid rgba(255, 94, 91, 0.3)",
-              borderRadius: "6px",
-              gap: "5px",
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center"
-            }}
-          >
-            <img src={kofiSvg} alt="Ko-fi" style={{ width: 14, height: 14, objectFit: "contain" }} />
-            Ko-fi
+        <div className="hk-popup-header__actions">
+          <a className="hk-popup-icon" href="https://ko-fi.com/joshiminh" target="_blank" rel="noopener noreferrer" aria-label="Support on Ko-fi" title="Support on Ko-fi">
+            <img src={kofiSvg} alt="" width={18} height={18} />
           </a>
-
-          <button 
-            className="hk-btn hk-btn--secondary hk-btn--sm"
-            onClick={handleOpenAppTab}
-            title={t("popup_btn_app")}
-            style={{
-              padding: "4px 8px",
-              fontSize: "11.5px",
-              background: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid var(--hk-border)",
-              borderRadius: "6px",
-              gap: "4px"
-            }}
-          >
-            <ExternalLink size={12} /> {t("popup_btn_app")}
+          <button type="button" className="hk-popup-icon" onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html?tab=settings") })}
+            aria-label={t("nav_settings")} title={t("nav_settings")}><Settings size={17} /></button>
+          <button type="button" className="hk-btn hk-btn--secondary hk-btn--sm" onClick={handleOpenAppTab}>
+            {t("popup_btn_app")} <ExternalLink size={13} />
           </button>
-          
-          <div
-            role="status"
-            aria-label={ankiConnected ? t("settings_anki_status_running") : t("settings_anki_status_disconnected")}
-            title={ankiConnected ? t("settings_anki_status_running") : t("settings_anki_status_disconnected")} 
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: ankiConnected ? "var(--hk-jlpt-n5)" : "var(--hk-text-muted)",
-              boxShadow: ankiConnected ? "0 0 8px var(--hk-jlpt-n5)" : "none",
-              marginLeft: "2px"
-            }} 
-          />
         </div>
       </header>
 
       {/* Segmented Pill Tabs — rendered only when multiple views are active */}
       {tabs.length > 1 && (
-        <nav className="hk-nav" role="tablist" aria-label="Popup views">
+        <nav className="hk-nav hk-popup-nav" role="tablist" aria-label="Popup views">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               className={`hk-nav__tab ${activeView === tab.id ? "hk-nav__tab--active" : ""}`}
               onClick={() => setActiveView(tab.id)}
               role="tab"
+              id={`popup-tab-${tab.id}`}
+              aria-controls="popup-panel"
+              tabIndex={activeView === tab.id ? 0 : -1}
+              onKeyDown={(event) => {
+                const index = tabs.findIndex((item) => item.id === activeView);
+                const next = event.key === "ArrowRight" ? (index + 1) % tabs.length
+                  : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length
+                  : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+                if (next < 0) return;
+                event.preventDefault();
+                setActiveView(tabs[next].id);
+                document.getElementById(`popup-tab-${tabs[next].id}`)?.focus();
+              }}
               aria-selected={activeView === tab.id}
             >
               {tab.icon} {tab.label}
@@ -536,16 +441,18 @@ function Popup() {
         </nav>
       )}
 
+      <div id="popup-panel" className="hk-popup-panel" role="tabpanel" aria-labelledby={tabs.length > 1 ? `popup-tab-${activeView}` : undefined} aria-label={tabs.length === 1 ? tabs[0].label : undefined}>
       <ErrorBoundary>
         <Suspense fallback={<LoadingSpinner text="Loading view..." />}>
           {activeView === "translate" && (
             <TranslateQuickView />
           )}
           {activeView === "srs" && (
-            <SrsReview />
+            <SrsReview compact />
           )}
         </Suspense>
       </ErrorBoundary>
+      </div>
     </div>
   );
 }

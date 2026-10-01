@@ -64,7 +64,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 export default function AppDashboard() {
   const appVersion = typeof chrome !== "undefined" && chrome.runtime?.getManifest
     ? chrome.runtime.getManifest().version
-    : "2.2";
+    : "2.3";
   const [activeTab, setActiveTab] = useState<"dashboard" | "review" | "vocabulary" | "settings">(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -195,16 +195,10 @@ export default function AppDashboard() {
       </aside>
 
       {/* Main Content Area */}
-      <main style={{ flex: 1, padding: "32px 40px", overflowY: "auto", backgroundColor: "var(--hk-bg-primary)", display: "flex", flexDirection: "column" }}>
+      <main style={{ flex: 1, minWidth: 0, padding: "32px 40px", overflowY: "auto", backgroundColor: "var(--hk-bg-primary)", display: "flex", flexDirection: "column" }}>
         <ErrorBoundary>
           {activeTab === "review" && (
-            <div style={{ maxWidth: "800px", width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", flex: 1, minHeight: "560px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
-                <Brain size={22} style={{ color: "var(--hk-accent-light, #c084fc)" }} />
-                <h2 style={{ color: "var(--hk-text-primary)", fontWeight: "bold", fontSize: "20px", margin: 0 }}>
-                  {t("srs_title")}
-                </h2>
-              </div>
+            <div style={{ maxWidth: "1080px", width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", flex: 1, minHeight: "560px" }}>
               <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                 <SrsReview />
               </div>

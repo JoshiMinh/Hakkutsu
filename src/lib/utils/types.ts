@@ -248,6 +248,7 @@ export interface ExtensionSettings {
   fsrsRequestRetention?: number;
   audioFirstReviewMode?: boolean;
   clozeReviewMode?: boolean;
+  mangaOcrEnabled: boolean;
   ocrDefaultOrientation: "auto" | "vertical" | "horizontal";
   ocrPreprocessEnabled: boolean;
   ocrModel: "tesseract" | "manga-ocr";
@@ -284,6 +285,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   fsrsRequestRetention: 0.90,
   audioFirstReviewMode: false,
   clozeReviewMode: false,
+  mangaOcrEnabled: true,
   ocrDefaultOrientation: "auto",
   ocrPreprocessEnabled: true,
   ocrModel: "tesseract",
