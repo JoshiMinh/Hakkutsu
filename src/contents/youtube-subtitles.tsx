@@ -214,7 +214,7 @@ export default function YouTubeSubtitlesOverlay() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
+      const target = (e.composedPath()[0] || e.target) as HTMLElement | null;
       if (
         target &&
         (target.tagName === "INPUT" ||

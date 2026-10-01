@@ -29,40 +29,39 @@ import { fetchIrasutoyaImagesDirect } from "~lib/services/irasutoya-service";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
 
+let creatingOcrDocument: Promise<void> | null = null;
+
+async function ensureOcrDocument(): Promise<void> {
+  if (!chrome.offscreen || !chrome.runtime.getContexts) {
+    throw new Error("Manga OCR requires Chrome's offscreen document API");
+  }
+  const documentUrl = chrome.runtime.getURL("ocr.html");
+  const contexts = await new Promise<chrome.runtime.ExtensionContext[]>((resolve, reject) => {
+    chrome.runtime.getContexts({
+      contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+      documentUrls: [documentUrl],
+    }, (found) => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message || "Could not inspect extension contexts"));
+      else resolve(found);
+    });
+  });
+  if (contexts.length > 0) return;
+
+  if (!creatingOcrDocument) {
+    creatingOcrDocument = chrome.offscreen.createDocument({
+      url: "ocr.html",
+      reasons: [chrome.offscreen.Reason.WORKERS],
+      justification: "Recognize Japanese text in images using the packaged Tesseract worker",
+    }).finally(() => { creatingOcrDocument = null; });
+  }
+  await creatingOcrDocument;
+}
+
 export default defineBackground(() => {
-  // Setup context menu item for Box OCR
-  if (chrome.contextMenus) {
-    chrome.runtime.onInstalled.addListener(() => {
-      chrome.contextMenus.create({
-        id: "hakkutsu-box-ocr",
-        title: "OCR Japanese Selection (Hakkutsu)",
-        contexts: ["page", "image", "video", "selection"],
-      }, () => {
-        // Ignore duplicate id error if any
-        if (chrome.runtime.lastError) {
-          /* noop */
-        }
-      });
-    });
-
-    chrome.contextMenus.onClicked.addListener((info, tab) => {
-      if (info.menuItemId === "hakkutsu-box-ocr" && tab?.id) {
-        chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_BOX_OCR" }).catch(() => {});
-      }
-    });
-  }
-
-  // Setup keyboard shortcut command listener
-  if (chrome.commands?.onCommand) {
-    chrome.commands.onCommand.addListener((command, tab) => {
-      if (command === "trigger-box-ocr" && tab?.id) {
-        chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_BOX_OCR" }).catch(() => {});
-      }
-    });
-  }
-
   // Listen for messages from popup and content scripts
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type === "RUN_MANGA_OCR_OFFSCREEN") return false;
     handleMessage(message, sender)
       .then(sendResponse)
       .catch((error) =>
@@ -563,6 +562,28 @@ async function handleMessage(
     case "GET_SETTINGS": {
       const settings = await getSettings();
       return { type: "GET_SETTINGS", payload: settings };
+    }
+
+    case "RUN_MANGA_OCR": {
+      const payload = message.payload as {
+        imageDataUrl: string;
+        orientation?: "auto" | "vertical" | "horizontal";
+        boxWidth?: number;
+        boxHeight?: number;
+      } | undefined;
+      if (!payload?.imageDataUrl) {
+        return { type: "ERROR", payload: { error: "Missing OCR image" } };
+      }
+      if (!chrome.offscreen?.createDocument && typeof Worker !== "undefined") {
+        const { ocrEngine } = await import("~lib/services/ocr-engine");
+        const result = await ocrEngine.recognize(payload.imageDataUrl, payload);
+        return { type: "MANGA_OCR_RESULT", payload: result };
+      }
+      await ensureOcrDocument();
+      return chrome.runtime.sendMessage({
+        type: "RUN_MANGA_OCR_OFFSCREEN",
+        payload,
+      });
     }
 
     case "CAPTURE_SCREENSHOT": {

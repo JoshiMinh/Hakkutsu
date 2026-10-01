@@ -8,11 +8,6 @@ import {
   Check,
   BookmarkPlus,
   AlertCircle,
-  Crop,
-  RefreshCw,
-  Edit3,
-  ArrowDownUp,
-  ArrowLeftRight,
 } from "lucide-react";
 import { containsJapanese } from "~lib/utils/japanese";
 import type {
@@ -20,13 +15,11 @@ import type {
   PhraseAnalyzeResponse,
   TokenAnalysis,
   AnkiExportData,
-  BoxOcrCoordinates,
 } from "~lib/utils/types";
 import { DefinitionCard } from "~components/definition-card";
 import { TokenDisplay } from "~components/token-display";
 import { GrammarExplanations } from "~components/grammar-explanations";
-import { BoxOcrOverlay } from "~components/box-ocr-overlay";
-import { cropViewportBox } from "~lib/services/image-cropper";
+import { MangaOcrImages } from "~components/manga-ocr-images";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
 
@@ -145,14 +138,7 @@ const InlineDictionary = () => {
   const [srsAdded, setSrsAdded] = useState(false);
   const [srsError, setSrsError] = useState<string | null>(null);
   const [hoverHighlightRects, setHoverHighlightRects] = useState<DOMRect[] | null>(null);
-  const [isOcrSelecting, setIsOcrSelecting] = useState(false);
   const [ocrCroppedImage, setOcrCroppedImage] = useState<string | null>(null);
-  const [ocrLoading, setOcrLoading] = useState(false);
-  const [ocrProgress, setOcrProgress] = useState(0);
-  const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
-  const [ocrOrientation, setOcrOrientation] = useState<"auto" | "vertical" | "horizontal">("auto");
-  const [isEditingOcrText, setIsEditingOcrText] = useState(false);
-  const [editedOcrText, setEditedOcrText] = useState("");
   const { settings, isHydrated } = useSettingsStore();
   const { t, isVietnamese, lang } = useTranslation();
 
@@ -174,26 +160,6 @@ const InlineDictionary = () => {
         }
       })
       .catch(() => setAnkiConnected(false));
-  }, []);
-
-  // Listen for runtime messages (e.g. from background context menu or keyboard shortcut)
-  useEffect(() => {
-    const handleRuntimeMessage = (message: any, _sender: any, sendResponse: any) => {
-      if (message?.type === "TRIGGER_BOX_OCR") {
-        if (window.top !== window || settingsRef.current.ocrEnabled === false) {
-          sendResponse?.({ success: false });
-          return;
-        }
-        setIsOcrSelecting(true);
-        setPosition(null);
-        setHoverHighlightRects(null);
-        sendResponse?.({ success: true });
-      }
-    };
-    chrome.runtime.onMessage.addListener(handleRuntimeMessage);
-    return () => {
-      chrome.runtime.onMessage.removeListener(handleRuntimeMessage);
-    };
   }, []);
 
   // Ensure shadow host is placed inside the active fullscreen or player element
@@ -219,14 +185,11 @@ const InlineDictionary = () => {
 
     document.addEventListener("fullscreenchange", syncHostPlacement);
     window.addEventListener("hakkutsu:analyze", syncHostPlacement);
-    const startBoxOcr = () => setIsOcrSelecting(true);
-    window.addEventListener("hakkutsu:start-box-ocr", startBoxOcr);
     syncHostPlacement();
 
     return () => {
       document.removeEventListener("fullscreenchange", syncHostPlacement);
       window.removeEventListener("hakkutsu:analyze", syncHostPlacement);
-      window.removeEventListener("hakkutsu:start-box-ocr", startBoxOcr);
     };
   }, []);
 
@@ -247,7 +210,7 @@ const InlineDictionary = () => {
         (el: any) =>
           el?.id === "hakkutsu-inline-dictionary" ||
           el?.id === "hakkutsu-inline-dictionary-host" ||
-          el?.id === "hakkutsu-box-ocr-overlay" ||
+          el?.dataset?.hakkutsuMangaOcr === "true" ||
           el?.classList?.contains?.("hk-popup") ||
           el?.classList?.contains?.("hk-sub-token")
       );
@@ -412,24 +375,7 @@ const InlineDictionary = () => {
     const onDoubleClick = (e: MouseEvent) => handleSelection(e, true);
 
     const onKeyDown = (e: KeyboardEvent) => {
-      // Toggle Box OCR using Alt+S shortcut
-      if (e.altKey && (e.key === "s" || e.key === "S" || e.code === "KeyS")) {
-        const activeEl = document.activeElement;
-        const isInputFocused =
-          activeEl instanceof HTMLInputElement ||
-          activeEl instanceof HTMLTextAreaElement ||
-          activeEl?.getAttribute("contenteditable") === "true";
-        if (!isInputFocused && settingsRef.current.ocrEnabled !== false) {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsOcrSelecting((prev) => !prev);
-          setPosition(null);
-          return;
-        }
-      }
-
       if (e.key === "Escape") {
-        setIsOcrSelecting(false);
         setPosition(null);
         setHoverHighlightRects(null);
         window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
@@ -439,7 +385,7 @@ const InlineDictionary = () => {
     const onCustomAnalyze = (e: any) => {
       if (e.detail?.text) {
         const video = document.querySelector<HTMLVideoElement>("video");
-        if (video && !video.paused) {
+        if (e.detail.pauseVideo !== false && video && !video.paused) {
           try {
             video.pause();
           } catch {}
@@ -460,7 +406,7 @@ const InlineDictionary = () => {
               : "anchor",
         });
         setInputText(e.detail.text);
-        setOcrCroppedImage(null);
+        setOcrCroppedImage(e.detail.imageUrl || null);
         const mode = String(e.detail.mode || "dictionary");
         const isDeepPhrase = mode === "phrase";
         const selectedIndex = Number.isInteger(e.detail.selectedIndex)
@@ -534,96 +480,6 @@ const InlineDictionary = () => {
       window.removeEventListener("hakkutsu:token-hover", onTokenHover);
     };
   }, []);
-
-  // Handle Box OCR Bounding Selection Complete
-  const handleBoxOcrComplete = async (
-    box: BoxOcrCoordinates,
-    selectedOrientation: "auto" | "vertical" | "horizontal"
-  ) => {
-    setIsOcrSelecting(false);
-    setOcrLoading(true);
-    setOcrProgress(0);
-    setError(null);
-    setOcrCroppedImage(null);
-    setOcrConfidence(null);
-    setOcrOrientation(selectedOrientation);
-    setIsEditingOcrText(false);
-
-    // Prepare the popup position, but do not render it until after capture or
-    // it may be included in the screenshot and obscure the selected text.
-    const x = Math.max(16, Math.min(box.x, window.innerWidth - 340));
-    const placeAbove = window.innerHeight - (box.y + box.height) < 360 && box.y > 360;
-    const nextPosition = {
-      x,
-      y: placeAbove ? box.y : box.y + box.height,
-      placement: "anchor" as const,
-      above: placeAbove,
-    };
-    setSentenceMode(true);
-    setTransientMode(false);
-
-    try {
-      // React state updates are asynchronous. Wait until the selection overlay
-      // has left the painted frame before asking Chrome for the screenshot.
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      });
-
-      // 1. Capture viewport screenshot via background service
-      const screenshotResponse = await chrome.runtime.sendMessage({
-        type: "CAPTURE_SCREENSHOT",
-      });
-      if (screenshotResponse?.type === "ERROR" || !screenshotResponse?.payload?.dataUrl) {
-        throw new Error(screenshotResponse?.payload?.error || "Failed to capture viewport screenshot");
-      }
-
-      const screenshotDataUrl = screenshotResponse.payload.dataUrl as string;
-      setPosition(nextPosition);
-
-      // 2. Crop bounding box with high-DPI scaling and optional manga pre-processing
-      const croppedDataUrl = await cropViewportBox(
-        screenshotDataUrl,
-        box,
-        settingsRef.current.ocrPreprocessEnabled !== false
-      );
-      setOcrCroppedImage(croppedDataUrl);
-
-      // 3. Execute client-side WebAssembly OCR
-      // Defer OCR initialization until the user makes an explicit selection.
-      const { ocrEngine } = await import("~lib/services/ocr-engine");
-      const ocrResult = await ocrEngine.recognize(croppedDataUrl, {
-        orientation:
-          selectedOrientation === "auto"
-            ? (settingsRef.current.ocrDefaultOrientation || "auto")
-            : selectedOrientation,
-        boxWidth: box.width,
-        boxHeight: box.height,
-        onProgress: ({ progress }) => setOcrProgress(Math.round(progress * 100)),
-      });
-
-      if (!ocrResult.text || !containsJapanese(ocrResult.text)) {
-        if (ocrResult.text) {
-          setInputText(ocrResult.text);
-          setEditedOcrText(ocrResult.text);
-          analyzeText(ocrResult.text, false, true);
-        } else {
-          setError(t("ocr_no_text") || "No Japanese text detected in selected box. Try adjusting box or contrast.");
-        }
-      } else {
-        setInputText(ocrResult.text);
-        setEditedOcrText(ocrResult.text);
-        setOcrConfidence(ocrResult.confidence);
-        analyzeText(ocrResult.text, false, true);
-      }
-    } catch (err: any) {
-      console.error("[Hakkutsu Box OCR] Recognition error:", err);
-      setPosition(nextPosition);
-      setError(err?.message || "Box OCR recognition failed. Please retry.");
-    } finally {
-      setOcrLoading(false);
-      setOcrProgress(0);
-    }
-  };
 
   const analyzeText = async (
     text: string,
@@ -720,12 +576,16 @@ const InlineDictionary = () => {
 
     if (srsAdded) {
       try {
-        await chrome.runtime.sendMessage({
+        const response = await chrome.runtime.sendMessage({
           type: "REMOVE_SRS_CARD",
           payload: { word },
         });
+        if (response?.type !== "REMOVE_SRS_CARD_RESULT" || !response.payload?.success) {
+          throw new Error(response?.payload?.error || "Could not remove card");
+        }
         setSrsAdded(false);
         setSrsError(null);
+        window.dispatchEvent(new Event("hakkutsu:srs-updated"));
       } catch (e: any) {
         console.error("Remove card failed", e);
       }
@@ -735,7 +595,7 @@ const InlineDictionary = () => {
         .join("; ");
 
       try {
-        await chrome.runtime.sendMessage({
+        const response = await chrome.runtime.sendMessage({
           type: "ADD_SRS_CARD",
           payload: {
             word,
@@ -750,8 +610,10 @@ const InlineDictionary = () => {
             image_url: selectedImageUrl || ocrCroppedImage || undefined,
           },
         });
+        if (response?.type !== "SRS_RESULT") throw new Error(response?.payload?.error || "Could not save card");
         setSrsAdded(true);
         setSrsError(null);
+        window.dispatchEvent(new Event("hakkutsu:srs-updated"));
       } catch (e: any) {
         console.error("SRS Add failed", e);
       }
@@ -853,13 +715,7 @@ const InlineDictionary = () => {
 
   return (
     <>
-      {/* Box OCR Interactive Drag Selection Overlay */}
-      {isOcrSelecting && (
-        <BoxOcrOverlay
-          onComplete={handleBoxOcrComplete}
-          onCancel={() => setIsOcrSelecting(false)}
-        />
-      )}
+      <MangaOcrImages />
 
       {/* Yomichan-style soft blue hover highlight overlay */}
       {hoverHighlightRects &&
@@ -909,24 +765,10 @@ const InlineDictionary = () => {
             <div className="hk-header__logo">
               <img src={logoUrl} alt="Hakkutsu" style={{ width: 18, height: 18, borderRadius: "4px" }} />
               <h2 className="hk-header__title hk-brand-title">
-                {ocrCroppedImage ? "Hakkutsu Box OCR" : "Hakkutsu Lookup"}
+                Hakkutsu Lookup
               </h2>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              {/* Trigger Box OCR Button */}
-              <button
-                type="button"
-                className="hk-btn-icon-subtle"
-                onClick={() => {
-                  setPosition(null);
-                  setIsOcrSelecting(true);
-                }}
-                title={t("ocr_btn_trigger") || "Box OCR (Alt+S)"}
-                style={{ width: "24px", height: "24px", color: isOcrSelecting ? "#38bdf8" : undefined }}
-              >
-                <Crop size={14} />
-              </button>
-
               {/* Close Button */}
               <button
                 type="button"
@@ -946,143 +788,8 @@ const InlineDictionary = () => {
 
           {/* Main Scrollable Content */}
           <div className="hk-content" style={{ overflowY: "auto", flex: 1 }}>
-            {/* Box OCR Cropped Snippet & Editable Text Area */}
-            {ocrCroppedImage && (
-              <div
-                style={{
-                  margin: "8px 12px 10px 12px",
-                  padding: "10px",
-                  backgroundColor: "rgba(255, 255, 255, 0.04)",
-                  border: "1px solid rgba(255, 255, 255, 0.1)",
-                  borderRadius: "10px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "8px",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <img
-                    src={ocrCroppedImage}
-                    alt="Manga Snippet"
-                    style={{
-                      maxHeight: "56px",
-                      maxWidth: "100px",
-                      objectFit: "contain",
-                      borderRadius: "6px",
-                      border: "1px solid rgba(255, 255, 255, 0.15)",
-                      backgroundColor: "#000",
-                    }}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      <span style={{ fontSize: "11px", fontWeight: 600, color: "#38bdf8" }}>
-                        {t("ocr_title") || "Manga OCR"}
-                      </span>
-                      {ocrConfidence !== null && (
-                        <span style={{ fontSize: "10px", color: "var(--hk-text-muted)" }}>
-                          {Math.round(ocrConfidence)}% confidence
-                        </span>
-                      )}
-                    </div>
-                    {isEditingOcrText ? (
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <input
-                          type="text"
-                          value={editedOcrText}
-                          onChange={(e) => setEditedOcrText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              setInputText(editedOcrText);
-                              setIsEditingOcrText(false);
-                              analyzeText(editedOcrText, false, true);
-                            }
-                          }}
-                          style={{
-                            flex: 1,
-                            padding: "4px 8px",
-                            backgroundColor: "rgba(0, 0, 0, 0.5)",
-                            border: "1px solid #38bdf8",
-                            borderRadius: "6px",
-                            color: "#fff",
-                            fontSize: "12px",
-                          }}
-                          autoFocus
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setInputText(editedOcrText);
-                            setIsEditingOcrText(false);
-                            analyzeText(editedOcrText, false, true);
-                          }}
-                          style={{
-                            padding: "4px 8px",
-                            backgroundColor: "#38bdf8",
-                            border: "none",
-                            borderRadius: "6px",
-                            color: "#0f172a",
-                            fontSize: "11px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                          }}
-                        >
-                          OK
-                        </button>
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: "6px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            fontWeight: 600,
-                            color: "#f8fafc",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {inputText || "—"}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditedOcrText(inputText);
-                            setIsEditingOcrText(true);
-                          }}
-                          title={t("ocr_edit_hint") || "Edit text"}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            color: "var(--hk-text-muted)",
-                            cursor: "pointer",
-                            padding: "2px",
-                          }}
-                        >
-                          <Edit3 size={13} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* OCR / Translation Loading State */}
-            {(loading || ocrLoading) && (
+            {/* Translation Loading State */}
+            {loading && (
               <div className="hk-loading">
                 <Loader2
                   className="hk-spin"
@@ -1090,9 +797,7 @@ const InlineDictionary = () => {
                   style={{ color: "#38bdf8", margin: "0 auto 8px" }}
                 />
                 <div style={{ color: "#a1a1aa", fontSize: "13px" }}>
-                  {ocrLoading
-                      ? `${t("ocr_recognizing") || "Recognizing Japanese text..."}${ocrProgress > 0 ? ` ${ocrProgress}%` : ""}`
-                    : phraseMode
+                  {phraseMode
                       ? t("dict_loading_phrase")
                       : t("dict_loading_syntax")}
                 </div>
@@ -1102,7 +807,7 @@ const InlineDictionary = () => {
             {/* Error Box */}
             {error && <div className="hk-error-box">{error}</div>}
 
-            {result && !loading && !ocrLoading && (
+            {result && !loading && (
               <>
                 {/* Target Language sentence translation */}
                 {phraseTranslation && (

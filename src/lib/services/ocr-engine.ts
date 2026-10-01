@@ -10,6 +10,7 @@ import { createWorker, type Worker } from "tesseract.js";
 const extensionAssetUrl = (path: string) => browser.runtime.getURL(path as never);
 const workerUrl = extensionAssetUrl("/ocr/worker.min.js");
 const coreUrl = extensionAssetUrl("/ocr/tesseract-core-simd-lstm.js");
+const langUrl = extensionAssetUrl("/ocr");
 
 export type OcrOrientation = "auto" | "vertical" | "horizontal";
 
@@ -17,6 +18,7 @@ export interface OcrExecutionResult {
   text: string;
   confidence: number;
   orientation: "vertical" | "horizontal";
+  lines: Array<{ text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }>;
 }
 
 export interface OcrProgressCallback {
@@ -35,6 +37,7 @@ class OcrEngineService {
         const worker = await createWorker(lang, 1, {
           workerPath: workerUrl,
           corePath: coreUrl,
+          langPath: langUrl,
           workerBlobURL: false,
           logger: (m) => {
             if (onProgress && m.status && typeof m.progress === "number") {
@@ -158,7 +161,7 @@ class OcrEngineService {
 
     try {
       const worker = await this.getWorker(lang, options.onProgress);
-      const result = await worker.recognize(imageDataUrl);
+      const result = await worker.recognize(imageDataUrl, {}, { blocks: true });
 
       const rawText = result?.data?.text || "";
       const confidence = result?.data?.confidence || 0;
@@ -168,6 +171,14 @@ class OcrEngineService {
         text: cleanedText,
         confidence,
         orientation: resolvedOrientation,
+        lines: (result?.data?.blocks || []).flatMap((block) =>
+          block.paragraphs.flatMap((paragraph) =>
+            paragraph.lines.map((line) => ({
+              text: this.cleanOcrText(line.text),
+              bbox: line.bbox,
+            }))
+          )
+        ),
       };
     } catch (err) {
       console.error(`[Hakkutsu OCR] Recognition failed with lang ${lang}:`, err);
@@ -175,11 +186,19 @@ class OcrEngineService {
       if (lang === "jpn_vert") {
         try {
           const fallbackWorker = await this.getWorker("jpn", options.onProgress);
-          const fallbackResult = await fallbackWorker.recognize(imageDataUrl);
+          const fallbackResult = await fallbackWorker.recognize(imageDataUrl, {}, { blocks: true });
           return {
             text: this.cleanOcrText(fallbackResult?.data?.text || ""),
             confidence: fallbackResult?.data?.confidence || 0,
             orientation: "horizontal",
+            lines: (fallbackResult?.data?.blocks || []).flatMap((block) =>
+              block.paragraphs.flatMap((paragraph) =>
+                paragraph.lines.map((line) => ({
+                  text: this.cleanOcrText(line.text),
+                  bbox: line.bbox,
+                }))
+              )
+            ),
           };
         } catch {}
       }

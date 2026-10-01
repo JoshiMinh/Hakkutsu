@@ -10,6 +10,7 @@ export default defineConfig({
   modules: ["@wxt-dev/module-react"],
   srcDir: "src",
   publicDir: "../public",
+  outDirTemplate: "{{browser}}-mv{{manifestVersion}}{{modeSuffix}}",
   alias: {
     "~components": path.resolve(__dirname, "src/components"),
     "~lib": path.resolve(__dirname, "src/lib"),
@@ -58,7 +59,7 @@ export default defineConfig({
   manifest: {
     name: "Hakkutsu — Japanese Immersion",
     description: "Local-first open-source Japanese immersion extension with offline dictionary, Kuromoji parsing, SRS, and dual subtitles.",
-    version: "2.1.0",
+    version: "2.2",
     icons: {
       "16": "icon-16.png",
       "32": "icon-32.png",
@@ -84,17 +85,8 @@ export default defineConfig({
       "tabs",
       "storage",
       "activeTab",
-      "contextMenus"
+      "offscreen"
     ],
-    commands: {
-      "trigger-box-ocr": {
-        suggested_key: {
-          default: "Alt+S",
-          mac: "Alt+S"
-        },
-        description: "Trigger Hakkutsu Box OCR selection on the current page"
-      }
-    },
     host_permissions: [
       "https://*/*",
       "http://localhost:3000/*",
@@ -118,5 +110,10 @@ export default defineConfig({
         matches: ["<all_urls>"]
       }
     ]
-  }
+  },
+  transformManifest(manifest) {
+    if (manifest.manifest_version === 2) {
+      manifest.permissions = manifest.permissions?.filter((permission) => permission !== "offscreen");
+    }
+  },
 });

@@ -342,10 +342,10 @@ export const ja = {
   drawer_jump_to_current: "再生中の行へスクロール",
   btn_open: "開く",
 
-  // Box OCR & Manga Extraction
-  ocr_title: "ボックスOCR（マンガ・画像切り抜き）",
+  // Manga OCR
+  ocr_title: "Manga OCR",
   ocr_subtitle: "マンガやWebコミック、画像上の日本語をブラウザ内で直接文字認識",
-  ocr_btn_trigger: "ボックスOCR (Alt+S)",
+  ocr_btn_trigger: "Manga OCR",
   ocr_overlay_hint: "マンガのテキストをドラッグして選択 • Escでキャンセル",
   ocr_orientation_auto: "自動検出",
   ocr_orientation_vertical: "縦書き (Vertical)",
@@ -353,12 +353,10 @@ export const ja = {
   ocr_recognizing: "日本語を認識中...",
   ocr_preprocess: "マンガコントラスト補正",
   ocr_preprocess_desc: "スクリーントーンを除去して認識精度を向上させます",
-  ocr_shortcut: "ボックスOCRショートカット",
-  ocr_shortcut_desc: "ページ上でボックス選択OCRを起動するキーボードショートカット",
   ocr_edit_hint: "必要に応じて認識テキストを修正できます",
   ocr_reanalyze: "再解析",
-  ocr_no_text: "選択された領域から日本語テキストが検出されませんでした。選択枠やコントラストを調整してください。",
-  settings_ocr_section: "ボックスOCR（マンガ・画像認識）",
+  ocr_no_text: "この画像から日本語の文字を検出できませんでした。別の画像か文字方向を試してください。",
+  settings_ocr_section: "Manga OCR",
 };
 
 

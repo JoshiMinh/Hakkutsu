@@ -51,6 +51,7 @@ function getJapaneseSegmenter() {
 }
 
 const tokenCache = new Map<string, TokenAnalysis[]>();
+const EMPTY_SEGMENTS: SubtitleSegment[] = [];
 function tokenizeTextFast(text: string): TokenAnalysis[] {
   const clean = text.trim();
   if (!clean) return [];
@@ -142,7 +143,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
   const [filterMode, setFilterMode] = useState<"all" | "matched">("all");
-  const [currentMatchIdx, setCurrentMatchIdx] = useState(0);
+  const [currentMatchIdx, setCurrentMatchIdx] = useState(-1);
 
   // UI state
   const [isWide, setIsWide] = useState(false);
@@ -154,31 +155,49 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   const [playingTtsIdx, setPlayingTtsIdx] = useState<number | null>(null);
 
   const listContainerRef = useRef<HTMLDivElement | null>(null);
-  const activeCueRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const openTimerRef = useRef<number | null>(null);
   const copyTimerRef = useRef<number | null>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  const segments = subtitleData?.segments || [];
-  const secondarySegments = secondaryData?.segments || [];
+  const segments = subtitleData?.segments || EMPTY_SEGMENTS;
+  const secondarySegments = secondaryData?.segments || EMPTY_SEGMENTS;
+
+  useEffect(() => {
+    setSearchQuery("");
+    setFilterMode("all");
+    setUserHasScrolled(false);
+    setMinedCueIndices(new Set());
+  }, [subtitleData]);
 
   // Map secondary segments by approximate start time for fast lookup
   const secondaryMap = useMemo(() => {
     const map = new Map<number, string>();
     if (secondarySegments.length === 0) return map;
-    secondarySegments.forEach((s) => {
-      const key = Math.round(s.start * 2) / 2;
-      map.set(key, deduplicateCueText(s.text));
+    const sorted = [...secondarySegments].sort((a, b) => a.start - b.start);
+    let secondaryIndex = 0;
+    segments.forEach((cue, index) => {
+      while (secondaryIndex + 1 < sorted.length &&
+        Math.abs(sorted[secondaryIndex + 1].start - cue.start) < Math.abs(sorted[secondaryIndex].start - cue.start)) {
+        secondaryIndex++;
+      }
+      const nearest = sorted[secondaryIndex];
+      if (Math.abs(nearest.start - cue.start) <= Math.max(1.5, cue.duration)) {
+        map.set(index, deduplicateCueText(nearest.text));
+      }
     });
     return map;
-  }, [secondarySegments]);
+  }, [secondarySegments, segments]);
 
   // Find active cue index
   const activeCueIndex = useMemo(() => {
     if (!currentSegment || segments.length === 0) return -1;
-    return segments.findIndex(
+    const exact = segments.findIndex(
       (s) => Math.abs(s.start - currentSegment.start) < 0.1 && s.text === currentSegment.text
+    );
+    if (exact >= 0) return exact;
+    return segments.findIndex((s) =>
+      currentSegment.start >= s.start - 0.25 && currentSegment.start < s.start + s.duration + 0.25
     );
   }, [currentSegment, segments]);
 
@@ -234,9 +253,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
       }
     }
 
-    const totalUnique = uniqueWords.size || 1;
-    const knownPercentage = Math.round((knownCount / totalUnique) * 100);
-    const unlearnedPercentage = Math.max(0, 100 - knownPercentage);
+    const totalUnique = uniqueWords.size;
+    const knownPercentage = totalUnique ? Math.round((knownCount / totalUnique) * 100) : 0;
+    const unlearnedPercentage = totalUnique ? Math.max(0, 100 - knownPercentage) : 0;
 
     return {
       totalLines: segments.length,
@@ -259,8 +278,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
 
     segments.forEach((cue, idx) => {
       const cueText = (cue.text || "").toLowerCase();
-      const secKey = Math.round(cue.start * 2) / 2;
-      const secText = (secondaryMap.get(secKey) || "").toLowerCase();
+      const secText = (secondaryMap.get(idx) || "").toLowerCase();
 
       if (cueText.includes(q) || secText.includes(q)) {
         indices.push(idx);
@@ -270,70 +288,74 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     return indices;
   }, [searchQuery, segments, secondaryMap]);
 
-  // Reset match index when query changes
-  useEffect(() => {
-    setCurrentMatchIdx(0);
-  }, [searchQuery]);
-
   // Jump to next / previous match
+  const scrollCueIntoList = useCallback((cueIndex: number, smooth = true) => {
+    const list = listContainerRef.current;
+    const cue = list?.querySelector<HTMLElement>(`#hk-script-cue-${cueIndex}`);
+    if (!list || !cue) return;
+    list.scrollTo({
+      top: list.scrollTop + cue.getBoundingClientRect().top - list.getBoundingClientRect().top
+        - list.clientHeight / 2 + cue.offsetHeight / 2,
+      behavior: smooth ? "smooth" : "auto",
+    });
+  }, []);
+
+  useEffect(() => {
+    setCurrentMatchIdx(matchedCueIndices.length > 0 ? 0 : -1);
+    if (!searchQuery.trim() || matchedCueIndices.length === 0) return;
+    const frame = requestAnimationFrame(() => scrollCueIntoList(matchedCueIndices[0], false));
+    return () => cancelAnimationFrame(frame);
+  }, [searchQuery, filterMode, matchedCueIndices, scrollCueIntoList]);
+
   const jumpToNextMatch = useCallback(() => {
     if (matchedCueIndices.length === 0) return;
     const next = (currentMatchIdx + 1) % matchedCueIndices.length;
     setCurrentMatchIdx(next);
     const cueIdx = matchedCueIndices[next];
-    const el = listContainerRef.current?.querySelector<HTMLElement>(`#hk-script-cue-${cueIdx}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [currentMatchIdx, matchedCueIndices]);
+    scrollCueIntoList(cueIdx);
+    setUserHasScrolled(true);
+  }, [currentMatchIdx, matchedCueIndices, scrollCueIntoList]);
 
   const jumpToPrevMatch = useCallback(() => {
     if (matchedCueIndices.length === 0) return;
-    const prev = (currentMatchIdx - 1 + matchedCueIndices.length) % matchedCueIndices.length;
+    const prev = currentMatchIdx < 0
+      ? matchedCueIndices.length - 1
+      : (currentMatchIdx - 1 + matchedCueIndices.length) % matchedCueIndices.length;
     setCurrentMatchIdx(prev);
     const cueIdx = matchedCueIndices[prev];
-    const el = listContainerRef.current?.querySelector<HTMLElement>(`#hk-script-cue-${cueIdx}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [currentMatchIdx, matchedCueIndices]);
+    scrollCueIntoList(cueIdx);
+    setUserHasScrolled(true);
+  }, [currentMatchIdx, matchedCueIndices, scrollCueIntoList]);
 
   // ── Auto-Scroll Synchronization ────────────────────────────────────────────
 
   const scrollToActiveCue = useCallback(
     (smooth = true) => {
       if (activeCueIndex < 0) return;
-      const el = listContainerRef.current?.querySelector<HTMLElement>(`#hk-script-cue-${activeCueIndex}`);
-      if (el && listContainerRef.current) {
-        el.scrollIntoView({
-          behavior: smooth ? "smooth" : "auto",
-          block: "center",
-        });
-        setUserHasScrolled(false);
-      }
+      scrollCueIntoList(activeCueIndex, smooth);
+      setUserHasScrolled(false);
     },
-    [activeCueIndex]
+    [activeCueIndex, scrollCueIntoList]
   );
 
   useEffect(() => {
-    if (!isOpen || !isSyncEnabled || userHasScrolled) return;
+    if (!isOpen || !isSyncEnabled || userHasScrolled || searchQuery.trim()) return;
     if (activeCueIndex >= 0) {
       scrollToActiveCue(true);
     }
-  }, [activeCueIndex, isOpen, isSyncEnabled, userHasScrolled, scrollToActiveCue]);
+  }, [activeCueIndex, isOpen, isSyncEnabled, userHasScrolled, searchQuery, scrollToActiveCue]);
 
   // Focus search on open
   useEffect(() => {
     if (isOpen) {
       openTimerRef.current = window.setTimeout(() => {
-        scrollToActiveCue(false);
         searchInputRef.current?.focus({ preventScroll: true });
       }, 150);
     }
     return () => {
       if (openTimerRef.current !== null) window.clearTimeout(openTimerRef.current);
     };
-  }, [isOpen, scrollToActiveCue]);
+  }, [isOpen]);
 
   useEffect(() => {
     return () => {
@@ -349,18 +371,16 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        onClose();
+        if (event.composedPath().includes(searchInputRef.current!) && searchQuery) {
+          setSearchQuery("");
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [isOpen, onClose]);
-
-  // Handle manual user scrolling
-  const handleScroll = () => {
-    // Mark user as scrolled if they scroll during playback
-    setUserHasScrolled(true);
-  };
+  }, [isOpen, onClose, searchQuery]);
 
   // ── Seeking & Actions ──────────────────────────────────────────────────────
 
@@ -370,16 +390,14 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
       onSeekToCue(cue);
     } else if (onSeekTime) {
       onSeekTime(targetTime);
-    }
-    const video = videoRef?.current || document.querySelector<HTMLVideoElement>("video");
-    if (video) {
+    } else {
+      const video = videoRef?.current || document.querySelector<HTMLVideoElement>("video");
       try {
-        video.currentTime = targetTime;
-        if (video.paused) {
-          void video.play();
-        }
+        if (video) video.currentTime = targetTime;
       } catch {}
     }
+    const video = videoRef?.current;
+    if (video?.paused) void video.play().catch(() => {});
     setUserHasScrolled(false);
   };
 
@@ -396,8 +414,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
 
   const handleMineToSrs = async (cue: SubtitleSegment, idx: number) => {
     const text = deduplicateCueText(cue.text);
-    const secKey = Math.round(cue.start * 2) / 2;
-    const secText = secondaryMap.get(secKey) || "";
+    const secText = secondaryMap.get(idx) || "";
 
     // Extract first meaningful kanji / keyword from cue
     const tokens = tokenizeTextFast(text);
@@ -406,7 +423,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     const targetWord = targetToken ? targetToken.surface : text.slice(0, 10);
 
     try {
-      await chrome.runtime.sendMessage({
+      const response = await chrome.runtime.sendMessage({
         type: "ADD_SRS_CARD",
         payload: {
           word: targetWord,
@@ -416,7 +433,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
           source_title: videoTitle || document.title,
         },
       });
+      if (response?.type !== "SRS_RESULT") throw new Error(response?.payload?.error || "Could not save cue");
       setMinedCueIndices((prev) => new Set([...prev, idx]));
+      window.dispatchEvent(new Event("hakkutsu:srs-updated"));
     } catch (err) {
       console.warn("[Hakkutsu] Mine cue to SRS failed:", err);
     }
@@ -464,16 +483,14 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
           placement: "drawer",
           mode: "dictionary",
           transient: true,
+          pauseVideo: false,
         },
       })
     );
   };
 
   const handleTokenMouseEnter = (e: React.MouseEvent, token: TokenAnalysis) => {
-    if (!token?.surface || !token.surface.trim()) return;
-    if (!token.is_japanese && /^[\s.,!?。！？、…:;\-–—/\\()[\]{}""''「」『』【】（）]+$/.test(token.surface)) {
-      return;
-    }
+    if (!token?.surface?.trim() || !token.is_japanese) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     window.dispatchEvent(
       new CustomEvent("hakkutsu:analyze", {
@@ -484,6 +501,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
           placement: "drawer",
           mode: "dictionary",
           transient: true,
+          pauseVideo: false,
         },
       })
     );
@@ -531,7 +549,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     <aside
       className={`hk-script-drawer ${isWide ? "hk-script-drawer--wide" : ""}`}
       style={{
-        width: isWide ? "520px" : "380px",
+        width: isWide ? "min(520px, 100vw)" : "min(380px, 100vw)",
       }}
       onClick={(e) => e.stopPropagation()}
       role="dialog"
@@ -596,7 +614,10 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
               className="hk-script-search-input"
               placeholder={t("drawer_search_placeholder")}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setUserHasScrolled(Boolean(e.target.value.trim()));
+              }}
               aria-label={t("drawer_search_placeholder")}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -623,7 +644,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
           {searchQuery && matchedCueIndices.length > 0 && (
             <div className="hk-script-search-nav">
               <span className="hk-script-search-count">
-                {currentMatchIdx + 1}/{matchedCueIndices.length}
+                {Math.max(0, currentMatchIdx + 1)}/{matchedCueIndices.length}
               </span>
               <button
                 type="button"
@@ -755,7 +776,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
       <div
         className="hk-script-drawer__list"
         ref={listContainerRef}
-        onScroll={handleScroll}
+        onWheel={() => setUserHasScrolled(true)}
+        onTouchStart={() => setUserHasScrolled(true)}
+        onPointerDown={() => setUserHasScrolled(true)}
       >
         {visibleSegments.length === 0 ? (
           <div className="hk-script-drawer__empty">
@@ -765,8 +788,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
           visibleSegments.map(({ cue, index: originalIdx }) => {
             const isActive = originalIdx === activeCueIndex;
             const isMined = minedCueIndices.has(originalIdx);
-            const secKey = Math.round(cue.start * 2) / 2;
-            const secText = secondaryMap.get(secKey);
+            const secText = secondaryMap.get(originalIdx);
             const isSearchMatch = matchedCueIndices.includes(originalIdx);
             const cleanText = deduplicateCueText(cue.text);
             const tokens = tokenizeTextFast(cleanText);
@@ -775,15 +797,21 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
               <div
                 key={originalIdx}
                 id={`hk-script-cue-${originalIdx}`}
-                ref={isActive ? activeCueRef : null}
-                className={`hk-script-cue ${isActive ? "hk-script-cue--active" : ""} ${isSearchMatch && searchQuery ? "hk-script-cue--matched" : ""}`}
+                className={`hk-script-cue ${isActive ? "hk-script-cue--active" : ""} ${isSearchMatch && searchQuery ? "hk-script-cue--matched" : ""} ${searchQuery && matchedCueIndices[currentMatchIdx] === originalIdx ? "hk-script-cue--current-match" : ""}`}
+                aria-current={isActive ? "true" : undefined}
+                onClick={() => {
+                  if (!window.getSelection()?.toString()) handleSeek(cue);
+                }}
               >
                 {/* Cue header (Timestamp & Quick Actions) */}
                 <div className="hk-script-cue__meta">
                   <button
                     type="button"
                     className="hk-script-cue__time"
-                    onClick={() => handleSeek(cue)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleSeek(cue);
+                    }}
                     aria-label={`${t("drawer_btn_play")} ${formatTimestamp(cue.start + offset)}`}
                   >
                     <Play size={11} className="hk-script-cue__play-icon" />
@@ -854,25 +882,30 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
                     let tokenClass = "hk-script-token";
                     if (isSaved) {
                       tokenClass += " hk-script-token--known";
-                    } else if (tokenJlpt && settings.showJlptColors !== false) {
-                      tokenClass += ` hk-script-token--jlpt-${tokenJlpt.toLowerCase()}`;
+                    } else if (token.is_japanese && token.pos !== "Punctuation") {
+                      tokenClass += " hk-script-token--new";
+                      if (tokenJlpt && settings.showJlptColors !== false) {
+                        tokenClass += ` hk-script-token--jlpt-${tokenJlpt.toLowerCase()}`;
+                      }
+                    } else {
+                      tokenClass += " hk-script-token--plain";
                     }
 
                     return (
                       <span
                         key={tIdx}
                         className={tokenClass}
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => handleTokenClick(e, token)}
+                        role={token.is_japanese ? "button" : undefined}
+                        tabIndex={token.is_japanese ? 0 : undefined}
+                        onClick={token.is_japanese ? (e) => handleTokenClick(e, token) : undefined}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
+                          if (token.is_japanese && (e.key === "Enter" || e.key === " ")) {
                             e.preventDefault();
                             handleTokenClick(e as unknown as React.MouseEvent, token);
                           }
                         }}
-                        onMouseEnter={(e) => handleTokenMouseEnter(e, token)}
-                        onMouseLeave={handleTokenMouseLeave}
+                        onMouseEnter={token.is_japanese ? (e) => handleTokenMouseEnter(e, token) : undefined}
+                        onMouseLeave={token.is_japanese ? handleTokenMouseLeave : undefined}
                         title={
                           isSaved && srsCard
                             ? `SRS: State ${srsCard.state ?? 0} · Interval: ${srsCard.interval ?? 0}d`

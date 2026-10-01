@@ -2950,6 +2950,11 @@ select option:hover {
   border-color: rgba(250, 204, 21, 0.2);
 }
 
+.hk-script-cue--current-match {
+  border-color: rgba(250, 204, 21, 0.75);
+  background: rgba(250, 204, 21, 0.12);
+}
+
 .hk-script-cue__meta {
   margin-bottom: 6px;
 }
@@ -3014,7 +3019,11 @@ select option:hover {
 .hk-script-token:focus-visible {
   background: rgba(192, 132, 252, 0.2);
   color: #fff;
-  outline: none;
+}
+
+.hk-script-token:focus-visible {
+  outline: 2px solid #c084fc;
+  outline-offset: 2px;
 }
 
 .hk-script-token--known {
@@ -3022,6 +3031,15 @@ select option:hover {
   text-decoration-color: rgba(74, 222, 128, 0.55);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
+}
+
+.hk-script-token--new {
+  text-decoration: underline dotted rgba(251, 191, 36, 0.8);
+  text-underline-offset: 3px;
+}
+
+.hk-script-token--plain {
+  cursor: text;
 }
 
 .hk-script-known-dot {

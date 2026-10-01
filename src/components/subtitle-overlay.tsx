@@ -186,6 +186,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     };
 
     void loadSavedWords();
+    window.addEventListener("hakkutsu:srs-updated", loadSavedWords);
 
     const handleStorageChange = (changes: any, areaName: string) => {
       if (areaName === "local" && (changes["hakkutsu_vocabulary"] || changes["hakkutsu_srs"])) {
@@ -195,8 +196,12 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
     if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
       chrome.storage.onChanged.addListener(handleStorageChange);
-      return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+      return () => {
+        chrome.storage.onChanged.removeListener(handleStorageChange);
+        window.removeEventListener("hakkutsu:srs-updated", loadSavedWords);
+      };
     }
+    return () => window.removeEventListener("hakkutsu:srs-updated", loadSavedWords);
   }, []);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -592,7 +597,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isEditableTarget(e.target)) return;
+      if (isEditableTarget(e.composedPath()[0] || e.target)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       // Previous cue: 'A'

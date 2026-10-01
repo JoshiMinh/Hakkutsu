@@ -1260,6 +1260,11 @@ export const genericPlayerCss = `
     background: rgba(251, 191, 36, 0.08) !important;
   }
 
+  .hk-script-cue--current-match {
+    border-color: rgba(251, 191, 36, 0.8) !important;
+    background: rgba(251, 191, 36, 0.15) !important;
+  }
+
   .hk-script-cue__meta {
     display: flex !important;
     align-items: center !important;
@@ -1301,8 +1306,13 @@ export const genericPlayerCss = `
   }
 
   .hk-script-cue:hover .hk-script-cue__actions,
-  .hk-script-cue--active .hk-script-cue__actions {
+  .hk-script-cue--active .hk-script-cue__actions,
+  .hk-script-cue:focus-within .hk-script-cue__actions {
     opacity: 1 !important;
+  }
+
+  @media (hover: none) {
+    .hk-script-cue__actions { opacity: 1 !important; }
   }
 
   .hk-script-action-btn {
@@ -1364,8 +1374,23 @@ export const genericPlayerCss = `
     box-shadow: 0 0 4px rgba(168, 85, 247, 0.4) !important;
   }
 
+  .hk-script-token:focus-visible {
+    outline: 2px solid #c084fc !important;
+    outline-offset: 2px !important;
+  }
+
   .hk-script-token--known {
     border-bottom: 1.5px solid rgba(74, 222, 128, 0.65) !important;
+  }
+
+  .hk-script-token--new {
+    background: rgba(251, 191, 36, 0.08) !important;
+    text-decoration: underline dotted rgba(251, 191, 36, 0.8) !important;
+    text-underline-offset: 3px !important;
+  }
+
+  .hk-script-token--plain {
+    cursor: text !important;
   }
 
   .hk-script-known-dot {

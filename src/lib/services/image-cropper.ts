@@ -1,5 +1,5 @@
 /**
- * Image Cropping and Pre-processing Service for Box OCR.
+ * Image cropping and pre-processing service for Manga OCR.
  *
  * Provides high-DPI coordinate cropping from viewport screenshots
  * and manga-optimized image filtering (grayscale, contrast boost, binarization).

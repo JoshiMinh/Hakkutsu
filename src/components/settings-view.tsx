@@ -1017,7 +1017,7 @@ export function SettingsView({
           </div>
         </section>
 
-        {/* Box OCR (Manga & Scans) Card */}
+        {/* Manga OCR image settings */}
         <section className="hk-settings-card">
           <header className="hk-settings-card__header">
             <div className="hk-settings-card__icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1029,63 +1029,11 @@ export function SettingsView({
           <div className="hk-settings-card__body">
             <div className="hk-settings-row">
               <div className="hk-settings-row__info">
-                <label htmlFor="ocrEnabled" className="hk-settings-row__label">
-                  {t("ocr_title", currentLang)}
-                </label>
-                <div id="ocrEnabled-desc" className="hk-settings-row__desc">
-                  {t("ocr_subtitle", currentLang)}
-                </div>
-              </div>
-              <div className="hk-settings-row__control">
-                <label className="hk-toggle" htmlFor="ocrEnabled">
-                  <input
-                    id="ocrEnabled"
-                    aria-describedby="ocrEnabled-desc"
-                    type="checkbox"
-                    checked={settings.ocrEnabled !== false}
-                    onChange={(e) => onUpdate({ ocrEnabled: e.target.checked })}
-                  />
-                  <span className="hk-toggle__slider" />
-                </label>
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
-                <label className="hk-settings-row__label">
-                  {t("ocr_shortcut", currentLang)}
-                </label>
-                <div className="hk-settings-row__desc">
-                  {t("ocr_shortcut_desc", currentLang)}
-                </div>
-              </div>
-              <div className="hk-settings-row__control">
-                <kbd
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    padding: "6px 12px",
-                    borderRadius: "8px",
-                    backgroundColor: "rgba(255, 255, 255, 0.08)",
-                    border: "1px solid rgba(255, 255, 255, 0.16)",
-                    color: "var(--hk-accent-light, #38bdf8)",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  {settings.ocrShortcut || "Alt+S"}
-                </kbd>
-              </div>
-            </div>
-
-            <div className="hk-settings-row">
-              <div className="hk-settings-row__info">
                 <label className="hk-settings-row__label">
                   Text Orientation Mode
                 </label>
                 <div className="hk-settings-row__desc">
-                  Default orientation for Japanese text recognition (Auto detects tall vs wide bounding boxes)
+                  Default orientation for Japanese text recognition (Auto detects tall vs wide images)
                 </div>
               </div>
               <div className="hk-settings-row__control">

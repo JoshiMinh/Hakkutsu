@@ -342,10 +342,10 @@ export const zh = {
   drawer_jump_to_current: "滚动至正在播放的台词",
   btn_open: "打开",
 
-  // Box OCR & Manga Extraction
-  ocr_title: "框选 OCR（漫画与图片提取）",
+  // Manga OCR
+  ocr_title: "Manga OCR",
   ocr_subtitle: "在浏览器中直接对漫画、网页漫画和图片进行纯本地日语 OCR 识别",
-  ocr_btn_trigger: "框选 OCR (Alt+S)",
+  ocr_btn_trigger: "Manga OCR",
   ocr_overlay_hint: "拖拽框选漫画台词 • 按 Esc 取消",
   ocr_orientation_auto: "自动检测",
   ocr_orientation_vertical: "竖排文本 (縦書き)",
@@ -353,12 +353,10 @@ export const zh = {
   ocr_recognizing: "正在识别日文文本...",
   ocr_preprocess: "漫画网点滤镜增强",
   ocr_preprocess_desc: "预处理图像以去除网点杂色，提高识别精度",
-  ocr_shortcut: "框选 OCR 快捷键",
-  ocr_shortcut_desc: "在任意页面激活框选文字 OCR 的快捷键",
   ocr_edit_hint: "可在上方直接修改识别结果",
   ocr_reanalyze: "重新解析",
-  ocr_no_text: "未在框选区域内识别到日语文本，请尝试重新框选或调整对比度。",
-  settings_ocr_section: "框选 OCR（漫画与图片）",
+  ocr_no_text: "未在此图片中识别到日语文本。请尝试其他图片或文字方向。",
+  settings_ocr_section: "Manga OCR",
 };
 
 
