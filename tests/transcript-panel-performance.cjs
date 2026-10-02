@@ -58,6 +58,7 @@ test('large transcripts mount only a bounded window of rows', () => {
   const settings = {};
   const imports = {
     '~lib/services/use-transcript-window': hooks,
+    '~lib/services/transcript-readings': { requestTranscriptReadings: async () => [] },
     '~lib/services/subtitle-parsers': parsers,
     '~lib/utils/japanese': japanese,
     '~lib/utils/jlpt-classifier': { predictJlpt: () => null },
@@ -85,6 +86,66 @@ test('virtual windows cover variable-height rows at the start, middle and end', 
     assert.ok(offsets[window.end] >= top + 600);
     assert.equal(window.before + heights.slice(window.start, window.end).reduce((a, b) => a + b, 0) + window.after, offsets.at(-1));
   }
+});
+
+test('transcript readings queue is bounded, shares repeated cues and avoids definition requests', async () => {
+  const requests = [];
+  const { requestTranscriptReadings } = load('src/lib/services/transcript-readings.ts', { chrome: { runtime: {
+    sendMessage: message => new Promise(resolve => requests.push({ message, resolve })),
+  } } });
+  const first = requestTranscriptReadings('建物', 'en');
+  const repeated = requestTranscriptReadings('建物', 'en');
+  const second = requestTranscriptReadings('最後', 'en');
+  const third = requestTranscriptReadings('日本語', 'en');
+  assert.equal(first, repeated);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].message.payload.include_definitions, false);
+  const respond = (request, reading) => request.resolve({ type: 'ANALYZE_RESULT', payload: { tokens: [{ surface: request.message.payload.text, reading: { hiragana: reading } }] } });
+  respond(requests[0], 'たてもの');
+  await first;
+  await flush();
+  assert.equal(requests.length, 3);
+  respond(requests[1], 'さいご');
+  respond(requests[2], 'にほんご');
+  await Promise.all([second, third]);
+  const cached = await requestTranscriptReadings('建物', 'en');
+  assert.equal(cached[0].reading.hiragana, 'たてもの');
+  assert.equal(requests.length, 3);
+});
+
+test('mounted transcript rows display ruby after readings arrive and honor the furigana toggle', async () => {
+  const parent = hookHarness();
+  const child = hookHarness();
+  let currentHooks = parent;
+  const react = { ...React, default: React, memo: fn => fn };
+  for (const name of ['useState', 'useRef', 'useMemo', 'useCallback', 'useEffect']) react[name] = (...args) => currentHooks.react[name](...args);
+  let resolve;
+  const settings = { showFurigana: true };
+  const { SubtitleScriptDrawer } = load('src/components/subtitle-script-drawer.tsx', {
+    window: Object.assign(new Events(), { innerWidth: 360, location: { href: 'extension://sidepanel' }, setTimeout() {}, clearTimeout() {} }),
+    document: { querySelector: () => null },
+  }, {
+    react,
+    '~lib/services/use-transcript-window': { useTranscriptWindow: () => ({ start: 0, end: 1, before: 0, after: 0, scrollToRow() {} }) },
+    '~lib/services/transcript-readings': { requestTranscriptReadings: () => new Promise(done => resolve = done) },
+    '~lib/services/subtitle-parsers': load('src/lib/services/subtitle-parsers.ts'),
+    '~lib/utils/japanese': load('src/lib/utils/japanese.ts', {}, { './constants': load('src/lib/utils/constants.ts') }),
+    '~lib/utils/jlpt-classifier': { predictJlpt: () => null },
+    '~lib/utils/settings': { useSettingsStore: () => ({ settings, updateSettings() {} }) },
+    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+  });
+  const cue = { text: '建物', start: 0, duration: 2 };
+  const tree = parent.render(() => SubtitleScriptDrawer({ isOpen: true, onClose() {}, subtitleData: { segments: [cue] }, currentSegment: cue }));
+  const row = find(tree, node => node.props.cue === cue);
+  currentHooks = child;
+  const render = () => child.render(() => (typeof row.type === 'function' ? row.type : row.type.type)(row.props));
+  assert.doesNotMatch(renderToStaticMarkup(render()), /<rt/);
+  resolve([{ surface: '建物', dictionary_form: '建物', reading: { hiragana: 'たてもの' }, is_japanese: true, definitions: [] }]);
+  await flush();
+  assert.match(renderToStaticMarkup(render()), /<rt[^>]*>たてもの<\/rt>/);
+  settings.showFurigana = false;
+  assert.doesNotMatch(renderToStaticMarkup(render()), /<rt/);
+  child.cleanup(); parent.cleanup();
 });
 
 test('repeated lookup requests share work and cache results separately by language', async () => {
@@ -147,6 +208,7 @@ test('lookup pauses auto-scroll, Escape leaves the sidebar open, and older TTS r
     chrome: { runtime: { sendMessage: message => new Promise(resolve => requests.push({ message, resolve })) } },
   }, {
     react: hooks.react,
+    '~lib/services/transcript-readings': { requestTranscriptReadings: async () => [] },
     '~lib/services/use-transcript-window': { useTranscriptWindow: () => ({ start: 0, end: 3, before: 0, after: 0, scrollToRow }) },
     '~lib/services/subtitle-parsers': load('src/lib/services/subtitle-parsers.ts'),
     '~lib/utils/japanese': {}, '~lib/utils/jlpt-classifier': {},
@@ -214,6 +276,7 @@ test('sidebar hover debounce and dismissal cancel stale lookup results and timer
   const requests = [];
   const { default: Dictionary } = load('src/contents/inline-dictionary.tsx', { window, document, CustomEvent, setTimeout, clearTimeout,
     browser: { runtime: { getURL: value => value } },
+    chrome: { runtime: { onMessage: { addListener() {}, removeListener() {} } } },
   }, {
     react: hooks.react,
     '~lib/utils/japanese': { containsJapanese: () => true },
@@ -248,4 +311,45 @@ test('sidebar hover debounce and dismissal cancel stale lookup results and timer
   assert.equal(timers.size, 0);
   tick();
   assert.equal(requests.length, 1);
+});
+
+test('lookup requests from the transcript create a draggable popup on the source page', () => {
+  const hooks = hookHarness();
+  const listeners = new Set();
+  const messages = [];
+  const window = Object.assign(new Events(), { innerWidth: 640, innerHeight: 700, location: { href: 'https://youtube.com/watch?v=1' } });
+  const document = Object.assign(new Events(), { querySelector: () => null, getElementById: () => null, activeElement: null });
+  const { default: Dictionary } = load('src/contents/inline-dictionary.tsx', {
+    window, document, CustomEvent, setTimeout: () => 1, clearTimeout() {},
+    browser: { runtime: { getURL: value => value } },
+    chrome: { runtime: { onMessage: { addListener: fn => listeners.add(fn), removeListener: fn => listeners.delete(fn) },
+      sendMessage: message => { messages.push(message); return Promise.resolve(); } } },
+  }, {
+    react: hooks.react,
+    '~lib/utils/japanese': { containsJapanese: () => true },
+    '~components/definition-card': { DefinitionCard: 'definition' },
+    '~components/token-display': {}, '~components/grammar-explanations': {}, '~components/manga-ocr-images': { MangaOcrImages: 'ocr' },
+    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ankiEnabled: false, mangaOcrEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
+    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~lib/services/lookup-analysis': { requestLookupAnalysis: () => new Promise(() => {}) },
+  });
+  const render = () => hooks.render(() => Dictionary({}));
+  render();
+  for (const listener of listeners) listener({ type: 'LOOKUP_TRANSCRIPT', payload: { text: '建物', transient: false } }, {}, () => {});
+  let popup = find(render(), node => node.props.className?.includes('hk-lookup'));
+  assert.equal(popup.props.style.position, 'fixed');
+  assert.ok(!popup.props.className.includes('hk-lookup--panel'));
+  assert.equal(messages.at(-1).payload.open, true);
+  popup.ref.current = { getBoundingClientRect: () => ({ left: 200, top: 146, width: 420, height: 260 }) };
+  const header = find(popup, node => node.type === 'header');
+  header.props.onPointerDown({ button: 0, pointerId: 1, clientX: 250, clientY: 200, target: { closest: () => null }, currentTarget: { setPointerCapture() {} }, preventDefault() {} });
+  header.props.onPointerMove({ clientX: 150, clientY: 240 });
+  popup = find(render(), node => node.props.className?.includes('hk-lookup'));
+  assert.equal(popup.props.style.left, '100px');
+  assert.equal(popup.props.style.top, '186px');
+  for (const listener of listeners) listener({ type: 'CANCEL_TRANSCRIPT_LOOKUP', payload: { force: true } }, {}, () => {});
+  assert.equal(find(render(), node => node.props.className?.includes('hk-lookup')), null);
+  assert.equal(messages.at(-1).payload.open, false);
+  hooks.cleanup();
+  assert.equal(listeners.size, 0);
 });

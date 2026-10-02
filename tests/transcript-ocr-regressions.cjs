@@ -127,8 +127,8 @@ function routerHarness(sendMessage = async () => ({ type: 'TRANSCRIPT_SNAPSHOT',
   const requests = [];
   const chrome = {
     runtime: { onConnect: new Event(), onMessage: new Event() },
-    tabs: { sendMessage: async (tabId, message) => {
-      requests.push({ tabId, message });
+    tabs: { sendMessage: async (tabId, message, options) => {
+      requests.push({ tabId, message, options });
       return sendMessage(tabId, message);
     } },
   };
@@ -160,7 +160,25 @@ test('transcript updates and seeks stay attached to their source tab', async () 
   app.close(11);
   assert.equal(first.messages.at(-1).type, 'CLOSE_TRANSCRIPT_PANEL');
   first.port.onDisconnect.emit();
-  assert.equal(app.requests.at(-1).message.payload.open, false);
+  assert.equal(app.requests.findLast(request => request.message.type === 'TRANSCRIPT_VISIBILITY').message.payload.open, false);
+  assert.equal(app.requests.at(-1).message.type, 'CANCEL_TRANSCRIPT_LOOKUP');
+});
+
+test('transcript lookup opens only in the source tab and publishes its visibility back to that panel', async () => {
+  const app = routerHarness();
+  const first = app.panel();
+  const second = app.panel();
+  await first.watch(11); await second.watch(22);
+  await Promise.all(first.port.onMessage.emit({ type: 'LOOKUP_TRANSCRIPT', payload: { text: '建物', transient: false } }));
+  assert.equal(app.requests.at(-1).tabId, 11);
+  assert.equal(app.requests.at(-1).options.frameId, 0);
+  assert.equal(app.requests.at(-1).message.type, 'LOOKUP_TRANSCRIPT');
+  app.chrome.runtime.onMessage.emit({ type: 'TRANSCRIPT_LOOKUP_STATE', payload: { open: true } }, { tab: { id: 11 } }, () => {});
+  assert.equal(first.messages.at(-1).type, 'TRANSCRIPT_LOOKUP_STATE');
+  assert.equal(second.messages.at(-1).type, 'TRANSCRIPT_SNAPSHOT');
+  const before = app.requests.length;
+  await Promise.all(first.port.onMessage.emit({ type: 'LOOKUP_TRANSCRIPT', payload: { text: 'x'.repeat(1001) } }));
+  assert.equal(app.requests.length, before);
 });
 
 test('switching tabs discards a delayed transcript response from the previous tab', async () => {

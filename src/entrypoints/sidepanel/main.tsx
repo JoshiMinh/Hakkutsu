@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { SubtitleScriptDrawer } from "~components/subtitle-script-drawer";
-import InlineDictionary from "~contents/inline-dictionary";
 import type { TranscriptSnapshot } from "~lib/services/transcript-panel";
 import { mergeTranscriptSnapshot } from "~lib/services/transcript-state";
 import type { SrsCard } from "~lib/services/local-srs";
@@ -38,6 +37,10 @@ function TranscriptPanel() {
         else if (message.type === "TRANSCRIPT_CUE") setSnapshot((previous) => previous ? { ...previous, currentSegment: message.payload } : previous);
         else if (message.type === "TRANSCRIPT_UNAVAILABLE") setSnapshot(null);
         else if (message.type === "CLOSE_TRANSCRIPT_PANEL") closePanel();
+        else if (message.type === "TRANSCRIPT_LOOKUP_STATE") {
+          window.dispatchEvent(new CustomEvent(message.payload?.open ? "hakkutsu:analysis-opened" : "hakkutsu:analysis-closed"));
+          if (message.payload?.libraryUpdated) window.dispatchEvent(new Event("hakkutsu:srs-updated"));
+        }
       });
       port.onDisconnect.addListener(() => {
         if (!stopped) retry = window.setTimeout(() => void connect(), 1000);
@@ -76,6 +79,9 @@ function TranscriptPanel() {
   const cardMap = useMemo(() => new Map(cards.flatMap((card) => [card.word, card.reading].filter(Boolean).map((word) => [word!, card] as const))), [cards]);
   const seek = useCallback((time: number) => portRef.current?.postMessage({ type: "SEEK_TRANSCRIPT", payload: { time } }), []);
   const retry = useCallback(() => portRef.current?.postMessage({ type: "RETRY_TRANSCRIPT" }), []);
+  const lookup = useCallback((text: string, transient: boolean) => portRef.current?.postMessage({ type: "LOOKUP_TRANSCRIPT", payload: { text, transient } }), []);
+  const dismissLookup = useCallback((force: boolean) => portRef.current?.postMessage({ type: "CANCEL_TRANSCRIPT_LOOKUP", payload: { force } }), []);
+  useEffect(() => { dismissLookup(true); window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed")); }, [snapshot?.sourceUrl, dismissLookup]);
   return <div className="hk-transcript-workspace">
     {snapshot ? <SubtitleScriptDrawer
       isOpen nativePanel onClose={closePanel}
@@ -83,11 +89,11 @@ function TranscriptPanel() {
       savedWords={savedWords} srsCardsMap={cardMap}
       onSeekTime={seek}
       onRetry={snapshot.canRetry ? retry : undefined}
+      onLookup={lookup} onDismissLookup={dismissLookup}
     /> : <div className="hk-transcript-panel-empty" role="status">
       <h1>Video Script</h1>
       <p>Open a video and load subtitles with Hakkutsu to read its transcript here.</p>
     </div>}
-    <InlineDictionary key={snapshot?.sourceUrl || "empty"} nativePanel sourceUrl={snapshot?.sourceUrl} sourceTitle={snapshot?.videoTitle} />
   </div>;
 }
 

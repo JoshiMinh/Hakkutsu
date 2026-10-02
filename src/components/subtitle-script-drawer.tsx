@@ -25,6 +25,7 @@ import { useTranslation } from "~lib/locales";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
 import { distributeFurigana, containsJapanese, sanitizeReading, isKanji } from "~lib/utils/japanese";
 import { useTranscriptWindow } from "~lib/services/use-transcript-window";
+import { requestTranscriptReadings } from "~lib/services/transcript-readings";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 
 // ── Helpers & Cache ──────────────────────────────────────────────────────────
@@ -127,6 +128,8 @@ export interface SubtitleScriptDrawerProps {
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
+  onLookup?: (text: string, transient: boolean) => void;
+  onDismissLookup?: (force: boolean) => void;
 }
 
 const renderHighlightedText = (text: string, query: string) => {
@@ -174,9 +177,18 @@ const TranscriptCue = React.memo(function TranscriptCue({
   handleSeek, handlePlayTts, handleMineToSrs, handleCopyCue,
   handleTokenClick, handleTokenMouseEnter, handleTokenMouseLeave,
 }: TranscriptCueProps) {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const cleanText = deduplicateCueText(cue.text);
-  const tokens = tokenizeTextFast(cleanText);
+  const [analyzed, setAnalyzed] = useState<{ text: string; tokens: TokenAnalysis[] } | null>(null);
+  useEffect(() => {
+    let stopped = false;
+    if (settings.showFurigana === false || !/[\u4e00-\u9faf]/.test(cleanText)) return;
+    void requestTranscriptReadings(cleanText, lang).then((tokens) => {
+      if (!stopped) setAnalyzed({ text: cleanText, tokens });
+    }).catch(() => {});
+    return () => { stopped = true; };
+  }, [cleanText, lang, settings.showFurigana]);
+  const tokens = analyzed?.text === cleanText ? analyzed.tokens : tokenizeTextFast(cleanText);
   return (
     <div
       data-transcript-row={originalIdx}
@@ -346,6 +358,8 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   loading = false,
   error = null,
   onRetry,
+  onLookup,
+  onDismissLookup,
 }) => {
   const { settings, updateSettings } = useSettingsStore();
   const { t } = useTranslation();
@@ -596,6 +610,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (lookupOpen && onDismissLookup) { event.preventDefault(); onDismissLookup(true); return; }
         if (document.querySelector(".hk-lookup")) return;
         event.preventDefault();
         event.stopPropagation();
@@ -608,7 +623,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [isOpen, onClose, searchQuery]);
+  }, [isOpen, onClose, searchQuery, lookupOpen, onDismissLookup]);
 
   // ── Seeking & Actions ──────────────────────────────────────────────────────
 
@@ -704,6 +719,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
 
   const handleTokenClick = useCallback((e: React.MouseEvent, token: TokenAnalysis) => {
     e.stopPropagation();
+    if (onLookup) { onLookup(token.surface, false); return; }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     window.dispatchEvent(
       new CustomEvent("hakkutsu:analyze", {
@@ -718,10 +734,11 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
         },
       })
     );
-  }, []);
+  }, [onLookup]);
 
   const handleTokenMouseEnter = useCallback((e: React.MouseEvent, token: TokenAnalysis) => {
     if (!token?.surface?.trim() || !token.is_japanese) return;
+    if (onLookup) { onLookup(token.surface, true); return; }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     window.dispatchEvent(
       new CustomEvent("hakkutsu:analyze", {
@@ -736,9 +753,10 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
         },
       })
     );
-  }, []);
+  }, [onLookup]);
 
   const handleTokenMouseLeave = useCallback((e: React.MouseEvent) => {
+    if (onDismissLookup) { onDismissLookup(false); return; }
     const relatedTarget = e.relatedTarget as HTMLElement | null;
     const shadowHost = document.getElementById("hakkutsu-inline-dictionary-host");
     if (
@@ -751,7 +769,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
       return;
     }
     window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss"));
-  }, []);
+  }, [onDismissLookup]);
 
   if (!isOpen) return null;
 

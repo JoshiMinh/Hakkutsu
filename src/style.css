@@ -3169,6 +3169,7 @@ body.hk-transcript-panel-page {
   pointer-events: auto;
 }
 .hk-lookup .hk-header { flex: 0 0 auto; padding: 12px 16px; background: var(--hk-bg-secondary); }
+.hk-lookup:not(.hk-lookup--panel) .hk-header { cursor: move; touch-action: none; user-select: none; }
 .hk-lookup .hk-header__title { font-size: 14px; }
 .hk-lookup > .hk-content { min-height: 0; padding: 16px; background: var(--hk-bg-primary); overscroll-behavior: contain; }
 .hk-lookup .hk-definition__header, .hk-lookup .hk-definition__word-row { flex-wrap: wrap; }

@@ -64,7 +64,7 @@ export default defineBackground(() => {
   // Listen for messages from popup and content scripts
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === "RUN_MANGA_OCR_OFFSCREEN") return false;
-    if (/^TRANSCRIPT_(SNAPSHOT|CUE|UNAVAILABLE)$/.test(message?.type || "")) return false;
+    if (/^TRANSCRIPT_(SNAPSHOT|CUE|UNAVAILABLE|LOOKUP_STATE)$/.test(message?.type || "")) return false;
     if (message?.type === "OPEN_TRANSCRIPT_PANEL") {
       const tabId = sender.tab?.id;
       if (tabId !== undefined && chrome.sidePanel?.open) {
@@ -126,7 +126,7 @@ async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
   };
 }
 
-async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
+async function analyzeLocal(text: string, includeDefinitions = true): Promise<AnalyzeResponse> {
   const cleanText = text.trim();
   const settings = await getSettings();
   const targetLang = settings.targetLanguage || "vi";
@@ -137,7 +137,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
     const fullTextDictEntries = await searchDictionary(cleanText);
     let fullTextDictInfo: LookupResult | null = null;
     try {
-      fullTextDictInfo = await lookupWord(cleanText, targetLang);
+      if (includeDefinitions || !fullTextDictEntries[0]?.readingElements?.length) fullTextDictInfo = await lookupWord(cleanText, targetLang);
     } catch {}
 
     const hasExactHeadword = Boolean(
@@ -157,7 +157,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
       const jlptLevel = firstEntry?.jlpt || fullTextDictInfo?.jlpt || predictJlpt(cleanText);
 
       let definitions: DictionaryEntry[] = [];
-      if (fullTextDictInfo?.meaning) {
+      if (includeDefinitions && fullTextDictInfo?.meaning) {
         definitions.push({
           dictionary: fullTextDictInfo.source || "Dict",
           glosses: [fullTextDictInfo.meaning],
@@ -167,7 +167,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
         });
       }
 
-      if (definitions.length === 0 && fullTextDictEntries.length > 0) {
+      if (includeDefinitions && definitions.length === 0 && fullTextDictEntries.length > 0) {
         definitions = fullTextDictEntries.flatMap((d) =>
           d.senses.map((s) => ({
             dictionary: "JMdict",
@@ -222,7 +222,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
       const combinedEntries = await searchDictionary(combinedSurface);
       let combinedLookup: LookupResult | null = null;
       try {
-        combinedLookup = await lookupWord(combinedSurface, targetLang);
+        if (includeDefinitions || combinedEntries.length === 0) combinedLookup = await lookupWord(combinedSurface, targetLang);
       } catch {}
 
       if (
@@ -274,7 +274,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
 
       // Query target-language dictionary lookup
       try {
-        const dictInfo = await lookupWord(surface, targetLang);
+        const dictInfo = includeDefinitions || !reading ? await lookupWord(surface, targetLang) : null;
         if (dictInfo) {
           if (dictInfo.reading && !reading) {
             reading = sanitizeReading(dictInfo.reading, surface);
@@ -282,7 +282,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
           if (dictInfo.jlpt && !jlptLevel) {
             jlptLevel = dictInfo.jlpt;
           }
-          if (dictInfo.meaning) {
+          if (includeDefinitions && dictInfo.meaning) {
             definitions = [
               {
                 dictionary: dictInfo.source || "Dict",
@@ -299,7 +299,7 @@ async function analyzeLocal(text: string): Promise<AnalyzeResponse> {
       }
 
       // If no target language definition was found from adapter, use IndexedDB JMdict entries
-      if (definitions.length === 0 && dictEntries.length > 0) {
+      if (includeDefinitions && definitions.length === 0 && dictEntries.length > 0) {
         definitions = dictEntries.flatMap((d) =>
           d.senses.map((s) => ({
             dictionary: "JMdict",
@@ -455,7 +455,7 @@ async function handleMessage(
       const request = message.payload as AnalyzeRequest;
       if (request.include_definitions === false) {
         try {
-          const localResult = await analyzeLocal(request.text);
+          const localResult = await analyzeLocal(request.text, false);
           return { type: "ANALYZE_RESULT", payload: localResult };
         } catch {
           // fall through to apiClient

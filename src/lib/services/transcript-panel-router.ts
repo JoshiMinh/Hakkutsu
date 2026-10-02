@@ -13,7 +13,10 @@ export function installTranscriptPanelRouter() {
         const oldTab = state.tabId;
         state.tabId = message.tabId;
         const request = ++state.request;
-        if (oldTab !== undefined && oldTab !== state.tabId) visibility(oldTab, false);
+        if (oldTab !== undefined && oldTab !== state.tabId) {
+          visibility(oldTab, false);
+          void chrome.tabs.sendMessage(oldTab, { type: "CANCEL_TRANSCRIPT_LOOKUP", payload: { force: true } }, { frameId: 0 }).catch(() => {});
+        }
         visibility(message.tabId, true);
         let response;
         try { response = await chrome.tabs.sendMessage(message.tabId, { type: "GET_TRANSCRIPT" }); }
@@ -21,15 +24,19 @@ export function installTranscriptPanelRouter() {
         if (panels.has(port) && state.request === request) port.postMessage(response || { type: "TRANSCRIPT_UNAVAILABLE" });
       } else if (["SEEK_TRANSCRIPT", "RETRY_TRANSCRIPT"].includes(message.type) && state.tabId !== undefined) {
         void chrome.tabs.sendMessage(state.tabId, message).catch(() => {});
+      } else if (["LOOKUP_TRANSCRIPT", "CANCEL_TRANSCRIPT_LOOKUP"].includes(message.type) && state.tabId !== undefined) {
+        if (message.type === "LOOKUP_TRANSCRIPT" && (typeof message.payload?.text !== "string" || message.payload.text.length > 1000)) return;
+        void chrome.tabs.sendMessage(state.tabId, message, { frameId: 0 }).catch(() => {});
       }
     });
     port.onDisconnect.addListener(() => {
       panels.delete(port);
       if (state.tabId !== undefined) visibility(state.tabId, false);
+      if (state.tabId !== undefined) void chrome.tabs.sendMessage(state.tabId, { type: "CANCEL_TRANSCRIPT_LOOKUP", payload: { force: true } }, { frameId: 0 }).catch(() => {});
     });
   });
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (!/^TRANSCRIPT_(SNAPSHOT|CUE|UNAVAILABLE)$/.test(message?.type || "")) return;
+    if (!/^TRANSCRIPT_(SNAPSHOT|CUE|UNAVAILABLE|LOOKUP_STATE)$/.test(message?.type || "")) return;
     for (const [port, state] of panels) {
       if (state.tabId === sender.tab?.id) port.postMessage(message);
     }

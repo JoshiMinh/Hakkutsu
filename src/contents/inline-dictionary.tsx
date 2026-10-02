@@ -148,9 +148,12 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeLookupRef = useRef("");
+  const remoteLookupRef = useRef(false);
+  const dragRef = useRef<{ x: number; y: number; left: number; top: number; width: number; height: number } | null>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const closeLookup = () => {
     ++analysisRequestRef.current;
+    dragRef.current = null;
     if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
     if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
     hoverTimerRef.current = dismissTimerRef.current = null;
@@ -184,8 +187,8 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
 
   // Ensure shadow host is placed inside the active fullscreen or player element
   useEffect(() => {
-    const syncHostPlacement = () => {
-      const host = document.getElementById("hakkutsu-inline-dictionary-host");
+    const syncHostPlacement = (event?: Event) => {
+      const host = document.getElementById("hakkutsu-inline-dictionary-host") || document.querySelector<HTMLElement>("hakkutsu-inline-dictionary-host");
       if (!host) return;
 
       const fsEl = document.fullscreenElement as HTMLElement | null;
@@ -196,7 +199,8 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
       } else {
         const netflixPlayer = document.querySelector<HTMLElement>(".watch-video");
         const ytPlayer = document.querySelector<HTMLElement>("#movie_player");
-        const target = netflixPlayer || ytPlayer || document.body;
+        const fromTranscript = (event as CustomEvent)?.detail?.fromTranscript || remoteLookupRef.current;
+        const target = fromTranscript ? document.body : netflixPlayer || ytPlayer || document.body;
         if (target && !target.contains(host)) {
           target.appendChild(host);
         }
@@ -410,12 +414,13 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         const detail = e.detail;
         const open = () => {
           hoverTimerRef.current = null;
-          const lookupKey = JSON.stringify([detail.text, detail.mode || "dictionary", detail.selectedIndex, settingsRef.current.targetLanguage]);
+          const lookupKey = JSON.stringify([detail.text, detail.mode || "dictionary", detail.selectedIndex, settingsRef.current.targetLanguage, Boolean(detail.fromTranscript)]);
           if (activeLookupRef.current === lookupKey && positionRef.current) {
             if (!detail.transient) setTransientMode(false);
             return;
           }
           activeLookupRef.current = lookupKey;
+          remoteLookupRef.current = Boolean(detail.fromTranscript);
           if (nativePanel && !detail.transient) returnFocusRef.current = document.activeElement as HTMLElement | null;
           const video = document.querySelector<HTMLVideoElement>("video");
           if (e.detail.pauseVideo !== false && video && !video.paused) {
@@ -433,6 +438,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           setPosition({
             x,
             y: y + 8,
+            above: detail.fromTranscript ? false : undefined,
             placement:
               e.detail.placement === "player-overlay"
                 ? "player-overlay"
@@ -470,7 +476,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
     const onDismissAnalysis = (e?: any) => {
       if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
-      if (nativePanel && !e?.detail?.force) return;
+      if ((nativePanel || remoteLookupRef.current) && !e?.detail?.force) return;
       if (isMouseOverPopupRef.current && !e?.detail?.force) {
         return;
       }
@@ -517,6 +523,45 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
       window.removeEventListener("hakkutsu:analyze", onCustomAnalyze);
       window.removeEventListener("hakkutsu:analysis-dismiss", onDismissAnalysis);
       window.removeEventListener("hakkutsu:token-hover", onTokenHover);
+    };
+  }, []);
+
+  useEffect(() => {
+    const listener = (message: any, _sender: unknown, reply: (value: unknown) => void) => {
+      if (message.type === "LOOKUP_TRANSCRIPT") {
+        const text = message.payload?.text;
+        if (typeof text !== "string" || !text.trim() || text.length > 1000) return;
+        window.dispatchEvent(new CustomEvent("hakkutsu:analyze", { detail: {
+          text, mode: "dictionary", transient: Boolean(message.payload.transient), fromTranscript: true,
+          pauseVideo: false, x: window.innerWidth - Math.min(420, window.innerWidth - 32) / 2 - 16,
+          y: Math.max(16, (window.innerHeight - 440) / 2),
+        } }));
+        reply({ ok: true });
+      } else if (message.type === "CANCEL_TRANSCRIPT_LOOKUP") {
+        if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = null;
+        if (message.payload?.force && remoteLookupRef.current) closeLookup();
+        reply({ ok: true });
+      }
+    };
+    const publish = (open: boolean) => {
+      if (remoteLookupRef.current) void chrome.runtime.sendMessage({ type: "TRANSCRIPT_LOOKUP_STATE", payload: { open } }).catch(() => {});
+      if (!open) remoteLookupRef.current = false;
+    };
+    const opened = () => publish(true);
+    const closed = () => publish(false);
+    const libraryUpdated = () => {
+      if (remoteLookupRef.current) void chrome.runtime.sendMessage({ type: "TRANSCRIPT_LOOKUP_STATE", payload: { open: true, libraryUpdated: true } }).catch(() => {});
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    window.addEventListener("hakkutsu:analysis-opened", opened);
+    window.addEventListener("hakkutsu:analysis-closed", closed);
+    window.addEventListener("hakkutsu:srs-updated", libraryUpdated);
+    return () => {
+      chrome.runtime.onMessage.removeListener(listener);
+      window.removeEventListener("hakkutsu:analysis-opened", opened);
+      window.removeEventListener("hakkutsu:analysis-closed", closed);
+      window.removeEventListener("hakkutsu:srs-updated", libraryUpdated);
     };
   }, []);
 
@@ -798,7 +843,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           }}
           onMouseLeave={() => {
             isMouseOverPopupRef.current = false;
-            if (!nativePanel && transientModeRef.current) {
+            if (!nativePanel && !remoteLookupRef.current && transientModeRef.current) {
               dismissTimerRef.current = setTimeout(() => {
                 if (!isMouseOverPopupRef.current) {
                   window.dispatchEvent(
@@ -810,7 +855,24 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           }}
         >
           {/* Header */}
-          <header className="hk-header">
+          <header className="hk-header"
+            onPointerDown={(event) => {
+              if (nativePanel || event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
+              const rect = containerRef.current!.getBoundingClientRect();
+              dragRef.current = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+              event.currentTarget.setPointerCapture(event.pointerId);
+              event.preventDefault();
+            }}
+            onPointerMove={(event) => {
+              const drag = dragRef.current;
+              if (!drag) return;
+              const left = Math.max(16, Math.min(window.innerWidth - drag.width - 16, drag.left + event.clientX - drag.x));
+              const top = Math.max(16, Math.min(window.innerHeight - drag.height - 16, drag.top + event.clientY - drag.y));
+              setPosition({ x: left + cardWidth / 2, y: top - 8, placement: "anchor", above: false });
+            }}
+            onPointerUp={() => { dragRef.current = null; }}
+            onPointerCancel={() => { dragRef.current = null; }}
+          >
             <div className="hk-header__logo">
               <img src={logoUrl} alt="Hakkutsu" style={{ width: 18, height: 18, borderRadius: "4px" }} />
               <h2 className="hk-header__title hk-brand-title">
