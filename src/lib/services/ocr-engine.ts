@@ -14,11 +14,20 @@ const langUrl = extensionAssetUrl("/ocr");
 
 export type OcrOrientation = "auto" | "vertical" | "horizontal";
 
+export type OcrFragment = {
+  text: string;
+  confidence?: number;
+  orientation?: "vertical" | "horizontal";
+  lineId?: string;
+  paragraphId?: string;
+  bbox: { x0: number; y0: number; x1: number; y1: number };
+};
+
 export interface OcrExecutionResult {
   text: string;
   confidence: number;
   orientation: "vertical" | "horizontal";
-  lines: Array<{ text: string; confidence?: number; orientation?: "vertical" | "horizontal"; bbox: { x0: number; y0: number; x1: number; y1: number } }>;
+  lines: OcrFragment[];
 }
 
 export interface OcrProgressCallback {
@@ -161,26 +170,34 @@ class OcrEngineService {
   private extractRegions(page: Page, orientation: "vertical" | "horizontal"): OcrExecutionResult["lines"] {
     // Horizontal lines can span several speech bubbles and their artwork.
     // Use word bounds there, and tight column bounds for vertical dialogue.
-    return (page.blocks || []).flatMap((block) =>
-      block.paragraphs.flatMap((paragraph) => paragraph.lines.flatMap((line) => {
+    return (page.blocks || []).flatMap((block, blockIndex) =>
+      block.paragraphs.flatMap((paragraph, paragraphIndex) => paragraph.lines.flatMap((line, lineIndex) => {
+        const paragraphId = `${orientation}:${blockIndex}:${paragraphIndex}`;
+        const lineId = `${paragraphId}:${lineIndex}`;
         // jpn_vert word boxes can overlap the entire column. Keep a correctly
         // segmented vertical column as one readable phrase instead.
         const bounds = line.bbox;
+        const orderedWords = [...(line.words || [])].sort((a, b) => a.bbox.y0 - b.bbox.y0);
+        const hasLargeGap = orderedWords.some((word, index) => index > 0 &&
+          word.bbox.y0 - orderedWords[index - 1].bbox.y1 > (bounds.x1 - bounds.x0) * 1.5);
         if (orientation === "vertical" && line.confidence >= 45 &&
+          !hasLargeGap &&
           bounds.y1 - bounds.y0 > (bounds.x1 - bounds.x0) * 1.5) {
           const text = this.cleanOcrText(line.text);
           if (/[\u3040-\u30ff\u3400-\u9fff]/u.test(text) &&
-            Object.values(bounds).every(Number.isFinite) && bounds.x1 > bounds.x0) {
-            return [{ text, confidence: line.confidence, bbox: bounds, orientation }];
+            Object.values(bounds).every(Number.isFinite) && bounds.x1 > bounds.x0 && bounds.y1 > bounds.y0) {
+            return [{ text, confidence: line.confidence, bbox: bounds, orientation, lineId, paragraphId }];
           }
         }
         return (line.words || []).flatMap((word) => {
           const text = this.cleanOcrText(word.text);
           const { x0, y0, x1, y1 } = word.bbox;
-          return word.confidence >= 45 && /[\u3040-\u30ff\u3400-\u9fff]/u.test(text)
+          const japanese = /[\u3040-\u30ff\u3400-\u9fff]/u.test(text);
+          const punctuationOrNumber = /^[\p{N}\p{P}\p{S}]+$/u.test(text);
+          return word.confidence >= 45 && (japanese || punctuationOrNumber)
             && [x0, y0, x1, y1].every(Number.isFinite) && x1 > x0 && y1 > y0
-            && (orientation === "horizontal" ? y1 - y0 <= (x1 - x0) * 2 : x1 - x0 <= (y1 - y0) * 2)
-            ? [{ text, confidence: word.confidence, bbox: word.bbox, orientation }] : [];
+            && (punctuationOrNumber || (orientation === "horizontal" ? y1 - y0 <= (x1 - x0) * 2 : x1 - x0 <= (y1 - y0) * 2))
+            ? [{ text, confidence: word.confidence, bbox: word.bbox, orientation, lineId, paragraphId }] : [];
         });
       }))
     );
@@ -201,7 +218,8 @@ class OcrEngineService {
     try {
       const worker = await this.getWorker(lang, options.onProgress);
       await worker.setParameters({
-        tessedit_pageseg_mode: resolvedOrientation === "vertical" ? PSM.SINGLE_BLOCK_VERT_TEXT : PSM.SPARSE_TEXT,
+        // A manga page has multiple independent bubbles, not one text block.
+        tessedit_pageseg_mode: resolvedOrientation === "vertical" ? PSM.AUTO : PSM.SPARSE_TEXT,
         textord_tabfind_force_vertical_text: resolvedOrientation === "vertical" ? "1" : "0",
         user_defined_dpi: "300",
       });
@@ -233,7 +251,9 @@ class OcrEngineService {
       const lines: OcrExecutionResult["lines"] = [];
       for (const candidate of candidates) {
         const a = candidate.bbox;
-        if (lines.some(({ bbox: b, text }) => {
+        if (lines.some(({ bbox: b, text, orientation }) => {
+          // Japanese word boxes from the same pass can legitimately overlap.
+          if (orientation === candidate.orientation && text !== candidate.text) return false;
           const overlap = Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0))
             * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
           return overlap / Math.min((a.x1 - a.x0) * (a.y1 - a.y0), (b.x1 - b.x0) * (b.y1 - b.y0))

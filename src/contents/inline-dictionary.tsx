@@ -140,6 +140,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
   const [srsError, setSrsError] = useState<string | null>(null);
   const [hoverHighlightRects, setHoverHighlightRects] = useState<DOMRect[] | null>(null);
   const [ocrCroppedImage, setOcrCroppedImage] = useState<string | null>(null);
+  const [ocrRegionId, setOcrRegionId] = useState<string | null>(null);
   const { settings, isHydrated } = useSettingsStore();
   const { t, isVietnamese, lang } = useTranslation();
 
@@ -162,9 +163,11 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
     setPosition(null);
     setHoverHighlightRects(null);
     setOcrCroppedImage(null);
+    setOcrRegionId(null);
     setTransientMode(false);
     window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
-    if (nativePanel && returnFocusRef.current?.isConnected) returnFocusRef.current.focus({ preventScroll: true });
+    if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus({ preventScroll: true });
+    returnFocusRef.current = null;
   };
   const positionRef = useRef(position);
   positionRef.current = position;
@@ -172,6 +175,10 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
   settingsRef.current = settings;
   const isHydratedRef = useRef(isHydrated);
   isHydratedRef.current = isHydrated;
+
+  useEffect(() => {
+    if (ocrRegionId && position) containerRef.current?.focus({ preventScroll: true });
+  }, [ocrRegionId]);
 
   useEffect(() => {
     if (settings.ankiEnabled === false) { setAnkiConnected(false); return; }
@@ -278,6 +285,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           setSentenceMode(false);
           setTransientMode(true);
           setOcrCroppedImage(null);
+          setOcrRegionId(null);
           analyzeText(res.text, false, true);
         } else {
           lastHoverWordRef.current = null;
@@ -386,6 +394,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         });
         setInputText(selectedText);
         setOcrCroppedImage(null);
+        setOcrRegionId(null);
         analyzeText(selectedText, false, true);
         window.dispatchEvent(new CustomEvent("hakkutsu:analysis-opened"));
       };
@@ -414,14 +423,14 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         const detail = e.detail;
         const open = () => {
           hoverTimerRef.current = null;
-          const lookupKey = JSON.stringify([detail.text, detail.mode || "dictionary", detail.selectedIndex, settingsRef.current.targetLanguage, Boolean(detail.fromTranscript)]);
+          const lookupKey = JSON.stringify([detail.text, detail.mode || "dictionary", detail.selectedIndex, settingsRef.current.targetLanguage, Boolean(detail.fromTranscript), detail.ocrRegionId]);
           if (activeLookupRef.current === lookupKey && positionRef.current) {
             if (!detail.transient) setTransientMode(false);
             return;
           }
           activeLookupRef.current = lookupKey;
           remoteLookupRef.current = Boolean(detail.fromTranscript);
-          if (nativePanel && !detail.transient) returnFocusRef.current = document.activeElement as HTMLElement | null;
+          if (!detail.transient && (nativePanel || detail.ocrRegionId)) returnFocusRef.current = detail.returnFocus || document.activeElement as HTMLElement | null;
           const video = document.querySelector<HTMLVideoElement>("video");
           if (e.detail.pauseVideo !== false && video && !video.paused) {
             try {
@@ -446,12 +455,13 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           });
           setInputText(e.detail.text);
           setOcrCroppedImage(e.detail.imageUrl || null);
+          setOcrRegionId(detail.ocrRegionId || null);
           const mode = String(e.detail.mode || "dictionary");
           const isDeepPhrase = mode === "phrase";
           const selectedIndex = Number.isInteger(e.detail.selectedIndex)
             ? Number(e.detail.selectedIndex)
             : null;
-          setSentenceMode(mode === "quick" || isDeepPhrase);
+          setSentenceMode(Boolean(detail.ocrRegionId) || mode === "quick" || isDeepPhrase);
           setPhraseMode(isDeepPhrase);
           setTransientMode(Boolean(e.detail.transient));
           analyzeText(
@@ -836,7 +846,8 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           ref={containerRef}
           className={`hk-popup hk-lookup ${nativePanel ? "hk-lookup--panel" : "hk-fade-in"}`}
           style={nativePanel ? undefined : popupStyle}
-          role="region" aria-label="Hakkutsu Lookup"
+          role={ocrRegionId ? "dialog" : "region"} aria-label="Hakkutsu Lookup"
+          tabIndex={ocrRegionId ? -1 : undefined}
           onMouseEnter={() => {
             isMouseOverPopupRef.current = true;
             if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
@@ -896,6 +907,10 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
 
           {/* Main Scrollable Content */}
           <div className="hk-content" style={{ overflowY: "auto", flex: 1 }}>
+            {ocrRegionId && <div className="hk-dict-section" style={{ whiteSpace: "pre-wrap", userSelect: "text" }}>
+              <div lang="ja">{inputText}</div>
+              {result && !loading && <TokenDisplay tokens={result.tokens} selectedIndex={selectedToken} onSelect={handleTokenSelect} />}
+            </div>}
             {/* Translation Loading State */}
             {loading && (
               <div className="hk-loading">

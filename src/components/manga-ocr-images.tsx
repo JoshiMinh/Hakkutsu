@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, ScanText } from "lucide-react";
 import { applyMangaPreprocess, cropViewportBox } from "~lib/services/image-cropper";
-import { containsJapanese } from "~lib/utils/japanese";
+import { groupOcrRegions } from "~lib/services/ocr-regions";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
 
-type Highlight = { text: string; x: number; y: number; width: number; height: number };
-type ScannedImage = { image: HTMLImageElement; src: string; highlights: Highlight[]; dataUrl: string };
+type Highlight = { id: string; text: string; imageUrl: string; x: number; y: number; width: number; height: number };
+type ScannedImage = { image: HTMLImageElement; src: string; highlights: Highlight[] };
 
 export function MangaOcrImages() {
   const { settings } = useSettingsStore();
@@ -18,7 +18,7 @@ export function MangaOcrImages() {
   const [, setLayoutVersion] = useState(0);
   const capturingRef = useRef(false);
   const scanningRef = useRef(false);
-  const dismissTimerRef = useRef<number | null>(null);
+  const scanIdRef = useRef(0);
 
   useEffect(() => {
     const onMove = (event: MouseEvent) => {
@@ -40,7 +40,6 @@ export function MangaOcrImages() {
       document.removeEventListener("mousemove", onMove, true);
       window.removeEventListener("scroll", onLayout, true);
       window.removeEventListener("resize", onLayout);
-      if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current);
     };
   }, []);
 
@@ -111,16 +110,40 @@ export function MangaOcrImages() {
         throw new Error(ocrResponse?.payload?.error || "Manga OCR failed");
       }
       const result = ocrResponse.payload as import("~lib/services/ocr-engine").OcrExecutionResult;
-      const highlights = result.lines.filter((line) => containsJapanese(line.text)).map((line) => ({
-        text: line.text,
-        x: fullImage ? line.bbox.x0 / bitmap.naturalWidth : (left - rect.left + line.bbox.x0 * (right - left) / bitmap.naturalWidth) / rect.width,
-        y: fullImage ? line.bbox.y0 / bitmap.naturalHeight : (top - rect.top + line.bbox.y0 * (bottom - top) / bitmap.naturalHeight) / rect.height,
-        width: fullImage ? (line.bbox.x1 - line.bbox.x0) / bitmap.naturalWidth : (line.bbox.x1 - line.bbox.x0) * (right - left) / bitmap.naturalWidth / rect.width,
-        height: fullImage ? (line.bbox.y1 - line.bbox.y0) / bitmap.naturalHeight : (line.bbox.y1 - line.bbox.y0) * (bottom - top) / bitmap.naturalHeight / rect.height,
-      }));
+      const groupingCanvas = document.createElement("canvas");
+      groupingCanvas.width = bitmap.naturalWidth;
+      groupingCanvas.height = bitmap.naturalHeight;
+      const groupingContext = groupingCanvas.getContext("2d", { willReadFrequently: true });
+      groupingContext?.drawImage(bitmap, 0, 0);
+      const pixels = groupingContext?.getImageData(0, 0, groupingCanvas.width, groupingCanvas.height);
+      const scanId = ++scanIdRef.current;
+      const highlights = groupOcrRegions(result.lines, { pixels }).map((region, index) => {
+        const padding = Math.max(2, Math.min(region.bbox.x1 - region.bbox.x0, region.bbox.y1 - region.bbox.y0) * .08);
+        const line = { ...region, bbox: {
+          x0: Math.max(0, Math.floor(region.bbox.x0 - padding)),
+          y0: Math.max(0, Math.floor(region.bbox.y0 - padding)),
+          x1: Math.min(bitmap.naturalWidth, Math.ceil(region.bbox.x1 + padding)),
+          y1: Math.min(bitmap.naturalHeight, Math.ceil(region.bbox.y1 + padding)),
+        } };
+        const crop = document.createElement("canvas");
+        crop.width = line.bbox.x1 - line.bbox.x0;
+        crop.height = line.bbox.y1 - line.bbox.y0;
+        const cropContext = crop.getContext("2d");
+        if (!cropContext) throw new Error("Could not crop dialogue image");
+        cropContext.drawImage(bitmap, line.bbox.x0, line.bbox.y0, crop.width, crop.height, 0, 0, crop.width, crop.height);
+        return {
+          id: `${scanId}:${index}`,
+          imageUrl: crop.toDataURL("image/png"),
+          text: line.text,
+          x: fullImage ? line.bbox.x0 / bitmap.naturalWidth : (left - rect.left + line.bbox.x0 * (right - left) / bitmap.naturalWidth) / rect.width,
+          y: fullImage ? line.bbox.y0 / bitmap.naturalHeight : (top - rect.top + line.bbox.y0 * (bottom - top) / bitmap.naturalHeight) / rect.height,
+          width: fullImage ? (line.bbox.x1 - line.bbox.x0) / bitmap.naturalWidth : (line.bbox.x1 - line.bbox.x0) * (right - left) / bitmap.naturalWidth / rect.width,
+          height: fullImage ? (line.bbox.y1 - line.bbox.y0) / bitmap.naturalHeight : (line.bbox.y1 - line.bbox.y0) * (bottom - top) / bitmap.naturalHeight / rect.height,
+        };
+      });
       if (highlights.length === 0) throw new Error(t("ocr_no_text"));
       if (!image.isConnected || image.currentSrc !== source) return;
-      setScans((current) => [...current.filter((scan) => scan.image !== image && scan.image.isConnected).slice(-19), { image, src: source, highlights, dataUrl }]);
+      setScans((current) => [...current.filter((scan) => scan.image !== image && scan.image.isConnected).slice(-19), { image, src: source, highlights }]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -159,40 +182,29 @@ export function MangaOcrImages() {
       maxWidth: 260, padding: "6px 8px", borderRadius: 6,
       background: "#7f1d1d", color: "white", font: "12px system-ui",
     }}>{error}</div>}
-    {!capturingRef.current && scans.map((scan, imageIndex) => {
+    {!capturingRef.current && scans.map((scan) => {
       if (!scan.image.isConnected || scan.image.currentSrc !== scan.src) return null;
       const rect = scan.image.getBoundingClientRect();
-      return scan.highlights.map((highlight, index) => {
+      return scan.highlights.map((highlight) => {
         const x = rect.left + highlight.x * rect.width;
         const y = rect.top + highlight.y * rect.height;
         const width = highlight.width * rect.width;
         const height = highlight.height * rect.height;
         if (x + width < 0 || y + height < 0 || x > window.innerWidth || y > window.innerHeight) return null;
         return <button
-          key={`${imageIndex}-${index}`}
+          key={highlight.id}
           type="button"
           className="hk-manga-region"
           data-hakkutsu-manga-ocr="true"
           aria-label={highlight.text}
           title={highlight.text}
-          onFocus={() => window.dispatchEvent(new CustomEvent("hakkutsu:analyze", {
-            detail: { text: highlight.text, x, y: y + height, mode: "dictionary", transient: true, imageUrl: scan.dataUrl, pauseVideo: false },
+          aria-haspopup="dialog"
+          onClick={(event) => window.dispatchEvent(new CustomEvent("hakkutsu:analyze", {
+            detail: { text: highlight.text, x: x + width / 2, y: y + height, mode: "dictionary", transient: false,
+              imageUrl: highlight.imageUrl, pauseVideo: false, ocrRegionId: highlight.id, returnFocus: event.currentTarget },
           }))}
-          onClick={() => window.dispatchEvent(new CustomEvent("hakkutsu:analyze", {
-            detail: { text: highlight.text, x, y: y + height, mode: "dictionary", transient: false, imageUrl: scan.dataUrl, pauseVideo: false },
-          }))}
-          onMouseEnter={() => {
-            if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current);
-            window.dispatchEvent(new CustomEvent("hakkutsu:analyze", {
-              detail: { text: highlight.text, x, y: y + height, mode: "dictionary", transient: true, imageUrl: scan.dataUrl, pauseVideo: false },
-            }));
-          }}
-          onMouseLeave={() => {
-            if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current);
-            dismissTimerRef.current = window.setTimeout(() => window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss")), 250);
-          }}
           style={{
-            position: "fixed", zIndex: 2147483645, pointerEvents: "auto", cursor: "help",
+            position: "fixed", zIndex: 2147483645, pointerEvents: "auto", cursor: "pointer",
             left: x, top: y, width, height, minWidth: 8, minHeight: 8, padding: 0,
             borderRadius: 3, color: "transparent",
           }}

@@ -48,6 +48,130 @@ function find(node, predicate) {
   return null;
 }
 
+test('OCR dialog scopes text and images by region, rejects stale analysis, and restores focus', async () => {
+  const hooks = hookHarness();
+  const window = Object.assign(new Events(), { innerWidth: 800, innerHeight: 700, location: { href: 'https://manga.test' } });
+  const document = Object.assign(new Events(), { querySelector: () => null, getElementById: () => null, activeElement: null });
+  const requests = [];
+  let restored = 0;
+  const trigger = { isConnected: true, focus: () => restored++ };
+  const { default: Dictionary } = load('src/contents/inline-dictionary.tsx', {
+    window, document, CustomEvent, setTimeout, clearTimeout,
+    browser: { runtime: { getURL: value => value } },
+    chrome: { runtime: { onMessage: { addListener() {}, removeListener() {} } } },
+  }, {
+    react: hooks.react,
+    '~lib/utils/japanese': { containsJapanese: () => true },
+    '~components/definition-card': { DefinitionCard: 'definition' },
+    '~components/token-display': { TokenDisplay: 'tokens' }, '~components/grammar-explanations': {},
+    '~components/manga-ocr-images': { MangaOcrImages: 'ocr' },
+    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ankiEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
+    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~lib/services/lookup-analysis': { requestLookupAnalysis: (...args) => new Promise(resolve => requests.push({ args, resolve })) },
+  });
+  const render = () => hooks.render(() => Dictionary({}));
+  const open = (id, text) => window.dispatchEvent(new CustomEvent('hakkutsu:analyze', { detail: {
+    text, ocrRegionId: id, imageUrl: `${id}-crop`, returnFocus: trigger, mode: 'dictionary', transient: false, pauseVideo: false,
+  } }));
+  render();
+  open('first', '日本語。');
+  let tree = render();
+  assert.ok(find(tree, node => node.props.role === 'dialog'));
+  assert.equal(find(tree, node => node.props.lang === 'ja').props.children, '日本語。');
+  assert.equal(requests[0].args[1], '日本語。');
+  open('second', '日本語。'); // Same text in a different bubble must open anew.
+  tree = render();
+  assert.equal(requests.length, 2);
+  requests[0].resolve({ type: 'ANALYZE_RESULT', payload: { text: '日本語。', tokens: [], translation: 'stale' } });
+  await flush();
+  assert.equal(find(render(), node => node.props.children === 'stale'), null);
+  requests[1].resolve({ type: 'ERROR', payload: { error: 'Offline' } });
+  await flush();
+  tree = render();
+  assert.equal(find(tree, node => node.props.lang === 'ja').props.children, '日本語。');
+  assert.equal(find(tree, node => node.props.className === 'hk-error-box').props.children, 'Offline');
+  document.dispatchEvent({ type: 'keydown', key: 'Escape', preventDefault() {}, stopPropagation() {} });
+  assert.equal(find(render(), node => node.props.role === 'dialog'), null);
+  assert.equal(restored, 1);
+  open('third', '別の台詞'); render();
+  document.dispatchEvent({ type: 'mousedown', composedPath: () => [] });
+  assert.equal(find(render(), node => node.props.role === 'dialog'), null);
+  assert.equal(restored, 2);
+  hooks.cleanup();
+});
+
+test('manga overlays group text, open only on activation, crop attachments and follow image layout', async () => {
+  const hooks = hookHarness();
+  const events = [];
+  const window = Object.assign(new Events(), { innerWidth: 800, innerHeight: 700, devicePixelRatio: 2 });
+  window.addEventListener('hakkutsu:analyze', event => events.push(event.detail));
+  let rect = { left: 100, top: 100, right: 300, bottom: 300, width: 200, height: 200 };
+  class Image {
+    naturalWidth = 200; naturalHeight = 200; currentSrc = 'manga.png'; isConnected = true;
+    decode() { return Promise.resolve(); }
+    getBoundingClientRect() { return rect; }
+  }
+  const image = new Image();
+  const crops = [];
+  const document = Object.assign(new Events(), { createElement: () => {
+    const canvas = { width: 0, height: 0, toDataURL: () => `crop:${canvas.width}x${canvas.height}`,
+      getContext: () => ({ fillRect() {}, drawImage: (...args) => { if (args.length === 9) crops.push(args.slice(1)); },
+        getImageData: () => ({ width: canvas.width, height: canvas.height, data: new Uint8ClampedArray(canvas.width * canvas.height * 4).fill(255) }),
+      }) };
+    return canvas;
+  } });
+  const grouping = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') });
+  let fallback = false;
+  const { MangaOcrImages } = load('src/components/manga-ocr-images.tsx', {
+    window, document, Image, HTMLImageElement: Image, HTMLElement: Image, CustomEvent,
+    requestAnimationFrame: fn => fn(),
+    chrome: { runtime: { sendMessage: async message => {
+      if (message.type === 'FETCH_IMAGE') return { payload: { dataUrl: fallback ? null : 'original' } };
+      if (message.type === 'CAPTURE_SCREENSHOT') return { payload: { dataUrl: 'screenshot' } };
+      return { type: 'MANGA_OCR_RESULT', payload: { lines: [
+        { text: '今日は', orientation: 'vertical', bbox: { x0: 60, y0: 20, x1: 80, y1: 100 } },
+        { text: '晴れです。', orientation: 'vertical', bbox: { x0: 30, y0: 20, x1: 50, y1: 120 } },
+      ] } };
+    } } },
+  }, {
+    react: hooks.react,
+    '~lib/services/ocr-regions': grouping,
+    '~lib/services/image-cropper': { applyMangaPreprocess() {}, cropViewportBox: async () => 'visible-crop' },
+    '~lib/utils/settings': { useSettingsStore: () => ({ settings: {} }) },
+    '~lib/locales': { useTranslation: () => ({ t: key => key }) },
+  });
+  const render = () => hooks.render(MangaOcrImages);
+  render();
+  document.dispatchEvent({ type: 'mousemove', target: image });
+  find(render(), node => node.props['aria-label'] === 'ocr_btn_trigger').props.onClick();
+  await flush();
+  let region = find(render(), node => node.props.className === 'hk-manga-region');
+  assert.ok(region);
+  assert.equal(region.props['aria-label'], '今日は晴れです。');
+  assert.equal(region.props.onMouseEnter, undefined);
+  assert.equal(region.props.onFocus, undefined);
+  assert.equal(events.length, 0);
+  region.props.onClick({ currentTarget: image });
+  assert.equal(events[0].text, '今日は晴れです。');
+  assert.equal(events[0].imageUrl, 'crop:58x108');
+  assert.deepEqual(crops[0], [26, 16, 58, 108, 0, 0, 58, 108]);
+  const initialLeft = region.props.style.left;
+  rect = { left: 50, top: 0, right: 450, bottom: 400, width: 400, height: 400 };
+  window.dispatchEvent({ type: 'resize' });
+  region = find(render(), node => node.props.className === 'hk-manga-region');
+  assert.equal(region.props.style.left, 50 + (initialLeft - 100) * 2);
+  // Screenshot fallback recognizes only the visible portion of a clipped image.
+  fallback = true;
+  rect = { left: -100, top: -100, right: 300, bottom: 300, width: 400, height: 400 };
+  find(render(), node => node.props['aria-label'] === 'ocr_btn_trigger').props.onClick();
+  await flush();
+  region = find(render(), node => node.props.className === 'hk-manga-region');
+  assert.equal(region.props.style.left, 39);
+  assert.equal(region.props.style.top, 24);
+  assert.equal(events.length, 1);
+  hooks.cleanup();
+});
+
 test('large transcripts mount only a bounded window of rows', () => {
   const layout = load('src/lib/services/transcript-layout.ts');
   const hooks = load('src/lib/services/use-transcript-window.ts', {}, { './transcript-layout': layout,
