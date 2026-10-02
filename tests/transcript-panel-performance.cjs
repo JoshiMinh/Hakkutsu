@@ -1,0 +1,251 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+const React = require('react');
+const { renderToStaticMarkup } = require('react-dom/server');
+
+function load(file, globals = {}, imports = {}) {
+  const exports = {};
+  const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText;
+  vm.runInNewContext(source, { exports, console, Error, Map, Set, URL, ...globals, require: name => {
+    if (name in imports) return imports[name];
+    if (name === 'react') return { ...React, default: React };
+    if (name === 'react/jsx-runtime' || name === 'lucide-react') return require(name);
+    throw new Error(`Unexpected import ${name}`);
+  } });
+  return exports;
+}
+class Events {
+  listeners = new Map();
+  addEventListener(type, fn) { if (!this.listeners.has(type)) this.listeners.set(type, new Set()); this.listeners.get(type).add(fn); }
+  removeEventListener(type, fn) { this.listeners.get(type)?.delete(fn); }
+  dispatchEvent(event) { for (const fn of this.listeners.get(event.type) || []) fn(event); }
+}
+class CustomEvent { constructor(type, { detail } = {}) { this.type = type; this.detail = detail; } }
+const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+function hookHarness() {
+  const slots = [];
+  let index = 0;
+  let effects = [];
+  const same = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
+  const react = { ...React, default: React, memo: fn => fn,
+    useState(initial) { const i = index++; if (!(i in slots)) slots[i] = initial; return [slots[i], value => slots[i] = typeof value === 'function' ? value(slots[i]) : value]; },
+    useRef(initial) { const i = index++; return slots[i] ||= { current: initial }; },
+    useMemo(fn, deps) { const i = index++; if (!same(slots[i]?.deps, deps)) slots[i] = { deps, value: fn() }; return slots[i].value; },
+    useCallback(fn, deps) { return react.useMemo(() => fn, deps); },
+    useEffect(fn, deps) { const i = index++; if (!same(slots[i]?.deps, deps)) effects.push(() => { slots[i]?.cleanup?.(); slots[i] = { deps, cleanup: fn() }; }); },
+  };
+  return { react, render(fn) { index = 0; effects = []; const tree = fn(); for (const effect of effects) effect(); return tree; }, cleanup() { for (const slot of slots) slot?.cleanup?.(); } };
+}
+function find(node, predicate) {
+  if (!React.isValidElement(node)) return null;
+  if (predicate(node)) return node;
+  for (const child of React.Children.toArray(node.props.children)) { const result = find(child, predicate); if (result) return result; }
+  return null;
+}
+
+test('large transcripts mount only a bounded window of rows', () => {
+  const layout = load('src/lib/services/transcript-layout.ts');
+  const hooks = load('src/lib/services/use-transcript-window.ts', {}, { './transcript-layout': layout,
+    react: { ...React, useLayoutEffect() {} },
+  });
+  const parsers = load('src/lib/services/subtitle-parsers.ts');
+  const japanese = load('src/lib/utils/japanese.ts', {}, { './constants': load('src/lib/utils/constants.ts') });
+  const settings = {};
+  const imports = {
+    '~lib/services/use-transcript-window': hooks,
+    '~lib/services/subtitle-parsers': parsers,
+    '~lib/utils/japanese': japanese,
+    '~lib/utils/jlpt-classifier': { predictJlpt: () => null },
+    '~lib/utils/settings': { useSettingsStore: () => ({ settings, updateSettings() {} }) },
+    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+  };
+  const { SubtitleScriptDrawer } = load('src/components/subtitle-script-drawer.tsx', {
+    window: { innerWidth: 360, location: { href: 'extension://sidepanel' } },
+  }, imports);
+  const segments = Array.from({ length: 2000 }, (_, i) => ({ start: i * 3, duration: 2, text: '日本語を勉強します。' }));
+  const html = renderToStaticMarkup(React.createElement(SubtitleScriptDrawer, { isOpen: true, nativePanel: true, onClose() {}, subtitleData: { segments }, currentSegment: segments[0] }));
+  const count = (html.match(/id="hk-script-cue-/g) || []).length;
+  assert.ok(count > 0 && count < 20, `mounted ${count} of 2000 rows`);
+  assert.match(html, /2000/);
+});
+
+test('virtual windows cover variable-height rows at the start, middle and end', () => {
+  const { transcriptOffsets, transcriptWindow } = load('src/lib/services/transcript-layout.ts');
+  const heights = Array.from({ length: 2000 }, (_, i) => i % 3 === 0 ? 200 : 80);
+  const offsets = transcriptOffsets(heights);
+  for (const top of [0, 40000, offsets.at(-1) - 600]) {
+    const window = transcriptWindow(offsets, top, 600);
+    assert.ok(window.end - window.start < 25);
+    assert.ok(offsets[window.start] <= top);
+    assert.ok(offsets[window.end] >= top + 600);
+    assert.equal(window.before + heights.slice(window.start, window.end).reduce((a, b) => a + b, 0) + window.after, offsets.at(-1));
+  }
+});
+
+test('repeated lookup requests share work and cache results separately by language', async () => {
+  const requests = [];
+  const { requestLookupAnalysis } = load('src/lib/services/lookup-analysis.ts', { chrome: { runtime: { sendMessage: message => new Promise(resolve => requests.push({ message, resolve })) } } });
+  const first = requestLookupAnalysis('ANALYZE_JAVI', '最後', true, 'en');
+  const second = requestLookupAnalysis('ANALYZE_JAVI', '最後', true, 'en');
+  assert.equal(requests.length, 1);
+  requests[0].resolve({ type: 'ANALYZE_RESULT', payload: { text: '最後', tokens: [] } });
+  await Promise.all([first, second]);
+  await requestLookupAnalysis('ANALYZE_JAVI', '最後', true, 'en');
+  assert.equal(requests.length, 1);
+  const otherLanguage = requestLookupAnalysis('ANALYZE_JAVI', '最後', true, 'vi');
+  assert.equal(requests.length, 2);
+  requests[1].resolve({ type: 'ERROR', payload: { error: 'temporary failure' } });
+  await otherLanguage;
+  const retry = requestLookupAnalysis('ANALYZE_JAVI', '最後', true, 'vi');
+  assert.equal(requests.length, 3);
+  requests[2].resolve({ type: 'ANALYZE_RESULT', payload: { text: '最後', tokens: [] } });
+  await retry;
+});
+
+test('manual duplicate cues collapse while later repetitions remain separate', () => {
+  const { buildSmartCues } = load('src/lib/services/smart-cue.ts');
+  const cues = [{ start: 0, duration: 1, text: '最後です。' }, { start: 0, duration: 2, text: '最後です。' }, { start: 10, duration: 1, text: '最後です。' }];
+  for (const auto of [false, true]) {
+    const result = buildSmartCues(cues, auto);
+    assert.equal(result.length, 2);
+    assert.equal(result[0].duration, 2);
+    assert.equal(result[1].start, 10);
+  }
+});
+
+test('equal cloned snapshots preserve track identity, but source and content changes reset it', () => {
+  const { mergeTranscriptSnapshot } = load('src/lib/services/transcript-state.ts');
+  const previous = { sourceUrl: 'https://youtube.com/watch?v=1', subtitleData: { language: 'ja', trackName: 'Japanese', segments: [{ start: 0, duration: 2, text: '日本語' }] } };
+  const clone = JSON.parse(JSON.stringify(previous));
+  clone.loading = false;
+  const merged = mergeTranscriptSnapshot(previous, clone);
+  assert.equal(merged.subtitleData, previous.subtitleData);
+  clone.subtitleData.segments[0].text = '更新';
+  assert.equal(mergeTranscriptSnapshot(previous, clone).subtitleData, clone.subtitleData);
+  const nextVideo = { ...previous, sourceUrl: 'https://youtube.com/watch?v=2' };
+  assert.equal(mergeTranscriptSnapshot(previous, nextVideo), nextVideo);
+});
+
+test('lookup pauses auto-scroll, Escape leaves the sidebar open, and older TTS requests cannot play', async () => {
+  const hooks = hookHarness();
+  const window = new Events();
+  Object.assign(window, { innerWidth: 360, location: { href: 'extension://sidepanel' }, setTimeout: () => 1, clearTimeout() {} });
+  let lookupOpen = false;
+  const document = { querySelector: () => lookupOpen ? {} : null };
+  const scrolls = [];
+  const scrollToRow = index => scrolls.push(index);
+  const requests = [];
+  const played = [];
+  class Audio { constructor(url) { this.url = url; } play() { played.push(this.url); return Promise.resolve(); } pause() {} }
+  const { SubtitleScriptDrawer } = load('src/components/subtitle-script-drawer.tsx', {
+    window, document, CustomEvent, Audio,
+    chrome: { runtime: { sendMessage: message => new Promise(resolve => requests.push({ message, resolve })) } },
+  }, {
+    react: hooks.react,
+    '~lib/services/use-transcript-window': { useTranscriptWindow: () => ({ start: 0, end: 3, before: 0, after: 0, scrollToRow }) },
+    '~lib/services/subtitle-parsers': load('src/lib/services/subtitle-parsers.ts'),
+    '~lib/utils/japanese': {}, '~lib/utils/jlpt-classifier': {},
+    '~lib/utils/settings': { useSettingsStore: () => ({ settings: {}, updateSettings() {} }) },
+    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+  });
+  const segments = [0, 3, 6].map(start => ({ start, duration: 2, text: String(start) }));
+  let closed = 0;
+  const props = { isOpen: true, nativePanel: true, onClose: () => closed++, subtitleData: { segments }, currentSegment: segments[0] };
+  const render = () => hooks.render(() => SubtitleScriptDrawer(props));
+  let tree = render();
+  assert.equal(scrolls.at(-1), 0);
+  lookupOpen = true;
+  window.dispatchEvent(new CustomEvent('hakkutsu:analysis-opened'));
+  props.currentSegment = segments[1];
+  tree = render();
+  assert.equal(scrolls.at(-1), 0);
+  window.dispatchEvent({ type: 'keydown', key: 'Escape' });
+  assert.equal(closed, 0);
+  const row = find(tree, node => node.props.cue === segments[0]);
+  const first = row.props.handlePlayTts('first', 0);
+  const second = row.props.handlePlayTts('second', 1);
+  requests[1].resolve({ payload: { dataUrl: 'second-audio' } });
+  await second;
+  requests[0].resolve({ payload: { dataUrl: 'first-audio' } });
+  await first;
+  assert.deepEqual(played, ['second-audio']);
+  lookupOpen = false;
+  window.dispatchEvent(new CustomEvent('hakkutsu:analysis-closed'));
+  render();
+  assert.equal(scrolls.at(-1), 1);
+  hooks.cleanup();
+});
+
+test('sidebar source does not resend entire tracks while closed or unchanged cues while open', () => {
+  const hooks = hookHarness();
+  const listeners = new Set();
+  const messages = [];
+  const chrome = { runtime: { onMessage: { addListener: fn => listeners.add(fn), removeListener: fn => listeners.delete(fn) }, sendMessage: message => { messages.push(message); return Promise.resolve(); } } };
+  const { useTranscriptSource } = load('src/lib/services/transcript-panel.ts', { chrome }, { react: hooks.react });
+  let snapshot = { sourceUrl: 'https://youtube.com/watch?v=1', subtitleData: null, offset: 0, videoTitle: 'Video', currentSegment: null };
+  const render = () => hooks.render(() => useTranscriptSource(snapshot, () => {}));
+  render();
+  snapshot = { ...snapshot, subtitleData: { segments: [{ text: '日本語', start: 1, duration: 3 }] } };
+  render();
+  assert.equal(messages.filter(m => m.type === 'TRANSCRIPT_SNAPSHOT').length, 1);
+  for (const listener of listeners) listener({ type: 'GET_TRANSCRIPT' }, {}, () => {});
+  for (let i = 0; i < 100; i++) { snapshot = { ...snapshot, currentSegment: { text: '日本語', start: 1, duration: 3 } }; render(); }
+  assert.equal(messages.filter(m => m.type === 'TRANSCRIPT_CUE').length, 1);
+  hooks.cleanup();
+  assert.equal(listeners.size, 0);
+});
+
+test('sidebar hover debounce and dismissal cancel stale lookup results and timers', async () => {
+  const hooks = hookHarness();
+  const window = new Events();
+  Object.assign(window, { innerWidth: 320, innerHeight: 700, location: { href: 'extension://sidepanel' } });
+  const document = new Events();
+  Object.assign(document, { querySelector: () => null, getElementById: () => null, activeElement: null });
+  const timers = new Map();
+  let id = 0;
+  const setTimeout = (fn, delay) => { timers.set(++id, { fn, delay }); return id; };
+  const clearTimeout = id => timers.delete(id);
+  const tick = () => { const waiting = [...timers.values()]; timers.clear(); for (const timer of waiting) timer.fn(); };
+  const requests = [];
+  const { default: Dictionary } = load('src/contents/inline-dictionary.tsx', { window, document, CustomEvent, setTimeout, clearTimeout,
+    browser: { runtime: { getURL: value => value } },
+  }, {
+    react: hooks.react,
+    '~lib/utils/japanese': { containsJapanese: () => true },
+    '~components/definition-card': { DefinitionCard: 'definition' },
+    '~components/token-display': {}, '~components/grammar-explanations': {}, '~components/manga-ocr-images': { MangaOcrImages: 'ocr' },
+    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ankiEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
+    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~lib/services/lookup-analysis': { requestLookupAnalysis: (...args) => new Promise(resolve => requests.push({ args, resolve })) },
+  });
+  const render = () => hooks.render(() => Dictionary({ nativePanel: true }));
+  const analyze = text => window.dispatchEvent(new CustomEvent('hakkutsu:analyze', { detail: { text, mode: 'dictionary', transient: true, pauseVideo: false } }));
+  let tree = render();
+  assert.equal(find(tree, node => node.type === 'ocr'), null);
+  analyze('最後');
+  analyze('日本語');
+  assert.equal(requests.length, 0);
+  assert.equal(timers.size, 1);
+  tick();
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].args[1], '日本語');
+  tree = render();
+  const popup = find(tree, node => node.props.className?.includes('hk-lookup--panel'));
+  assert.ok(popup);
+  assert.equal(popup.props.style, undefined);
+  const close = find(popup, node => node.type === 'button');
+  close.props.onClick();
+  requests[0].resolve({ type: 'ANALYZE_RESULT', payload: { text: '日本語', tokens: [] } });
+  await flush();
+  assert.equal(find(render(), node => node.props.className?.includes('hk-lookup--panel')), null);
+  analyze('最後');
+  hooks.cleanup();
+  assert.equal(timers.size, 0);
+  tick();
+  assert.equal(requests.length, 1);
+});

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { TokenAnalysis, AnkiExportData } from "~lib/utils/types";
 import { formatPosLabel } from "~lib/utils/constants";
 import { getHanViet } from "~lib/utils/hanviet-dict";
@@ -83,6 +83,8 @@ export function DefinitionCard({
   const [irasutoyaImgs, setIrasutoyaImgs] = useState<string[]>([]);
   const [selectedImgUrl, setSelectedImgUrl] = useState<string | null>(null);
   const [loadingImgs, setLoadingImgs] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current); }, []);
 
   const wordQuery = token.dictionary_form || token.surface;
   const wordHasKanji = hasKanji(token.dictionary_form) || hasKanji(token.surface);
@@ -96,6 +98,7 @@ export function DefinitionCard({
   // Check if word is already in SRS library
   useEffect(() => {
     let isMounted = true;
+    if (hideBottomAction) return;
     if (!wordQuery || !token.is_japanese) {
       setSrsAdded(false);
       return;
@@ -115,7 +118,7 @@ export function DefinitionCard({
     return () => {
       isMounted = false;
     };
-  }, [wordQuery, token.is_japanese]);
+  }, [wordQuery, token.is_japanese, hideBottomAction]);
 
   // Fetch Irasutoya illustration images
   useEffect(() => {
@@ -218,7 +221,8 @@ export function DefinitionCard({
   const handleCopy = () => {
     navigator.clipboard.writeText(token.dictionary_form || token.surface);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
   };
 
   const handleAddToLibrary = async () => {

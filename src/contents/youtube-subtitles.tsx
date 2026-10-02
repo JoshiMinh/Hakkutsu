@@ -147,6 +147,7 @@ export default function YouTubeSubtitlesOverlay() {
   const secondaryLoadIdRef = useRef(0);
   const primarySelectionRef = useRef<{ id: string; url?: string; status: "loading" | "loaded" | "failed" } | null>(null);
   const secondarySelectionRef = useRef<{ id: string; url?: string; status: "loading" | "loaded" | "failed" } | null>(null);
+  const liveCaptionRef = useRef<SubtitleSegment | null>(null);
 
   useEffect(() => {
     setIsEnabled(settings.subtitlesEnabled !== false);
@@ -263,7 +264,9 @@ export default function YouTubeSubtitlesOverlay() {
       if (text) {
         const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
         const time = video ? Math.max(0, video.currentTime - offset) : 0;
-        return {
+        const previous = liveCaptionRef.current;
+        if (previous?.text === text && time >= previous.start && time < previous.start + previous.duration) return previous;
+        return liveCaptionRef.current = {
           start: time,
           duration: 3.5,
           text,

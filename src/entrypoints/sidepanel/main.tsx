@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { SubtitleScriptDrawer } from "~components/subtitle-script-drawer";
 import InlineDictionary from "~contents/inline-dictionary";
 import type { TranscriptSnapshot } from "~lib/services/transcript-panel";
+import { mergeTranscriptSnapshot } from "~lib/services/transcript-state";
 import type { SrsCard } from "~lib/services/local-srs";
 import "~/style.css";
 
@@ -23,6 +24,7 @@ function TranscriptPanel() {
     let generation = 0;
     const watch = (id: number) => {
       tabId = id;
+      window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss", { detail: { force: true } }));
       setSnapshot(null);
       portRef.current?.postMessage({ type: "WATCH_TAB", tabId: id });
     };
@@ -32,7 +34,7 @@ function TranscriptPanel() {
       portRef.current = port;
       port.onMessage.addListener((message) => {
         if (stopped || port !== portRef.current) return;
-        if (message.type === "TRANSCRIPT_SNAPSHOT") setSnapshot(message.payload);
+        if (message.type === "TRANSCRIPT_SNAPSHOT") setSnapshot((previous) => mergeTranscriptSnapshot(previous, message.payload));
         else if (message.type === "TRANSCRIPT_CUE") setSnapshot((previous) => previous ? { ...previous, currentSegment: message.payload } : previous);
         else if (message.type === "TRANSCRIPT_UNAVAILABLE") setSnapshot(null);
         else if (message.type === "CLOSE_TRANSCRIPT_PANEL") closePanel();
@@ -72,19 +74,21 @@ function TranscriptPanel() {
   }, []);
   const savedWords = useMemo(() => new Set(cards.flatMap((card) => [card.word, card.reading].filter(Boolean) as string[])), [cards]);
   const cardMap = useMemo(() => new Map(cards.flatMap((card) => [card.word, card.reading].filter(Boolean).map((word) => [word!, card] as const))), [cards]);
-  return <>
+  const seek = useCallback((time: number) => portRef.current?.postMessage({ type: "SEEK_TRANSCRIPT", payload: { time } }), []);
+  const retry = useCallback(() => portRef.current?.postMessage({ type: "RETRY_TRANSCRIPT" }), []);
+  return <div className="hk-transcript-workspace">
     {snapshot ? <SubtitleScriptDrawer
       isOpen nativePanel onClose={closePanel}
       {...snapshot}
       savedWords={savedWords} srsCardsMap={cardMap}
-      onSeekTime={(time) => portRef.current?.postMessage({ type: "SEEK_TRANSCRIPT", payload: { time } })}
-      onRetry={snapshot.canRetry ? () => portRef.current?.postMessage({ type: "RETRY_TRANSCRIPT" }) : undefined}
+      onSeekTime={seek}
+      onRetry={snapshot.canRetry ? retry : undefined}
     /> : <div className="hk-transcript-panel-empty" role="status">
       <h1>Video Script</h1>
       <p>Open a video and load subtitles with Hakkutsu to read its transcript here.</p>
     </div>}
-    <InlineDictionary />
-  </>;
+    <InlineDictionary key={snapshot?.sourceUrl || "empty"} nativePanel sourceUrl={snapshot?.sourceUrl} sourceTitle={snapshot?.videoTitle} />
+  </div>;
 }
 
 createRoot(document.getElementById("root")!).render(<TranscriptPanel />);

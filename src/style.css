@@ -3135,17 +3135,57 @@ body.hk-transcript-panel-page {
   background: var(--hk-bg-primary, #0d0d11);
   color: var(--hk-text-primary, #f4f4f5);
 }
-.hk-transcript-panel-page #root { height: 100dvh; }
+.hk-transcript-panel-page #root { height: 100dvh; overflow: hidden; }
+.hk-transcript-workspace { display: flex; flex-direction: column; height: 100%; min-width: 0; overflow: hidden; }
 .hk-transcript-panel-page .hk-script-drawer--native {
   position: relative;
+  flex: 1 1 0;
+  min-height: 0;
   width: 100% !important;
-  height: 100dvh;
+  height: auto;
   border: 0;
+  background: var(--hk-bg-primary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: none;
   animation: none;
 }
-.hk-transcript-panel-empty { padding: 24px; font: 14px/1.6 system-ui; }
+.hk-transcript-panel-empty { flex: 1; padding: 24px; font: 14px/1.6 system-ui; }
 .hk-transcript-panel-empty h1 { font-size: 18px; }
+
+/* Shared lookup surface also applies outside the webpage's shadow root. */
+.hk-lookup {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--hk-bg-primary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  color: var(--hk-text-primary);
+  font: var(--hk-text-base)/1.5 var(--hk-font-sans);
+  pointer-events: auto;
+}
+.hk-lookup .hk-header { flex: 0 0 auto; padding: 12px 16px; background: var(--hk-bg-secondary); }
+.hk-lookup .hk-header__title { font-size: 14px; }
+.hk-lookup > .hk-content { min-height: 0; padding: 16px; background: var(--hk-bg-primary); overscroll-behavior: contain; }
+.hk-lookup .hk-definition__header, .hk-lookup .hk-definition__word-row { flex-wrap: wrap; }
+.hk-lookup .hk-definition__word-group { min-width: 0; max-width: 100%; }
+.hk-lookup .hk-definition__word { overflow-wrap: anywhere; }
+.hk-lookup--panel {
+  position: relative;
+  flex: 0 1 auto;
+  width: 100%;
+  max-height: min(55dvh, 480px);
+  border: 0;
+  border-top: 1px solid var(--hk-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+.hk-lookup :is(button, [tabindex]):focus-visible { outline: 2px solid var(--hk-accent-primary); outline-offset: 2px; }
+.hk-script-drawer__list { overflow-anchor: none; }
 
 
 

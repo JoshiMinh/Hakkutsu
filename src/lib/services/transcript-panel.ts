@@ -40,11 +40,13 @@ export function useTranscriptSource(snapshot: TranscriptSnapshot, onSeek: (time:
   const latest = useRef({ snapshot, onSeek, onRetry });
   latest.current = { snapshot, onSeek, onRetry };
   const subscribed = useRef(false);
+  const lastCue = useRef<SubtitleSegment | null>(null);
   useEffect(() => {
     const listener = (message: { type: string; payload?: { time: number; open: boolean } },
       _sender: chrome.runtime.MessageSender, sendResponse: (response: unknown) => void) => {
       if (message.type === "GET_TRANSCRIPT") {
         subscribed.current = true;
+        lastCue.current = latest.current.snapshot.currentSegment;
         sendResponse({ type: "TRANSCRIPT_SNAPSHOT", payload: latest.current.snapshot });
       } else if (message.type === "SEEK_TRANSCRIPT" && Number.isFinite(message.payload?.time)) {
         latest.current.onSeek(message.payload!.time);
@@ -57,16 +59,22 @@ export function useTranscriptSource(snapshot: TranscriptSnapshot, onSeek: (time:
       }
     };
     chrome.runtime.onMessage.addListener(listener);
+    // Announce replacement SPA players so an already-open sidebar subscribes.
+    void chrome.runtime.sendMessage({ type: "TRANSCRIPT_SNAPSHOT", payload: latest.current.snapshot }).catch(() => {});
     return () => {
       chrome.runtime.onMessage.removeListener(listener);
       void chrome.runtime.sendMessage({ type: "TRANSCRIPT_UNAVAILABLE" }).catch(() => {});
     };
   }, []);
   useEffect(() => {
-    void chrome.runtime.sendMessage({ type: "TRANSCRIPT_SNAPSHOT", payload: snapshot }).catch(() => {});
+    if (subscribed.current) void chrome.runtime.sendMessage({ type: "TRANSCRIPT_SNAPSHOT", payload: snapshot }).catch(() => {});
   }, [snapshot.subtitleData, snapshot.secondaryData, snapshot.offset, snapshot.videoTitle, snapshot.sourceUrl, snapshot.loading, snapshot.error, snapshot.canRetry]);
   useEffect(() => {
-    if (subscribed.current) void chrome.runtime.sendMessage({ type: "TRANSCRIPT_CUE", payload: snapshot.currentSegment }).catch(() => {});
+    const cue = snapshot.currentSegment;
+    const previous = lastCue.current;
+    if (previous?.text === cue?.text && previous?.start === cue?.start && previous?.duration === cue?.duration) return;
+    lastCue.current = cue;
+    if (subscribed.current) void chrome.runtime.sendMessage({ type: "TRANSCRIPT_CUE", payload: cue }).catch(() => {});
   }, [snapshot.currentSegment]);
 }
 

@@ -24,6 +24,7 @@ import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
 import { distributeFurigana, containsJapanese, sanitizeReading, isKanji } from "~lib/utils/japanese";
+import { useTranscriptWindow } from "~lib/services/use-transcript-window";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 
 // ── Helpers & Cache ──────────────────────────────────────────────────────────
@@ -128,6 +129,205 @@ export interface SubtitleScriptDrawerProps {
   onRetry?: () => void;
 }
 
+const renderHighlightedText = (text: string, query: string) => {
+  if (!query.trim()) return text;
+  const q = query.trim();
+  const parts = text.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
+  return parts.map((part, i) =>
+    part.toLowerCase() === q.toLowerCase() ? (
+      <mark key={i} className="hk-script-mark">
+        {part}
+      </mark>
+    ) : (
+      part
+    )
+  );
+};
+
+
+interface TranscriptCueProps {
+  cue: SubtitleSegment;
+  originalIdx: number;
+  offset: number;
+  isActive: boolean;
+  isMined: boolean;
+  secText?: string;
+  isSearchMatch: boolean;
+  isCurrentMatch: boolean;
+  isPlaying: boolean;
+  isCopied: boolean;
+  searchQuery: string;
+  settings: { showFurigana?: boolean; showJlptColors?: boolean; subtitlesSecondaryEnabled?: boolean };
+  savedWords: Set<string>;
+  srsCardsMap: Map<string, SrsCard>;
+  handleSeek: (cue: SubtitleSegment) => void;
+  handlePlayTts: (text: string, index: number) => void;
+  handleMineToSrs: (cue: SubtitleSegment, index: number) => void;
+  handleCopyCue: (text: string, index: number) => void;
+  handleTokenClick: (event: React.MouseEvent, token: TokenAnalysis) => void;
+  handleTokenMouseEnter: (event: React.MouseEvent, token: TokenAnalysis) => void;
+  handleTokenMouseLeave: (event: React.MouseEvent) => void;
+}
+const TranscriptCue = React.memo(function TranscriptCue({
+  cue, originalIdx, offset, isActive, isMined, secText, isSearchMatch, isCurrentMatch,
+  isPlaying, isCopied, searchQuery, settings, savedWords, srsCardsMap,
+  handleSeek, handlePlayTts, handleMineToSrs, handleCopyCue,
+  handleTokenClick, handleTokenMouseEnter, handleTokenMouseLeave,
+}: TranscriptCueProps) {
+  const { t } = useTranslation();
+  const cleanText = deduplicateCueText(cue.text);
+  const tokens = tokenizeTextFast(cleanText);
+  return (
+    <div
+      data-transcript-row={originalIdx}
+      id={`hk-script-cue-${originalIdx}`}
+      className={`hk-script-cue ${isActive ? "hk-script-cue--active" : ""} ${isSearchMatch && searchQuery ? "hk-script-cue--matched" : ""} ${isCurrentMatch ? "hk-script-cue--current-match" : ""}`}
+      aria-current={isActive ? "true" : undefined}
+      onClick={() => {
+        if (!window.getSelection()?.toString()) handleSeek(cue);
+      }}
+    >
+      {/* Cue header (Timestamp & Quick Actions) */}
+      <div className="hk-script-cue__meta">
+        <button
+          type="button"
+          className="hk-script-cue__time"
+          onClick={(event) => {
+            event.stopPropagation();
+            handleSeek(cue);
+          }}
+          aria-label={`${t("drawer_btn_play")} ${formatTimestamp(cue.start + offset)}`}
+        >
+          <Play size={11} className="hk-script-cue__play-icon" />
+          {formatTimestamp(cue.start + offset)}
+        </button>
+
+        <div className="hk-script-cue__actions" onClick={(e) => e.stopPropagation()}>
+          {/* TTS Audio */}
+          <button
+            type="button"
+            className={`hk-script-action-btn ${isPlaying ? "hk-script-action-btn--active" : ""}`}
+            onClick={() => handlePlayTts(cleanText, originalIdx)}
+            title={t("drawer_btn_tts")}
+            aria-label={t("drawer_btn_tts")}
+            aria-pressed={isPlaying}
+          >
+            <Volume2 size={13} />
+          </button>
+
+          {/* Mine to SRS */}
+          <button
+            type="button"
+            className={`hk-script-action-btn ${isMined ? "hk-script-action-btn--mined" : ""}`}
+            onClick={() => handleMineToSrs(cue, originalIdx)}
+            title={isMined ? t("drawer_btn_mined") : t("drawer_btn_mine_srs")}
+            aria-label={isMined ? t("drawer_btn_mined") : t("drawer_btn_mine_srs")}
+            disabled={isMined}
+          >
+            {isMined ? <Check size={13} color="#4ade80" /> : <Star size={13} />}
+          </button>
+
+          {/* Copy text */}
+          <button
+            type="button"
+            className="hk-script-action-btn"
+            onClick={() => void handleCopyCue(cleanText, originalIdx)}
+            title={t("drawer_btn_copy")}
+            aria-label={t("drawer_btn_copy")}
+          >
+            {isCopied ? <Check size={13} color="#4ade80" /> : <Copy size={13} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Primary Japanese Dialogue with Tokenization & Highlighting */}
+      <div className="hk-script-cue__primary">
+        {tokens.map((token, tIdx) => {
+          const isKanjiWord = isKanji(token.surface) || /[\u4e00-\u9faf]/.test(token.surface);
+          const cleanReading = sanitizeReading(token.reading?.hiragana || "", token.surface);
+          const showRuby =
+            settings.showFurigana !== false &&
+            isKanjiWord &&
+            Boolean(cleanReading) &&
+            cleanReading !== token.surface;
+          const rubySegments = showRuby ? distributeFurigana(token.surface, cleanReading) : null;
+          const hasRuby = showRuby && rubySegments !== null && rubySegments.some((s) => s.ruby);
+
+          const isSaved =
+            savedWords.has(token.surface) ||
+            Boolean(token.dictionary_form && savedWords.has(token.dictionary_form));
+          const srsCard = isSaved
+            ? srsCardsMap.get(token.surface) ||
+              (token.dictionary_form ? srsCardsMap.get(token.dictionary_form) : undefined)
+            : undefined;
+
+          const tokenJlpt = token.is_japanese ? (token.jlpt_level || predictJlpt(token.surface)) : null;
+
+          let tokenClass = "hk-script-token";
+          if (isSaved) {
+            tokenClass += " hk-script-token--known";
+          } else if (token.is_japanese && token.pos !== "Punctuation") {
+            tokenClass += " hk-script-token--new";
+            if (tokenJlpt && settings.showJlptColors !== false) {
+              tokenClass += ` hk-script-token--jlpt-${tokenJlpt.toLowerCase()}`;
+            }
+          } else {
+            tokenClass += " hk-script-token--plain";
+          }
+
+          return (
+            <span
+              key={tIdx}
+              className={tokenClass}
+              role={token.is_japanese ? "button" : undefined}
+              tabIndex={token.is_japanese ? 0 : undefined}
+              onClick={token.is_japanese ? (e) => handleTokenClick(e, token) : undefined}
+              onKeyDown={(e) => {
+                if (token.is_japanese && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  handleTokenClick(e as unknown as React.MouseEvent, token);
+                }
+              }}
+              onMouseEnter={token.is_japanese ? (e) => handleTokenMouseEnter(e, token) : undefined}
+              onMouseLeave={token.is_japanese ? handleTokenMouseLeave : undefined}
+              title={
+                isSaved && srsCard
+                  ? `SRS: State ${srsCard.state ?? 0} · Interval: ${srsCard.interval ?? 0}d`
+                  : tokenJlpt
+                    ? `JLPT ${tokenJlpt}`
+                    : undefined
+              }
+            >
+              {hasRuby && rubySegments ? (
+                rubySegments.map((seg, sIdx) =>
+                  seg.ruby ? (
+                    <ruby key={sIdx}>
+                      {renderHighlightedText(seg.text, searchQuery)}
+                      <rt className="hk-script-rt">{seg.ruby}</rt>
+                    </ruby>
+                  ) : (
+                    <span key={sIdx}>{renderHighlightedText(seg.text, searchQuery)}</span>
+                  )
+                )
+              ) : (
+                renderHighlightedText(token.surface, searchQuery)
+              )}
+              {isSaved && <span className="hk-script-known-dot" />}
+            </span>
+          );
+        })}
+      </div>
+
+      {/* Secondary Translation Bar */}
+      {settings.subtitlesSecondaryEnabled !== false && secText && (
+        <div className="hk-script-cue__secondary">
+          {renderHighlightedText(secText, searchQuery)}
+        </div>
+      )}
+    </div>
+  );
+});
+
 export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   isOpen,
   onClose,
@@ -160,6 +360,14 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   const [showStats, setShowStats] = useState(false);
   const [isSyncEnabled, setIsSyncEnabled] = useState(true);
   const [userHasScrolled, setUserHasScrolled] = useState(false);
+  const [lookupOpen, setLookupOpen] = useState(false);
+  useEffect(() => {
+    const opened = () => setLookupOpen(true);
+    const closed = () => setLookupOpen(false);
+    window.addEventListener("hakkutsu:analysis-opened", opened);
+    window.addEventListener("hakkutsu:analysis-closed", closed);
+    return () => { window.removeEventListener("hakkutsu:analysis-opened", opened); window.removeEventListener("hakkutsu:analysis-closed", closed); };
+  }, []);
   const [copiedCueIdx, setCopiedCueIdx] = useState<number | null>(null);
   const [minedCueIndices, setMinedCueIndices] = useState<Set<number>>(new Set());
   const [playingTtsIdx, setPlayingTtsIdx] = useState<number | null>(null);
@@ -169,6 +377,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   const openTimerRef = useRef<number | null>(null);
   const copyTimerRef = useRef<number | null>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRequestRef = useRef(0);
 
   const segments = subtitleData?.segments || EMPTY_SEGMENTS;
   const secondarySegments = secondaryData?.segments || EMPTY_SEGMENTS;
@@ -178,6 +387,10 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     setFilterMode("all");
     setUserHasScrolled(false);
     setMinedCueIndices(new Set());
+    ++audioRequestRef.current;
+    activeAudioRef.current?.pause();
+    activeAudioRef.current = null;
+    setPlayingTtsIdx(null);
   }, [subtitleData]);
 
   // Map secondary segments by approximate start time for fast lookup
@@ -214,7 +427,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   // ── Video Script Analytics Summary ─────────────────────────────────────────
 
   const scriptAnalytics = useMemo(() => {
-    if (segments.length === 0) {
+    if (!showStats || segments.length === 0) {
       return {
         totalLines: 0,
         totalChars: 0,
@@ -277,7 +490,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
       knownCount,
       unlearnedCount,
     };
-  }, [segments, savedWords]);
+  }, [segments, savedWords, showStats]);
 
   // ── Full-Text Search Filtering & Matching ──────────────────────────────────
 
@@ -298,17 +511,20 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     return indices;
   }, [searchQuery, segments, secondaryMap]);
 
-  // Jump to next / previous match
-  const scrollCueIntoList = useCallback((cueIndex: number, smooth = true) => {
-    const list = listContainerRef.current;
-    const cue = list?.querySelector<HTMLElement>(`#hk-script-cue-${cueIndex}`);
-    if (!list || !cue) return;
-    list.scrollTo({
-      top: list.scrollTop + cue.getBoundingClientRect().top - list.getBoundingClientRect().top
-        - list.clientHeight / 2 + cue.offsetHeight / 2,
-      behavior: smooth ? "smooth" : "auto",
-    });
-  }, []);
+  const matchedCueSet = useMemo(() => new Set(matchedCueIndices), [matchedCueIndices]);
+  const visibleSegments = useMemo(() => segments.map((cue, index) => ({ cue, index }))
+    .filter(({ index }) => filterMode !== "matched" || !searchQuery.trim() || matchedCueSet.has(index)),
+    [segments, filterMode, searchQuery, matchedCueSet]);
+  const layoutRows = useMemo(() => {
+    const width = Math.max(180, window.innerWidth - 48);
+    return visibleSegments.map(({ cue, index }) => ({ index,
+      estimate: 72 + Math.ceil(cue.text.length / Math.max(8, Math.floor(width / 18))) * 30
+        + (settings.subtitlesSecondaryEnabled !== false && secondaryMap.get(index)
+          ? Math.ceil(secondaryMap.get(index)!.length / Math.max(12, Math.floor(width / 7))) * 20 + 12 : 0),
+    }));
+  }, [visibleSegments, settings.subtitlesSecondaryEnabled, secondaryMap]);
+  const virtual = useTranscriptWindow(listContainerRef, layoutRows, subtitleData, isOpen);
+  const scrollCueIntoList = virtual.scrollToRow;
 
   useEffect(() => {
     setCurrentMatchIdx(matchedCueIndices.length > 0 ? 0 : -1);
@@ -349,17 +565,17 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   );
 
   useEffect(() => {
-    if (!isOpen || !isSyncEnabled || userHasScrolled || searchQuery.trim()) return;
+    if (!isOpen || !isSyncEnabled || userHasScrolled || lookupOpen || searchQuery.trim()) return;
     if (activeCueIndex >= 0) {
       scrollToActiveCue(true);
     }
-  }, [activeCueIndex, isOpen, isSyncEnabled, userHasScrolled, searchQuery, scrollToActiveCue]);
+  }, [activeCueIndex, isOpen, isSyncEnabled, userHasScrolled, lookupOpen, searchQuery, scrollToActiveCue]);
 
   // Focus search on open
   useEffect(() => {
     if (isOpen) {
       openTimerRef.current = window.setTimeout(() => {
-        searchInputRef.current?.focus({ preventScroll: true });
+        if (!document.querySelector(".hk-lookup")) searchInputRef.current?.focus({ preventScroll: true });
       }, 150);
     }
     return () => {
@@ -369,6 +585,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
 
   useEffect(() => {
     return () => {
+      ++audioRequestRef.current;
       if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
       activeAudioRef.current?.pause();
       activeAudioRef.current = null;
@@ -379,6 +596,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (document.querySelector(".hk-lookup")) return;
         event.preventDefault();
         event.stopPropagation();
         if (event.composedPath().includes(searchInputRef.current!) && searchQuery) {
@@ -394,7 +612,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
 
   // ── Seeking & Actions ──────────────────────────────────────────────────────
 
-  const handleSeek = (cue: SubtitleSegment) => {
+  const handleSeek = useCallback((cue: SubtitleSegment) => {
     const targetTime = Math.max(0, cue.start + offset);
     if (onSeekToCue) {
       onSeekToCue(cue);
@@ -409,9 +627,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     const video = videoRef?.current;
     if (video?.paused) void video.play().catch(() => {});
     setUserHasScrolled(false);
-  };
+  }, [offset, onSeekToCue, onSeekTime, videoRef]);
 
-  const handleCopyCue = async (cueText: string, idx: number) => {
+  const handleCopyCue = useCallback(async (cueText: string, idx: number) => {
     try {
       await navigator.clipboard.writeText(deduplicateCueText(cueText));
       setCopiedCueIdx(idx);
@@ -420,9 +638,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     } catch (err) {
       console.warn("[Hakkutsu] Copy transcript cue failed:", err);
     }
-  };
+  }, []);
 
-  const handleMineToSrs = async (cue: SubtitleSegment, idx: number) => {
+  const handleMineToSrs = useCallback(async (cue: SubtitleSegment, idx: number) => {
     const text = deduplicateCueText(cue.text);
     const secText = secondaryMap.get(idx) || "";
 
@@ -449,9 +667,10 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     } catch (err) {
       console.warn("[Hakkutsu] Mine cue to SRS failed:", err);
     }
-  };
+  }, [secondaryMap, sourceUrl, videoTitle]);
 
-  const handlePlayTts = async (cueText: string, idx: number) => {
+  const handlePlayTts = useCallback(async (cueText: string, idx: number) => {
+    const request = ++audioRequestRef.current;
     activeAudioRef.current?.pause();
     activeAudioRef.current = null;
     setPlayingTtsIdx(idx);
@@ -461,10 +680,12 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
         type: "FETCH_TTS_AUDIO",
         payload: { text: clean, lang: "ja" },
       });
+      if (request !== audioRequestRef.current) return;
       if (res?.payload?.dataUrl) {
         const audio = new Audio(res.payload.dataUrl);
         activeAudioRef.current = audio;
         const finish = () => {
+          if (request !== audioRequestRef.current) return;
           if (activeAudioRef.current === audio) activeAudioRef.current = null;
           setPlayingTtsIdx(null);
         };
@@ -475,13 +696,13 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
         setPlayingTtsIdx(null);
       }
     } catch {
-      setPlayingTtsIdx(null);
+      if (request === audioRequestRef.current) setPlayingTtsIdx(null);
     }
-  };
+  }, []);
 
   // ── Token Hover & Click ────────────────────────────────────────────────────
 
-  const handleTokenClick = (e: React.MouseEvent, token: TokenAnalysis) => {
+  const handleTokenClick = useCallback((e: React.MouseEvent, token: TokenAnalysis) => {
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     window.dispatchEvent(
@@ -492,14 +713,14 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
           y: rect.top,
           placement: "drawer",
           mode: "dictionary",
-          transient: true,
+          transient: false,
           pauseVideo: false,
         },
       })
     );
-  };
+  }, []);
 
-  const handleTokenMouseEnter = (e: React.MouseEvent, token: TokenAnalysis) => {
+  const handleTokenMouseEnter = useCallback((e: React.MouseEvent, token: TokenAnalysis) => {
     if (!token?.surface?.trim() || !token.is_japanese) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     window.dispatchEvent(
@@ -515,9 +736,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
         },
       })
     );
-  };
+  }, []);
 
-  const handleTokenMouseLeave = (e: React.MouseEvent) => {
+  const handleTokenMouseLeave = useCallback((e: React.MouseEvent) => {
     const relatedTarget = e.relatedTarget as HTMLElement | null;
     const shadowHost = document.getElementById("hakkutsu-inline-dictionary-host");
     if (
@@ -530,30 +751,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
       return;
     }
     window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss"));
-  };
-
-  // ── Highlight Substring Helper ─────────────────────────────────────────────
-
-  const renderHighlightedText = (text: string, query: string) => {
-    if (!query.trim()) return text;
-    const q = query.trim();
-    const parts = text.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
-    return parts.map((part, i) =>
-      part.toLowerCase() === q.toLowerCase() ? (
-        <mark key={i} className="hk-script-mark">
-          {part}
-        </mark>
-      ) : (
-        part
-      )
-    );
-  };
+  }, []);
 
   if (!isOpen) return null;
-
-  const visibleSegments = filterMode === "matched" && searchQuery.trim()
-    ? segments.map((cue, index) => ({ cue, index })).filter(({ index }) => matchedCueIndices.includes(index))
-    : segments.map((cue, index) => ({ cue, index }));
 
   return (
     <aside
@@ -788,7 +988,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
         ref={listContainerRef}
         onWheel={() => setUserHasScrolled(true)}
         onTouchStart={() => setUserHasScrolled(true)}
-        onPointerDown={() => setUserHasScrolled(true)}
+        onPointerDown={(event) => { if (event.target === event.currentTarget) setUserHasScrolled(true); }}
       >
         {visibleSegments.length === 0 ? (
           <div className="hk-script-drawer__empty" role={error ? "alert" : "status"}>
@@ -796,164 +996,20 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
             {!searchQuery && !loading && onRetry && <button type="button" className="hk-script-filter-chip" onClick={onRetry}>{t("dash_retry")}</button>}
           </div>
         ) : (
-          visibleSegments.map(({ cue, index: originalIdx }) => {
-            const isActive = originalIdx === activeCueIndex;
-            const isMined = minedCueIndices.has(originalIdx);
-            const secText = secondaryMap.get(originalIdx);
-            const isSearchMatch = matchedCueIndices.includes(originalIdx);
-            const cleanText = deduplicateCueText(cue.text);
-            const tokens = tokenizeTextFast(cleanText);
-
-            return (
-              <div
-                key={originalIdx}
-                id={`hk-script-cue-${originalIdx}`}
-                className={`hk-script-cue ${isActive ? "hk-script-cue--active" : ""} ${isSearchMatch && searchQuery ? "hk-script-cue--matched" : ""} ${searchQuery && matchedCueIndices[currentMatchIdx] === originalIdx ? "hk-script-cue--current-match" : ""}`}
-                aria-current={isActive ? "true" : undefined}
-                onClick={() => {
-                  if (!window.getSelection()?.toString()) handleSeek(cue);
-                }}
-              >
-                {/* Cue header (Timestamp & Quick Actions) */}
-                <div className="hk-script-cue__meta">
-                  <button
-                    type="button"
-                    className="hk-script-cue__time"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleSeek(cue);
-                    }}
-                    aria-label={`${t("drawer_btn_play")} ${formatTimestamp(cue.start + offset)}`}
-                  >
-                    <Play size={11} className="hk-script-cue__play-icon" />
-                    {formatTimestamp(cue.start + offset)}
-                  </button>
-
-                  <div className="hk-script-cue__actions" onClick={(e) => e.stopPropagation()}>
-                    {/* TTS Audio */}
-                    <button
-                      type="button"
-                      className={`hk-script-action-btn ${playingTtsIdx === originalIdx ? "hk-script-action-btn--active" : ""}`}
-                      onClick={() => handlePlayTts(cleanText, originalIdx)}
-                      title={t("drawer_btn_tts")}
-                      aria-label={t("drawer_btn_tts")}
-                      aria-pressed={playingTtsIdx === originalIdx}
-                    >
-                      <Volume2 size={13} />
-                    </button>
-
-                    {/* Mine to SRS */}
-                    <button
-                      type="button"
-                      className={`hk-script-action-btn ${isMined ? "hk-script-action-btn--mined" : ""}`}
-                      onClick={() => handleMineToSrs(cue, originalIdx)}
-                      title={isMined ? t("drawer_btn_mined") : t("drawer_btn_mine_srs")}
-                      aria-label={isMined ? t("drawer_btn_mined") : t("drawer_btn_mine_srs")}
-                      disabled={isMined}
-                    >
-                      {isMined ? <Check size={13} color="#4ade80" /> : <Star size={13} />}
-                    </button>
-
-                    {/* Copy text */}
-                    <button
-                      type="button"
-                      className="hk-script-action-btn"
-                      onClick={() => void handleCopyCue(cleanText, originalIdx)}
-                      title={t("drawer_btn_copy")}
-                      aria-label={t("drawer_btn_copy")}
-                    >
-                      {copiedCueIdx === originalIdx ? <Check size={13} color="#4ade80" /> : <Copy size={13} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Primary Japanese Dialogue with Tokenization & Highlighting */}
-                <div className="hk-script-cue__primary">
-                  {tokens.map((token, tIdx) => {
-                    const isKanjiWord = isKanji(token.surface) || /[\u4e00-\u9faf]/.test(token.surface);
-                    const cleanReading = sanitizeReading(token.reading?.hiragana || "", token.surface);
-                    const showRuby =
-                      settings.showFurigana !== false &&
-                      isKanjiWord &&
-                      Boolean(cleanReading) &&
-                      cleanReading !== token.surface;
-                    const rubySegments = showRuby ? distributeFurigana(token.surface, cleanReading) : null;
-                    const hasRuby = showRuby && rubySegments !== null && rubySegments.some((s) => s.ruby);
-
-                    const isSaved =
-                      savedWords.has(token.surface) ||
-                      Boolean(token.dictionary_form && savedWords.has(token.dictionary_form));
-                    const srsCard = isSaved
-                      ? srsCardsMap.get(token.surface) ||
-                        (token.dictionary_form ? srsCardsMap.get(token.dictionary_form) : undefined)
-                      : undefined;
-
-                    const tokenJlpt = token.is_japanese ? (token.jlpt_level || predictJlpt(token.surface)) : null;
-
-                    let tokenClass = "hk-script-token";
-                    if (isSaved) {
-                      tokenClass += " hk-script-token--known";
-                    } else if (token.is_japanese && token.pos !== "Punctuation") {
-                      tokenClass += " hk-script-token--new";
-                      if (tokenJlpt && settings.showJlptColors !== false) {
-                        tokenClass += ` hk-script-token--jlpt-${tokenJlpt.toLowerCase()}`;
-                      }
-                    } else {
-                      tokenClass += " hk-script-token--plain";
-                    }
-
-                    return (
-                      <span
-                        key={tIdx}
-                        className={tokenClass}
-                        role={token.is_japanese ? "button" : undefined}
-                        tabIndex={token.is_japanese ? 0 : undefined}
-                        onClick={token.is_japanese ? (e) => handleTokenClick(e, token) : undefined}
-                        onKeyDown={(e) => {
-                          if (token.is_japanese && (e.key === "Enter" || e.key === " ")) {
-                            e.preventDefault();
-                            handleTokenClick(e as unknown as React.MouseEvent, token);
-                          }
-                        }}
-                        onMouseEnter={token.is_japanese ? (e) => handleTokenMouseEnter(e, token) : undefined}
-                        onMouseLeave={token.is_japanese ? handleTokenMouseLeave : undefined}
-                        title={
-                          isSaved && srsCard
-                            ? `SRS: State ${srsCard.state ?? 0} · Interval: ${srsCard.interval ?? 0}d`
-                            : tokenJlpt
-                              ? `JLPT ${tokenJlpt}`
-                              : undefined
-                        }
-                      >
-                        {hasRuby && rubySegments ? (
-                          rubySegments.map((seg, sIdx) =>
-                            seg.ruby ? (
-                              <ruby key={sIdx}>
-                                {renderHighlightedText(seg.text, searchQuery)}
-                                <rt className="hk-script-rt">{seg.ruby}</rt>
-                              </ruby>
-                            ) : (
-                              <span key={sIdx}>{renderHighlightedText(seg.text, searchQuery)}</span>
-                            )
-                          )
-                        ) : (
-                          renderHighlightedText(token.surface, searchQuery)
-                        )}
-                        {isSaved && <span className="hk-script-known-dot" />}
-                      </span>
-                    );
-                  })}
-                </div>
-
-                {/* Secondary Translation Bar */}
-                {settings.subtitlesSecondaryEnabled !== false && secText && (
-                  <div className="hk-script-cue__secondary">
-                    {renderHighlightedText(secText, searchQuery)}
-                  </div>
-                )}
-              </div>
-            );
-          })
+          <>
+            <div aria-hidden="true" style={{ height: virtual.before }} />
+            {visibleSegments.slice(virtual.start, virtual.end).map(({ cue, index }) => <TranscriptCue
+              key={index} cue={cue} originalIdx={index} offset={offset}
+              isActive={index === activeCueIndex} isMined={minedCueIndices.has(index)}
+              secText={secondaryMap.get(index)} isSearchMatch={matchedCueSet.has(index)}
+              isCurrentMatch={Boolean(searchQuery) && matchedCueIndices[currentMatchIdx] === index}
+              isPlaying={playingTtsIdx === index} isCopied={copiedCueIdx === index}
+              searchQuery={searchQuery} settings={settings} savedWords={savedWords} srsCardsMap={srsCardsMap}
+              handleSeek={handleSeek} handlePlayTts={handlePlayTts} handleMineToSrs={handleMineToSrs} handleCopyCue={handleCopyCue}
+              handleTokenClick={handleTokenClick} handleTokenMouseEnter={handleTokenMouseEnter} handleTokenMouseLeave={handleTokenMouseLeave}
+            />)}
+            <div aria-hidden="true" style={{ height: virtual.after }} />
+          </>
         )}
       </div>
 

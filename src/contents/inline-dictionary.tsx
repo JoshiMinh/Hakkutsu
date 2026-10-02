@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { memo, useEffect, useState, useRef } from "react";
 import {
   X,
   Loader2,
@@ -22,6 +22,7 @@ import { GrammarExplanations } from "~components/grammar-explanations";
 import { MangaOcrImages } from "~components/manga-ocr-images";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
+import { requestLookupAnalysis } from "~lib/services/lookup-analysis";
 
 // Content scripts render inside arbitrary websites, so root-relative URLs point
 // at the host page. Resolve the packaged asset against the extension origin.
@@ -116,7 +117,7 @@ function getWordAtPoint(x: number, y: number): WordPointResult | null {
   return { text: matchedWord, rect, rects: rects.length > 0 ? rects : [rect] };
 }
 
-const InlineDictionary = () => {
+const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nativePanel?: boolean; sourceUrl?: string; sourceTitle?: string }) => {
   const [position, setPosition] = useState<{
     x: number;
     y: number;
@@ -144,6 +145,24 @@ const InlineDictionary = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const analysisRequestRef = useRef(0);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeLookupRef = useRef("");
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const closeLookup = () => {
+    ++analysisRequestRef.current;
+    if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+    if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
+    hoverTimerRef.current = dismissTimerRef.current = null;
+    activeLookupRef.current = "";
+    isMouseOverPopupRef.current = false;
+    setPosition(null);
+    setHoverHighlightRects(null);
+    setOcrCroppedImage(null);
+    setTransientMode(false);
+    window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+    if (nativePanel && returnFocusRef.current?.isConnected) returnFocusRef.current.focus({ preventScroll: true });
+  };
   const positionRef = useRef(position);
   positionRef.current = position;
   const settingsRef = useRef(settings);
@@ -376,54 +395,70 @@ const InlineDictionary = () => {
     const onDoubleClick = (e: MouseEvent) => handleSelection(e, true);
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setPosition(null);
-        setHoverHighlightRects(null);
-        window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+      if (e.key === "Escape" && positionRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeLookup();
       }
     };
 
     const onCustomAnalyze = (e: any) => {
       if (e.detail?.text) {
-        const video = document.querySelector<HTMLVideoElement>("video");
-        if (e.detail.pauseVideo !== false && video && !video.paused) {
-          try {
-            video.pause();
-          } catch {}
-        }
+        if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+        if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
+        hoverTimerRef.current = dismissTimerRef.current = null;
+        const detail = e.detail;
+        const open = () => {
+          hoverTimerRef.current = null;
+          const lookupKey = JSON.stringify([detail.text, detail.mode || "dictionary", detail.selectedIndex, settingsRef.current.targetLanguage]);
+          if (activeLookupRef.current === lookupKey && positionRef.current) {
+            if (!detail.transient) setTransientMode(false);
+            return;
+          }
+          activeLookupRef.current = lookupKey;
+          if (nativePanel && !detail.transient) returnFocusRef.current = document.activeElement as HTMLElement | null;
+          const video = document.querySelector<HTMLVideoElement>("video");
+          if (e.detail.pauseVideo !== false && video && !video.paused) {
+            try {
+              video.pause();
+            } catch {}
+          }
 
-        const x = Number.isFinite(e.detail.x)
-          ? e.detail.x
-          : window.innerWidth / 2;
-        const y = Number.isFinite(e.detail.y)
-          ? e.detail.y
-          : window.innerHeight / 2;
-        setPosition({
-          x,
-          y: y + 8,
-          placement:
-            e.detail.placement === "player-overlay"
-              ? "player-overlay"
-              : "anchor",
-        });
-        setInputText(e.detail.text);
-        setOcrCroppedImage(e.detail.imageUrl || null);
-        const mode = String(e.detail.mode || "dictionary");
-        const isDeepPhrase = mode === "phrase";
-        const selectedIndex = Number.isInteger(e.detail.selectedIndex)
-          ? Number(e.detail.selectedIndex)
-          : null;
-        setSentenceMode(mode === "quick" || isDeepPhrase);
-        setPhraseMode(isDeepPhrase);
-        setTransientMode(Boolean(e.detail.transient));
-        analyzeText(
-          e.detail.text,
-          isDeepPhrase,
-          mode === "dictionary" || Boolean(e.detail.transient),
-          selectedIndex,
-          mode === "quick" || mode === "dictionary"
-        );
-        window.dispatchEvent(new CustomEvent("hakkutsu:analysis-opened"));
+          const x = Number.isFinite(e.detail.x)
+            ? e.detail.x
+            : window.innerWidth / 2;
+          const y = Number.isFinite(e.detail.y)
+            ? e.detail.y
+            : window.innerHeight / 2;
+          setPosition({
+            x,
+            y: y + 8,
+            placement:
+              e.detail.placement === "player-overlay"
+                ? "player-overlay"
+                : "anchor",
+          });
+          setInputText(e.detail.text);
+          setOcrCroppedImage(e.detail.imageUrl || null);
+          const mode = String(e.detail.mode || "dictionary");
+          const isDeepPhrase = mode === "phrase";
+          const selectedIndex = Number.isInteger(e.detail.selectedIndex)
+            ? Number(e.detail.selectedIndex)
+            : null;
+          setSentenceMode(mode === "quick" || isDeepPhrase);
+          setPhraseMode(isDeepPhrase);
+          setTransientMode(Boolean(e.detail.transient));
+          analyzeText(
+            e.detail.text,
+            isDeepPhrase,
+            mode === "dictionary" || Boolean(e.detail.transient),
+            selectedIndex,
+            mode === "quick" || mode === "dictionary"
+          );
+          window.dispatchEvent(new CustomEvent("hakkutsu:analysis-opened"));
+        };
+        if (detail.transient) hoverTimerRef.current = setTimeout(open, 180);
+        else open();
       }
     };
     const onTokenHover = (e: any) => {
@@ -433,27 +468,25 @@ const InlineDictionary = () => {
       }
     };
     const onDismissAnalysis = (e?: any) => {
+      if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+      if (nativePanel && !e?.detail?.force) return;
       if (isMouseOverPopupRef.current && !e?.detail?.force) {
         return;
       }
       if (!transientModeRef.current && !e?.detail?.force) {
         return;
       }
-      analysisRequestRef.current += 1;
-      setPosition(null);
-      setHoverHighlightRects(null);
-      setTransientMode(false);
-      window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+      if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
+      dismissTimerRef.current = setTimeout(() => {
+        if (e?.detail?.force || !isMouseOverPopupRef.current) closeLookup();
+      }, e?.detail?.force ? 0 : 250);
     };
 
     const onDocumentPointerDown = (e: MouseEvent) => {
       if (!positionRef.current) return;
       if (!isClickInsidePopup(e)) {
-        analysisRequestRef.current += 1;
-        setPosition(null);
-        setHoverHighlightRects(null);
-        setTransientMode(false);
-        window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+        if (!nativePanel) closeLookup();
       }
     };
 
@@ -469,6 +502,11 @@ const InlineDictionary = () => {
     window.addEventListener("hakkutsu:token-hover", onTokenHover);
 
     return () => {
+      ++analysisRequestRef.current;
+      window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+      if (selectionTimerRef.current) clearTimeout(selectionTimerRef.current);
+      if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+      if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
       document.removeEventListener("mousedown", onDocumentPointerDown, true);
       document.removeEventListener("mousemove", onMouseMove, true);
       document.removeEventListener("mouseup", onMouseUp, true);
@@ -493,18 +531,16 @@ const InlineDictionary = () => {
     const requestId = ++analysisRequestRef.current;
     setLoading(true);
     setError(null);
+    setSrsError(null);
     setSelectedToken(null);
     setResult(null);
 
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: deepPhraseAnalysis
+      const response = await requestLookupAnalysis(deepPhraseAnalysis
           ? "ANALYZE_PHRASE"
           : useJaviAnalysis
             ? "ANALYZE_JAVI"
-            : "ANALYZE_TEXT",
-        payload: { text, include_definitions: includeDefinitions },
-      });
+            : "ANALYZE_TEXT", text, includeDefinitions, settingsRef.current.targetLanguage || "vi");
 
       if (response?.type === "ERROR") {
         throw new Error(response.payload.error);
@@ -609,6 +645,8 @@ const InlineDictionary = () => {
             vietnamese_sound: selectedTokenData.vietnamese_sound,
             jlpt: selectedTokenData.jlpt_level,
             image_url: selectedImageUrl || ocrCroppedImage || undefined,
+            source_url: sourceUrl || window.location.href,
+            source_title: sourceTitle || document.title,
           },
         });
         if (response?.type !== "SRS_RESULT") throw new Error(response?.payload?.error || "Could not save card");
@@ -625,6 +663,12 @@ const InlineDictionary = () => {
     result && selectedToken !== null ? result.tokens?.[selectedToken] : null;
 
   useEffect(() => {
+    if (nativePanel && position && !transientMode) containerRef.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+  }, [nativePanel, position, transientMode]);
+
+  useEffect(() => {
+    let stopped = false;
+    setSrsAdded(false);
     if (!selectedTokenData || !selectedTokenData.is_japanese) {
       setSrsAdded(false);
       return;
@@ -639,6 +683,7 @@ const InlineDictionary = () => {
           payload: { word },
         })
         .then((res) => {
+          if (stopped) return;
           if (res && res.type === "CARD_EXISTS_RESULT" && res.payload?.exists) {
             setSrsAdded(true);
           } else {
@@ -647,6 +692,7 @@ const InlineDictionary = () => {
         })
         .catch(() => {});
     }
+    return () => { stopped = true; };
   }, [selectedTokenData]);
 
   const phraseTranslation =
@@ -669,7 +715,7 @@ const InlineDictionary = () => {
     setSelectedToken(index);
   };
 
-  const cardWidth = Math.min(420, Math.max(320, window.innerWidth - 32));
+  const cardWidth = Math.max(0, Math.min(420, window.innerWidth - 32));
   const usePlayerOverlay = position?.placement === "player-overlay";
 
   const panelLeft = position
@@ -716,7 +762,7 @@ const InlineDictionary = () => {
 
   return (
     <>
-      {settings.mangaOcrEnabled !== false && <MangaOcrImages />}
+      {!nativePanel && settings.mangaOcrEnabled !== false && <MangaOcrImages />}
 
       {/* Yomichan-style soft blue hover highlight overlay */}
       {hoverHighlightRects &&
@@ -743,15 +789,17 @@ const InlineDictionary = () => {
       {position && (
         <div
           ref={containerRef}
-          className="hk-popup hk-fade-in"
-          style={popupStyle}
+          className={`hk-popup hk-lookup ${nativePanel ? "hk-lookup--panel" : "hk-fade-in"}`}
+          style={nativePanel ? undefined : popupStyle}
+          role="region" aria-label="Hakkutsu Lookup"
           onMouseEnter={() => {
             isMouseOverPopupRef.current = true;
+            if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
           }}
           onMouseLeave={() => {
             isMouseOverPopupRef.current = false;
-            if (transientModeRef.current) {
-              window.setTimeout(() => {
+            if (!nativePanel && transientModeRef.current) {
+              dismissTimerRef.current = setTimeout(() => {
                 if (!isMouseOverPopupRef.current) {
                   window.dispatchEvent(
                     new CustomEvent("hakkutsu:analysis-dismiss", { detail: { force: true } })
@@ -774,11 +822,8 @@ const InlineDictionary = () => {
               <button
                 type="button"
                 className="hk-btn-icon-subtle"
-                onClick={() => {
-                  setPosition(null);
-                  setHoverHighlightRects(null);
-                  setOcrCroppedImage(null);
-                }}
+                onClick={closeLookup}
+                aria-label={t("dict_btn_close")}
                 title={t("dict_btn_close")}
                 style={{ width: "24px", height: "24px" }}
               >
@@ -828,6 +873,7 @@ const InlineDictionary = () => {
                 <div>
                   {selectedTokenData && selectedTokenData.is_japanese ? (
                     <DefinitionCard
+                      key={selectedTokenData.dictionary_form || selectedTokenData.surface}
                       token={selectedTokenData}
                       onExport={handleExport}
                       ankiConnected={settings.ankiEnabled !== false && ankiConnected}
@@ -905,4 +951,4 @@ const InlineDictionary = () => {
   );
 };
 
-export default InlineDictionary;
+export default memo(InlineDictionary);
