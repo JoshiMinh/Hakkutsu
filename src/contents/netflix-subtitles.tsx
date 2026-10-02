@@ -1,3 +1,4 @@
+import { useTranscriptPanelToggle } from "~lib/services/transcript-panel";
 /**
  * Netflix Subtitles — Content Script Overlay
  *
@@ -125,7 +126,7 @@ export default function NetflixSubtitlesOverlay() {
 
   const [isEnabled, setIsEnabled] = useState(settings.subtitlesEnabled !== false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useTranscriptPanelToggle();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

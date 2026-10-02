@@ -121,6 +121,8 @@ export interface SubtitleScriptDrawerProps {
   savedWords?: Set<string>;
   srsCardsMap?: Map<string, SrsCard>;
   videoTitle?: string;
+  sourceUrl?: string;
+  nativePanel?: boolean;
 }
 
 export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
@@ -136,6 +138,8 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   savedWords = new Set(),
   srsCardsMap = new Map(),
   videoTitle = "",
+  sourceUrl = window.location.href,
+  nativePanel = false,
 }) => {
   const { settings, updateSettings } = useSettingsStore();
   const { t } = useTranslation();
@@ -429,7 +433,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
           word: targetWord,
           sentence: text,
           sentence_meaning: secText,
-          source_url: window.location.href,
+          source_url: sourceUrl,
           source_title: videoTitle || document.title,
         },
       });
@@ -547,9 +551,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
 
   return (
     <aside
-      className={`hk-script-drawer ${isWide ? "hk-script-drawer--wide" : ""}`}
+      className={`hk-script-drawer ${nativePanel ? "hk-script-drawer--native" : ""} ${isWide ? "hk-script-drawer--wide" : ""}`}
       style={{
-        width: isWide ? "min(520px, 100vw)" : "min(380px, 100vw)",
+        width: nativePanel ? "100%" : isWide ? "min(520px, 100vw)" : "min(380px, 100vw)",
       }}
       onClick={(e) => e.stopPropagation()}
       role="dialog"
@@ -580,7 +584,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
             </button>
 
             {/* Wide toggle */}
-            <button
+            {!nativePanel && <button
               type="button"
               className="hk-script-btn-icon"
               onClick={() => setIsWide(!isWide)}
@@ -589,7 +593,7 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
               aria-pressed={isWide}
             >
               {isWide ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
+            </button>}
 
             {/* Close button */}
             <button

@@ -119,6 +119,7 @@ function componentHarness(platform) {
     },
     '~lib/services/smart-cue': { buildSmartCues: cues => cues },
     '~lib/services/video-runtime': {},
+    '~lib/services/transcript-panel': { useTranscriptPanelToggle: () => react.useState(false) },
   };
   const { default: Component } = loadSource(`src/contents/${platform}-subtitles.tsx`, {
     document, CustomEvent,

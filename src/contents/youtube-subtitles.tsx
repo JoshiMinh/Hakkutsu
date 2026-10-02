@@ -1,3 +1,4 @@
+import { useTranscriptPanelToggle } from "~lib/services/transcript-panel";
 /**
  * YouTube Subtitles — Content Script Overlay
  *
@@ -124,7 +125,7 @@ export default function YouTubeSubtitlesOverlay() {
 
   const [isEnabled, setIsEnabled] = useState(settings.subtitlesEnabled !== false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useTranscriptPanelToggle();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

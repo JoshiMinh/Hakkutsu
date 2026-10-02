@@ -1,3 +1,4 @@
+import { useTranscriptPanelToggle } from "~lib/services/transcript-panel";
 /**
  * Generic Video Player — Content Script Overlay
  *
@@ -417,7 +418,7 @@ export default function GenericSubtitlesOverlay() {
 
   const [isEnabled, setIsEnabled] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useTranscriptPanelToggle();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

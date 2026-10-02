@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { FolderOpen } from "lucide-react";
-import { SubtitleScriptDrawer } from "./subtitle-script-drawer";
+import { useTranscriptSource, useTranscriptPanelToggle } from "~lib/services/transcript-panel";
 import type { SrsCard } from "~lib/services/local-srs";
 import type {
   SubtitleSegment,
@@ -134,12 +134,17 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   const [translatedText, setTranslatedText] = useState<string>("");
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [offsetToast, setOffsetToast] = useState<string | null>(null);
-  const [internalDrawerOpen, setInternalDrawerOpen] = useState(false);
+  const [internalDrawerOpen, setInternalDrawerOpen] = useTranscriptPanelToggle();
 
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
   const [srsCardsMap, setSrsCardsMap] = useState<Map<string, SrsCard>>(new Map());
 
   const drawerOpen = isDrawerOpen !== undefined ? isDrawerOpen : internalDrawerOpen;
+  useTranscriptSource({ subtitleData, secondaryData, currentSegment, offset, videoTitle, sourceUrl: currentUrl }, (time) => {
+    if (onSeekTime) onSeekTime(time);
+    else if (videoRef.current) videoRef.current.currentTime = Math.max(0, time);
+    void videoRef.current?.play().catch(() => {});
+  });
 
   const handleToggleDrawer = useCallback(() => {
     if (onToggleDrawer) {
@@ -912,21 +917,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         </>
       )}
 
-      {/* Synchronized Subtitle Script Drawer ("Reader Mode") */}
-      <SubtitleScriptDrawer
-        isOpen={Boolean(drawerOpen)}
-        onClose={() => handleToggleDrawer()}
-        subtitleData={subtitleData}
-        secondaryData={secondaryData}
-        currentSegment={currentSegment}
-        offset={offset}
-        videoRef={videoRef}
-        onSeekToCue={onSeekToCue}
-        onSeekTime={onSeekTime}
-        savedWords={savedWords}
-        srsCardsMap={srsCardsMap}
-        videoTitle={videoTitle}
-      />
     </>
   );
 };

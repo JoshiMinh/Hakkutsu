@@ -13,7 +13,7 @@ import {
   RefreshCw,
   Trash2,
   CornerDownLeft,
-  Volume2, Settings
+  Volume2, Settings, PanelRight
 } from "lucide-react";
 
 import { apiClient } from "~lib/services/api-client";
@@ -392,6 +392,13 @@ function Popup() {
     }
   };
 
+  const handleOpenTranscript = () => {
+    const opened = browser.sidebarAction?.open
+      ? browser.sidebarAction.open()
+      : chrome.windows.getCurrent().then((current) => chrome.sidePanel.open({ windowId: current.id! }));
+    void opened.then(() => window.close()).catch((error) => window.alert(error.message));
+  };
+
   return (
     <div className="hk-popup">
       <header className="hk-popup-header">
@@ -400,6 +407,8 @@ function Popup() {
           <div><div className="hk-brand-title">Hakkutsu</div><div className="hk-popup-brand__subtitle">{t("popup_subtitle")}</div></div>
         </div>
         <div className="hk-popup-header__actions">
+          <button type="button" className="hk-popup-icon" onClick={handleOpenTranscript}
+            aria-label={t("drawer_title")} title={t("drawer_title")}><PanelRight size={17} /></button>
           <a className="hk-popup-icon" href="https://ko-fi.com/joshiminh" target="_blank" rel="noopener noreferrer" aria-label="Support on Ko-fi" title="Support on Ko-fi">
             <img src={kofiSvg} alt="" width={18} height={18} />
           </a>

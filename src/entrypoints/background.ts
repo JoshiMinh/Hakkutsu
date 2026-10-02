@@ -28,6 +28,7 @@ import { googleTranslateService } from "~lib/services/google-translate";
 import { fetchIrasutoyaImagesDirect } from "~lib/services/irasutoya-service";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
+import { installTranscriptPanelRouter } from "~lib/services/transcript-panel-router";
 
 let creatingOcrDocument: Promise<void> | null = null;
 
@@ -59,9 +60,27 @@ async function ensureOcrDocument(): Promise<void> {
 }
 
 export default defineBackground(() => {
+  const closeTranscriptPanel = installTranscriptPanelRouter();
   // Listen for messages from popup and content scripts
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === "RUN_MANGA_OCR_OFFSCREEN") return false;
+    if (/^TRANSCRIPT_(SNAPSHOT|CUE|UNAVAILABLE)$/.test(message?.type || "")) return false;
+    if (message?.type === "OPEN_TRANSCRIPT_PANEL") {
+      const tabId = sender.tab?.id;
+      if (tabId !== undefined && chrome.sidePanel?.open) {
+        // Do not await anything before open(): Chrome requires a user gesture.
+        chrome.sidePanel.open({ tabId }).then(() => sendResponse({ ok: true }))
+          .catch((error) => sendResponse({ type: "ERROR", payload: { error: error.message } }));
+        return true;
+      }
+      sendResponse({ type: "ERROR", payload: { error: "Open Video Script from the Hakkutsu toolbar popup to use your browser's sidebar." } });
+      return false;
+    }
+    if (message?.type === "CLOSE_TRANSCRIPT_PANEL") {
+      if (sender.tab?.id !== undefined) closeTranscriptPanel(sender.tab.id);
+      sendResponse({ ok: true });
+      return false;
+    }
     handleMessage(message, sender)
       .then(sendResponse)
       .catch((error) =>
@@ -643,13 +662,12 @@ async function handleMessage(
       if (url) {
         try {
           const res = await fetch(url);
+          if (!res.ok) throw new Error(`Image request failed (${res.status})`);
           const blob = await res.blob();
-          const reader = new FileReader();
-          const dataUrl = await new Promise<string>((resolve, reject) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          let binary = "";
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          const dataUrl = `data:${blob.type || "image/png"};base64,${btoa(binary)}`;
           return { type: "FETCH_IMAGE_RESULT", payload: { dataUrl } };
         } catch (err: any) {
           throw new Error(`Failed to fetch image: ${err.message || err}`);
