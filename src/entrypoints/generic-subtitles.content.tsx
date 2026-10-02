@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import cssText from "~/style.css?inline";
 import { youtubeSubtitleCss, genericPlayerCss } from "~/lib/utils/youtube-subtitle-styles";
 import GenericSubtitlesOverlay from "~/contents/generic-subtitles";
+import { findPrimaryVideo } from "~/lib/services/video-runtime";
 
 export default defineContentScript({
   matches: ["<all_urls>"],
@@ -18,7 +19,7 @@ export default defineContentScript({
       name: "hakkutsu-generic-subtitles-host",
       position: "inline",
       anchor: () => {
-        const video = document.querySelector("video");
+        const video = findPrimaryVideo() || document.querySelector("video");
         return video?.parentElement || video || document.body;
       },
       css: cssText + youtubeSubtitleCss + genericPlayerCss,

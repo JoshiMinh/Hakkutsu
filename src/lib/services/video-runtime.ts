@@ -2,7 +2,12 @@ function isUsableVideo(video: HTMLVideoElement): boolean {
   const rect = video.getBoundingClientRect();
   return (
     video.isConnected &&
-    (video.currentSrc.length > 0 || video.readyState > HTMLMediaElement.HAVE_NOTHING || rect.width > 0 || rect.height > 0)
+    (video.currentSrc.length > 0 ||
+      (typeof video.src === "string" && video.src.length > 0) ||
+      video.querySelector("source[src]") !== null ||
+      video.readyState > HTMLMediaElement.HAVE_NOTHING ||
+      rect.width > 0 ||
+      rect.height > 0)
   );
 }
 
@@ -114,6 +119,8 @@ export function subscribeToVideoTime(video: HTMLVideoElement, onTime: () => void
   video.addEventListener("pause", handleStop);
   video.addEventListener("ended", handleStop);
   video.addEventListener("seeked", onTime);
+  video.addEventListener("timeupdate", onTime);
+  video.addEventListener("ratechange", onTime);
   video.addEventListener("loadedmetadata", onTime);
   if (!video.paused) scheduleTick();
 
@@ -125,6 +132,8 @@ export function subscribeToVideoTime(video: HTMLVideoElement, onTime: () => void
     video.removeEventListener("pause", handleStop);
     video.removeEventListener("ended", handleStop);
     video.removeEventListener("seeked", onTime);
+    video.removeEventListener("timeupdate", onTime);
+    video.removeEventListener("ratechange", onTime);
     video.removeEventListener("loadedmetadata", onTime);
   };
 }

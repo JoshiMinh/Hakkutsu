@@ -394,3 +394,108 @@ test('Netflix serializes and deduplicates lazy loads, waiting for delayed CDN UR
   const latest = document.events.filter(e => e.type === 'hakkutsu:netflix-synced-tracks').at(-1);
   assert.ok(latest.detail.tracks.every(track => track.url));
 });
+
+test('Netflix bridge handles seek event and supports dictionary URL mappings', async () => {
+  const document = new Events();
+  document.title = 'Netflix';
+  let seekTime = null;
+  const player = {
+    getTimedTextTrackList: () => [{ trackId: 'ja-track', newTrackId: 'ja-new', bcp47: 'ja' }],
+    seek: (ms) => { seekTime = ms; },
+  };
+  const root = {
+    timedtext: {
+      type: 'timedtext',
+      trackId: 'ja-track',
+      newTrackId: 'ja-new',
+      bcp47: 'ja',
+      downloadableUrls: {
+        'cdn-fast': { url: 'https://cdn.netflix.com/subtitles/ja.ttml' },
+      },
+    },
+  };
+  const window = {
+    location: { pathname: '/watch/12345' },
+    netflix: { appContext: { state: { playerApp: {
+      getAPI: () => ({ videoPlayer: {
+        getAllPlayerSessionIds: () => ['sess-1'],
+        getVideoPlayerBySessionId: () => player,
+      } }),
+      getState: () => ({ videoPlayer: { cadmiumPlayerRepository: { playersById: { 'sess-1': root } } } }),
+    } } } },
+  };
+  loadSource('src/lib/services/netflix-bridge.ts', {
+    window, document, CustomEvent, setInterval() {}, setTimeout() {},
+  }).runNetflixBridgeMain();
+
+  document.dispatchEvent(new CustomEvent('hakkutsu:request-netflix-tracks'));
+  await flush();
+
+  const syncEvent = document.events.find(e => e.type === 'hakkutsu:netflix-synced-tracks');
+  assert.ok(syncEvent, 'Synced tracks event dispatched');
+  assert.equal(syncEvent.detail.tracks[0].url, 'https://cdn.netflix.com/subtitles/ja.ttml');
+
+  // Test seek dispatch
+  document.dispatchEvent(new CustomEvent('hakkutsu:netflix-seek', { detail: { timeMs: 42500 } }));
+  assert.equal(seekTime, 42500);
+});
+
+test('subtitle-parsers: cleanSubtitleText strips TTML ruby pronunciation guides and WebVTT parses commas', () => {
+  const parsers = loadSource('src/lib/services/subtitle-parsers.ts');
+
+  // 1. TTML ruby annotation text stripping
+  const ttmlRuby = '<span><span tts:ruby="base">日本語</span><span tts:ruby="text">にほんご</span></span>を勉強する';
+  const cleanedTtml = parsers.cleanSubtitleText(ttmlRuby);
+  assert.equal(cleanedTtml, '日本語を勉強する');
+
+  // 2. HTML rt tag stripping
+  const htmlRuby = '<ruby>漢字<rt>かんじ</rt></ruby>';
+  const cleanedHtml = parsers.cleanSubtitleText(htmlRuby);
+  assert.equal(cleanedHtml, '漢字');
+
+  // 3. WebVTT parsing with comma delimiter and cue settings
+  const vttSample = `WEBVTT\n\n00:01:23,456 --> 00:01:25,789 line:90% position:50%\nこんにちは世界！`;
+  const vttCues = parsers.parseVtt(vttSample);
+  assert.equal(vttCues.length, 1);
+  assert.equal(vttCues[0].text, 'こんにちは世界！');
+  assert.ok(Math.abs(vttCues[0].start - 83.456) < 0.01);
+  assert.ok(Math.abs(vttCues[0].duration - 2.333) < 0.01);
+});
+
+test('video-runtime: subscribeToVideoTime binds timeupdate and ratechange listeners and unbinds them cleanly', () => {
+  const runtime = loadSource('src/lib/services/video-runtime.ts');
+  const listeners = new Map();
+  const video = {
+    paused: true,
+    ended: false,
+    addEventListener(type, fn) {
+      if (!listeners.has(type)) listeners.set(type, []);
+      listeners.get(type).push(fn);
+    },
+    removeEventListener(type, fn) {
+      listeners.set(type, (listeners.get(type) || []).filter(f => f !== fn));
+    },
+  };
+
+  let tickCount = 0;
+  const unbind = runtime.subscribeToVideoTime(video, () => { tickCount++; });
+
+  assert.ok(listeners.has('timeupdate'), 'Listens to timeupdate');
+  assert.ok(listeners.has('ratechange'), 'Listens to ratechange');
+  assert.ok(listeners.has('seeked'), 'Listens to seeked');
+
+  // Trigger timeupdate (simulating seekbar scrub while paused)
+  const initialTicks = tickCount;
+  listeners.get('timeupdate')[0]();
+  assert.equal(tickCount, initialTicks + 1);
+
+  // Trigger ratechange
+  listeners.get('ratechange')[0]();
+  assert.equal(tickCount, initialTicks + 2);
+
+  // Unbind
+  unbind();
+  assert.equal(listeners.get('timeupdate').length, 0);
+  assert.equal(listeners.get('ratechange').length, 0);
+  assert.equal(listeners.get('seeked').length, 0);
+});

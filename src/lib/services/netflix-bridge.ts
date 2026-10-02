@@ -93,30 +93,49 @@ export function runNetflixBridgeMain(): void {
           node.rawTrackType === "TIMEDTEXT" ||
           (typeof node.isTimedText === "boolean" && node.isTimedText);
 
-        if (node.trackId !== undefined && node.trackId !== null) {
-          const tid = String(node.trackId);
-          let foundUrl: string | undefined;
-
-          if (Array.isArray(node.urls) && node.urls.length > 0) {
-            for (const u of node.urls) {
-              if (typeof u?.url === "string" && (isTimedTextNode || /timedtext|ttml|imsc|syntax/i.test(u.url))) {
-                foundUrl = u.url;
-                break;
-              }
+        const extractUrlCandidate = (source: any): string | undefined => {
+          if (!source) return undefined;
+          if (typeof source === "string" && (isTimedTextNode || /timedtext|ttml|imsc|syntax/i.test(source))) {
+            return source;
+          }
+          if (Array.isArray(source)) {
+            for (const item of source) {
+              const candidate = extractUrlCandidate(item?.url || item?.cdnUrl || item);
+              if (candidate) return candidate;
             }
-          } else if (typeof node.url === "string" && (isTimedTextNode || /timedtext|ttml|imsc|syntax/i.test(node.url))) {
-            foundUrl = node.url;
-          } else if (typeof node.cdnUrl === "string" && (isTimedTextNode || /timedtext|ttml|imsc|syntax/i.test(node.cdnUrl))) {
-            foundUrl = node.cdnUrl;
+          } else if (typeof source === "object") {
+            if (typeof source.url === "string" && (isTimedTextNode || /timedtext|ttml|imsc|syntax/i.test(source.url))) {
+              return source.url;
+            }
+            if (typeof source.cdnUrl === "string" && (isTimedTextNode || /timedtext|ttml|imsc|syntax/i.test(source.cdnUrl))) {
+              return source.cdnUrl;
+            }
+            for (const key of Object.keys(source)) {
+              const val = source[key];
+              const candidate = extractUrlCandidate(val?.url || val?.cdnUrl || val);
+              if (candidate) return candidate;
+            }
           }
+          return undefined;
+        };
 
-          if (foundUrl) {
-            if (!urls.has(tid)) urls.set(tid, foundUrl);
-            if (node.bcp47 && !urls.has(String(node.bcp47))) urls.set(String(node.bcp47), foundUrl);
-            if (node.bcp47 && !urls.has(String(node.bcp47).toLowerCase())) urls.set(String(node.bcp47).toLowerCase(), foundUrl);
-            if (node.language && !urls.has(String(node.language))) urls.set(String(node.language), foundUrl);
-            if (node.id && !urls.has(String(node.id))) urls.set(String(node.id), foundUrl);
-          }
+        const tid = node.trackId !== undefined && node.trackId !== null ? String(node.trackId) : "";
+        const newTid = node.newTrackId !== undefined && node.newTrackId !== null ? String(node.newTrackId) : "";
+
+        const foundUrl: string | undefined =
+          extractUrlCandidate(node.urls) ||
+          extractUrlCandidate(node.downloadableUrls) ||
+          extractUrlCandidate(node.ttDownloadables) ||
+          extractUrlCandidate(node.url) ||
+          extractUrlCandidate(node.cdnUrl);
+
+        if (foundUrl) {
+          if (tid && !urls.has(tid)) urls.set(tid, foundUrl);
+          if (newTid && !urls.has(newTid)) urls.set(newTid, foundUrl);
+          if (node.bcp47 && !urls.has(String(node.bcp47))) urls.set(String(node.bcp47), foundUrl);
+          if (node.bcp47 && !urls.has(String(node.bcp47).toLowerCase())) urls.set(String(node.bcp47).toLowerCase(), foundUrl);
+          if (node.language && !urls.has(String(node.language))) urls.set(String(node.language), foundUrl);
+          if (node.id && !urls.has(String(node.id))) urls.set(String(node.id), foundUrl);
         }
 
       if (Array.isArray(node)) {
@@ -145,6 +164,8 @@ export function runNetflixBridgeMain(): void {
 
     const foundUrl =
       urlsByTrackId.get(trackIdStr) ||
+      urlsByTrackId.get(String(track.trackId || "")) ||
+      urlsByTrackId.get(String(track.newTrackId || "")) ||
       urlsByTrackId.get(track.bcp47) ||
       urlsByTrackId.get(language) ||
       urlsByTrackId.get(track.bcp47.toLowerCase()) ||
@@ -206,6 +227,8 @@ export function runNetflixBridgeMain(): void {
     const targetTrack = allTracks.find(
       (t: any) =>
         String(t.trackId) === targetTrackIdStr ||
+        String(t.newTrackId) === targetTrackIdStr ||
+        String(t.id) === targetTrackIdStr ||
         String(t.bcp47) === targetTrackIdStr ||
         String(t.bcp47?.toLowerCase()) === targetTrackIdStr.toLowerCase()
     );

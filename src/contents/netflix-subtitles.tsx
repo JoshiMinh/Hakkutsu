@@ -97,7 +97,7 @@ function injectNetflixGlobalStyle(hideNative: boolean): void {
     ${
       hideNative
         ? `
-      /* Cleanly hide native Netflix subtitles when Hakkutsu is active */
+      /* Cleanly hide native Netflix subtitles when Hakkutsu is active while allowing DOM fallback */
       .player-timedtext,
       .player-timedtext *,
       .timedtext-container,
@@ -110,9 +110,10 @@ function injectNetflixGlobalStyle(hideNative: boolean): void {
       [class*="timedtext"] *,
       .player-timedtext-text-container,
       .player-timedtext-text-container * {
-        display: none !important;
         opacity: 0 !important;
-        visibility: hidden !important;
+        color: transparent !important;
+        text-shadow: none !important;
+        background: transparent !important;
         pointer-events: none !important;
       }
     `
@@ -627,6 +628,34 @@ export default function NetflixSubtitlesOverlay() {
     setIsEnabled(true);
   };
 
+  const handleSeekTime = useCallback((targetSec: number) => {
+    const timeMs = Math.round(Math.max(0, targetSec) * 1000);
+    document.dispatchEvent(
+      new CustomEvent("hakkutsu:netflix-seek", {
+        detail: { timeMs },
+      })
+    );
+    const video = videoRef.current || document.querySelector<HTMLVideoElement>("video");
+    if (video) {
+      try {
+        video.currentTime = Math.max(0, targetSec);
+      } catch {}
+    }
+  }, []);
+
+  const handleRetrySubtitles = useCallback(() => {
+    setError(null);
+    setLoading(true);
+    document.dispatchEvent(new CustomEvent("hakkutsu:request-netflix-tracks"));
+    if (selectedTrackIdRef.current) {
+      document.dispatchEvent(
+        new CustomEvent("hakkutsu:netflix-lazy-load-track", {
+          detail: { trackId: selectedTrackIdRef.current },
+        })
+      );
+    }
+  }, []);
+
   return (
     <>
       <FloatingNetflixButton
@@ -671,6 +700,9 @@ export default function NetflixSubtitlesOverlay() {
         }}
         onOffsetChange={(newOffset) => setOffset(newOffset)}
         onLoadCustomSubtitles={handleCustomSubtitleLoaded}
+        onSeekTime={handleSeekTime}
+        onSeekToCue={(cue) => handleSeekTime(cue.start + offset)}
+        onRetrySubtitles={handleRetrySubtitles}
       />
 
       <SelectSubtitlesModal

@@ -5,16 +5,27 @@
  */
 
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
+import { romajiToHiragana } from "~lib/utils/japanese";
+
+export interface TranslationResult {
+  translation: string;
+  romaji: string;
+  reading: string;
+}
 
 export class GoogleTranslateService {
-  private cache: Map<string, string> = new Map();
-  private maxCacheSize = 150;
+  private cache: Map<string, TranslationResult> = new Map();
+  private maxCacheSize = 250;
 
   /**
-   * Translate Japanese text to a specified target language (e.g., 'vi', 'en').
+   * Translate Japanese text and retrieve its phonetic romanization and hiragana reading.
    */
-  async translate(text: string, targetLang: string = "vi", sourceLang: string = "ja"): Promise<string> {
-    if (!text || !text.trim()) return "";
+  async translateWithReading(
+    text: string,
+    targetLang: string = "vi",
+    sourceLang: string = "ja"
+  ): Promise<TranslationResult> {
+    if (!text || !text.trim()) return { translation: "", romaji: "", reading: "" };
     const cleanText = text.trim();
     const cacheKey = `${sourceLang}->${targetLang}:${cleanText}`;
 
@@ -25,7 +36,7 @@ export class GoogleTranslateService {
     try {
       const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(
         sourceLang
-      )}&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(cleanText)}`;
+      )}&tl=${encodeURIComponent(targetLang)}&dt=t&dt=rm&q=${encodeURIComponent(cleanText)}`;
 
       const res = await fetch(url);
       if (!res.ok) {
@@ -33,34 +44,51 @@ export class GoogleTranslateService {
       }
 
       const json = await res.json();
-      // Google translate returns an array of segments: [[["translated", "source", ...], ...], ...]
+      let romaji = "";
+      const uniquePieces: string[] = [];
+      const seen = new Set<string>();
+
       if (Array.isArray(json) && Array.isArray(json[0])) {
-        const uniquePieces: string[] = [];
-        const seen = new Set<string>();
         for (const segment of json[0]) {
-          if (Array.isArray(segment) && typeof segment[0] === "string" && segment[0].trim()) {
-            const piece = segment[0].trim();
-            const key = piece.toLowerCase().replace(/^[\s.,!?。！？:;\-\/]+|[\s.,!?。！？:;\-\/]+$/g, "");
-            if (key && !seen.has(key)) {
-              seen.add(key);
-              uniquePieces.push(piece);
+          if (Array.isArray(segment)) {
+            if (typeof segment[0] === "string" && segment[0].trim()) {
+              const piece = segment[0].trim();
+              const key = piece.toLowerCase().replace(/^[\s.,!?。！？:;\-\/]+|[\s.,!?。！？:;\-\/]+$/g, "");
+              if (key && !seen.has(key)) {
+                seen.add(key);
+                uniquePieces.push(piece);
+              }
+            }
+            if (!romaji && typeof segment[3] === "string" && segment[3].trim()) {
+              romaji = segment[3].trim();
             }
           }
         }
-        const translated = uniquePieces.join(" ");
-
-        if (this.cache.size >= this.maxCacheSize) {
-          const firstKey = this.cache.keys().next().value;
-          if (firstKey) this.cache.delete(firstKey);
-        }
-        this.cache.set(cacheKey, translated);
-        return translated;
       }
+
+      const translation = uniquePieces.join(" ") || cleanText;
+      const reading = romaji ? romajiToHiragana(romaji) : "";
+      const result: TranslationResult = { translation, romaji, reading };
+
+      if (this.cache.size >= this.maxCacheSize) {
+        const firstKey = this.cache.keys().next().value;
+        if (firstKey) this.cache.delete(firstKey);
+      }
+      this.cache.set(cacheKey, result);
+      return result;
     } catch (err) {
       console.warn("[Hakkutsu] Google Translate fallback request failed:", err);
     }
 
-    return cleanText;
+    return { translation: cleanText, romaji: "", reading: "" };
+  }
+
+  /**
+   * Translate Japanese text to a specified target language (e.g., 'vi', 'en').
+   */
+  async translate(text: string, targetLang: string = "vi", sourceLang: string = "ja"): Promise<string> {
+    const result = await this.translateWithReading(text, targetLang, sourceLang);
+    return result.translation;
   }
 
   /**

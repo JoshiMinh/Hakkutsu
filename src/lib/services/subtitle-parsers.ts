@@ -153,8 +153,9 @@ export function cleanSubtitleText(text: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, " ")
-    // Remove HTML tags after decoding so escaped markup cannot leak through.
-    .replace(/<rt>[^<]*<\/rt>/gi, "")
+    // Remove ruby pronunciation annotations (TTML/HTML) before removing tags
+    .replace(/<(?:tt:)?span[^>]*tts:ruby="(?:text|rt)"[^>]*>[\s\S]*?<\/(?:tt:)?span>/gi, "")
+    .replace(/<rt\b[^>]*>[\s\S]*?<\/rt>/gi, "")
     .replace(/<\/?[^>]+(>|$)/g, "")
     .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, "")
     // Normalize extra whitespace and strip empty space between CJK Japanese characters
@@ -323,6 +324,30 @@ export function parseNetflixTtml(ttmlContent: string): SubtitleSegment[] {
 
     const seen = new Set<string>();
 
+    const extractCleanNodeText = (element: Element): string => {
+      const cloned = element.cloneNode(true) as Element;
+      try {
+        const rubyEls = cloned.querySelectorAll(
+          '[tts\\:ruby="text"], [tts\\:ruby="rt"], [ruby="text"], [ruby="rt"], rt'
+        );
+        rubyEls.forEach((rt) => rt.remove());
+      } catch {}
+
+      let text = "";
+      cloned.childNodes.forEach((node) => {
+        if (node.nodeName.toLowerCase().includes("br")) {
+          text += " ";
+        } else {
+          text += node.textContent || "";
+        }
+      });
+
+      if (!text.trim()) {
+        text = cloned.textContent || "";
+      }
+      return text;
+    };
+
     // Query all elements with [begin] attribute (timed cues)
     const allTimedElements = Array.from(doc.querySelectorAll("[begin]"));
 
@@ -357,19 +382,7 @@ export function parseNetflixTtml(ttmlContent: string): SubtitleSegment[] {
           duration = Math.max(0.1, parseTimestamp(durAttr, frameRate, tickRate));
         }
 
-        let rawText = "";
-        el.childNodes.forEach((node) => {
-          if (node.nodeName.toLowerCase().includes("br")) {
-            rawText += " ";
-          } else {
-            rawText += node.textContent || "";
-          }
-        });
-
-        if (!rawText.trim()) {
-          rawText = el.textContent || "";
-        }
-
+        const rawText = extractCleanNodeText(el);
         const text = cleanSubtitleText(rawText);
         if (text) {
           const key = `${start.toFixed(2)}|${text}`;
@@ -408,15 +421,7 @@ export function parseNetflixTtml(ttmlContent: string): SubtitleSegment[] {
           duration = Math.max(0.1, parseTimestamp(durAttr, frameRate, tickRate));
         }
 
-        let rawText = "";
-        el.childNodes.forEach((node) => {
-          if (node.nodeName.toLowerCase().includes("br")) {
-            rawText += " ";
-          } else {
-            rawText += node.textContent || "";
-          }
-        });
-
+        const rawText = extractCleanNodeText(el);
         const text = cleanSubtitleText(rawText);
         if (text) {
           const key = `${start.toFixed(2)}|${text}`;
@@ -506,7 +511,7 @@ export function parseVtt(vttContent: string): SubtitleSegment[] {
   while (i < lines.length) {
     const line = lines[i].trim();
     if (line.includes("-->")) {
-      const match = line.match(/([\d:.]+)\s*-->\s*([\d:.]+)/);
+      const match = line.match(/([\d:,.]+)\s*-->\s*([\d:,.]+)/);
       if (match) {
         const start = parseTimestamp(match[1]);
         const end = parseTimestamp(match[2]);

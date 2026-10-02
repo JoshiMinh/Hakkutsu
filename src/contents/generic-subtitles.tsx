@@ -48,14 +48,19 @@ function injectGenericGlobalStyle(hideNative: boolean): void {
       .shaka-text-container,
       .art-subtitles,
       .plyr__captions,
-      .subtitle-container:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      .dplayer-subtitle,
+      .mejs__captions-layer,
+      .vilos-captions,
+      .captions-display,
+      [class*="captions-display" i],
+      .subtitle-container:not(#hakkutsu-generic-subtitles-host *):not(hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
       .video-js .vjs-text-track-display,
-      [class*="subtitle-text" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
-      [class*="caption-text" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
-      [class*="timedtext" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
-      [class*="player-subtitle" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
-      [class*="subtitle-layer" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
-      [class*="subtitles-overlay" i]:not(#hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      [class*="subtitle-text" i]:not(#hakkutsu-generic-subtitles-host *):not(hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      [class*="caption-text" i]:not(#hakkutsu-generic-subtitles-host *):not(hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      [class*="timedtext" i]:not(#hakkutsu-generic-subtitles-host *):not(hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      [class*="player-subtitle" i]:not(#hakkutsu-generic-subtitles-host *):not(hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      [class*="subtitle-layer" i]:not(#hakkutsu-generic-subtitles-host *):not(hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
+      [class*="subtitles-overlay" i]:not(#hakkutsu-generic-subtitles-host *):not(hakkutsu-generic-subtitles-host *):not(.hk-sub__container *),
       video::cue {
         opacity: 0 !important;
         color: transparent !important;
@@ -72,6 +77,13 @@ function getSiteKeys(): string[] {
     if (window.top && window.top.location.origin) {
       const topKey = STORAGE_KEY_PREFIX + window.top.location.origin;
       if (!keys.includes(topKey)) keys.push(topKey);
+    }
+  } catch {}
+  try {
+    if (document.referrer) {
+      const refOrigin = new URL(document.referrer).origin;
+      const refKey = STORAGE_KEY_PREFIX + refOrigin;
+      if (!keys.includes(refKey)) keys.push(refKey);
     }
   } catch {}
   return keys;
@@ -489,6 +501,11 @@ export default function GenericSubtitlesOverlay() {
       ".shaka-text-container",
       ".art-subtitles",
       ".plyr__captions",
+      ".dplayer-subtitle",
+      ".mejs__captions-layer",
+      ".vilos-captions",
+      ".captions-display",
+      "[class*='captions-display' i]",
       ".subtitle-container",
       ".video-js .vjs-text-track-display",
       "[class*='subtitle-text' i]",
@@ -500,7 +517,12 @@ export default function GenericSubtitlesOverlay() {
     ];
 
     let fallbackText = "";
-    const container = videoRef.current?.parentElement || document.body;
+    const v = videoRef.current;
+    const container =
+      v?.closest(".video-js, [class*='player' i], [id*='player' i], .dplayer, .jwplayer, .plyr, .mejs__container") ||
+      v?.parentElement?.parentElement ||
+      v?.parentElement ||
+      document.body;
 
     for (const sel of selectors) {
       const els = container.querySelectorAll(sel);
@@ -508,6 +530,7 @@ export default function GenericSubtitlesOverlay() {
         const el = els[i];
         if (
           el.closest("#hakkutsu-generic-subtitles-host") ||
+          el.closest("hakkutsu-generic-subtitles-host") ||
           el.closest(".hk-sub__container") ||
           el.closest("button") ||
           el.closest("[role='menu']") ||
@@ -580,10 +603,12 @@ export default function GenericSubtitlesOverlay() {
 
   useEffect(() => {
     const placeHost = () => {
-      const host = document.getElementById("hakkutsu-generic-subtitles-host");
+      const host =
+        document.querySelector("hakkutsu-generic-subtitles-host") ||
+        document.getElementById("hakkutsu-generic-subtitles-host");
       if (!host || !videoEl) return;
-      const fullscreen = document.fullscreenElement;
-      const parent = fullscreen?.contains(videoEl) ? fullscreen : videoEl.parentElement;
+      const fsEl = document.fullscreenElement as HTMLElement | null;
+      const parent = fsEl && (fsEl.contains(videoEl) || fsEl === videoEl) ? fsEl : videoEl.parentElement;
       if (parent && host.parentElement !== parent) parent.appendChild(host);
     };
     placeHost();
@@ -733,6 +758,7 @@ export default function GenericSubtitlesOverlay() {
 
       let primaryCue: SubtitleSegment | null = null;
       let secondaryCue: SubtitleSegment | null = null;
+      let fallbackPrimaryCue: SubtitleSegment | null = null;
 
       for (let i = 0; i < video.textTracks.length; i++) {
         const tt = video.textTracks[i];
@@ -779,11 +805,17 @@ export default function GenericSubtitlesOverlay() {
               primaryCue = seg;
             } else if (isSelectedSecondary && !secondaryCue) {
               secondaryCue = seg;
-            } else if (!primaryCue) {
+            } else if (containsJapanese(text) && !primaryCue) {
               primaryCue = seg;
+            } else if (!fallbackPrimaryCue) {
+              fallbackPrimaryCue = seg;
             }
           }
         }
+      }
+
+      if (!primaryCue && fallbackPrimaryCue && !currentTrackId) {
+        primaryCue = fallbackPrimaryCue;
       }
 
       return { primary: primaryCue, secondary: secondaryCue };
@@ -909,16 +941,18 @@ export default function GenericSubtitlesOverlay() {
         onOffsetChange={(newOffset) => setOffset(newOffset)}
         onLoadCustomSubtitles={handleCustomSubtitleLoaded}
         onSeekTime={(timeSec) => {
-          if (videoRef.current) {
+          const v = videoRef.current || videoEl || document.querySelector<HTMLVideoElement>("video");
+          if (v) {
             try {
-              videoRef.current.currentTime = Math.max(0, timeSec);
+              v.currentTime = Math.max(0, timeSec);
             } catch {}
           }
         }}
         onSeekToCue={(cue) => {
-          if (videoRef.current) {
+          const v = videoRef.current || videoEl || document.querySelector<HTMLVideoElement>("video");
+          if (v) {
             try {
-              videoRef.current.currentTime = Math.max(0, cue.start + offset);
+              v.currentTime = Math.max(0, cue.start + offset);
             } catch {}
           }
         }}

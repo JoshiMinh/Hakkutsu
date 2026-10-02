@@ -152,8 +152,9 @@ export async function lookupWordEnglish(word: string): Promise<LookupResult> {
   }
 
   // Fallback to Google Translate
-  const gtMeaning = await googleTranslateService.translate(rawKey, "en", "ja");
-  const fallbackResult: LookupResult = { meaning: gtMeaning, reading: key !== rawKey ? key : undefined, source: "google" };
+  const gtRes = await googleTranslateService.translateWithReading(rawKey, "en", "ja");
+  const fallbackReading = sanitizeReading(gtRes.reading || (key !== rawKey ? key : ""), rawKey);
+  const fallbackResult: LookupResult = { meaning: gtRes.translation, reading: fallbackReading || undefined, source: "google" };
   setBoundedMap(lookupCache, cacheKey, fallbackResult);
   return fallbackResult;
 }
@@ -233,10 +234,11 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
   }
 
   // Fallback to Google Translate + Han-Viet
-  const gtMeaning = await googleTranslateService.translate(rawKey, "vi", "ja");
+  const gtRes = await googleTranslateService.translateWithReading(rawKey, "vi", "ja");
+  const fallbackReading = sanitizeReading(gtRes.reading || (key !== rawKey ? key : ""), rawKey);
   const fallbackResult: LookupResult = {
-    meaning: gtMeaning,
-    reading: key !== rawKey ? key : undefined,
+    meaning: gtRes.translation,
+    reading: fallbackReading || undefined,
     hanviet: hanviet || undefined,
     source: "google",
   };
@@ -600,10 +602,11 @@ export async function lookupWord(word: string, targetLang: string = "vi"): Promi
 
   // Direct translation fallback
   try {
-    const directTranslation = await googleTranslateService.translate(word, lang, "ja");
+    const gtRes = await googleTranslateService.translateWithReading(word, lang, "ja");
+    const reading = sanitizeReading(gtRes.reading || enResult.reading || word, word);
     const res = {
-      meaning: directTranslation,
-      reading: enResult.reading || word,
+      meaning: gtRes.translation,
+      reading: reading || undefined,
       jlpt: enResult.jlpt,
       source: "Google Translate"
     };

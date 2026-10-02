@@ -23,7 +23,7 @@ import type { SrsCard } from "~lib/services/local-srs";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
 import { deduplicateCueText } from "~lib/services/subtitle-parsers";
-import { distributeFurigana, containsJapanese, sanitizeReading, isKanji } from "~lib/utils/japanese";
+import { distributeFurigana, containsJapanese, sanitizeReading, isKanji, mergeOkuriganaTokens } from "~lib/utils/japanese";
 import { useTranscriptWindow } from "~lib/services/use-transcript-window";
 import { requestTranscriptReadings } from "~lib/services/transcript-readings";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
@@ -64,7 +64,7 @@ function tokenizeTextFast(text: string): TokenAnalysis[] {
     const segmenter = getJapaneseSegmenter();
     if (segmenter) {
       const segments = Array.from(segmenter.segment(clean)) as any[];
-      tokens = segments.map((s) => {
+      const rawTokens: TokenAnalysis[] = segments.map((s) => {
         const segText = s.segment;
         const isJp = containsJapanese(segText);
         return {
@@ -79,12 +79,13 @@ function tokenizeTextFast(text: string): TokenAnalysis[] {
           definitions: [],
         };
       });
+      tokens = mergeOkuriganaTokens(rawTokens);
     }
   } catch {}
 
   if (tokens.length === 0) {
     const parts = clean.match(/[\u4e00-\u9faf]+|[\u3040-\u309f]+|[\u30a0-\u30ff]+|[a-zA-Z0-9]+|[^\s\w]/g) || [clean];
-    tokens = parts.map((part) => {
+    const rawTokens: TokenAnalysis[] = parts.map((part) => {
       const isJp = containsJapanese(part);
       return {
         surface: part,
@@ -98,6 +99,7 @@ function tokenizeTextFast(text: string): TokenAnalysis[] {
         definitions: [],
       };
     });
+    tokens = mergeOkuriganaTokens(rawTokens);
   }
 
   if (tokenCache.size > 500) {

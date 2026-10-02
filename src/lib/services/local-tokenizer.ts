@@ -17,6 +17,10 @@ export async function initNLP(): Promise<void> {
   return Promise.resolve();
 }
 
+import { deinflectWord, mergeOkuriganaTokens } from "~lib/utils/japanese";
+
+export { deinflectWord, mergeOkuriganaTokens };
+
 /**
  * Tokenize Japanese text into words and punctuation tokens.
  */
@@ -34,14 +38,14 @@ export async function tokenize(text: string): Promise<Token[]> {
       isWordLike: boolean;
     }>;
 
-    const rawTokens = segments.map((s) => ({
+    const rawTokens: Token[] = segments.map((s) => ({
       surface_form: s.segment,
       pos: s.isWordLike ? "Word" : "Punctuation",
       reading: undefined,
       base_form: s.segment,
     }));
 
-    return rawTokens;
+    return mergeOkuriganaTokens(rawTokens);
   }
 
   // Fallback regex segmentation by whitespace and Japanese punctuation

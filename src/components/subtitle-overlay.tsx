@@ -11,7 +11,7 @@ import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
 import type { SubtitleTrackOption } from "./select-subtitles-modal";
 import { cleanSubtitleText, deduplicateCueText, readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
-import { distributeFurigana, containsJapanese, sanitizeReading } from "~lib/utils/japanese";
+import { distributeFurigana, containsJapanese, sanitizeReading, mergeOkuriganaTokens } from "~lib/utils/japanese";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { subscribeToVideoTime } from "~lib/services/video-runtime";
 
@@ -45,7 +45,7 @@ function createImmediateTokens(text: string): TokenAnalysis[] {
     const segmenter = getJapaneseSegmenter();
     if (segmenter) {
       const segments = Array.from(segmenter.segment(text)) as any[];
-      return segments.map((s) => {
+      const rawTokens: TokenAnalysis[] = segments.map((s) => {
         const segText = s.segment;
         const isJp = containsJapanese(segText);
         return {
@@ -60,11 +60,12 @@ function createImmediateTokens(text: string): TokenAnalysis[] {
           definitions: [],
         };
       });
+      return mergeOkuriganaTokens(rawTokens);
     }
   } catch {}
 
   const parts = text.match(/[\u4e00-\u9faf]+|[\u3040-\u309f]+|[\u30a0-\u30ff]+|[a-zA-Z0-9]+|[^\s\w]/g) || [text];
-  return parts.map((part) => {
+  const rawTokens: TokenAnalysis[] = parts.map((part) => {
     const isJp = containsJapanese(part);
     return {
       surface: part,
@@ -78,6 +79,7 @@ function createImmediateTokens(text: string): TokenAnalysis[] {
       definitions: [],
     };
   });
+  return mergeOkuriganaTokens(rawTokens);
 }
 
 // ── Props ───────────────────────────────────────────────────────────────────
