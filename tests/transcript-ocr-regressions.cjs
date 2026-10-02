@@ -154,6 +154,9 @@ test('transcript updates and seeks stay attached to their source tab', async () 
   await Promise.all(first.port.onMessage.emit({ type: 'SEEK_TRANSCRIPT', payload: { time: 32.5 } }));
   assert.equal(app.requests.at(-1).tabId, 11);
   assert.equal(app.requests.at(-1).message.payload.time, 32.5);
+  await Promise.all(first.port.onMessage.emit({ type: 'RETRY_TRANSCRIPT' }));
+  assert.equal(app.requests.at(-1).tabId, 11);
+  assert.equal(app.requests.at(-1).message.type, 'RETRY_TRANSCRIPT');
   app.close(11);
   assert.equal(first.messages.at(-1).type, 'CLOSE_TRANSCRIPT_PANEL');
   first.port.onDisconnect.emit();

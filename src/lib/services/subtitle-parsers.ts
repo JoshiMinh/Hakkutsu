@@ -156,6 +156,7 @@ export function cleanSubtitleText(text: string): string {
     // Remove HTML tags after decoding so escaped markup cannot leak through.
     .replace(/<rt>[^<]*<\/rt>/gi, "")
     .replace(/<\/?[^>]+(>|$)/g, "")
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, "")
     // Normalize extra whitespace and strip empty space between CJK Japanese characters
     .replace(/\u3000/g, " ")
     .replace(/\s+/g, " ")

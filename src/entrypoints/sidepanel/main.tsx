@@ -78,6 +78,7 @@ function TranscriptPanel() {
       {...snapshot}
       savedWords={savedWords} srsCardsMap={cardMap}
       onSeekTime={(time) => portRef.current?.postMessage({ type: "SEEK_TRANSCRIPT", payload: { time } })}
+      onRetry={snapshot.canRetry ? () => portRef.current?.postMessage({ type: "RETRY_TRANSCRIPT" }) : undefined}
     /> : <div className="hk-transcript-panel-empty" role="status">
       <h1>Video Script</h1>
       <p>Open a video and load subtitles with Hakkutsu to read its transcript here.</p>

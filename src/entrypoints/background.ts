@@ -678,8 +678,10 @@ async function handleMessage(
 
     case "FETCH_TIMEDTEXT_URL": {
       const { url } = message.payload as { url: string };
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, { credentials: "include", signal: controller.signal });
         if (res.ok) {
           const text = await res.text();
           return { type: "FETCH_TIMEDTEXT_URL_RESULT", payload: { success: true, text } };
@@ -687,6 +689,8 @@ async function handleMessage(
         return { type: "FETCH_TIMEDTEXT_URL_RESULT", payload: { success: false, error: `HTTP ${res.status}` } };
       } catch (err: any) {
         return { type: "FETCH_TIMEDTEXT_URL_RESULT", payload: { success: false, error: err.message || String(err) } };
+      } finally {
+        clearTimeout(timer);
       }
     }
 

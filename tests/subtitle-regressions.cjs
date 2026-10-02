@@ -13,7 +13,7 @@ function loadSource(file, globals = {}, imports = {}) {
     fileName: file,
   }).outputText;
   vm.runInNewContext(source, {
-    exports, URL, URLSearchParams, console, ArrayBuffer,
+    exports, URL, URLSearchParams, console, ArrayBuffer, AbortController, Error,
     require(name) {
       if (!(name in imports)) throw new Error(`Unexpected test import: ${name}`);
       return imports[name];
@@ -29,6 +29,9 @@ class Events {
     if (!this.listeners.has(type)) this.listeners.set(type, []);
     this.listeners.get(type).push(listener);
   }
+  removeEventListener(type, listener) {
+    this.listeners.set(type, (this.listeners.get(type) || []).filter(item => item !== listener));
+  }
   dispatchEvent(event) {
     this.events.push(event);
     for (const listener of this.listeners.get(event.type) || []) listener(event);
@@ -37,7 +40,15 @@ class Events {
 class CustomEvent {
   constructor(type, options = {}) { this.type = type; this.detail = options.detail; }
 }
-const flush = async () => { for (let i = 0; i < 15; i++) await Promise.resolve(); };
+const flush = async () => { for (let i = 0; i < 100; i++) await Promise.resolve(); };
+function bridgeClock() {
+  let now = 0;
+  return {
+    Date: class extends Date { static now() { return now; } },
+    setTimeout(fn, ms) { if (ms === 200) queueMicrotask(() => { now += ms; fn(); }); return 1; },
+    clearTimeout() {}, setInterval() {},
+  };
+}
 const captionResponse = (videoId, client = 'ANDROID') => ({
   videoDetails: { videoId, title: videoId },
   captions: { playerCaptionsTracklistRenderer: { captionTracks: [{
@@ -53,7 +64,7 @@ test('YouTube SPA navigation uses the current player response and preserves its 
   window.location = { pathname: '/watch', search: '?v=new', href: 'https://www.youtube.com/watch?v=new' };
   window.ytInitialPlayerResponse = captionResponse('old');
   const bridge = loadSource('src/lib/services/youtube-bridge.ts', {
-    window, document, CustomEvent, setTimeout() {}, setInterval() {},
+    window, document, CustomEvent, ...bridgeClock(),
   });
   bridge.initYouTubePageBridge();
   document.dispatchEvent(new CustomEvent('hakkutsu:request-youtube-tracks'));
@@ -75,7 +86,7 @@ test('YouTube rejects stale initial captions and fetches tracks for the new vide
   window.ytcfg = { get: key => key === 'INNERTUBE_API_KEY' ? 'key' : 'en' };
   let requested;
   const bridge = loadSource('src/lib/services/youtube-bridge.ts', {
-    window, document, CustomEvent, setTimeout() {}, setInterval() {},
+    window, document, CustomEvent, ...bridgeClock(),
     fetch: async (_url, options) => {
       requested = JSON.parse(options.body).videoId;
       return { status: 200, json: async () => captionResponse('new') };
@@ -88,9 +99,58 @@ test('YouTube rejects stale initial captions and fetches tracks for the new vide
   assert.equal(document.events.at(-1).detail.title, 'new');
 });
 
+test('YouTube waits for the runtime token and prefers it to static captions', async () => {
+  const document = new Events();
+  let checks = 0;
+  document.querySelector = () => ({
+    getVideoData: () => ({ video_id: 'new', title: 'Live' }),
+    getAudioTrack: () => ({ captionTracks: [{ languageCode: 'ja', baseUrl: `https://www.youtube.com/api/timedtext?v=new${++checks >= 3 ? '&pot=live' : ''}` }] }),
+    getPlayerResponse: () => captionResponse('new'),
+  });
+  const window = new Events();
+  window.location = new URL('https://www.youtube.com/watch?v=new');
+  window.ytcfg = { get: () => 'WEB' };
+  loadSource('src/lib/services/youtube-bridge.ts', { window, document, CustomEvent, ...bridgeClock() }).initYouTubePageBridge();
+  document.dispatchEvent(new CustomEvent('hakkutsu:request-youtube-tracks'));
+  document.dispatchEvent(new CustomEvent('hakkutsu:request-youtube-tracks'));
+  await flush();
+  const publications = document.events.filter(e => e.type === 'hakkutsu:youtube-synced-tracks');
+  assert.equal(publications.length, 1);
+  assert.equal(publications[0].detail.title, 'Live');
+  const url = new URL(publications[0].detail.tracks[0].url);
+  assert.equal(url.searchParams.get('pot'), 'live');
+  assert.equal(url.searchParams.get('c'), 'WEB');
+  assert.equal(url.searchParams.get('fmt'), 'srv3');
+});
+
+test('YouTube page fetch accepts only caption URLs for the current video', async () => {
+  const document = new Events();
+  document.querySelector = () => null;
+  const window = new Events();
+  window.location = new URL('https://www.youtube.com/watch?v=new');
+  const requests = [];
+  loadSource('src/lib/services/youtube-bridge.ts', {
+    window, document, CustomEvent, ...bridgeClock(),
+    fetch: async (url, options) => { requests.push({ url, options }); return { ok: true, text: async () => 'captions' }; },
+  }).initYouTubePageBridge();
+  for (const [requestId, url] of [
+    ['valid', 'https://www.youtube.com/api/timedtext?v=new&pot=live'],
+    ['wrong-video', 'https://www.youtube.com/api/timedtext?v=old'],
+    ['wrong-host', 'https://example.com/api/timedtext?v=new'],
+  ]) document.dispatchEvent(new CustomEvent('hakkutsu:request-youtube-caption-content', { detail: { requestId, url } }));
+  await flush();
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].options.credentials, 'include');
+  const responses = document.events.filter(e => e.type === 'hakkutsu:youtube-caption-content');
+  assert.equal(responses.find(e => e.detail.requestId === 'valid').detail.text, 'captions');
+  assert.ok(responses.find(e => e.detail.requestId === 'wrong-video').detail.error);
+  assert.ok(responses.find(e => e.detail.requestId === 'wrong-host').detail.error);
+});
+
 function componentHarness(platform) {
   let index = 0;
   const slots = [];
+  let effects = [];
   const react = {
     useState(initial) {
       const slot = index++;
@@ -99,7 +159,7 @@ function componentHarness(platform) {
     },
     useRef(initial) { const slot = index++; return slots[slot] ||= { current: initial }; },
     useCallback: fn => fn,
-    useEffect() {},
+    useEffect(fn) { effects.push(fn); },
   };
   const requests = [];
   const document = new Events();
@@ -118,6 +178,7 @@ function componentHarness(platform) {
       parseYouTubeTimedTextXml: content => [{ text: content, start: 0, duration: 1 }],
     },
     '~lib/services/smart-cue': { buildSmartCues: cues => cues },
+    '~lib/services/youtube-caption-loader': { loadYouTubeCaptionTrack: track => new Promise((resolve, reject) => requests.push({ url: track.url, reject, resolve: text => resolve([{ text, start: 0, duration: 1 }]) })) },
     '~lib/services/video-runtime': {},
     '~lib/services/transcript-panel': { useTranscriptPanelToggle: () => react.useState(false) },
   };
@@ -128,13 +189,117 @@ function componentHarness(platform) {
   }, imports);
   return {
     requests, document,
+    listenTracks() { effects.find(fn => fn.toString().includes('hakkutsu:youtube-synced-tracks'))(); },
+    publishTracks(tracks, videoId = 'new') {
+      document.dispatchEvent(new CustomEvent('hakkutsu:youtube-synced-tracks', { detail: { videoId, tracks } }));
+    },
     render() {
       index = 0;
+      effects = [];
       const children = Component().props.children;
       return Object.fromEntries(children.filter(c => typeof c.type === 'string').map(c => [c.type, c.props]));
     },
   };
 }
+
+test('YouTube retries a failed selection when its signed URL refreshes, without repeating the same failure', async () => {
+  const app = componentHarness('youtube');
+  app.render();
+  app.listenTracks();
+  const track = { id: 'ja', label: 'Japanese', language: 'ja', url: 'https://www.youtube.com/api/timedtext?v=new&pot=old' };
+  app.publishTracks([track]);
+  app.requests[0].reject(new Error('empty response'));
+  await flush();
+  assert.match(app.render().overlay.error, /empty response/);
+  app.publishTracks([track]);
+  assert.equal(app.requests.length, 1);
+  app.publishTracks([{ ...track, url: track.url.replace('pot=old', 'pot=fresh') }]);
+  assert.equal(app.requests.length, 2);
+  app.requests[1].resolve('fresh captions');
+  await flush();
+  assert.equal(app.render().overlay.subtitleData.segments[0].text, 'fresh captions');
+  assert.equal(app.render().overlay.error, null);
+  app.publishTracks([track]);
+  assert.equal(app.requests.length, 2);
+});
+
+test('YouTube explicit retry reloads an unchanged URL and ignores older requests', async () => {
+  const app = componentHarness('youtube');
+  app.render();
+  app.listenTracks();
+  const track = { id: 'ja', label: 'Japanese', language: 'ja', url: 'https://www.youtube.com/api/timedtext?v=new' };
+  app.publishTracks([track]);
+  app.render().overlay.onRetrySubtitles();
+  app.publishTracks([track]);
+  app.requests[0].resolve('old');
+  await flush();
+  assert.equal(app.render().overlay.subtitleData, null);
+  app.requests[1].resolve('retried');
+  await flush();
+  assert.equal(app.render().overlay.subtitleData.segments[0].text, 'retried');
+});
+
+const jsonCaptions = JSON.stringify({ events: [{ tStartMs: 1200, dDurationMs: 2100, segs: [{ utf8: '字幕です。' }] }] });
+function captionLoaderHarness({ direct = () => '', page = () => '', background = () => '' } = {}) {
+  const document = new Events();
+  const timers = new Map();
+  let timerId = 0;
+  const requests = [];
+  document.addEventListener('hakkutsu:request-youtube-caption-content', e => {
+    const { requestId, url } = e.detail;
+    requests.push({ transport: 'page', url });
+    document.dispatchEvent(new CustomEvent('hakkutsu:youtube-caption-content', { detail: { requestId: 'unrelated', text: jsonCaptions } }));
+    document.dispatchEvent(new CustomEvent('hakkutsu:youtube-caption-content', { detail: { requestId, text: page(url) } }));
+  });
+  const parsers = loadSource('src/lib/services/subtitle-parsers.ts');
+  const smartCues = loadSource('src/lib/services/smart-cue.ts');
+  const loader = loadSource('src/lib/services/youtube-caption-loader.ts', {
+    document, CustomEvent, window: { location: new URL('https://www.youtube.com/watch?v=new') },
+    setTimeout: fn => { const id = ++timerId; timers.set(id, fn); return id; },
+    clearTimeout: id => timers.delete(id),
+    fetch: async url => { requests.push({ transport: 'direct', url }); return { ok: true, text: async () => direct(url) }; },
+    chrome: { runtime: { sendMessage: async message => {
+      requests.push({ transport: 'background', url: message.payload.url });
+      return { payload: { success: true, text: background(message.payload.url) } };
+    } } },
+  }, { '~lib/services/subtitle-parsers': parsers, '~lib/services/smart-cue': smartCues });
+  return { ...loader, requests, timers, document };
+}
+
+test('empty HTTP 200 captions fall back to the page context and clean up request listeners', async () => {
+  const app = captionLoaderHarness({ page: () => jsonCaptions });
+  const segments = await app.loadYouTubeCaptionTrack({ name: 'Japanese', url: 'https://www.youtube.com/api/timedtext?v=new&pot=signed&fmt=srv3' });
+  assert.equal(segments[0].text, '字幕です。');
+  assert.equal(segments[0].start, 1.2);
+  assert.deepEqual(app.requests.map(r => r.transport), ['direct', 'page']);
+  assert.equal(app.timers.size, 0);
+  assert.equal(app.document.listeners.get('hakkutsu:youtube-caption-content').length, 0);
+});
+
+test('caption fallback tries json3 while preserving all signed query parameters', async () => {
+  const app = captionLoaderHarness({ direct: url => new URL(url).searchParams.get('fmt') === 'json3' ? jsonCaptions : '' });
+  const segments = await app.loadYouTubeCaptionTrack({ name: 'Japanese', url: 'https://www.youtube.com/api/timedtext?v=new&pot=signed&c=WEB&tlang=ja&fmt=srv3' });
+  assert.equal(segments.length, 1);
+  assert.deepEqual(app.requests.map(r => r.transport), ['direct', 'page', 'background', 'direct']);
+  const finalUrl = new URL(app.requests.at(-1).url);
+  assert.equal(finalUrl.searchParams.get('pot'), 'signed');
+  assert.equal(finalUrl.searchParams.get('c'), 'WEB');
+  assert.equal(finalUrl.searchParams.get('tlang'), 'ja');
+  assert.equal(app.timers.size, 0);
+});
+
+test('caption fetch exhaustion reports a failure instead of a successful empty transcript', async () => {
+  const app = captionLoaderHarness();
+  await assert.rejects(app.loadYouTubeCaptionTrack({ name: 'Japanese', url: 'https://www.youtube.com/api/timedtext?v=new&fmt=srv3' }), /no readable captions/);
+  assert.equal(app.requests.length, 6);
+  assert.equal(app.timers.size, 0);
+});
+
+test('invisible caption formatting is discarded instead of producing empty subtitle bars', () => {
+  const { cleanSubtitleText, parseYouTubeJson3 } = loadSource('src/lib/services/subtitle-parsers.ts');
+  assert.equal(cleanSubtitleText('<b>\u200b\u200f\ufeff</b>'), '');
+  assert.equal(parseYouTubeJson3(JSON.stringify({ events: [{ tStartMs: 0, dDurationMs: 1000, segs: [{ utf8: '\u200b' }] }] })).length, 0);
+});
 
 for (const platform of ['youtube', 'netflix']) {
   test(`${platform}: loading a local subtitle immediately activates it and survives an older fetch`, async () => {

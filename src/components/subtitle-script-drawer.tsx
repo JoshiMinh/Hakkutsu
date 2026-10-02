@@ -123,6 +123,9 @@ export interface SubtitleScriptDrawerProps {
   videoTitle?: string;
   sourceUrl?: string;
   nativePanel?: boolean;
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
@@ -140,6 +143,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   videoTitle = "",
   sourceUrl = window.location.href,
   nativePanel = false,
+  loading = false,
+  error = null,
+  onRetry,
 }) => {
   const { settings, updateSettings } = useSettingsStore();
   const { t } = useTranslation();
@@ -785,8 +791,9 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
         onPointerDown={() => setUserHasScrolled(true)}
       >
         {visibleSegments.length === 0 ? (
-          <div className="hk-script-drawer__empty">
-            {searchQuery ? t("drawer_no_matches") : t("drawer_empty_no_cues")}
+          <div className="hk-script-drawer__empty" role={error ? "alert" : "status"}>
+            <p>{searchQuery ? t("drawer_no_matches") : loading ? t("sub_overlay_loading") : error || t("drawer_empty_no_cues")}</p>
+            {!searchQuery && !loading && onRetry && <button type="button" className="hk-script-filter-chip" onClick={onRetry}>{t("dash_retry")}</button>}
           </div>
         ) : (
           visibleSegments.map(({ cue, index: originalIdx }) => {

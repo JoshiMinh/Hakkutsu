@@ -10,7 +10,7 @@ import type {
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
 import type { SubtitleTrackOption } from "./select-subtitles-modal";
-import { deduplicateCueText, readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
+import { cleanSubtitleText, deduplicateCueText, readSubtitleFile, parsedToSubtitleFetchResult } from "~lib/services/subtitle-parsers";
 import { distributeFurigana, containsJapanese, sanitizeReading } from "~lib/utils/japanese";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { subscribeToVideoTime } from "~lib/services/video-runtime";
@@ -103,6 +103,7 @@ export interface SubtitleOverlayProps {
   onLoadCustomSubtitles?: (result: SubtitleFetchResult) => void;
   onSeekTime?: (timeSec: number) => void;
   onSeekToCue?: (cue: SubtitleSegment) => void;
+  onRetrySubtitles?: () => void;
 }
 
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
@@ -126,11 +127,13 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   onLoadCustomSubtitles,
   onSeekTime,
   onSeekToCue,
+  onRetrySubtitles,
 }) => {
   const { settings, updateSettings } = useSettingsStore();
   const { t, isVietnamese } = useTranslation();
 
   const [analyzedTokens, setAnalyzedTokens] = useState<TokenAnalysis[] | null>(null);
+  const analyzedTextRef = useRef("");
   const [translatedText, setTranslatedText] = useState<string>("");
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [offsetToast, setOffsetToast] = useState<string | null>(null);
@@ -140,11 +143,11 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   const [srsCardsMap, setSrsCardsMap] = useState<Map<string, SrsCard>>(new Map());
 
   const drawerOpen = isDrawerOpen !== undefined ? isDrawerOpen : internalDrawerOpen;
-  useTranscriptSource({ subtitleData, secondaryData, currentSegment, offset, videoTitle, sourceUrl: currentUrl }, (time) => {
+  useTranscriptSource({ subtitleData, secondaryData, currentSegment, offset, videoTitle, sourceUrl: currentUrl, loading, error, canRetry: Boolean(onRetrySubtitles) }, (time) => {
     if (onSeekTime) onSeekTime(time);
     else if (videoRef.current) videoRef.current.currentTime = Math.max(0, time);
     void videoRef.current?.play().catch(() => {});
-  });
+  }, onRetrySubtitles);
 
   const handleToggleDrawer = useCallback(() => {
     if (onToggleDrawer) {
@@ -221,19 +224,21 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       return;
     }
 
-    const text = deduplicateCueText(currentSegment.text);
+    const text = cleanSubtitleText(currentSegment.text);
     if (!text) {
       setAnalyzedTokens(null);
       return;
     }
 
     if (tokenCache.has(text)) {
+      analyzedTextRef.current = text;
       setAnalyzedTokens(tokenCache.get(text)!);
       return;
     }
 
     // Immediately provide instant tokens on frame 0 so hover lookup works right away
     const immediateTokens = createImmediateTokens(text);
+    analyzedTextRef.current = text;
     if (immediateTokens.length > 0) {
       setAnalyzedTokens(immediateTokens);
     }
@@ -247,7 +252,9 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       .then((res) => {
         if (!isMounted) return;
         if (res?.type === "ANALYZE_RESULT" && res.payload?.tokens) {
-          const tokens = res.payload.tokens as TokenAnalysis[];
+          const tokens = (res.payload.tokens as TokenAnalysis[]).filter((token) => typeof token.surface === "string" && token.surface.length > 0);
+          // Keep the original cue if analysis fails to cover its visible text.
+          if (cleanSubtitleText(tokens.map((token) => token.surface).join("")) !== text) return;
           setBoundedCache(tokenCache, text, tokens);
           setAnalyzedTokens(tokens);
         }
@@ -760,6 +767,9 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   if (!isEnabled && !drawerOpen) return null;
 
   const fontSize = settings.subtitlesFontSize || 26;
+  const primaryText = cleanSubtitleText(currentSegment?.text || "");
+  const secondaryText = cleanSubtitleText(secondarySegment?.text || translatedText);
+  const visibleTokens = analyzedTextRef.current === primaryText ? analyzedTokens : null;
 
   return (
     <>
@@ -842,13 +852,13 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
           )}
 
           {/* Main Subtitle Container */}
-          <div className={`hk-sub__container ${!currentSegment ? "hk-sub__container--hidden" : ""}`} ref={containerRef}>
-            {currentSegment && (
+          <div className={`hk-sub__container ${!primaryText ? "hk-sub__container--hidden" : ""}`} ref={containerRef}>
+            {primaryText && (
               <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", pointerEvents: "auto" }}>
                 {/* Primary Subtitle Bar */}
                 <div className="hk-sub__bar" style={{ fontSize: `${fontSize}px` }}>
-                  {analyzedTokens && analyzedTokens.length > 0 ? (
-                    analyzedTokens.map((token, idx) => {
+                  {visibleTokens && visibleTokens.length > 0 ? (
+                    visibleTokens.map((token, idx) => {
                       const isKanji = /[\u4e00-\u9faf]/.test(token.surface);
                       const cleanReading = sanitizeReading(token.reading?.hiragana || "", token.surface);
                       const showRuby =
@@ -892,12 +902,12 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                       );
                     })
                   ) : (
-                    <span>{deduplicateCueText(currentSegment.text)}</span>
+                    <span>{primaryText}</span>
                   )}
                 </div>
 
                 {/* Secondary Subtitle Bar (Bilingual / Translation) */}
-                {settings.subtitlesSecondaryEnabled !== false && (secondarySegment?.text || translatedText) && (
+                {settings.subtitlesSecondaryEnabled !== false && secondaryText && (
                   <div
                     className="hk-sub__secondary-bar"
                     style={{
@@ -908,7 +918,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                       lineHeight: 1.4,
                     }}
                   >
-                    {deduplicateCueText(secondarySegment?.text || translatedText)}
+                    {secondaryText}
                   </div>
                 )}
               </div>

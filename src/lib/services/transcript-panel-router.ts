@@ -19,7 +19,7 @@ export function installTranscriptPanelRouter() {
         try { response = await chrome.tabs.sendMessage(message.tabId, { type: "GET_TRANSCRIPT" }); }
         catch { response = { type: "TRANSCRIPT_UNAVAILABLE" }; }
         if (panels.has(port) && state.request === request) port.postMessage(response || { type: "TRANSCRIPT_UNAVAILABLE" });
-      } else if (message.type === "SEEK_TRANSCRIPT" && state.tabId !== undefined) {
+      } else if (["SEEK_TRANSCRIPT", "RETRY_TRANSCRIPT"].includes(message.type) && state.tabId !== undefined) {
         void chrome.tabs.sendMessage(state.tabId, message).catch(() => {});
       }
     });

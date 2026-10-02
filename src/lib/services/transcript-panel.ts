@@ -8,6 +8,9 @@ export interface TranscriptSnapshot {
   offset: number;
   videoTitle: string;
   sourceUrl: string;
+  loading?: boolean;
+  error?: string | null;
+  canRetry?: boolean;
 }
 
 export function useTranscriptPanelToggle() {
@@ -33,9 +36,9 @@ export function useTranscriptPanelToggle() {
   return [isOpen, toggle] as const;
 }
 
-export function useTranscriptSource(snapshot: TranscriptSnapshot, onSeek: (time: number) => void) {
-  const latest = useRef({ snapshot, onSeek });
-  latest.current = { snapshot, onSeek };
+export function useTranscriptSource(snapshot: TranscriptSnapshot, onSeek: (time: number) => void, onRetry?: () => void) {
+  const latest = useRef({ snapshot, onSeek, onRetry });
+  latest.current = { snapshot, onSeek, onRetry };
   const subscribed = useRef(false);
   useEffect(() => {
     const listener = (message: { type: string; payload?: { time: number; open: boolean } },
@@ -48,6 +51,9 @@ export function useTranscriptSource(snapshot: TranscriptSnapshot, onSeek: (time:
         sendResponse({ ok: true });
       } else if (message.type === "TRANSCRIPT_VISIBILITY") {
         subscribed.current = Boolean(message.payload?.open);
+      } else if (message.type === "RETRY_TRANSCRIPT") {
+        latest.current.onRetry?.();
+        sendResponse({ ok: true });
       }
     };
     chrome.runtime.onMessage.addListener(listener);
@@ -58,7 +64,7 @@ export function useTranscriptSource(snapshot: TranscriptSnapshot, onSeek: (time:
   }, []);
   useEffect(() => {
     void chrome.runtime.sendMessage({ type: "TRANSCRIPT_SNAPSHOT", payload: snapshot }).catch(() => {});
-  }, [snapshot.subtitleData, snapshot.secondaryData, snapshot.offset, snapshot.videoTitle, snapshot.sourceUrl]);
+  }, [snapshot.subtitleData, snapshot.secondaryData, snapshot.offset, snapshot.videoTitle, snapshot.sourceUrl, snapshot.loading, snapshot.error, snapshot.canRetry]);
   useEffect(() => {
     if (subscribed.current) void chrome.runtime.sendMessage({ type: "TRANSCRIPT_CUE", payload: snapshot.currentSegment }).catch(() => {});
   }, [snapshot.currentSegment]);
