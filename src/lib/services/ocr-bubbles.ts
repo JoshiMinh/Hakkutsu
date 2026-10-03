@@ -7,6 +7,7 @@ export interface DetectedDialogueRegion {
   bbox: { x0: number; y0: number; x1: number; y1: number };
   orientation: "vertical" | "horizontal";
   confidence?: number;
+  orientationAmbiguous?: boolean;
   type: "bubble" | "text-cluster";
 }
 
@@ -14,6 +15,32 @@ export interface DialogueDetectionOptions {
   minBubbleArea?: number;
   maxBubbleAreaFraction?: number;
   includeBorderlessText?: boolean;
+}
+
+
+/** Projection bands reveal vertical columns even inside a wide speech bubble. */
+function inferTextOrientation(gray: Uint8Array, width: number, b: { x0: number; y0: number; x1: number; y1: number }): "vertical" | "horizontal" | undefined {
+  const columns = new Uint32Array(b.x1 - b.x0);
+  const rows = new Uint32Array(b.y1 - b.y0);
+  for (let y = b.y0; y < b.y1; y++) for (let x = b.x0; x < b.x1; x++) {
+    if (gray[y * width + x] <= 125) { columns[x - b.x0]++; rows[y - b.y0]++; }
+  }
+  const bands = (values: Uint32Array) => {
+    let count = 0, active = false;
+    const threshold = Math.max(2, Math.max(...values) * .12);
+    for (const value of values) {
+      const next = value >= threshold;
+      if (next && !active) count++;
+      active = next;
+    }
+    return count;
+  };
+  const xBands = bands(columns), yBands = bands(rows);
+  if (xBands >= 2 && yBands >= xBands * 1.5) return "vertical";
+  if (yBands >= 2 && xBands >= yBands * 1.5) return "horizontal";
+  if (b.y1 - b.y0 >= (b.x1 - b.x0) * 2) return "vertical";
+  if (b.x1 - b.x0 >= (b.y1 - b.y0) * 2) return "horizontal";
+  return undefined;
 }
 
 /**
@@ -53,11 +80,14 @@ export function detectMangaDialogueRegions(
     const sy = Math.min(pixels.height - 1, Math.floor(y * scale));
     const rowOffset = y * width;
     for (let x = 0; x < width; x++) {
-      const sx = Math.min(pixels.width - 1, Math.floor(x * scale));
-      const p = (sy * pixels.width + sx) * 4;
-      gray[rowOffset + x] = Math.round(
-        pixels.data[p] * 0.299 + pixels.data[p + 1] * 0.587 + pixels.data[p + 2] * 0.114
-      );
+      let darkest = 255;
+      for (let yy = sy; yy < Math.min(pixels.height, Math.ceil((y + 1) * scale)); yy++) {
+        for (let xx = Math.floor(x * scale); xx < Math.min(pixels.width, Math.ceil((x + 1) * scale)); xx++) {
+          const p = (yy * pixels.width + xx) * 4;
+          darkest = Math.min(darkest, Math.round(pixels.data[p] * .299 + pixels.data[p + 1] * .587 + pixels.data[p + 2] * .114));
+        }
+      }
+      gray[rowOffset + x] = darkest;
     }
   }
 
@@ -67,13 +97,43 @@ export function detectMangaDialogueRegions(
     x1: number;
     y1: number;
     orientation: "vertical" | "horizontal";
+    orientationAmbiguous?: boolean;
     type: "bubble" | "text-cluster";
   };
 
   const rawCandidates: CandidateBox[] = [];
 
+  // Remove ink components connected to artwork and panel outlines before
+  // grouping. Preserve small detached glyph strokes for both dialogue and signs.
+  const inkVisited = new Uint8Array(width * height);
+  const textInk = new Uint8Array(width * height);
+  const inkQueue = new Int32Array(width * height);
+  const glyphs: Array<{ x0: number; y0: number; x1: number; y1: number }> = [];
+  for (let seed = 0; seed < gray.length; seed++) {
+    if (gray[seed] > 125 || inkVisited[seed]) continue;
+    let head = 0, tail = 1;
+    let x0 = width, y0 = height, x1 = 0, y1 = 0;
+    inkQueue[0] = seed;
+    inkVisited[seed] = 1;
+    while (head < tail) {
+      const p = inkQueue[head++], x = p % width, y = Math.floor(p / width);
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy, n = yy * width + xx;
+        if (xx >= 0 && yy >= 0 && xx < width && yy < height && !inkVisited[n] && gray[n] <= 125) {
+          inkVisited[n] = 1; inkQueue[tail++] = n;
+        }
+      }
+    }
+    const w = x1 - x0 + 1, h = y1 - y0 + 1;
+    if (tail < 5 || w > 72 || h > 72 || Math.max(w, h) > Math.min(w, h) * 8) continue;
+    for (let i = 0; i < tail; i++) textInk[inkQueue[i]] = 1;
+    glyphs.push({ x0, y0, x1: x1 + 1, y1: y1 + 1 });
+  }
+
   // =========================================================================
-  // Pass 1: Speech Bubble Connected Component Analysis with Morphological Closing
+  // Pass 1: Speech Bubble Interior Connected Component Analysis
   // =========================================================================
   // 1. Build binary mask of white/light pixels (speech bubble interiors)
   const isWhite = new Uint8Array(width * height);
@@ -81,75 +141,11 @@ export function detectMangaDialogueRegions(
     isWhite[i] = gray[i] >= 185 ? 1 : 0;
   }
 
-  // Morphological Closing: Dilate by radius r=3, then erode by radius r=3.
-  // This bridges dark character strokes (2-5px wide) inside speech bubbles so that
-  // multi-line text does not cut the bubble into disjoint fragments.
-  const r = 3;
-  const dilH = new Uint8Array(width * height);
-  for (let y = 0; y < height; y++) {
-    const rowOffset = y * width;
-    for (let x = 0; x < width; x++) {
-      let val = 0;
-      for (let dx = -r; dx <= r; dx++) {
-        const nx = x + dx;
-        if (nx >= 0 && nx < width && isWhite[rowOffset + nx] === 1) {
-          val = 1;
-          break;
-        }
-      }
-      dilH[rowOffset + x] = val;
-    }
-  }
-
-  const dilV = new Uint8Array(width * height);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let val = 0;
-      for (let dy = -r; dy <= r; dy++) {
-        const ny = y + dy;
-        if (ny >= 0 && ny < height && dilH[ny * width + x] === 1) {
-          val = 1;
-          break;
-        }
-      }
-      dilV[y * width + x] = val;
-    }
-  }
-
-  const eroH = new Uint8Array(width * height);
-  for (let y = 0; y < height; y++) {
-    const rowOffset = y * width;
-    for (let x = 0; x < width; x++) {
-      let val = 1;
-      for (let dx = -r; dx <= r; dx++) {
-        const nx = x + dx;
-        if (nx < 0 || nx >= width || dilV[rowOffset + nx] === 0) {
-          val = 0;
-          break;
-        }
-      }
-      eroH[rowOffset + x] = val;
-    }
-  }
-
-  const closed = new Uint8Array(width * height);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let val = 1;
-      for (let dy = -r; dy <= r; dy++) {
-        const ny = y + dy;
-        if (ny < 0 || ny >= height || eroH[ny * width + x] === 0) {
-          val = 0;
-          break;
-        }
-      }
-      closed[y * width + x] = val;
-    }
-  }
+  // Preserve original boundaries: closing white areas erases thin outlines.
 
   const bubbleLabels = new Int32Array(width * height);
   for (let i = 0; i < bubbleLabels.length; i++) {
-    bubbleLabels[i] = closed[i] === 1 ? 0 : -1;
+    bubbleLabels[i] = isWhite[i] === 1 ? 0 : -1;
   }
 
   const queue = new Int32Array(width * height);
@@ -204,7 +200,7 @@ export function detectMangaDialogueRegions(
     // Discard huge outer margins touching outer borders
     if (edgeTouch && tail > width * height * 0.04) continue;
     if (tail < minBubbleArea) continue;
-    if (tail > width * height * maxBubbleAreaFraction) continue;
+    if (tail > width * height * maxBubbleAreaFraction || bArea > width * height * maxBubbleAreaFraction) continue;
     if (tail / bArea < 0.22) continue;
     const aspect = bh / bw;
     if (aspect < 0.2 || aspect > 5.0) continue;
@@ -218,8 +214,12 @@ export function detectMangaDialogueRegions(
       let prevDark = false;
       const rowOffset = y * width;
       for (let x = bx0; x <= bx1; x++) {
-        const val = gray[rowOffset + x];
-        const isDark = val <= 125;
+        // Only ink surrounded by this interior contributes to its text bounds.
+        // Outlines and artwork outside curved interiors must not inflate crops.
+        const p = rowOffset + x;
+        const inside = x > bx0 && x < bx1 && y > by0 && y < by1 &&
+          [p - 1, p + 1, p - width, p + width].some(n => bubbleLabels[n] === bubbleId);
+        const isDark = textInk[p] === 1 && inside;
         if (isDark) {
           darkCount++;
           if (x < tx0) tx0 = x;
@@ -232,26 +232,28 @@ export function detectMangaDialogueRegions(
       }
     }
 
-    // A valid speech bubble must contain text ink strokes
-    if (transitions >= 6 && darkCount >= 8 && tx1 >= tx0 && ty1 >= ty0) {
-      const textW = tx1 - tx0 + 1;
-      const textH = ty1 - ty0 + 1;
-
-      // Expand dialogue bounds with comfortable padding bounded by bubble interior
-      const padX = Math.max(8, Math.round(textW * 0.12));
-      const padY = Math.max(8, Math.round(textH * 0.12));
+    const enclosedGlyphs = glyphs.filter(g => g.x0 > bx0 && g.x1 < bx1 && g.y0 > by0 && g.y1 < by1);
+    // Multiple glyphs with sufficient ink density are needed; empty panel
+    // interiors and glyph counters must not become speech bubbles.
+    if (enclosedGlyphs.length >= 2 && darkCount / Math.max(1, (tx1 - tx0 + 1) * (ty1 - ty0 + 1)) >= .025 && transitions >= 6 && darkCount >= 8 && tx1 >= tx0 && ty1 >= ty0) {
+      // Keep ink bounds tight. Recognition adds a clean white border separately,
+      // rather than including nearby curved bubble outlines in the image.
+      const padX = 0;
+      const padY = 0;
 
       const cx0 = Math.max(bx0, tx0 - padX);
       const cy0 = Math.max(by0, ty0 - padY);
       const cx1 = Math.min(bx1, tx1 + padX);
       const cy1 = Math.min(by1, ty1 + padY);
 
+      const orientation = inferTextOrientation(gray, width, { x0: tx0, y0: ty0, x1: tx1 + 1, y1: ty1 + 1 });
       rawCandidates.push({
         x0: Math.max(0, Math.floor(cx0 * scale)),
         y0: Math.max(0, Math.floor(cy0 * scale)),
         x1: Math.min(pixels.width, Math.ceil((cx1 + 1) * scale)),
         y1: Math.min(pixels.height, Math.ceil((cy1 + 1) * scale)),
-        orientation: (cy1 - cy0) >= (cx1 - cx0) * 0.85 ? "vertical" : "horizontal",
+        orientation: orientation || (ty1 - ty0 >= (tx1 - tx0) * .85 ? "vertical" : "horizontal"),
+        orientationAmbiguous: !orientation,
         type: "bubble",
       });
     }
@@ -267,7 +269,7 @@ export function detectMangaDialogueRegions(
       for (let x = 1; x < width - 1; x++) {
         const idx = rowOffset + x;
         const val = gray[idx];
-        if (val <= 120) {
+        if (val <= 120 && textInk[idx]) {
           // Check high contrast edge with neighbors (text stroke)
           const diff = Math.max(
             Math.abs(val - gray[idx - 1]),
@@ -364,7 +366,7 @@ export function detectMangaDialogueRegions(
         let prevDark = false;
         const rowOffset = y * width;
         for (let x = sx0; x <= sx1; x++) {
-          const isDark = gray[rowOffset + x] <= 125;
+          const isDark = textInk[rowOffset + x] === 1;
           if (isDark) {
             darkInCluster++;
             if (!prevDark) clusterTransitions++;
@@ -375,7 +377,7 @@ export function detectMangaDialogueRegions(
 
       // Reject solid black shapes (hair, eyes, shadows)
       const fillDensity = darkInCluster / (sw * sh);
-      if (fillDensity > 0.65 || clusterTransitions < 10) continue;
+      if (fillDensity < .08 || fillDensity > 0.65 || clusterTransitions < 10) continue;
 
       // Reject hollow borders and panel frames
       if (sw >= 25 && sh >= 25) {
@@ -444,7 +446,12 @@ export function detectMangaDialogueRegions(
       const oy = Math.max(0, Math.min(m.y1, box.y1) - Math.max(m.y0, box.y0));
       const overlapArea = ox * oy;
       const minArea = Math.min((m.x1 - m.x0) * (m.y1 - m.y0), (box.x1 - box.x0) * (box.y1 - box.y0));
-      return overlapArea / minArea > 0.35;
+      // Distinct white components must never join through overlapping rectangles.
+      if (m.type === "bubble" && box.type === "bubble") return false;
+      const unionArea = (Math.max(m.x1, box.x1) - Math.min(m.x0, box.x0)) *
+        (Math.max(m.y1, box.y1) - Math.min(m.y0, box.y0));
+      return unionArea < pixels.width * pixels.height * maxBubbleAreaFraction &&
+        m.orientation === box.orientation && overlapArea / minArea > 0.65;
     });
 
     if (existing) {
@@ -452,7 +459,9 @@ export function detectMangaDialogueRegions(
       existing.y0 = Math.min(existing.y0, box.y0);
       existing.x1 = Math.max(existing.x1, box.x1);
       existing.y1 = Math.max(existing.y1, box.y1);
-      existing.orientation = (existing.y1 - existing.y0) >= (existing.x1 - existing.x0) * 0.85 ? "vertical" : "horizontal";
+      existing.orientationAmbiguous ||= box.orientationAmbiguous;
+      // Keep text-stroke orientation rather than reclassifying the union.
+
     } else {
       merged.push({ ...box });
     }
@@ -470,10 +479,12 @@ export function detectMangaDialogueRegions(
     return b.x0 - a.x0;
   });
 
-  return merged.map((box, index) => ({
+  return merged.filter(box => (box.x1 - box.x0) * (box.y1 - box.y0) <= pixels.width * pixels.height * maxBubbleAreaFraction)
+    .map((box, index) => ({
     id: `dialogue-${index + 1}`,
     bbox: { x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1 },
     orientation: box.orientation,
+    orientationAmbiguous: box.orientationAmbiguous,
     type: box.type,
   }));
 }
@@ -538,7 +549,7 @@ export function findBubbleMembership(fragments: OcrFragment[], pixels?: Pixels):
     const boxArea = (b.x1 - b.x0) * (b.y1 - b.y0);
     // Eyes, glyph counters and huge panel backgrounds are not speech bubbles.
     if (interior.area < boxArea * .6 ||
-      ([...fragment.text].length <= 1 && interior.area < boxArea * 5) ||
+      ([...fragment.text].length <= 3 && interior.area < boxArea * 4) ||
       (interior.x1 - interior.x0) * (interior.y1 - interior.y0) > boxArea * 40 ||
       b.x0 < interior.x0 - scale * 2 || b.y0 < interior.y0 - scale * 2 ||
       b.x1 > interior.x1 + scale * 2 || b.y1 > interior.y1 + scale * 2) continue;
@@ -547,3 +558,67 @@ export function findBubbleMembership(fragments: OcrFragment[], pixels?: Pixels):
   return membership;
 }
 
+
+
+type InkComponents = { labels: Int32Array; sizes: Array<{ width: number; height: number; area: number }>; width: number; height: number; scale: number };
+const inkComponentCache = new WeakMap<Pixels, InkComponents>();
+
+/** Check the original connected ink, including its extent outside each OCR box.
+ * Cropping a hair strand or panel edge can otherwise make it resemble a glyph. */
+export function findTextInkSupport(fragments: OcrFragment[], pixels: Pixels, bodySize: number): Map<OcrFragment, number> {
+  let components = inkComponentCache.get(pixels);
+  if (!components) {
+    const scale = Math.max(1, Math.max(pixels.width, pixels.height) / 1300);
+    const width = Math.ceil(pixels.width / scale), height = Math.ceil(pixels.height / scale);
+    const labels = new Int32Array(width * height);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      let dark = false;
+      for (let yy = Math.floor(y * scale); yy < Math.min(pixels.height, Math.ceil((y + 1) * scale)) && !dark; yy++) {
+        for (let xx = Math.floor(x * scale); xx < Math.min(pixels.width, Math.ceil((x + 1) * scale)); xx++) {
+          const p = (yy * pixels.width + xx) * 4;
+          if (pixels.data[p] * .299 + pixels.data[p + 1] * .587 + pixels.data[p + 2] * .114 <= 125) { dark = true; break; }
+        }
+      }
+      labels[y * width + x] = dark ? -1 : 0;
+    }
+    const sizes = [{ width: 0, height: 0, area: 0 }];
+    const queue = new Int32Array(labels.length);
+    for (let seed = 0; seed < labels.length; seed++) {
+      if (labels[seed] !== -1) continue;
+      const id = sizes.length;
+      let head = 0, tail = 1, x0 = width, y0 = height, x1 = 0, y1 = 0;
+      labels[seed] = id; queue[0] = seed;
+      while (head < tail) {
+        const p = queue[head++], x = p % width, y = Math.floor(p / width);
+        x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy, next = yy * width + xx;
+          if (xx >= 0 && yy >= 0 && xx < width && yy < height && labels[next] === -1) {
+            labels[next] = id; queue[tail++] = next;
+          }
+        }
+      }
+      sizes.push({ width: x1 - x0 + 1, height: y1 - y0 + 1, area: tail });
+    }
+    components = { labels, sizes, width, height, scale };
+    inkComponentCache.set(pixels, components);
+  }
+  const { labels, sizes, width, height, scale } = components;
+  return new Map(fragments.map(fragment => {
+    const b = fragment.bbox;
+    const across = fragment.orientation === "vertical" ? b.x1 - b.x0 : b.y1 - b.y0;
+    const limit = Math.max(8, Math.min(across, bodySize * 1.5) / scale * 4);
+    let ink = 0, supported = 0;
+    for (let y = Math.max(0, Math.floor(b.y0 / scale)); y < Math.min(height, Math.ceil(b.y1 / scale)); y++) {
+      for (let x = Math.max(0, Math.floor(b.x0 / scale)); x < Math.min(width, Math.ceil(b.x1 / scale)); x++) {
+        const id = labels[y * width + x];
+        if (!id) continue;
+        ink++;
+        const component = sizes[id];
+        if (component.area >= 3 && component.width <= limit && component.height <= limit &&
+          Math.max(component.width, component.height) <= Math.min(component.width, component.height) * 6) supported++;
+      }
+    }
+    return [fragment, ink ? supported / ink : 1];
+  }));
+}

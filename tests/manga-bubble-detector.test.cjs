@@ -299,3 +299,58 @@ test("detectMangaDialogueRegions rejects cheek blush lines and artwork noise", (
 });
 
 
+
+
+test('thin bubble outlines survive scaling and nearby ink does not inflate text crops', () => {
+  const { detectMangaDialogueRegions } = loadBubbleDetector();
+  const width = 800, height = 500;
+  const data = new Uint8ClampedArray(width * height * 4).fill(255);
+  const ink = (x, y) => { const i = (y * width + x) * 4; data[i] = data[i + 1] = data[i + 2] = 0; };
+  // Thin closed outlines with two widely separated vertical text columns.
+  for (const [left, right] of [[100, 300], [450, 650]]) {
+    for (let x = left; x <= right; x++) { ink(x, 100); ink(x, 300); }
+    for (let y = 100; y <= 300; y++) { ink(left, y); ink(right, y); }
+    for (const x of [left + 40, right - 40]) for (let y = 130; y < 250; y += 30) {
+      for (let yy = y; yy < y + 20; yy++) for (let xx = x; xx < x + 12; xx++) {
+        if (xx === x || xx === x + 11 || yy === y || yy === y + 10 || yy === y + 19) ink(xx, yy);
+      }
+    }
+  }
+  // Huge connected artwork outside the bubbles.
+  for (let x = 305; x < 440; x++) for (let y = 50; y < 450; y++) ink(x, y);
+  const regions = detectMangaDialogueRegions({ data, width, height }, { includeBorderlessText: false });
+  assert.equal(regions.length, 2);
+  assert.ok(regions.every(r => r.orientation === 'vertical'));
+  assert.ok(regions.every(r => r.bbox.y0 > 100 && r.bbox.y1 < 300));
+  assert.ok(regions.every(r => r.bbox.x1 - r.bbox.x0 < 200));
+});
+
+test('white page backgrounds and connected panel frames do not become giant OCR regions', () => {
+  const { detectMangaDialogueRegions } = loadBubbleDetector();
+  const width = 500, height = 700;
+  const data = new Uint8ClampedArray(width * height * 4).fill(255);
+  const ink = (x, y) => { const i = (y * width + x) * 4; data[i] = data[i + 1] = data[i + 2] = 0; };
+  for (let x = 20; x < 480; x++) { ink(x, 20); ink(x, 680); }
+  for (let y = 20; y < 680; y++) { ink(20, y); ink(479, y); ink(250, y); }
+  for (let y = 50; y < 620; y++) ink(100 + Math.floor(Math.sin(y / 25) * 30), y);
+  const regions = detectMangaDialogueRegions({ data, width, height });
+  assert.equal(regions.length, 0);
+});
+
+
+test('square text geometry marks detector direction as ambiguous', () => {
+  const { detectMangaDialogueRegions } = loadBubbleDetector();
+  const width = 300, height = 300;
+  const data = new Uint8ClampedArray(width * height * 4).fill(255);
+  const ink = (x, y) => { const i = (y * width + x) * 4; data[i] = data[i + 1] = data[i + 2] = 0; };
+  for (let x = 50; x <= 200; x++) { ink(x, 50); ink(x, 200); }
+  for (let y = 50; y <= 200; y++) { ink(50, y); ink(200, y); }
+  for (const x of [90, 130]) for (const y of [90, 130]) {
+    for (let yy = y; yy < y + 20; yy++) for (let xx = x; xx < x + 20; xx++) {
+      if (xx === x || xx === x + 19 || yy === y || yy === y + 19) ink(xx, yy);
+    }
+  }
+  const regions = detectMangaDialogueRegions({ data, width, height }, { includeBorderlessText: false });
+  assert.equal(regions.length, 1);
+  assert.equal(regions[0].orientationAmbiguous, true);
+});

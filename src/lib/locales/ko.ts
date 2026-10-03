@@ -364,7 +364,7 @@ export const ko = {
   ocr_orientation_horizontal: "가로쓰기 (横書き)",
   ocr_recognizing: "일본어 텍스트 인식 중...",
   ocr_preprocess: "만화 스크린톤 대비 강화 필터",
-  ocr_preprocess_desc: "스크린톤 배경 노이즈를 제거하여 인식 정확도를 높입니다",
+  ocr_preprocess_desc: "인식 전에 이미지를 회색조로 변환하고 대비를 조정합니다",
   ocr_edit_hint: "인식된 텍스트를 직접 수정할 수 있습니다",
   ocr_reanalyze: "다시 분석",
   ocr_no_text: "이 이미지에서 일본어 텍스트를 찾지 못했습니다. 다른 이미지나 문자 방향을 시도하세요.",

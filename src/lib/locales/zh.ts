@@ -364,7 +364,7 @@ export const zh = {
   ocr_orientation_horizontal: "横排文本 (横書き)",
   ocr_recognizing: "正在识别日文文本...",
   ocr_preprocess: "漫画网点滤镜增强",
-  ocr_preprocess_desc: "预处理图像以去除网点杂色，提高识别精度",
+  ocr_preprocess_desc: "识别前转换为灰度图像并调整对比度",
   ocr_edit_hint: "可在上方直接修改识别结果",
   ocr_reanalyze: "重新解析",
   ocr_no_text: "未在此图片中识别到日语文本。请尝试其他图片或文字方向。",

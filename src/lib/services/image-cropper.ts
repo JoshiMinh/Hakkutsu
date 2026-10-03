@@ -147,26 +147,30 @@ export function applyMangaPreprocess(
 export function cropCanvasRegion(
   source: HTMLCanvasElement | HTMLImageElement,
   box: { x: number; y: number; width: number; height: number },
-  preprocess: boolean = true
-): { canvas: HTMLCanvasElement; dataUrl: string } {
-  const cropW = Math.max(1, Math.round(box.width));
-  const cropH = Math.max(1, Math.round(box.height));
+  preprocess: boolean = true,
+  options: { padding?: number; scale?: number } = {}
+): { canvas: HTMLCanvasElement; dataUrl: string; transform: { originX: number; originY: number; scale: number; padding: number } } {
+  const scale = options.scale ?? 1;
+  const padding = options.padding ?? 0;
+  const cropW = Math.max(1, Math.round(box.width * scale));
+  const cropH = Math.max(1, Math.round(box.height * scale));
   const canvas = document.createElement("canvas");
-  canvas.width = cropW;
-  canvas.height = cropH;
+  canvas.width = cropW + padding * 2;
+  canvas.height = cropH + padding * 2;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) throw new Error("Could not acquire 2D canvas context for crop");
   ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, cropW, cropH);
-  ctx.drawImage(source, box.x, box.y, box.width, box.height, 0, 0, cropW, cropH);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(source, box.x, box.y, box.width, box.height, padding, padding, cropW, cropH);
   if (preprocess) {
-    applyMangaPreprocess(ctx, cropW, cropH, {
-      grayscale: true,
-      enhanceContrast: true,
-      binarize: false,
+    applyMangaPreprocess(ctx, canvas.width, canvas.height, {
+      grayscale: true, enhanceContrast: true, binarize: false,
     });
   }
-  return { canvas, dataUrl: canvas.toDataURL("image/png") };
+  return {
+    canvas, dataUrl: canvas.toDataURL("image/png"),
+    transform: { originX: box.x, originY: box.y, scale, padding },
+  };
 }
 
 /**

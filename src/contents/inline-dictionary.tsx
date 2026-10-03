@@ -647,6 +647,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
   };
 
   const handleExport = async (data: AnkiExportData) => {
+    if (ocrRegionId && (loading || result?.text.trim() !== inputText.trim())) return;
     try {
       await chrome.runtime.sendMessage({
         type: "EXPORT_ANKI",
@@ -662,7 +663,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
   };
 
   const handleSrsAdd = async (selectedImageUrl?: string) => {
-    if (!selectedTokenData) return;
+    if (!selectedTokenData || (ocrRegionId && (loading || result?.text.trim() !== inputText.trim()))) return;
     const word = selectedTokenData.dictionary_form || selectedTokenData.surface;
     if (!word) return;
 
@@ -908,7 +909,30 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           {/* Main Scrollable Content */}
           <div className="hk-content" style={{ overflowY: "auto", flex: 1 }}>
             {ocrRegionId && <div className="hk-dict-section" style={{ whiteSpace: "pre-wrap", userSelect: "text" }}>
-              <div lang="ja">{inputText}</div>
+              <label className="hk-dict-label" htmlFor="hk-ocr-text">{t("ocr_edit_hint")}</label>
+              <textarea
+                id="hk-ocr-text" className="hk-input__textarea" lang="ja" rows={3}
+                value={inputText} aria-label={t("ocr_edit_hint")}
+                onChange={event => {
+                  ++analysisRequestRef.current;
+                  activeLookupRef.current = "";
+                  setInputText(event.target.value);
+                  setResult(null);
+                  setSelectedToken(null);
+                  setLoading(false);
+                  setError(null);
+                  setSrsAdded(false);
+                  setSrsError(null);
+                }}
+              />
+              <button type="button" className="hk-btn hk-btn--secondary"
+                disabled={!inputText.trim() || loading}
+                onClick={() => {
+                  const text = inputText.trim();
+                  if (!text) return;
+                  window.dispatchEvent(new CustomEvent("hakkutsu:ocr-region-updated", { detail: { id: ocrRegionId, text } }));
+                  void analyzeText(text, false, true, null, true);
+                }}>{t("ocr_reanalyze")}</button>
               {result && !loading && <TokenDisplay tokens={result.tokens} selectedIndex={selectedToken} onSelect={handleTokenSelect} />}
             </div>}
             {/* Translation Loading State */}
@@ -977,7 +1001,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           </div>
 
           {/* Pinned Bottom Footer Action */}
-          {selectedTokenData && selectedTokenData.is_japanese && (
+          {(ocrRegionId || (selectedTokenData && selectedTokenData.is_japanese)) && (
             <div
               className="hk-popup__footer"
               style={{
@@ -991,6 +1015,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
                 className={`hk-btn ${
                   srsError ? "hk-btn--danger" : srsAdded ? "hk-btn--success" : "hk-btn--primary"
                 }`}
+                disabled={Boolean(ocrRegionId) && (loading || !selectedTokenData || result?.text.trim() !== inputText.trim())}
                 onClick={() => handleSrsAdd(ocrCroppedImage || undefined)}
                 title={srsError || (srsAdded ? t("def_btn_added_library") : t("def_btn_add_library"))}
                 style={{

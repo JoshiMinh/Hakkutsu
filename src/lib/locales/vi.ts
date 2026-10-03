@@ -364,7 +364,7 @@ export const vi = {
   ocr_orientation_horizontal: "Chữ ngang (横書き)",
   ocr_recognizing: "Đang nhận dạng chữ tiếng Nhật...",
   ocr_preprocess: "Bộ lọc tăng tương phản Manga",
-  ocr_preprocess_desc: "Xử lý ảnh khử hạt trame screentone giúp nhận diện chữ chính xác hơn",
+  ocr_preprocess_desc: "Chuyển ảnh sang thang xám và điều chỉnh độ tương phản trước khi nhận dạng",
   ocr_edit_hint: "Chỉnh sửa chữ nhận dạng nếu cần",
   ocr_reanalyze: "Phân tích lại",
   ocr_no_text: "Không nhận diện được chữ tiếng Nhật trong ảnh này. Hãy thử ảnh hoặc hướng chữ khác.",

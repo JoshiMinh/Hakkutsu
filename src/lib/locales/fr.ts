@@ -364,7 +364,7 @@ export const fr = {
   ocr_orientation_horizontal: "Horizontal (横書き)",
   ocr_recognizing: "Reconnaissance du texte japonais...",
   ocr_preprocess: "Filtre de Contraste Manga",
-  ocr_preprocess_desc: "Prétraite l'image pour supprimer les trames et optimiser la reconnaissance",
+  ocr_preprocess_desc: "Convertit l’image en niveaux de gris et ajuste le contraste avant la reconnaissance",
   ocr_edit_hint: "Modifiez le texte reconnu si nécessaire",
   ocr_reanalyze: "Réanalyser",
   ocr_no_text: "Aucun texte japonais détecté dans cette image. Essayez une autre image ou orientation.",

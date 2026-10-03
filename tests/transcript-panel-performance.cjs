@@ -11,7 +11,7 @@ function load(file, globals = {}, imports = {}) {
   const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  vm.runInNewContext(source, { exports, console, Error, Map, Set, URL, ...globals, require: name => {
+  vm.runInNewContext(source, { exports, console, Error, Map, Set, URL, Event, ...globals, require: name => {
     if (name in imports) return imports[name];
     if (name === 'react') return { ...React, default: React };
     if (name === 'react/jsx-runtime' || name === 'lucide-react') return require(name);
@@ -77,7 +77,7 @@ test('OCR dialog scopes text and images by region, rejects stale analysis, and r
   open('first', '日本語。');
   let tree = render();
   assert.ok(find(tree, node => node.props.role === 'dialog'));
-  assert.equal(find(tree, node => node.props.lang === 'ja').props.children, '日本語。');
+  assert.equal(find(tree, node => node.props.lang === 'ja').props.value, '日本語。');
   assert.equal(requests[0].args[1], '日本語。');
   open('second', '日本語。'); // Same text in a different bubble must open anew.
   tree = render();
@@ -88,7 +88,7 @@ test('OCR dialog scopes text and images by region, rejects stale analysis, and r
   requests[1].resolve({ type: 'ERROR', payload: { error: 'Offline' } });
   await flush();
   tree = render();
-  assert.equal(find(tree, node => node.props.lang === 'ja').props.children, '日本語。');
+  assert.equal(find(tree, node => node.props.lang === 'ja').props.value, '日本語。');
   assert.equal(find(tree, node => node.props.className === 'hk-error-box').props.children, 'Offline');
   document.dispatchEvent({ type: 'keydown', key: 'Escape', preventDefault() {}, stopPropagation() {} });
   assert.equal(find(render(), node => node.props.role === 'dialog'), null);
@@ -108,6 +108,7 @@ test('manga overlays group text, open only on activation, crop attachments and f
   let rect = { left: 100, top: 100, right: 300, bottom: 300, width: 200, height: 200 };
   class Image {
     naturalWidth = 200; naturalHeight = 200; currentSrc = 'manga.png'; isConnected = true;
+    set src(value) { queueMicrotask(() => this.onload?.()); }
     decode() { return Promise.resolve(); }
     getBoundingClientRect() { return rect; }
   }
@@ -124,20 +125,22 @@ test('manga overlays group text, open only on activation, crop attachments and f
   let fallback = false;
   const { MangaOcrImages } = load('src/components/manga-ocr-images.tsx', {
     window, document, Image, HTMLImageElement: Image, HTMLElement: Image, CustomEvent,
-    requestAnimationFrame: fn => fn(),
+    requestAnimationFrame: fn => fn(), queueMicrotask,
     chrome: { runtime: { sendMessage: async message => {
       if (message.type === 'FETCH_IMAGE') return { payload: { dataUrl: fallback ? null : 'original' } };
       if (message.type === 'CAPTURE_SCREENSHOT') return { payload: { dataUrl: 'screenshot' } };
       return { type: 'MANGA_OCR_RESULT', payload: { lines: [
-        { text: '今日は', orientation: 'vertical', bbox: { x0: 60, y0: 20, x1: 80, y1: 100 } },
-        { text: '晴れです。', orientation: 'vertical', bbox: { x0: 30, y0: 20, x1: 50, y1: 120 } },
+        { text: '今日は', confidence: 90, orientation: 'vertical', bbox: { x0: 60, y0: 20, x1: 80, y1: 100 } },
+        { text: '晴れです。', confidence: 90, orientation: 'vertical', bbox: { x0: 30, y0: 20, x1: 50, y1: 120 } },
       ] } };
     } } },
   }, {
     react: hooks.react,
     '~lib/services/ocr-regions': grouping,
-    '~lib/services/image-cropper': { applyMangaPreprocess() {}, cropViewportBox: async () => 'visible-crop' },
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: {} }) },
+    '~lib/services/ocr-bubbles': load('src/lib/services/ocr-bubbles.ts'),
+    '~lib/services/ocr-geometry': load('src/lib/services/ocr-geometry.ts'),
+    '~lib/services/image-cropper': load('src/lib/services/image-cropper.ts', { document, Image }, {}),
+    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ocrPreprocessEnabled: false } }) },
     '~lib/locales': { useTranslation: () => ({ t: key => key }) },
   });
   const render = () => hooks.render(MangaOcrImages);
@@ -154,7 +157,7 @@ test('manga overlays group text, open only on activation, crop attachments and f
   region.props.onClick({ currentTarget: image });
   assert.equal(events[0].text, '今日は晴れです。');
   assert.equal(events[0].imageUrl, 'crop:58x108');
-  assert.deepEqual(crops[0], [26, 16, 58, 108, 0, 0, 58, 108]);
+  assert.ok(crops.some(c => JSON.stringify(c) === JSON.stringify([26, 16, 58, 108, 0, 0, 58, 108])));
   const initialLeft = region.props.style.left;
   rect = { left: 50, top: 0, right: 450, bottom: 400, width: 400, height: 400 };
   window.dispatchEvent({ type: 'resize' });
@@ -166,8 +169,8 @@ test('manga overlays group text, open only on activation, crop attachments and f
   find(render(), node => node.props['aria-label'] === 'ocr_btn_trigger').props.onClick();
   await flush();
   region = find(render(), node => node.props.className === 'hk-manga-region');
-  assert.equal(region.props.style.left, 39);
-  assert.equal(region.props.style.top, 24);
+  assert.equal(region.props.style.left, 45);
+  assert.equal(region.props.style.top, 30);
   assert.equal(events.length, 1);
   hooks.cleanup();
 });
@@ -476,4 +479,231 @@ test('lookup requests from the transcript create a draggable popup on the source
   assert.equal(messages.at(-1).payload.open, false);
   hooks.cleanup();
   assert.equal(listeners.size, 0);
+});
+
+
+test('OCR corrections reject stale analysis, reanalyze edited text and save its original crop', async () => {
+  const hooks = hookHarness();
+  const window = Object.assign(new Events(), { innerWidth: 800, innerHeight: 700, location: { href: 'https://manga.test' } });
+  const document = Object.assign(new Events(), { querySelector: () => null, getElementById: () => null, activeElement: null, title: 'Manga' });
+  const requests = [], messages = [], updates = [];
+  window.addEventListener('hakkutsu:ocr-region-updated', event => updates.push(event.detail));
+  const { default: Dictionary } = load('src/contents/inline-dictionary.tsx', {
+    window, document, CustomEvent, setTimeout, clearTimeout,
+    browser: { runtime: { getURL: value => value } },
+    chrome: { runtime: { onMessage: { addListener() {}, removeListener() {} }, sendMessage: async message => {
+      messages.push(message);
+      return message.type === 'ADD_SRS_CARD' ? { type: 'SRS_RESULT' } : { type: 'CARD_EXISTS_RESULT', payload: { exists: false } };
+    } } },
+  }, {
+    react: hooks.react,
+    '~lib/utils/japanese': { containsJapanese: () => true },
+    '~components/definition-card': { DefinitionCard: 'definition' },
+    '~components/token-display': { TokenDisplay: 'tokens' }, '~components/grammar-explanations': {},
+    '~components/manga-ocr-images': { MangaOcrImages: 'ocr' },
+    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ankiEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
+    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~lib/services/lookup-analysis': { requestLookupAnalysis: (...args) => new Promise(resolve => requests.push({ args, resolve })) },
+  });
+  const render = () => hooks.render(() => Dictionary({}));
+  const save = tree => find(tree, node => node.type === 'button' && node.props.title === 'def_btn_add_library');
+  const resolve = (index, text) => requests[index].resolve({ type: 'ANALYZE_RESULT', payload: {
+    text, sentence_reading: 'にほんご', translation: 'Japanese', tokens: [{ surface: '日本語', dictionary_form: '日本語',
+      is_japanese: true, definitions: [{ glosses: ['Japanese'] }], reading: { hiragana: 'にほんご' } }],
+  } });
+  render();
+  window.dispatchEvent(new CustomEvent('hakkutsu:analyze', { detail: { text: '誤読', ocrRegionId: 'bubble',
+    imageUrl: 'original-unfiltered-crop', mode: 'dictionary', transient: false, pauseVideo: false } }));
+  let tree = render();
+  assert.equal(save(tree).props.disabled, true);
+  const input = find(tree, node => node.type === 'textarea');
+  assert.equal(input.props['aria-label'], 'ocr_edit_hint');
+  input.props.onChange({ target: { value: '日本語。' } });
+  tree = render();
+  resolve(0, '誤読');
+  await flush();
+  tree = render();
+  assert.equal(find(tree, node => node.type === 'tokens'), null);
+  assert.equal(save(tree).props.disabled, true);
+  find(tree, node => node.type === 'button' && node.props.children === 'ocr_reanalyze').props.onClick();
+  assert.equal(requests[1].args[1], '日本語。');
+  assert.equal(updates[0].id, 'bubble');
+  assert.equal(updates[0].text, '日本語。');
+  resolve(1, '日本語。');
+  await flush();
+  tree = render();
+  assert.equal(save(tree).props.disabled, false);
+  await save(tree).props.onClick();
+  const added = messages.find(message => message.type === 'ADD_SRS_CARD');
+  assert.equal(added.payload.sentence, '日本語。');
+  assert.equal(added.payload.image_url, 'original-unfiltered-crop');
+  find(tree, node => node.type === 'textarea').props.onChange({ target: { value: '' } });
+  tree = render();
+  assert.equal(save(tree).props.disabled, true);
+  assert.equal(find(tree, node => node.type === 'button' && node.props.children === 'ocr_reanalyze').props.disabled, true);
+  hooks.cleanup();
+});
+
+function mangaScanHarness({ recover = false, fallback = false, uncertain = false, ambiguous = false, zoom = 1 } = {}) {
+  const hooks = hookHarness(), requests = [], events = [], crops = [];
+  const window = Object.assign(new Events(), { innerWidth: 800, innerHeight: 700, devicePixelRatio: 2 });
+  window.addEventListener('hakkutsu:analyze', event => events.push(event.detail));
+  let delayed, release;
+  class Image {
+    naturalWidth = 200; naturalHeight = 200; currentSrc = 'manga.png'; isConnected = true;
+    decode() { return Promise.resolve(); }
+    getBoundingClientRect() { return fallback
+      ? { left: -100, top: -100, right: 300, bottom: 300, width: 400, height: 400 }
+      : { left: 100, top: 100, right: 100 + 200 * zoom, bottom: 100 + 200 * zoom, width: 200 * zoom, height: 200 * zoom }; }
+  }
+  const image = new Image();
+  const document = Object.assign(new Events(), { createElement: () => {
+    const canvas = { width: 0, height: 0, toDataURL: () => `raw:${canvas.width}x${canvas.height}`,
+      getContext: () => ({ fillRect() {}, drawImage: (...args) => crops.push(args.slice(1)),
+        getImageData: () => ({ width: canvas.width, height: canvas.height,
+          data: new Uint8ClampedArray(canvas.width * canvas.height * 4).fill(255) }),
+      }) };
+    return canvas;
+  } });
+  const geometry = load('src/lib/services/ocr-geometry.ts');
+  const grouping = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') });
+  const detector = pixels => [{ bbox: { x0: 40, y0: 40, x1: 80, y1: 160 }, orientation: 'horizontal', orientationAmbiguous: ambiguous, type: 'text-cluster' },
+    ...(pixels.width >= 300 ? [{ bbox: { x0: 280, y0: 40, x1: 320, y1: 160 }, orientation: 'horizontal', orientationAmbiguous: ambiguous, type: 'text-cluster' }] : [])];
+  const { MangaOcrImages } = load('src/components/manga-ocr-images.tsx', {
+    window, document, Image, HTMLImageElement: Image, HTMLElement: Image, CustomEvent,
+    requestAnimationFrame: fn => fn(),
+    chrome: { runtime: { sendMessage: async message => {
+      requests.push(message);
+      if (message.type === 'FETCH_IMAGE') return { payload: { dataUrl: fallback ? null : 'original' } };
+      if (message.type === 'CAPTURE_SCREENSHOT') return { payload: { dataUrl: 'screenshot' } };
+      if (message.type === 'RUN_MANGA_OCR_BATCH') {
+        if (delayed) await new Promise(resolve => { release = resolve; });
+        return { type: 'MANGA_OCR_BATCH_RESULT', payload: message.payload.crops.map((crop, index) => ({
+          id: crop.id, bbox: crop.bbox, transform: crop.transform, text: index ? '別の台詞' : '日本語', confidence: uncertain ? 12 : 90, orientation: 'vertical',
+          lines: uncertain ? [] : [{ text: index ? '別の台詞' : '日本語', confidence: 90, orientation: 'vertical',
+            bbox: { x0: 10, y0: 10, x1: 30, y1: 110 } }],
+        })) };
+      }
+      return { type: 'MANGA_OCR_RESULT', payload: { text: '', orientation: 'vertical', lines: recover ? [{
+        text: '回復した台詞', confidence: 90, orientation: 'vertical', bbox: { x0: 160, y0: 40, x1: 180, y1: 140 },
+      }] : [] } };
+    } } },
+  }, {
+    react: hooks.react,
+    '~lib/services/ocr-regions': grouping, '~lib/services/ocr-geometry': geometry,
+    '~lib/services/ocr-bubbles': { detectMangaDialogueRegions: detector },
+    '~lib/services/image-cropper': {
+      ...load('src/lib/services/image-cropper.ts', { document }), cropViewportBox: async () => 'visible-crop',
+    },
+    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ocrPreprocessEnabled: false, ocrDefaultOrientation: 'vertical' } }) },
+    '~lib/locales': { useTranslation: () => ({ t: key => key }) },
+  });
+  const render = () => hooks.render(MangaOcrImages);
+  const regions = () => {
+    const found = [];
+    const visit = node => { if (!React.isValidElement(node)) return;
+      if (node.props.className === 'hk-manga-region') found.push(node);
+      React.Children.toArray(node.props.children).forEach(visit);
+    };
+    visit(render()); return found;
+  };
+  render(); document.dispatchEvent({ type: 'mousemove', target: image }); render();
+  const auto = async () => {
+    find(render(), node => node.props['aria-label'] === 'ocr_btn_trigger').props.onClick();
+    await flush();
+  };
+  const select = async (left, top, right, bottom) => {
+    find(render(), node => node.props['aria-label'] === 'ocr_btn_select_box').props.onClick();
+    find(render(), node => typeof node.props.onMouseDown === 'function').props.onMouseDown({ clientX: left, clientY: top, preventDefault() {} });
+    find(render(), node => typeof node.props.onMouseMove === 'function').props.onMouseMove({ clientX: right, clientY: bottom });
+    find(render(), node => typeof node.props.onMouseUp === 'function').props.onMouseUp();
+    await flush();
+  };
+  return { render, regions, auto, select, requests, events, crops, image, window, cleanup: hooks.cleanup,
+    delay: () => { delayed = true; }, release: () => release() };
+}
+
+test('batch overlays respect explicit orientation and recover uncovered text after successful crops', async () => {
+  const app = mangaScanHarness({ recover: true });
+  await app.auto();
+  assert.equal(app.regions().length, 3);
+  const batch = app.requests.find(request => request.type === 'RUN_MANGA_OCR_BATCH');
+  assert.ok(batch.payload.crops.every(crop => crop.orientation === 'vertical' && crop.orientationHint === 'horizontal'));
+  assert.ok(batch.payload.crops.every(crop => crop.transform.padding === 10));
+  assert.equal(app.requests.filter(request => request.type === 'RUN_MANGA_OCR').length, 1);
+  assert.equal(app.events.length, 0);
+  app.cleanup();
+});
+
+test('single manual selection preserves outside highlights and updates corrected overlay text', async () => {
+  const app = mangaScanHarness();
+  await app.auto();
+  assert.equal(app.regions().length, 2);
+  await app.select(100, 100, 200, 200);
+  assert.equal(app.regions().length, 2);
+  assert.equal(app.events.length, 1);
+  assert.equal(app.events[0].text, '日本語');
+  app.window.dispatchEvent(new CustomEvent('hakkutsu:ocr-region-updated', { detail: { id: app.events[0].ocrRegionId, text: '修正した台詞' } }));
+  assert.ok(app.regions().some(region => region.props['aria-label'] === '修正した台詞'));
+  assert.ok(app.regions().some(region => region.props['aria-label'] === '別の台詞'));
+  app.cleanup();
+});
+
+test('multi-region manual selection leaves separate selectable regions without opening lookup', async () => {
+  const app = mangaScanHarness();
+  await app.select(100, 100, 300, 300);
+  assert.equal(app.regions().length, 2);
+  assert.equal(app.events.length, 0);
+  app.regions()[0].props.onClick({ currentTarget: app.image });
+  assert.equal(app.events.length, 1);
+  app.cleanup();
+});
+
+test('manual screenshot selection clamps to the visible portion and discards changed sources', async () => {
+  const app = mangaScanHarness({ fallback: true });
+  await app.select(-50, -50, 150, 150);
+  const batch = app.requests.find(request => request.type === 'RUN_MANGA_OCR_BATCH');
+  // The visible source covers 300/400 of the image. A selection starting
+  // outside it is clamped to the screenshot origin, producing 100x100 pixels.
+  assert.equal(batch.payload.crops[0].bbox.x0, 40);
+  assert.ok(app.crops.some(crop => crop[0] === 0 && crop[1] === 0 && crop[2] === 100 && crop[3] === 100));
+  assert.ok(app.events[0].x >= 0 && app.events[0].y >= 0);
+  app.cleanup();
+  const stale = mangaScanHarness();
+  stale.delay();
+  await stale.select(100, 100, 200, 200);
+  stale.image.currentSrc = 'different-page.png';
+  stale.release(); await flush();
+  assert.equal(stale.regions().length, 0);
+  assert.equal(stale.events.length, 0);
+  stale.cleanup();
+});
+
+
+test('ambiguous detection leaves direction open and manual low-confidence text stays editable', async () => {
+  const ambiguous = mangaScanHarness({ ambiguous: true });
+  await ambiguous.auto();
+  const batch = ambiguous.requests.find(request => request.type === 'RUN_MANGA_OCR_BATCH');
+  assert.ok(batch.payload.crops.every(crop => crop.orientationHint === undefined));
+  ambiguous.cleanup();
+  const uncertain = mangaScanHarness({ uncertain: true });
+  await uncertain.auto();
+  assert.equal(uncertain.regions().length, 0);
+  await uncertain.select(100, 100, 200, 200);
+  assert.equal(uncertain.events.length, 1);
+  assert.equal(uncertain.events[0].text, '日本語');
+  uncertain.cleanup();
+});
+
+test('manual selections use the displayed image geometry at browser zoom', async () => {
+  for (const zoom of [.75, 1.5]) {
+    const app = mangaScanHarness({ zoom });
+    await app.select(100, 100, 100 + 100 * zoom, 100 + 100 * zoom);
+    const batch = app.requests.find(request => request.type === 'RUN_MANGA_OCR_BATCH');
+    assert.equal(batch.payload.crops[0].bbox.x0, 40);
+    assert.ok(app.crops.some(crop => crop[0] === 0 && crop[1] === 0 && crop[2] === 200 && crop[3] === 200));
+    assert.equal(app.events.length, 1);
+    assert.equal(app.events[0].x, 100 + 25 * zoom);
+    app.cleanup();
+  }
 });

@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Loader2, ScanText, Crop } from "lucide-react";
-import { applyMangaPreprocess, cropViewportBox, cropCanvasRegion } from "~lib/services/image-cropper";
+import { cropViewportBox, cropCanvasRegion } from "~lib/services/image-cropper";
 import { detectMangaDialogueRegions } from "~lib/services/ocr-bubbles";
-import { groupOcrRegions } from "~lib/services/ocr-regions";
+import { canvasToImage, imageToCanvas, mapCropFragments, overlapFraction, type ImageMapping, type Bounds } from "~lib/services/ocr-geometry";
+import { groupOcrRegions, mergeOcrRegionPasses, resolveOcrRegionOverlaps, type OcrTextRegion } from "~lib/services/ocr-regions";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
-import type { OcrCropItem, OcrExecutionResult } from "~lib/services/ocr-engine";
+import type { OcrCropItem, OcrCropResult, OcrExecutionResult } from "~lib/services/ocr-engine";
 
 type Highlight = { id: string; text: string; imageUrl: string; x: number; y: number; width: number; height: number };
 type ScannedImage = { image: HTMLImageElement; src: string; highlights: Highlight[] };
+type PreparedImage = { canvas: HTMLCanvasElement; source: string; mapping: ImageMapping };
+
 type DragBox = { startX: number; startY: number; currentX: number; currentY: number };
 
 export function MangaOcrImages() {
@@ -98,8 +101,11 @@ export function MangaOcrImages() {
         context.fillStyle = "white";
         context.fillRect(0, 0, canvas.width, canvas.height);
         context.drawImage(original, 0, 0, canvas.width, canvas.height);
-        return { canvas, fullImage: true, source, rect, left, top, right, bottom };
+        return { canvas, source, mapping: {
+          x: 0, y: 0, width: 1, height: 1, canvasWidth: canvas.width, canvasHeight: canvas.height,
+        } };
       } catch {
+        if (right <= left || bottom <= top) throw new Error("Image is outside the viewport");
         const response = await chrome.runtime.sendMessage({ type: "CAPTURE_SCREENSHOT" });
         if (!response?.payload?.dataUrl) throw new Error(response?.payload?.error || "Could not capture image");
         const dataUrl = await cropViewportBox(
@@ -124,101 +130,164 @@ export function MangaOcrImages() {
         const context = canvas.getContext("2d", { willReadFrequently: true });
         if (!context) throw new Error("Could not prepare screenshot canvas");
         context.drawImage(screenshotImg, 0, 0);
-        return { canvas, fullImage: false, source, rect, left, top, right, bottom };
+        return { canvas, source, mapping: {
+          x: (left - rect.left) / rect.width, y: (top - rect.top) / rect.height,
+          width: (right - left) / rect.width, height: (bottom - top) / rect.height,
+          canvasWidth: canvas.width, canvasHeight: canvas.height,
+        } };
       }
     },
     []
   );
 
-  /**
-   * Scans a specific user-dragged marquee bounding box.
-   */
-  const scanCustomBox = async (
-    image: HTMLImageElement,
-    screenBox: { left: number; top: number; width: number; height: number }
-  ) => {
-    if (scanningRef.current || screenBox.width < 12 || screenBox.height < 12) return;
+  const makeHighlight = (prepared: PreparedImage, region: OcrTextRegion, id: string): Highlight => {
+    const b = region.bbox;
+    const padding = Math.max(2, Math.min(b.x1 - b.x0, b.y1 - b.y0) * .08);
+    const bounds = {
+      x0: Math.max(0, Math.floor(b.x0 - padding)), y0: Math.max(0, Math.floor(b.y0 - padding)),
+      x1: Math.min(prepared.canvas.width, Math.ceil(b.x1 + padding)),
+      y1: Math.min(prepared.canvas.height, Math.ceil(b.y1 + padding)),
+    };
+    const { dataUrl } = cropCanvasRegion(prepared.canvas, {
+      x: bounds.x0, y: bounds.y0, width: bounds.x1 - bounds.x0, height: bounds.y1 - bounds.y0,
+    }, false);
+    return { id, text: region.text, imageUrl: dataUrl, ...canvasToImage(b, prepared.mapping) };
+  };
+
+  /** Both selection paths use original pixels for geometry and attachments. */
+  const recognizeRegions = async (prepared: PreparedImage, scanId: number, manual: boolean): Promise<Highlight[]> => {
+    const { canvas } = prepared;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Could not acquire 2D canvas context");
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+    const detected = detectMangaDialogueRegions(pixels, { includeBorderlessText: true });
+    const makeCrop = (b: Bounds, index: number, orientationHint?: "vertical" | "horizontal"): OcrCropItem => {
+      const crop = cropCanvasRegion(canvas, {
+        x: b.x0, y: b.y0, width: b.x1 - b.x0, height: b.y1 - b.y0,
+      }, settings.ocrPreprocessEnabled !== false, { padding: 10 });
+      return {
+        id: `${scanId}:${index}`, dataUrl: crop.dataUrl,
+        width: crop.canvas.width, height: crop.canvas.height, bbox: b, transform: crop.transform,
+        orientation: settings.ocrDefaultOrientation || "auto", orientationHint,
+      };
+    };
+    const crops = detected.map((region, index) => makeCrop(region.bbox, index, region.orientationAmbiguous ? undefined : region.orientation));
+    // A tight sign or sound-effect selection may be too small for automatic
+    // detection. It still needs crop segmentation instead of page segmentation.
+    if (manual && !crops.length) {
+      crops.push(makeCrop({ x0: 0, y0: 0, x1: canvas.width, y1: canvas.height }, 0));
+    }
+    const options = { pixels, manual, automatic: !manual };
+    let regions: OcrTextRegion[] = [];
+    if (crops.length) {
+      setStatusMessage(`${t("ocr_scanning")} (${crops.length})`);
+      const response = await chrome.runtime.sendMessage({ type: "RUN_MANGA_OCR_BATCH", payload: { crops } });
+      if (response?.type === "MANGA_OCR_BATCH_RESULT" && Array.isArray(response.payload)) {
+        const fragments = (response.payload as OcrCropResult[]).flatMap(result => {
+          const crop = crops.find(c => c.id === result.id);
+          if (!crop) return [];
+          // Manual selection may expose a low-confidence transcription even
+          // when Tesseract has no usable fragment boxes. Keep it editable.
+          const padding = crop.transform?.padding || 0;
+          const lines = result.lines?.length ? result.lines : manual && result.text?.trim() ? [{
+            text: result.text.trim(), confidence: result.confidence, orientation: result.orientation,
+            bbox: { x0: padding, y0: padding, x1: crop.width - padding, y1: crop.height - padding },
+          }] : [];
+          return mapCropFragments(lines, crop);
+        });
+        regions = groupOcrRegions(fragments, options);
+      }
+    }
+
+    // Recover uncovered text once, even when some detected crops succeeded.
+    setStatusMessage(t("ocr_recognizing"));
+    const full = cropCanvasRegion(canvas, { x: 0, y: 0, width: canvas.width, height: canvas.height },
+      settings.ocrPreprocessEnabled !== false);
+    const response = await chrome.runtime.sendMessage({
+      type: "RUN_MANGA_OCR", payload: {
+        imageDataUrl: full.dataUrl, orientation: settings.ocrDefaultOrientation || "auto",
+        boxWidth: canvas.width, boxHeight: canvas.height,
+      },
+    });
+    if (response?.type === "MANGA_OCR_RESULT") {
+      const result = response.payload as OcrExecutionResult;
+      const recovered = groupOcrRegions(result.lines || [], options);
+      regions = mergeOcrRegionPasses(regions, recovered);
+      regions = groupOcrRegions(regions.flatMap(region => region.fragments), options);
+      // A deliberate selection can still be corrected when segmentation fails.
+      if (manual && !regions.length && result.text?.trim()) {
+        regions.push({ text: result.text.trim(), orientation: result.orientation, fragments: [],
+          bbox: { x0: 0, y0: 0, x1: canvas.width, y1: canvas.height } });
+      }
+    } else if (!regions.length) {
+      throw new Error(response?.payload?.error || t("ocr_no_text"));
+    }
+    regions = resolveOcrRegionOverlaps(regions);
+    regions.sort((a, b) => {
+      const overlapY = Math.min(a.bbox.y1, b.bbox.y1) - Math.max(a.bbox.y0, b.bbox.y0);
+      return overlapY > Math.min(a.bbox.y1 - a.bbox.y0, b.bbox.y1 - b.bbox.y0) * .5
+        ? b.bbox.x0 - a.bbox.x0 : a.bbox.y0 - b.bbox.y0;
+    });
+    return regions.map((region, index) => makeHighlight(prepared, region, `${scanId}:region:${index}`));
+  };
+
+  const scan = async (image: HTMLImageElement, selection?: Bounds) => {
+    if (scanningRef.current) return;
+    const source = image.currentSrc;
+    const rect = image.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
     setBusyImage(image);
     setError(null);
-    setStatusMessage(t("ocr_recognizing"));
-    capturingRef.current = true;
-    scanningRef.current = true;
+    setStatusMessage(t("ocr_detecting"));
+    capturingRef.current = scanningRef.current = true;
+    setIsSelectingBox(false);
+    setDragBox(null);
     window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss", { detail: { force: true } }));
-
     try {
-      const { canvas, fullImage, source, rect } = await prepareImageCanvas(image);
-      const imgRect = image.getBoundingClientRect();
-
-      // Convert screen viewport box to canvas coordinates
-      const scaleX = canvas.width / imgRect.width;
-      const scaleY = canvas.height / imgRect.height;
-      const cropX = Math.max(0, Math.floor((screenBox.left - imgRect.left) * scaleX));
-      const cropY = Math.max(0, Math.floor((screenBox.top - imgRect.top) * scaleY));
-      const cropW = Math.min(canvas.width - cropX, Math.ceil(screenBox.width * scaleX));
-      const cropH = Math.min(canvas.height - cropY, Math.ceil(screenBox.height * scaleY));
-
-      const { dataUrl: cropDataUrl } = cropCanvasRegion(
-        canvas,
-        { x: cropX, y: cropY, width: cropW, height: cropH },
-        settings.ocrPreprocessEnabled !== false
-      );
-
-      const scanId = ++scanIdRef.current;
-      const ocrResponse = await chrome.runtime.sendMessage({
-        type: "RUN_MANGA_OCR",
-        payload: {
-          imageDataUrl: cropDataUrl,
-          orientation: settings.ocrDefaultOrientation || "auto",
-          boxWidth: cropW,
-          boxHeight: cropH,
-        },
+      // Let React remove OCR controls before a screenshot fallback.
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      if (!image.isConnected || image.currentSrc !== source) return;
+      let prepared: PreparedImage = await prepareImageCanvas(image);
+      if (!image.isConnected || image.currentSrc !== source || prepared.source !== source) return;
+      let selectedArea: ReturnType<typeof canvasToImage> | undefined;
+      if (selection) {
+        const bounds = imageToCanvas(selection, prepared.mapping);
+        if (!bounds) throw new Error(t("ocr_no_text"));
+        selectedArea = canvasToImage(bounds, prepared.mapping);
+        const crop = cropCanvasRegion(prepared.canvas, {
+          x: bounds.x0, y: bounds.y0, width: bounds.x1 - bounds.x0, height: bounds.y1 - bounds.y0,
+        }, false);
+        prepared = { ...prepared, canvas: crop.canvas, mapping: {
+          ...selectedArea, canvasWidth: crop.canvas.width, canvasHeight: crop.canvas.height,
+        } };
+      }
+      const highlights = await recognizeRegions(prepared, ++scanIdRef.current, Boolean(selection));
+      if (!image.isConnected || image.currentSrc !== source) return;
+      if (!highlights.length) throw new Error(t("ocr_no_text_hint"));
+      setScans(current => {
+        const previous = current.find(item => item.image === image && item.src === source);
+        const outside = selectedArea ? (previous?.highlights || []).filter(h =>
+          overlapFraction({ x0: h.x, y0: h.y, x1: h.x + h.width, y1: h.y + h.height }, {
+            x0: selectedArea!.x, y0: selectedArea!.y,
+            x1: selectedArea!.x + selectedArea!.width, y1: selectedArea!.y + selectedArea!.height,
+          }) === 0) : [];
+        return [...current.filter(item => item.image !== image && item.image.isConnected).slice(-19),
+          { image, src: source, highlights: [...outside, ...highlights] }];
       });
-
-      if (ocrResponse?.type !== "MANGA_OCR_RESULT") {
-        throw new Error(ocrResponse?.payload?.error || t("ocr_no_text"));
+      if (selection && highlights.length === 1) {
+        const highlight = highlights[0];
+        const currentRect = image.getBoundingClientRect();
+        window.dispatchEvent(new CustomEvent("hakkutsu:analyze", { detail: {
+          text: highlight.text, x: currentRect.left + (highlight.x + highlight.width / 2) * currentRect.width,
+          y: currentRect.top + (highlight.y + highlight.height) * currentRect.height,
+          mode: "dictionary", transient: false, imageUrl: highlight.imageUrl,
+          pauseVideo: false, ocrRegionId: highlight.id,
+        } }));
       }
-
-      const result = ocrResponse.payload as OcrExecutionResult;
-      const recognizedText = result.text?.trim() || "";
-      if (!recognizedText) {
-        throw new Error(t("ocr_no_text"));
-      }
-
-      const highlight: Highlight = {
-        id: `${scanId}:custom`,
-        imageUrl: cropDataUrl,
-        text: recognizedText,
-        x: (screenBox.left - imgRect.left) / imgRect.width,
-        y: (screenBox.top - imgRect.top) / imgRect.height,
-        width: screenBox.width / imgRect.width,
-        height: screenBox.height / imgRect.height,
-      };
-
-      setScans((current) => [
-        ...current.filter((scan) => scan.image !== image && scan.image.isConnected).slice(-19),
-        { image, src: source, highlights: [highlight] },
-      ]);
-
-      // Immediately open analysis popup for the selected dialogue
-      window.dispatchEvent(
-        new CustomEvent("hakkutsu:analyze", {
-          detail: {
-            text: recognizedText,
-            x: screenBox.left + screenBox.width / 2,
-            y: screenBox.top + screenBox.height,
-            mode: "dictionary",
-            transient: false,
-            imageUrl: cropDataUrl,
-            pauseVideo: false,
-            ocrRegionId: highlight.id,
-          },
-        })
-      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      capturingRef.current = false;
-      scanningRef.current = false;
+      capturingRef.current = scanningRef.current = false;
       setBusyImage(null);
       setStatusMessage(null);
       setIsSelectingBox(false);
@@ -226,166 +295,28 @@ export function MangaOcrImages() {
     }
   };
 
-  /**
-   * Automatic two-stage scan: Detects speech bubbles & text regions, crops them,
-   * and runs PSM.SINGLE_BLOCK OCR in batch.
-   */
-  const scanImage = async (image: HTMLImageElement) => {
-    if (scanningRef.current) return;
+  const scanImage = (image: HTMLImageElement) => scan(image);
+  const scanCustomBox = (image: HTMLImageElement, box: { left: number; top: number; width: number; height: number }) => {
     const rect = image.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
-
-    setBusyImage(image);
-    setError(null);
-    setStatusMessage(t("ocr_detecting"));
-    capturingRef.current = true;
-    scanningRef.current = true;
-    window.dispatchEvent(new CustomEvent("hakkutsu:analysis-dismiss", { detail: { force: true } }));
-
-    try {
-      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-      const { canvas, fullImage, source, left, top, right, bottom } = await prepareImageCanvas(image);
-
-      const context = canvas.getContext("2d", { willReadFrequently: true });
-      if (!context) throw new Error("Could not acquire 2D canvas context");
-      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-      const scanId = ++scanIdRef.current;
-
-      // Stage 1: Computer Vision Speech Bubble & Dialogue Detection
-      const detectedRegions = detectMangaDialogueRegions(pixels, {
-        minBubbleArea: 100,
-        includeBorderlessText: true,
-      });
-
-      let highlights: Highlight[] = [];
-
-      if (detectedRegions.length > 0) {
-        // Stage 2: Adaptive Bubble Crop Recognition in Batch
-        setStatusMessage(`${t("ocr_scanning")} (0/${detectedRegions.length})`);
-
-        const crops: OcrCropItem[] = detectedRegions.map((region, index) => {
-          const bw = region.bbox.x1 - region.bbox.x0;
-          const bh = region.bbox.y1 - region.bbox.y0;
-          const { canvas: cropCanvas, dataUrl } = cropCanvasRegion(
-            canvas,
-            { x: region.bbox.x0, y: region.bbox.y0, width: bw, height: bh },
-            settings.ocrPreprocessEnabled !== false
-          );
-          return {
-            id: `${scanId}:${index}`,
-            dataUrl,
-            width: cropCanvas.width,
-            height: cropCanvas.height,
-            orientation: region.orientation,
-            bbox: region.bbox,
-          };
-        });
-
-        const batchResponse = await chrome.runtime.sendMessage({
-          type: "RUN_MANGA_OCR_BATCH",
-          payload: { crops },
-        });
-
-        if (batchResponse?.type === "MANGA_OCR_BATCH_RESULT" && Array.isArray(batchResponse.payload)) {
-          const results = batchResponse.payload as Array<{
-            id: string;
-            text: string;
-            confidence: number;
-            bbox: { x0: number; y0: number; x1: number; y1: number };
-          }>;
-
-          highlights = results
-            .filter((item) => item.text && /[\u3040-\u30ff\u3400-\u9fff]/u.test(item.text))
-            .map((item) => {
-              const crop = crops.find((c) => c.id === item.id);
-              const b = item.bbox;
-              return {
-                id: item.id,
-                imageUrl: crop?.dataUrl || "",
-                text: item.text,
-                x: fullImage
-                  ? b.x0 / canvas.width
-                  : (left - rect.left + (b.x0 * (right - left)) / canvas.width) / rect.width,
-                y: fullImage
-                  ? b.y0 / canvas.height
-                  : (top - rect.top + (b.y0 * (bottom - top)) / canvas.height) / rect.height,
-                width: fullImage
-                  ? (b.x1 - b.x0) / canvas.width
-                  : ((b.x1 - b.x0) * (right - left)) / canvas.width / rect.width,
-                height: fullImage
-                  ? (b.y1 - b.y0) / canvas.height
-                  : ((b.y1 - b.y0) * (bottom - top)) / canvas.height / rect.height,
-              };
-            });
-        }
-      }
-
-      // Stage 3 Fallback: If bubble detection returned no regions, use full-page Tesseract
-      if (highlights.length === 0) {
-        setStatusMessage(t("ocr_recognizing"));
-        const fullDataUrl = canvas.toDataURL("image/png");
-        const ocrResponse = await chrome.runtime.sendMessage({
-          type: "RUN_MANGA_OCR",
-          payload: {
-            imageDataUrl: fullDataUrl,
-            orientation: settings.ocrDefaultOrientation || "auto",
-            boxWidth: canvas.width,
-            boxHeight: canvas.height,
-          },
-        });
-
-        if (ocrResponse?.type === "MANGA_OCR_RESULT") {
-          const fullResult = ocrResponse.payload as OcrExecutionResult;
-          highlights = groupOcrRegions(fullResult.lines, { pixels }).map((region, index) => {
-            const padding = Math.max(2, Math.min(region.bbox.x1 - region.bbox.x0, region.bbox.y1 - region.bbox.y0) * 0.08);
-            const line = {
-              ...region,
-              bbox: {
-                x0: Math.max(0, Math.floor(region.bbox.x0 - padding)),
-                y0: Math.max(0, Math.floor(region.bbox.y0 - padding)),
-                x1: Math.min(canvas.width, Math.ceil(region.bbox.x1 + padding)),
-                y1: Math.min(canvas.height, Math.ceil(region.bbox.y1 + padding)),
-              },
-            };
-            const cropW = line.bbox.x1 - line.bbox.x0;
-            const cropH = line.bbox.y1 - line.bbox.y0;
-            const { dataUrl: cropDataUrl } = cropCanvasRegion(canvas, {
-              x: line.bbox.x0,
-              y: line.bbox.y0,
-              width: cropW,
-              height: cropH,
-            });
-            return {
-              id: `${scanId}:fallback:${index}`,
-              imageUrl: cropDataUrl,
-              text: line.text,
-              x: fullImage ? line.bbox.x0 / canvas.width : (left - rect.left + (line.bbox.x0 * (right - left)) / canvas.width) / rect.width,
-              y: fullImage ? line.bbox.y0 / canvas.height : (top - rect.top + (line.bbox.y0 * (bottom - top)) / canvas.height) / rect.height,
-              width: fullImage ? cropW / canvas.width : (cropW * (right - left)) / canvas.width / rect.width,
-              height: fullImage ? cropH / canvas.height : (cropH * (bottom - top)) / canvas.height / rect.height,
-            };
-          });
-        }
-      }
-
-      if (highlights.length === 0) {
-        throw new Error(t("ocr_no_text_hint"));
-      }
-
-      if (!image.isConnected || image.currentSrc !== source) return;
-      setScans((current) => [
-        ...current.filter((scan) => scan.image !== image && scan.image.isConnected).slice(-19),
-        { image, src: source, highlights },
-      ]);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      capturingRef.current = false;
-      scanningRef.current = false;
-      setBusyImage(null);
-      setStatusMessage(null);
-    }
+    return scan(image, {
+      x0: Math.max(0, (box.left - rect.left) / rect.width),
+      y0: Math.max(0, (box.top - rect.top) / rect.height),
+      x1: Math.min(1, (box.left + box.width - rect.left) / rect.width),
+      y1: Math.min(1, (box.top + box.height - rect.top) / rect.height),
+    });
   };
+
+  useEffect(() => {
+    const update = (event: Event) => {
+      const { id, text } = (event as CustomEvent<{ id: string; text: string }>).detail;
+      setScans(current => current.map(item => ({ ...item,
+        highlights: item.highlights.map(h => h.id === id ? { ...h, text } : h),
+      })));
+    };
+    window.addEventListener("hakkutsu:ocr-region-updated", update);
+    return () => window.removeEventListener("hakkutsu:ocr-region-updated", update);
+  }, []);
 
   const imageRect = hoveredImage?.isConnected ? hoveredImage.getBoundingClientRect() : null;
   const showControls =
@@ -441,16 +372,18 @@ export function MangaOcrImages() {
     <>
       <style>{`
         .hk-manga-region {
+          box-sizing: border-box;
           background: rgba(56, 189, 248, 0.08);
           border: 1.5px solid rgba(56, 189, 248, 0.65);
-          box-shadow: 0 0 5px rgba(56, 189, 248, 0.35);
+          box-shadow: inset 0 0 3px rgba(56, 189, 248, 0.35);
           transition: all 0.15s ease-in-out;
         }
         .hk-manga-region:hover, .hk-manga-region:focus-visible {
           background: rgba(56, 189, 248, 0.28);
           border-color: #38bdf8;
           outline: 2px solid #38bdf8;
-          box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+          outline-offset: -2px;
+          box-shadow: inset 0 0 6px rgba(56, 189, 248, 0.6);
         }
         .hk-manga-select-marquee {
           border: 2px dashed #38bdf8;
@@ -635,8 +568,8 @@ export function MangaOcrImages() {
                   top: y,
                   width,
                   height,
-                  minWidth: 8,
-                  minHeight: 8,
+                  minWidth: 0,
+                  minHeight: 0,
                   padding: 0,
                   borderRadius: 4,
                   color: "transparent",

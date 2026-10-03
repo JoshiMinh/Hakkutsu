@@ -364,7 +364,7 @@ export const ja = {
   ocr_orientation_horizontal: "横書き (Horizontal)",
   ocr_recognizing: "日本語を認識中...",
   ocr_preprocess: "マンガコントラスト補正",
-  ocr_preprocess_desc: "スクリーントーンを除去して認識精度を向上させます",
+  ocr_preprocess_desc: "認識前にグレースケール変換とコントラスト補正を行います",
   ocr_edit_hint: "必要に応じて認識テキストを修正できます",
   ocr_reanalyze: "再解析",
   ocr_no_text: "この画像から日本語の文字を検出できませんでした。別の画像か文字方向を試してください。",

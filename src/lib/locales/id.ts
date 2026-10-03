@@ -364,7 +364,7 @@ export const id = {
   ocr_orientation_horizontal: "Horizontal (横書き)",
   ocr_recognizing: "Mengenali teks bahasa Jepang...",
   ocr_preprocess: "Filter Kontras Manga",
-  ocr_preprocess_desc: "Pra-proses gambar untuk menghilangkan screentone agar teks lebih jelas",
+  ocr_preprocess_desc: "Mengubah gambar ke skala abu-abu dan menyesuaikan kontras sebelum pengenalan",
   ocr_edit_hint: "Edit teks hasil pindaian jika diperlukan",
   ocr_reanalyze: "Analisis Ulang",
   ocr_no_text: "Tidak ada teks Jepang terdeteksi pada gambar ini. Coba gambar atau orientasi lain.",

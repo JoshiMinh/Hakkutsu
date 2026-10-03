@@ -28,11 +28,16 @@ export interface OcrCropItem {
   dataUrl: string;
   width: number;
   height: number;
-  orientation?: "auto" | "vertical" | "horizontal";
+  orientation?: OcrOrientation;
+  orientationHint?: "vertical" | "horizontal";
+  // Maps recognition pixels (including padding) into source-canvas pixels.
+  transform?: { originX: number; originY: number; scale: number; padding: number };
   bbox: { x0: number; y0: number; x1: number; y1: number };
 }
 
 export interface OcrCropResult {
+  lines: OcrFragment[];
+  transform?: OcrCropItem["transform"];
   id: string;
   text: string;
   confidence: number;
@@ -110,7 +115,7 @@ class OcrEngineService {
    * - Normalizes vertical punctuation to standard horizontal forms
    * - Normalizes full-width alphanumeric chars and repeated noise
    */
-  public cleanOcrText(rawText: string): string {
+  public cleanOcrText(rawText: string, repairSoundMarks = true): string {
     if (!rawText) return "";
 
     let text = rawText.trim();
@@ -152,12 +157,14 @@ class OcrEngineService {
     const kataChar = "[\u30A1-\u30FA\u30FC]";
     const kataInterpRegex1 = new RegExp(`(${kataChar})\\s*[1lI|!丨]\\s*(${kataChar})`, "g");
     const kataInterpRegex2 = new RegExp(`(${kataChar})\\s*[1lI|丨](?=[\\s、。！？「」『』（）…・\\n]|$)`, "g");
-    text = text.replace(kataInterpRegex1, "$1ー$2");
-    text = text.replace(kataInterpRegex2, "$1ー");
+    if (repairSoundMarks) {
+      text = text.replace(kataInterpRegex1, "$1ー$2");
+      text = text.replace(kataInterpRegex2, "$1ー");
+    }
 
     // Handle when 1 or | is on its own isolated line between Katakana lines:
     // e.g. "ゲー\n1\nム" -> "ゲーム"
-    text = text.replace(/([\u30A1-\u30FA\u30FC])\s*\n\s*[1lI|!丨]\s*\n\s*([\u30A1-\u30FA\u30FC])/g, "$1ー$2");
+    if (repairSoundMarks) text = text.replace(/([\u30A1-\u30FA\u30FC])\s*\n\s*[1lI|!丨]\s*\n\s*([\u30A1-\u30FA\u30FC])/g, "$1ー$2");
 
     // 3. Remove line breaks within Japanese text while preserving distinct paragraphs
     const cjkPattern = "[\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\uFF00-\uFFEF]";
@@ -169,8 +176,10 @@ class OcrEngineService {
     }
 
     // Secondary pass for Katakana prolonged mark after newlines were joined
-    text = text.replace(kataInterpRegex1, "$1ー$2");
-    text = text.replace(kataInterpRegex2, "$1ー");
+    if (repairSoundMarks) {
+      text = text.replace(kataInterpRegex1, "$1ー$2");
+      text = text.replace(kataInterpRegex2, "$1ー");
+    }
 
     // Collapse duplicate Katakana prolonged sound marks caused by OCR artifacting (e.g. ゲーーム -> ゲーム)
     text = text.replace(/([\u30A1-\u30FA])ーー+(?=[\u30A1-\u30FA])/g, "$1ー");
@@ -228,17 +237,17 @@ class OcrEngineService {
         if (orientation === "vertical" && line.confidence >= 25 &&
           !hasLargeGap &&
           bounds.y1 - bounds.y0 > (bounds.x1 - bounds.x0) * 1.5) {
-          const text = this.cleanOcrText(line.text);
+          const text = this.cleanOcrText(line.text, false);
           if (/[\u3040-\u30ff\u3400-\u9fff]/u.test(text) &&
             Object.values(bounds).every(Number.isFinite) && bounds.x1 > bounds.x0 && bounds.y1 > bounds.y0) {
             return [{ text, confidence: line.confidence, bbox: bounds, orientation, lineId, paragraphId }];
           }
         }
         return (line.words || []).flatMap((word) => {
-          const text = this.cleanOcrText(word.text);
+          const text = this.cleanOcrText(word.text, false);
           const { x0, y0, x1, y1 } = word.bbox;
           const japanese = /[\u3040-\u30ff\u3400-\u9fff]/u.test(text);
-          const punctuationOrNumber = /^[\p{N}\p{P}\p{S}]+$/u.test(text);
+          const punctuationOrNumber = /^[\p{N}\p{P}\p{S}]+$/u.test(text) || /^[A-Za-z]$/.test(text);
           const passesConfidence = japanese ? word.confidence >= 20 : word.confidence >= 45;
           return passesConfidence && (japanese || punctuationOrNumber)
             && [x0, y0, x1, y1].every(Number.isFinite) && x1 > x0 && y1 > y0
@@ -319,7 +328,7 @@ class OcrEngineService {
     } catch (err) {
       console.error(`[Hakkutsu OCR] Recognition failed with lang ${lang}:`, err);
       // Fallback: If vertical failed, attempt horizontal fallback
-      if (lang === "jpn_vert") {
+      if (lang === "jpn_vert" && (!options.orientation || options.orientation === "auto")) {
         try {
           const fallbackWorker = await this.getWorker("jpn", options.onProgress);
           await fallbackWorker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT, textord_tabfind_force_vertical_text: "0" });
@@ -336,70 +345,60 @@ class OcrEngineService {
     }
   }
 
-  /**
-   * Recognizes a single cropped dialogue region using PSM.SINGLE_BLOCK.
-   */
+  /** Crop results retain local fragments; the caller maps and groups them. */
   private async executeRecognizeCrop(crop: OcrCropItem): Promise<OcrCropResult> {
-    const resolvedOrientation = this.resolveOrientation(
-      crop.orientation || "auto",
-      crop.width,
-      crop.height
-    );
-    const lang = resolvedOrientation === "vertical" ? "jpn_vert" : "jpn";
-
-    try {
-      const worker = await this.getWorker(lang);
+    const explicit = crop.orientation && crop.orientation !== "auto";
+    const direction = explicit ? crop.orientation as "vertical" | "horizontal"
+      : crop.orientationHint || this.resolveOrientation("auto", crop.width, crop.height);
+    const run = async (orientation: "vertical" | "horizontal"): Promise<OcrCropResult> => {
+      const worker = await this.getWorker(orientation === "vertical" ? "jpn_vert" : "jpn");
       await worker.setParameters({
-        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-        textord_tabfind_force_vertical_text: resolvedOrientation === "vertical" ? "1" : "0",
+        tessedit_pageseg_mode: orientation === "vertical" ? PSM.SINGLE_BLOCK_VERT_TEXT : PSM.SINGLE_BLOCK,
+        textord_tabfind_force_vertical_text: orientation === "vertical" ? "1" : "0",
         user_defined_dpi: "300",
       });
-
-      const result = await worker.recognize(crop.dataUrl);
-      const rawText = result?.data?.text || "";
-      const confidence = result?.data?.confidence || 0;
-      let cleanedText = this.cleanOcrText(rawText);
-
-      // If vertical returned no Japanese text or very low confidence, attempt horizontal fallback
-      if (!/[\u3040-\u30ff\u3400-\u9fff]/u.test(cleanedText) && resolvedOrientation === "vertical") {
-        try {
-          const hWorker = await this.getWorker("jpn");
-          await hWorker.setParameters({
-            tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-            textord_tabfind_force_vertical_text: "0",
-            user_defined_dpi: "300",
-          });
-          const hResult = await hWorker.recognize(crop.dataUrl);
-          const hText = this.cleanOcrText(hResult?.data?.text || "");
-          if (/[\u3040-\u30ff\u3400-\u9fff]/u.test(hText)) {
-            return {
-              id: crop.id,
-              text: hText,
-              confidence: hResult?.data?.confidence || 0,
-              orientation: "horizontal",
-              bbox: crop.bbox,
-            };
-          }
-        } catch {}
+      const { data } = await worker.recognize(crop.dataUrl, {}, { blocks: true });
+      const lines = this.extractRegions(data, orientation);
+      return {
+        id: crop.id, bbox: crop.bbox, transform: crop.transform, orientation, lines,
+        text: this.cleanOcrText(data.text || "", false), confidence: data.confidence || 0,
+      };
+    };
+    const score = (result: OcrCropResult) => {
+      const count = (text: string) => [...text].filter(c => /[\u3040-\u30ff\u3400-\u9fff]/u.test(c) && !/[ー・]/u.test(c)).length;
+      const japanese = count(result.text);
+      const groups = new Map<string, OcrFragment[]>();
+      result.lines.forEach((fragment, index) => {
+        const key = fragment.lineId || String(index);
+        groups.set(key, [...(groups.get(key) || []), fragment]);
+      });
+      let supported = 0;
+      for (const fragments of groups.values()) {
+        const characters = fragments.reduce((sum, f) => sum + count(f.text), 0);
+        const x0 = Math.min(...fragments.map(f => f.bbox.x0)), y0 = Math.min(...fragments.map(f => f.bbox.y0));
+        const x1 = Math.max(...fragments.map(f => f.bbox.x1)), y1 = Math.max(...fragments.map(f => f.bbox.y1));
+        const along = result.orientation === "vertical" ? y1 - y0 : x1 - x0;
+        const across = result.orientation === "vertical" ? x1 - x0 : y1 - y0;
+        if (characters >= 2 && along >= across * characters * .4 && along <= across * characters * 2.5) supported += characters;
       }
-
-      return {
-        id: crop.id,
-        text: cleanedText,
-        confidence,
-        orientation: resolvedOrientation,
-        bbox: crop.bbox,
-      };
-    } catch (err) {
-      console.error(`[Hakkutsu OCR] Crop ${crop.id} recognition failed:`, err);
-      return {
-        id: crop.id,
-        text: "",
-        confidence: 0,
-        orientation: resolvedOrientation,
-        bbox: crop.bbox,
-      };
+      return japanese && supported ? result.confidence * Math.min(1, supported / japanese) : -1;
+    };
+    let primary: OcrCropResult | undefined;
+    try { primary = await run(direction); } catch (error) {
+      console.warn(`[Hakkutsu OCR] Crop ${crop.id} failed in ${direction}:`, error);
     }
+    if (!explicit && (!primary || score(primary) < 60 || !crop.orientationHint)) {
+      try {
+        const other = await run(direction === "vertical" ? "horizontal" : "vertical");
+        if (!primary || score(other) > score(primary)) primary = other;
+      } catch (error) {
+        console.warn(`[Hakkutsu OCR] Crop ${crop.id} alternative failed:`, error);
+      }
+    }
+    return primary || {
+      id: crop.id, bbox: crop.bbox, transform: crop.transform,
+      text: "", confidence: 0, orientation: direction, lines: [],
+    };
   }
 
   /**

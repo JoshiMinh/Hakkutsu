@@ -24,7 +24,7 @@ function ocrHarness(recognize) {
     browser: { runtime: { getURL: path => `extension://${path}` } },
   }, {
     'tesseract.js': {
-      PSM: { AUTO: '3', SINGLE_BLOCK_VERT_TEXT: '5', SPARSE_TEXT: '11' },
+      PSM: { AUTO: '3', SINGLE_BLOCK_VERT_TEXT: '5', SINGLE_BLOCK: '6', SPARSE_TEXT: '11' },
       createWorker: async language => {
         created.push(language);
         return {
@@ -333,4 +333,204 @@ test('a page without a video clears the sidebar and disconnected panels receive 
   panel.port.onDisconnect.emit();
   app.chrome.runtime.onMessage.emit({ type: 'TRANSCRIPT_CUE' }, { tab: { id: 11 } }, () => {});
   assert.equal(panel.messages.length, 1);
+});
+
+
+test('vertical crops use PSM 5 and retain local fragments and transform metadata', async () => {
+  const bounds = { x0: 10, y0: 10, x1: 30, y1: 190 };
+  const app = ocrHarness(async () => ({ text: 'クラウンゲームセンター', confidence: 90,
+    blocks: [{ paragraphs: [{ lines: [{ text: 'クラウンゲームセンター', confidence: 90, bbox: bounds,
+      words: [word('クラウンゲームセンター', 90, bounds)] }] }] }] }));
+  const transform = { originX: 100, originY: 200, scale: 2, padding: 10 };
+  const result = await app.ocrEngine.recognizeCrop({ id: 'sign', dataUrl: 'crop', width: 40, height: 200,
+    orientation: 'vertical', transform, bbox: { x0: 100, y0: 200, x1: 110, y1: 290 } });
+  assert.equal(app.parameters[0].tessedit_pageseg_mode, '5');
+  assert.equal(result.lines[0].text, 'クラウンゲームセンター');
+  assert.deepEqual(result.lines[0].bbox, bounds);
+  assert.deepEqual(result.transform, transform);
+  assert.equal(app.created.length, 1);
+});
+
+test('auto crops retry low-confidence Japanese, while explicit direction overrides hints', async () => {
+  const app = ocrHarness(async language => ({ text: '日本語', confidence: language === 'jpn' ? 90 : 35,
+    blocks: [{ paragraphs: [{ lines: [{ text: '日本語', confidence: language === 'jpn' ? 90 : 35,
+      bbox: { x0: 10, y0: 10, x1: 70, y1: 30 }, words: [word('日本語', language === 'jpn' ? 90 : 35,
+        { x0: 10, y0: 10, x1: 70, y1: 30 })] }] }] }] }));
+  const crop = { id: 'wide-bubble', dataUrl: 'crop', width: 200, height: 100, orientation: 'auto',
+    orientationHint: 'vertical', bbox: { x0: 0, y0: 0, x1: 200, y1: 100 } };
+  const result = await app.ocrEngine.recognizeCrop(crop);
+  assert.equal(result.orientation, 'horizontal');
+  assert.deepEqual(app.created, ['jpn_vert', 'jpn']);
+  const before = app.parameters.length;
+  await app.ocrEngine.recognizeCrop({ ...crop, orientation: 'horizontal' });
+  assert.equal(app.parameters.length, before + 1);
+  assert.equal(app.parameters.at(-1).tessedit_pageseg_mode, '6');
+});
+
+test('ambiguous crop direction evaluates both models even when the first is confident', async () => {
+  const app = ocrHarness(async () => ({ ...page([word('日本語', 90, { x0: 10, y0: 10, x1: 70, y1: 30 })]), text: '日本語', confidence: 90 }));
+  await app.ocrEngine.recognizeCrop({ id: 'unknown', dataUrl: 'crop', width: 200, height: 100,
+    orientation: 'auto', bbox: { x0: 0, y0: 0, x1: 200, y1: 100 } });
+  assert.deepEqual(app.created, ['jpn', 'jpn_vert']);
+});
+
+test('automatic acceptance excludes low-confidence and artwork-shaped guesses; manual permits correction', () => {
+  const pixels = { data: new Uint8ClampedArray(300 * 300 * 4).fill(255), width: 300, height: 300 };
+  const input = [
+    { ...fragment('日本語', 20, 20, 20, 80), confidence: 44 },
+    fragment('ロロ', 130, 150, 10, 10),
+    fragment('台詞', 200, 20, 20, 70),
+    fragment('雑音ABCDEF', 260, 20, 20, 200),
+  ];
+  const auto = groupOcrRegions(input, { pixels, automatic: true });
+  assert.deepEqual(Array.from(auto, region => region.text), ['台詞']);
+  assert.ok(groupOcrRegions(input, { pixels, manual: true }).some(region => region.text === '日本語'));
+});
+
+test('vertical assembly repairs isolated sound marks and preserves numeric runs and V', () => {
+  const { normalizeRegionText } = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') });
+  assert.equal(normalizeRegionText('クラウンゲー1ムセンター', 'vertical'), 'クラウンゲームセンター');
+  assert.equal(normalizeRegionText('セ1ラーV第12回レベル1', 'vertical'), 'セーラーV第12回レベル1');
+  assert.equal(normalizeRegionText('セ1ラーV', 'horizontal'), 'セ1ラーV');
+  const regions = groupOcrRegions([
+    fragment('ゲ', 20, 10, 20, 20), fragment('1', 26, 32, 8, 18), fragment('ム', 20, 52, 20, 20),
+  ], { manual: true });
+  assert.equal(regions.length, 1);
+  assert.equal(regions[0].text, 'ゲーム');
+});
+
+test('crop padding and scale map local fragments into source coordinates and clip padding', () => {
+  const { mapCropFragments, canvasToImage, imageToCanvas } = load('src/lib/services/ocr-geometry.ts');
+  const crop = { id: 'crop', bbox: { x0: 100, y0: 200, x1: 150, y1: 280 },
+    transform: { originX: 100, originY: 200, scale: 2, padding: 10 } };
+  const mapped = mapCropFragments([fragment('日本語', 6, 10, 104, 160)], crop);
+  assert.deepEqual({ ...mapped[0].bbox }, crop.bbox);
+  const mapping = { x: .25, y: .2, width: .75, height: .8, canvasWidth: 600, canvasHeight: 800 };
+  const bounds = imageToCanvas({ x0: 0, y0: 0, x1: .5, y1: .5 }, mapping);
+  assert.deepEqual({ ...bounds }, { x0: 0, y0: 0, x1: 200, y1: 300 });
+  const normalized = canvasToImage(bounds, mapping);
+  assert.equal(normalized.x, .25);
+  assert.equal(normalized.y, .2);
+  assert.equal(normalized.width, .25);
+  assert.ok(Math.abs(normalized.height - .3) < 1e-12);
+  assert.equal(imageToCanvas({ x0: 0, y0: 0, x1: .1, y1: .1 }, mapping), null);
+});
+
+test('bundled models recognize crop batches as ordered dialogue regions', async () => {
+  const sharp = require('sharp');
+  const tesseract = require('tesseract.js');
+  const { ocrEngine } = load('src/lib/services/ocr-engine.ts', { browser: { runtime: { getURL: value => value } } }, {
+    'tesseract.js': { ...tesseract, createWorker: (language, oem) => tesseract.createWorker(language, oem, {
+      langPath: path.join(__dirname, '../public/ocr'), cacheMethod: 'none',
+    }) },
+  });
+  try {
+    const { data, info } = await sharp(path.join(__dirname, 'fixtures/manga-dialogue-regions.png')).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const bubbles = load('src/lib/services/ocr-bubbles.ts');
+    const detected = bubbles.detectMangaDialogueRegions({ data: new Uint8ClampedArray(data), width: info.width, height: info.height });
+    const crops = [];
+    for (const region of detected) {
+      const b = region.bbox;
+      const image = await sharp(path.join(__dirname, 'fixtures/manga-dialogue-regions.png'))
+        .extract({ left: b.x0, top: b.y0, width: b.x1 - b.x0, height: b.y1 - b.y0 })
+        .extend({ top: 10, bottom: 10, left: 10, right: 10, background: 'white' }).png().toBuffer();
+      crops.push({ id: region.id, dataUrl: image, width: b.x1 - b.x0 + 20, height: b.y1 - b.y0 + 20,
+        orientation: 'auto', orientationHint: region.orientation, bbox: b,
+        transform: { originX: b.x0, originY: b.y0, scale: 1, padding: 10 } });
+    }
+    const results = await ocrEngine.recognizeBatch(crops);
+    const { mapCropFragments } = load('src/lib/services/ocr-geometry.ts');
+    const regions = groupOcrRegions(results.flatMap(result => mapCropFragments(result.lines, crops.find(c => c.id === result.id))), {
+      pixels: { data: new Uint8ClampedArray(data), width: info.width, height: info.height }, automatic: true,
+    });
+    assert.ok(regions.some(r => r.text.includes('日本語を勉強します') && r.text.includes('今日は晴れです')), JSON.stringify(regions.map(r => r.text)));
+    assert.ok(regions.some(r => r.text.includes('本を読みます') && r.text.includes('楽しいです')), JSON.stringify(regions.map(r => r.text)));
+  } finally { await ocrEngine.terminate(); }
+});
+
+
+test('recovery corrects a weaker crop without accepting broad overlapping guesses or duplicates', () => {
+  const { mergeOcrFragments, mapCropFragments } = load('src/lib/services/ocr-geometry.ts');
+  const primary = [{ ...fragment('狐本語', 100, 20, 20, 90), confidence: 70 }];
+  const result = mergeOcrFragments(primary, [
+    { ...fragment('日本語', 100, 20, 20, 90), confidence: 95 },
+    fragment('別の台詞', 200, 20, 20, 100),
+    { ...fragment('大きな誤読', 80, 0, 160, 150), confidence: 99 },
+  ]);
+  assert.deepEqual(Array.from(result, f => f.text), ['日本語', '別の台詞']);
+  assert.equal(primary[0].text, '狐本語');
+  const clipped = mapCropFragments([fragment('ター', 99, 10, 20, 50)], {
+    id: 'padding', bbox: { x0: 0, y0: 0, x1: 100, y1: 100 },
+    transform: { originX: 0, originY: 0, scale: 1, padding: 10 },
+  });
+  assert.equal(clipped.length, 0);
+});
+
+test('automatic validation rejects punctuation-only, tiny and densely hallucinated artwork', () => {
+  const regions = groupOcrRegions([
+    fragment('ーー一', 20, 20, 30, 15, 'horizontal'),
+    fragment('ター', 100, 20, 1, 5),
+    fragment('雑音誤読', 150, 20, 40, 45),
+    fragment('正しい台詞', 230, 20, 20, 100),
+  ], { automatic: true });
+  assert.deepEqual(Array.from(regions, r => r.text), ['正しい台詞']);
+});
+
+
+test('recovery preserves overlapping Japanese word boxes from the same pass', () => {
+  const { mergeOcrFragments } = load('src/lib/services/ocr-geometry.ts');
+  const heading = [
+    fragment('漫画', 160, 746, 276, 36, 'horizontal'),
+    fragment('の', 260, 742, 35, 54, 'horizontal'),
+    fragment('発売', 294, 746, 89, 36, 'horizontal'),
+    fragment('予定', 382, 742, 58, 54, 'horizontal'),
+  ];
+  const merged = mergeOcrFragments([], heading);
+  assert.equal(merged.length, 4);
+  assert.equal(groupOcrRegions(merged, { automatic: true })[0].text, '漫画の発売予定');
+});
+
+
+test('region recovery does not insert nested alternatives or expand accepted dialogue into artwork', () => {
+  const { mergeOcrRegionPasses, resolveOcrRegionOverlaps } = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') });
+  const region = f => ({ text: f.text, orientation: f.orientation, fragments: [f], bbox: f.bbox });
+  const primary = region(fragment('こんなテスト', 100, 30, 20, 120));
+  const nested = region(fragment('テスト', 100, 70, 20, 60));
+  const broad = region(fragment('誤読した大きな領域', 80, 10, 140, 200, 'horizontal'));
+  const other = region(fragment('別の台詞', 250, 30, 20, 120));
+  assert.deepEqual(Array.from(mergeOcrRegionPasses([primary], [nested, broad, other]), r => r.text), ['こんなテスト', '別の台詞']);
+  const final = resolveOcrRegionOverlaps([broad, nested, primary, other]);
+  assert.ok(final.some(r => r.text === 'こんなテスト'));
+  for (let i = 0; i < final.length; i++) for (let j = i + 1; j < final.length; j++) {
+    const a = final[i].bbox, b = final[j].bbox;
+    assert.ok(Math.min(a.x1, b.x1) <= Math.max(a.x0, b.x0) || Math.min(a.y1, b.y1) <= Math.max(a.y0, b.y0));
+  }
+});
+
+test('automatic OCR rejects ink connected to artwork beyond the candidate rectangle', () => {
+  const width = 300, height = 220;
+  const data = new Uint8ClampedArray(width * height * 4).fill(255);
+  const ink = (x, y) => { const p = (y * width + x) * 4; data[p] = data[p + 1] = data[p + 2] = 0; };
+  // A clipped piece of a long hair strand looks like vertical text locally.
+  for (let y = 0; y < height; y++) for (let x = 40; x < 44; x++) ink(x, y);
+  for (let y = 30; y < 110; y += 22) for (let yy = y; yy < y + 16; yy++) for (let x = 140; x < 152; x++) {
+    if (x === 140 || x === 151 || yy === y || yy === y + 15) ink(x, yy);
+  }
+  const regions = groupOcrRegions([fragment('こいい', 36, 30, 20, 80), fragment('日本語', 138, 30, 20, 80)], {
+    automatic: true, pixels: { data, width, height },
+  });
+  assert.deepEqual(Array.from(regions, r => r.text), ['日本語']);
+});
+
+test('a vertical column joins separated words without crossing a speaker boundary', () => {
+  const regions = groupOcrRegions([fragment('ザコ', 30, 20, 20, 40), fragment('キャラは', 31, 90, 20, 80)]);
+  assert.deepEqual(Array.from(regions, r => r.text), ['ザコキャラは']);
+});
+
+
+test('short borderless guesses need stronger confidence while remaining manually editable', () => {
+  const pixels = { width: 300, height: 200, data: new Uint8ClampedArray(300 * 200 * 4).fill(255) };
+  const input = [{ ...fragment('ウツしみ', 20, 30, 100, 20, 'horizontal'), confidence: 50 }, fragment('出口', 200, 30, 20, 60)];
+  assert.deepEqual(Array.from(groupOcrRegions(input, { pixels, automatic: true }), r => r.text), ['出口']);
+  assert.ok(groupOcrRegions(input, { pixels, manual: true }).some(r => r.text === 'ウツしみ'));
 });
