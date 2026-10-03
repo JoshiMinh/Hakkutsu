@@ -103,11 +103,17 @@ export default defineConfig({
           "icon-32.png",
           "icon-48.png",
           "icon-128.png",
-          "icon-512.png",
-          "content-scripts/youtube-bridge.js",
-          "content-scripts/netflix-bridge.js"
+          "icon-512.png"
         ],
         matches: ["<all_urls>"]
+      },
+      {
+        resources: ["content-scripts/youtube-bridge.js"],
+        matches: ["https://www.youtube.com/*", "https://m.youtube.com/*"]
+      },
+      {
+        resources: ["content-scripts/netflix-bridge.js"],
+        matches: ["https://www.netflix.com/*"]
       }
     ]
   },
