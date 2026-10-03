@@ -3055,10 +3055,20 @@ select option:hover {
   vertical-align: middle;
 }
 
+.hk-script-cue__primary ruby {
+  display: ruby;
+  ruby-position: over;
+  ruby-align: center;
+}
+
 .hk-script-rt {
   color: #d8b4fe;
   font-size: 0.55em;
   font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
 }
 
 .hk-script-cue__secondary {

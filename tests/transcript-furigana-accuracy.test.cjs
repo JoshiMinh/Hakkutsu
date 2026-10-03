@@ -143,7 +143,29 @@ test('japanese.mergeOkuriganaTokens merges inflected verb stems, compound counte
   assert.equal(merged5[1].surface, 'を');
 });
 
-test('japanese.alignTokensWithReading aligns sentence reading accurately across tokens', () => {
+test('japanese.deriveInflectedReading derives accurate readings for inflected verb and adjective forms', () => {
+  assert.equal(japanese.deriveInflectedReading('戻ろう', '戻る', 'もどる'), 'もどろう');
+  assert.equal(japanese.deriveInflectedReading('任せた', '任せる', 'まかせる'), 'まかせた');
+  assert.equal(japanese.deriveInflectedReading('走った', '走る', 'はしる'), 'はしった');
+  assert.equal(japanese.deriveInflectedReading('信じられない', '信じる', 'しんじる'), 'しんじられない');
+  assert.equal(japanese.deriveInflectedReading('体験した', '体験する', 'たいけんする'), 'たいけんした');
+  assert.equal(japanese.deriveInflectedReading('韓国', '韓国', 'かんこく'), 'かんこく');
+});
+
+test('japanese.deinflectWord correctly deinflects potential and negative endings', () => {
+  assert.equal(japanese.deinflectWord('信じられない'), '信じる');
+  assert.equal(japanese.deinflectWord('戻ろう'), '戻る');
+  assert.equal(japanese.deinflectWord('任せた'), '任せる');
+});
+
+test('japanese.distributeFurigana guards against bloated multi-word readings on single kanji', () => {
+  const safe = japanese.distributeFurigana('半', 'はんぶんいじょうがまやくさんぎょうにかかわるー');
+  assert.equal(safe.length, 1);
+  assert.equal(safe[0].text, '半');
+  assert.equal(safe[0].ruby, undefined);
+});
+
+test('japanese.alignTokensWithReading aligns sentence reading accurately across tokens and handles consecutive kanji', () => {
   // Test Sentence 1: 毎日の登校が楽になります
   const tokens1 = [
     { surface: '毎日' },
@@ -182,15 +204,83 @@ test('japanese.alignTokensWithReading aligns sentence reading accurately across 
   assert.equal(aligned2.find((t) => t.surface === '建設')?.reading?.hiragana, 'けんせつ');
   assert.equal(aligned2.find((t) => t.surface === '戻ろう')?.reading?.hiragana, 'もどろう');
 
-  // Test Sentence 3: ノーラン任せた
-  const tokens3 = [{ surface: 'ノーラン' }, { surface: '任せた' }];
-  const aligned3 = japanese.alignTokensWithReading(tokens3, 'Nōran makaseta');
-  assert.equal(aligned3.find((t) => t.surface === '任せた')?.reading?.hiragana, 'まかせた');
+  // Test Sentence 3: そこになぜ韓国人がいるのか？
+  const tokensS1 = [
+    { surface: 'そこに' },
+    { surface: 'なぜ' },
+    { surface: '韓国' },
+    { surface: '人' },
+    { surface: 'が' },
+    { surface: 'いる' },
+    { surface: 'の' },
+    { surface: 'か' },
+    { surface: '？' },
+  ];
+  const alignedS1 = japanese.alignTokensWithReading(tokensS1, 'Soko ni naze kankoku hito ga iru no ka?');
+  assert.equal(alignedS1.find((t) => t.surface === '韓国')?.reading?.hiragana, 'かんこく');
+  assert.equal(alignedS1.find((t) => t.surface === '人')?.reading?.hiragana, 'ひと');
 
-  // Test Sentence 4: 何週間もかかるぞ
-  const tokens4 = [{ surface: '何週間' }, { surface: 'も' }, { surface: 'かかる' }, { surface: 'ぞ' }];
-  const aligned4 = japanese.alignTokensWithReading(tokens4, 'Nan-shūkan mo kakaru zo');
-  assert.equal(aligned4.find((t) => t.surface === '何週間')?.reading?.hiragana, 'なんしゅうかん');
+  // Test Sentence 4: 国民の半分以上が麻薬産業に関わるー
+  const tokensS2 = [
+    { surface: '国民' },
+    { surface: 'の' },
+    { surface: '半分' },
+    { surface: '以上' },
+    { surface: 'が' },
+    { surface: '麻薬' },
+    { surface: '産業' },
+    { surface: 'に' },
+    { surface: '関わる' },
+    { surface: 'ー' },
+  ];
+  const alignedS2 = japanese.alignTokensWithReading(
+    tokensS2,
+    'Kokumin no hanbun ijō ga mayaku sangyō ni kakawaruー'
+  );
+  assert.equal(alignedS2.find((t) => t.surface === '国民')?.reading?.hiragana, 'こくみん');
+  assert.equal(alignedS2.find((t) => t.surface === '半分')?.reading?.hiragana, 'はんぶん');
+  assert.equal(alignedS2.find((t) => t.surface === '以上')?.reading?.hiragana, 'いじょう');
+  assert.equal(alignedS2.find((t) => t.surface === '麻薬')?.reading?.hiragana, 'まやく');
+  assert.equal(alignedS2.find((t) => t.surface === '産業')?.reading?.hiragana, 'さんぎょう');
+  assert.equal(alignedS2.find((t) => t.surface === '関わる')?.reading?.hiragana, 'かかわる');
+
+  // Test Sentence 5: 多民族多言語国家だ
+  const tokensS3 = [
+    { surface: '多' },
+    { surface: '民族' },
+    { surface: '多' },
+    { surface: '言語' },
+    { surface: '国家' },
+    { surface: 'だ' },
+  ];
+  const alignedS3 = japanese.alignTokensWithReading(tokensS3, 'Ta-minzoku ta-gengo kokka da');
+  assert.equal(alignedS3[0]?.reading?.hiragana, 'た');
+  assert.equal(alignedS3[1]?.reading?.hiragana, 'みんぞく');
+  assert.equal(alignedS3[2]?.reading?.hiragana, 'た');
+  assert.equal(alignedS3[3]?.reading?.hiragana, 'げんご');
+  assert.equal(alignedS3[4]?.reading?.hiragana, 'こっか');
+
+  // Test Sentence 6: 信じられないだろうがすべては俺が体験したことだ
+  const tokensS4 = [
+    { surface: '信じられない' },
+    { surface: 'だろう' },
+    { surface: 'が' },
+    { surface: 'すべて' },
+    { surface: 'は' },
+    { surface: '俺' },
+    { surface: 'が' },
+    { surface: '体験' },
+    { surface: 'した' },
+    { surface: 'こと' },
+    { surface: 'だ' },
+  ];
+  const alignedS4 = japanese.alignTokensWithReading(
+    tokensS4,
+    'Shinjirarenai darou ga subete wa ore ga taiken shita koto da'
+  );
+  assert.equal(alignedS4.find((t) => t.surface === '信じられない')?.reading?.hiragana, 'しんじられない');
+  assert.equal(alignedS4.find((t) => t.surface === '俺')?.reading?.hiragana, 'おれ');
+  assert.equal(alignedS4.find((t) => t.surface === '体験')?.reading?.hiragana, 'たいけん');
 });
 
 test('transcript cue component renders accurate ruby markup for problem video lines', () => {

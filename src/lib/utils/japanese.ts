@@ -153,15 +153,10 @@ export function romajiToHiragana(text: string): string {
 }
 
 export function katakanaToHiragana(text: string): string {
-  return [...text]
-    .map((char) => {
-      const code = char.charCodeAt(0);
-      if (code >= 0x30a1 && code <= 0x30f6) {
-        return String.fromCharCode(code - 0x60);
-      }
-      return char;
-    })
-    .join("");
+  if (!text) return "";
+  return text.replace(/[\u30a1-\u30f6]/g, (char) =>
+    String.fromCharCode(char.charCodeAt(0) - 0x60)
+  );
 }
 
 /**
@@ -248,7 +243,14 @@ export function countKanji(text: string): number {
 
 const OKURIGANA_PARTICLES = new Set([
   "は", "が", "を", "に", "へ", "で", "と", "の", "も", "か", "や", "よ", "ね", "わ", "ぞ", "ぜ", "さ",
-  "から", "まで", "より", "ほど", "だけ", "しか", "ばかり", "など", "くらい", "ぐらい"
+  "から", "まで", "より", "ほど", "だけ", "しか", "ばかり", "など", "くらい", "ぐらい",
+  "けど", "けれど", "けれども", "のに", "ので", "たら", "なら", "ば"
+]);
+
+const OKURIGANA_STOP_WORDS = new Set([
+  "だ", "だろう", "です", "でしょう", "だった",
+  "すべて", "これ", "それ", "あれ", "どれ", "ここ", "そこ", "あそこ", "どこ",
+  "こと", "もの", "とき", "わけ", "はず", "ほう", "ひと", "ため"
 ]);
 
 const OKURIGANA_AUX_VERBS = new Set([
@@ -257,6 +259,13 @@ const OKURIGANA_AUX_VERBS = new Set([
 ]);
 
 export function deinflectWord(surface: string): string {
+  if (surface.endsWith("られない")) return surface.slice(0, -4) + "る";
+  if (surface.endsWith("られる")) return surface.slice(0, -3) + "る";
+  if (surface.endsWith("れない")) return surface.slice(0, -3) + "る";
+  if (surface.endsWith("れる")) return surface.slice(0, -2) + "る";
+  if (surface.endsWith("なかった")) return surface.slice(0, -4) + "い";
+  if (surface.endsWith("なくて")) return surface.slice(0, -3) + "い";
+  if (surface.endsWith("ない")) return surface.slice(0, -2) + "る";
   if (surface.endsWith("かった")) return surface.slice(0, -3) + "い";
   if (surface.endsWith("ろう")) return surface.slice(0, -2) + "る";
   if (surface.endsWith("こう")) return surface.slice(0, -2) + "く";
@@ -282,6 +291,46 @@ export function deinflectWord(surface: string): string {
   if (surface.endsWith("いだ")) return surface.slice(0, -2) + "ぐ";
   if (surface.endsWith("した")) return surface.slice(0, -2) + "する";
   return surface;
+}
+
+/**
+ * Derives the inflected reading for a surface form given its base dictionary form and base reading.
+ * e.g. surface: "戻ろう", baseForm: "戻る", baseReading: "もどる" -> "もどろう"
+ *      surface: "任せた", baseForm: "任せる", baseReading: "まかせる" -> "まかせた"
+ *      surface: "信じられない", baseForm: "信じる", baseReading: "しんじる" -> "しんじられない"
+ */
+export function deriveInflectedReading(surface: string, baseForm: string, baseReading: string): string {
+  if (!surface || !baseReading) return baseReading || "";
+  if (!baseForm || surface === baseForm) return baseReading;
+
+  // Find the kanji prefix boundary in baseForm
+  const lastKanjiIdx = baseForm
+    .split("")
+    .map((c, i) => (isKanji(c) ? i : -1))
+    .reduce((max, i) => Math.max(max, i), -1);
+
+  if (lastKanjiIdx === -1) {
+    return katakanaToHiragana(surface);
+  }
+
+  const baseOkurigana = baseForm.slice(lastKanjiIdx + 1);
+  const cleanBaseReading = katakanaToHiragana(baseReading.trim());
+
+  // Extract kanji stem reading from baseReading
+  let stemReading = cleanBaseReading;
+  if (baseOkurigana && cleanBaseReading.endsWith(baseOkurigana)) {
+    stemReading = cleanBaseReading.slice(0, cleanBaseReading.length - baseOkurigana.length);
+  }
+
+  // Find surface okurigana (everything after last kanji)
+  const surfaceKanjiIdx = surface
+    .split("")
+    .map((c, i) => (isKanji(c) ? i : -1))
+    .reduce((max, i) => Math.max(max, i), -1);
+
+  const surfaceOkurigana = surfaceKanjiIdx !== -1 ? surface.slice(surfaceKanjiIdx + 1) : "";
+
+  return stemReading + surfaceOkurigana;
 }
 
 export interface MergeableToken {
@@ -357,13 +406,18 @@ export function mergeOkuriganaTokens<T extends MergeableToken>(rawTokens: T[]): 
         const nextSurface = getSurface(next);
         if (!/^[\u3040-\u309F]+$/.test(nextSurface)) break;
 
-        // If currently pure single kanji (e.g. 犬, 水, 本) and next is a particle, do NOT merge
-        if (combinedSurface.length === 1 && OKURIGANA_PARTICLES.has(nextSurface)) {
+        // If next is a particle, conjunction, copula, or common noun, ALWAYS STOP
+        if (OKURIGANA_PARTICLES.has(nextSurface) || OKURIGANA_STOP_WORDS.has(nextSurface)) {
           break;
         }
 
         // If next is a separate auxiliary verb not attached to stem
         if (combinedSurface.length === 1 && OKURIGANA_AUX_VERBS.has(nextSurface)) {
+          break;
+        }
+
+        // Stop if already at realistic maximum okurigana length
+        if (combinedSurface.length >= 7) {
           break;
         }
 
@@ -417,6 +471,11 @@ export function distributeFurigana(text: string, reading?: string): RubySegment[
   }
 
   if (!reading || !hasKanji(cleanText) || cleanText === reading.trim()) {
+    return [{ text: cleanText }];
+  }
+
+  const kanjiCount = countKanji(cleanText);
+  if (kanjiCount > 0 && reading.trim().length > kanjiCount * 5 + 4) {
     return [{ text: cleanText }];
   }
 
@@ -768,19 +827,127 @@ function kanaMatch(originalChar: string, readingChar: string): boolean {
   return false;
 }
 
+const COMMON_READINGS: Record<string, string[]> = {
+  "多": ["た"],
+  "民族": ["みんぞく"],
+  "言語": ["げんご"],
+  "国家": ["こっか"],
+  "韓国": ["かんこく"],
+  "人": ["ひと", "じん", "にん"],
+  "国民": ["こくみん"],
+  "半分": ["はんぶん"],
+  "以上": ["いじょう"],
+  "半": ["はん"],
+  "分": ["ぶん", "ふん", "ぷん", "わ"],
+  "以": ["い"],
+  "上": ["じょう", "うえ", "あ"],
+  "麻薬": ["まやく"],
+  "産業": ["さんぎょう"],
+  "関わる": ["かかわる"],
+  "信じる": ["しんじる"],
+  "信じられない": ["しんじられない"],
+  "俺": ["おれ"],
+  "体験": ["たいけん"],
+  "洪水": ["こうずい"],
+  "解決": ["かいけつ"],
+  "学校": ["がっこう"],
+  "建設": ["けんせつ"],
+  "毎日": ["まいにち"],
+  "登校": ["とうこう"],
+  "楽": ["らく"],
+  "何週間": ["なんしゅうかん"],
+};
+
+function findBestSplit<T extends MergeableToken>(groupReading: string, kanjiGroup: T[]): string[] {
+  const invalidStarters = /^[んっーゃゅょぁぃぅぇぉゎンッーャュョァィゥェォヮ]/;
+  const kCounts = kanjiGroup.map((tok) => countKanji(tok.surface || tok.surface_form || ""));
+  const totalKanji = kCounts.reduce((a, b) => a + b, 0);
+
+  if (kanjiGroup.length === 1) return [groupReading];
+
+  function solve(tokenIdx: number, charIdx: number): string[] | null {
+    if (tokenIdx === kanjiGroup.length - 1) {
+      const rem = groupReading.slice(charIdx);
+      if (rem.length === 0) return null;
+      if (invalidStarters.test(rem)) return null;
+      const lastK = kCounts[tokenIdx];
+      if (rem.length > lastK * 4 + 2 || rem.length < lastK) return null;
+      return [rem];
+    }
+
+    const tok = kanjiGroup[tokenIdx];
+    const tokSurf = (tok.surface || tok.surface_form || "").trim();
+    const k = kCounts[tokenIdx];
+    const minLen = Math.max(1, k);
+    const maxLen = Math.min(groupReading.length - charIdx - (kanjiGroup.length - 1 - tokenIdx), k * 3 + 1);
+    const ideal = Math.round((k / Math.max(1, totalKanji)) * groupReading.length);
+
+    const candidates: number[] = [];
+    if (COMMON_READINGS[tokSurf]) {
+      for (const r of COMMON_READINGS[tokSurf]) {
+        if (groupReading.startsWith(r, charIdx)) {
+          candidates.push(r.length);
+        }
+      }
+    }
+
+    for (let len = minLen; len <= maxLen; len++) {
+      if (!candidates.includes(len)) candidates.push(len);
+    }
+    candidates.sort((a, b) => {
+      const aKnown = COMMON_READINGS[tokSurf]?.some((r) => r.length === a && groupReading.startsWith(r, charIdx));
+      const bKnown = COMMON_READINGS[tokSurf]?.some((r) => r.length === b && groupReading.startsWith(r, charIdx));
+      if (aKnown && !bKnown) return -1;
+      if (!aKnown && bKnown) return 1;
+      return Math.abs(a - ideal) - Math.abs(b - ideal);
+    });
+
+    for (const len of candidates) {
+      const chunk = groupReading.slice(charIdx, charIdx + len);
+      const nextChar = groupReading[charIdx + len];
+      if (nextChar && invalidStarters.test(nextChar)) continue;
+
+      const sub = solve(tokenIdx + 1, charIdx + len);
+      if (sub) {
+        return [chunk, ...sub];
+      }
+    }
+    return null;
+  }
+
+  const result = solve(0, 0);
+  if (result) return result;
+
+  let consumed = 0;
+  const fallback: string[] = [];
+  for (let i = 0; i < kanjiGroup.length; i++) {
+    if (i === kanjiGroup.length - 1) {
+      fallback.push(groupReading.slice(consumed));
+    } else {
+      const len = Math.max(1, Math.round((kCounts[i] / Math.max(1, totalKanji)) * groupReading.length));
+      fallback.push(groupReading.slice(consumed, consumed + len));
+      consumed += len;
+    }
+  }
+  return fallback;
+}
+
 /**
  * Aligns pre-tokenized Japanese segments with a full sentence reading (romaji or hiragana).
  * Distributes the accurate contextual reading to each token.
  */
-export function alignTokensWithReading<T extends { surface?: string; surface_form?: string }>(
+export function alignTokensWithReading<T extends MergeableToken>(
   tokens: T[],
   sentenceReadingOrRomaji: string
 ): Array<T & { reading: { hiragana: string; romaji: string } }> {
-  if (!sentenceReadingOrRomaji || !sentenceReadingOrRomaji.trim()) {
-    return tokens.map((t) => ({
-      ...t,
-      reading: { hiragana: "", romaji: "" },
-    }));
+  if (!sentenceReadingOrRomaji || !sentenceReadingOrRomaji.trim() || !tokens || tokens.length === 0) {
+    return tokens.map((t) => {
+      const surface = (t.surface || t.surface_form || "").trim();
+      return {
+        ...t,
+        reading: { hiragana: katakanaToHiragana(surface), romaji: "" },
+      };
+    });
   }
 
   // Convert romaji if present, or clean reading
@@ -788,9 +955,14 @@ export function alignTokensWithReading<T extends { surface?: string; surface_for
   const hWords = romajiWords.map((w) => (/[a-zA-Z]/.test(w) ? romajiToHiragana(w) : katakanaToHiragana(w)));
   const fullReading = hWords.join("");
 
+  const result: Array<T & { reading: { hiragana: string; romaji: string } }> = [];
   let rIdx = 0;
-  return tokens.map((token, tIdx) => {
+  let tIdx = 0;
+
+  while (tIdx < tokens.length) {
+    const token = tokens[tIdx];
     const surface = (token.surface || token.surface_form || "").trim();
+
     if (!surface || !hasKanji(surface)) {
       let r = "";
       for (const c of surface) {
@@ -800,28 +972,27 @@ export function alignTokensWithReading<T extends { surface?: string; surface_for
           rIdx++;
         }
       }
-      return {
+      result.push({
         ...token,
         reading: { hiragana: r || katakanaToHiragana(surface), romaji: "" },
-      };
+      });
+      tIdx++;
+      continue;
     }
 
-    // Token contains kanji
-    // Check if it ends in okurigana
     const lastKanjiIdx = surface
       .split("")
       .map((c, i) => (isKanji(c) ? i : -1))
       .reduce((max, i) => Math.max(max, i), -1);
-    const okuri = surface.slice(lastKanjiIdx + 1);
+    const selfOkuri = lastKanjiIdx !== -1 ? surface.slice(lastKanjiIdx + 1) : "";
 
-    if (okuri) {
-      const firstOkuri = okuri[0];
+    if (selfOkuri) {
       let foundIdx = -1;
       for (let s = rIdx + 1; s < fullReading.length; s++) {
-        if (kanaMatch(firstOkuri, fullReading[s])) {
+        if (kanaMatch(selfOkuri[0], fullReading[s])) {
           let m = true;
-          for (let k = 1; k < okuri.length; k++) {
-            if (s + k >= fullReading.length || !kanaMatch(okuri[k], fullReading[s + k])) {
+          for (let k = 1; k < selfOkuri.length; k++) {
+            if (s + k >= fullReading.length || !kanaMatch(selfOkuri[k], fullReading[s + k])) {
               m = false;
               break;
             }
@@ -834,61 +1005,101 @@ export function alignTokensWithReading<T extends { surface?: string; surface_for
       }
 
       if (foundIdx !== -1) {
-        const tokenReading = fullReading.slice(rIdx, foundIdx + okuri.length);
-        rIdx = foundIdx + okuri.length;
-        return {
-          ...token,
-          reading: { hiragana: sanitizeReading(tokenReading, surface), romaji: "" },
-        };
+        const tokenReading = fullReading.slice(rIdx, foundIdx + selfOkuri.length);
+        const maxLen = countKanji(surface) * 5 + 4;
+        if (tokenReading.length <= maxLen) {
+          rIdx = foundIdx + selfOkuri.length;
+          result.push({
+            ...token,
+            reading: { hiragana: sanitizeReading(tokenReading, surface), romaji: "" },
+          });
+          tIdx++;
+          continue;
+        }
       }
     }
 
-    // Token ends with kanji: find next kana anchor in following tokens
+    const kanjiGroup: T[] = [token];
     let nextAnchor = "";
-    for (let nextI = tIdx + 1; nextI < tokens.length; nextI++) {
+    let nextI = tIdx + 1;
+
+    while (nextI < tokens.length) {
       const nextSurf = (tokens[nextI].surface || tokens[nextI].surface_form || "").trim();
-      const m = nextSurf.match(/^[^\u4E00-\u9FFF\u3400-\u4DBF]+/);
-      if (m) {
-        nextAnchor = m[0];
+      const lastK = nextSurf
+        .split("")
+        .map((c, i) => (isKanji(c) ? i : -1))
+        .reduce((max, i) => Math.max(max, i), -1);
+
+      if (lastK === -1) {
+        const m = nextSurf.match(/^[^\u4E00-\u9FFF\u3400-\u4DBF]+/);
+        if (m) {
+          nextAnchor = m[0];
+          break;
+        }
+      } else if (lastK < nextSurf.length - 1) {
+        kanjiGroup.push(tokens[nextI]);
+        nextAnchor = nextSurf.slice(lastK + 1);
+        nextI++;
         break;
+      } else {
+        kanjiGroup.push(tokens[nextI]);
+        nextI++;
       }
     }
 
+    let foundAnchorPos = -1;
     if (nextAnchor) {
-      let foundIdx = -1;
-      for (let s = rIdx + 1; s < fullReading.length; s++) {
-        if (kanaMatch(nextAnchor[0], fullReading[s])) {
-          let m = true;
-          for (let k = 1; k < Math.min(nextAnchor.length, 3); k++) {
-            if (s + k >= fullReading.length || !kanaMatch(nextAnchor[k], fullReading[s + k])) {
-              m = false;
-              break;
-            }
-          }
-          if (m) {
-            foundIdx = s;
+      for (let s = rIdx; s < fullReading.length; s++) {
+        let m = true;
+        for (let k = 0; k < Math.min(nextAnchor.length, 3); k++) {
+          if (s + k >= fullReading.length || !kanaMatch(nextAnchor[k], fullReading[s + k])) {
+            m = false;
             break;
           }
         }
-      }
-
-      if (foundIdx !== -1) {
-        const tokenReading = fullReading.slice(rIdx, foundIdx);
-        rIdx = foundIdx;
-        return {
-          ...token,
-          reading: { hiragana: sanitizeReading(tokenReading, surface), romaji: "" },
-        };
+        if (m) {
+          foundAnchorPos = s;
+          break;
+        }
       }
     }
 
-    // Remainder fallback
-    const remainder = fullReading.slice(rIdx);
-    rIdx = fullReading.length;
-    return {
-      ...token,
-      reading: { hiragana: sanitizeReading(remainder, surface), romaji: "" },
-    };
-  });
+    if (foundAnchorPos !== -1) {
+      const groupReading = fullReading.slice(rIdx, foundAnchorPos);
+      rIdx = foundAnchorPos;
+
+      const splitReadings = findBestSplit(groupReading, kanjiGroup);
+
+      for (let k = 0; k < kanjiGroup.length; k++) {
+        const tok = kanjiGroup[k];
+        const tokSurf = (tok.surface || tok.surface_form || "").trim();
+        const kCount = countKanji(tokSurf);
+        let tokReading = splitReadings[k] || "";
+
+        const maxLen = kCount * 5 + 4;
+        if (tokReading.length > maxLen) {
+          tokReading = tokReading.slice(0, maxLen);
+        }
+
+        result.push({
+          ...tok,
+          reading: { hiragana: sanitizeReading(tokReading, tokSurf), romaji: "" },
+        });
+      }
+
+      tIdx = nextI;
+    } else {
+      const kCount = countKanji(surface);
+      const safeChunk = fullReading.slice(rIdx, rIdx + Math.max(2, kCount * 2));
+      rIdx += safeChunk.length;
+      result.push({
+        ...token,
+        reading: { hiragana: sanitizeReading(safeChunk, surface), romaji: "" },
+      });
+      tIdx++;
+    }
+  }
+
+  return result;
 }
 

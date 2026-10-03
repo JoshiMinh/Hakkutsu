@@ -22,7 +22,7 @@ import type {
 import { tokenize } from "~lib/services/local-tokenizer";
 import { searchDictionary } from "~lib/services/local-lookup";
 import { getHanViet } from "~lib/utils/hanviet-dict";
-import { containsJapanese, katakanaToHiragana, hasKanji, sanitizeReading, alignTokensWithReading } from "~lib/utils/japanese";
+import { containsJapanese, katakanaToHiragana, hasKanji, sanitizeReading, alignTokensWithReading, deriveInflectedReading, deinflectWord } from "~lib/utils/japanese";
 import { lookupWord, type LookupResult } from "~lib/services/dictionary-lookup";
 import { googleTranslateService } from "~lib/services/google-translate";
 import { fetchIrasutoyaImagesDirect } from "~lib/services/irasutoya-service";
@@ -244,46 +244,6 @@ async function analyzeLocal(text: string, includeDefinitions = true): Promise<An
     idx++;
   }
 
-  // Fast path for subtitle & transcript reading requests:
-  // Use whole-sentence contextual pronunciation for 100% accurate, non-missing furigana
-  if (!includeDefinitions && containsJapanese(cleanText)) {
-    try {
-      const gtRes = await googleTranslateService.translateWithReading(cleanText, targetLang, "ja");
-      if (gtRes.reading || gtRes.romaji) {
-        const sentenceReading = gtRes.reading || cleanText;
-        const alignedTokens = alignTokensWithReading(tokens, gtRes.romaji || gtRes.reading);
-        const tokenAnalyses: TokenAnalysis[] = alignedTokens.map((t) => {
-          const surface = t.surface_form;
-          const is_jp = containsJapanese(surface);
-          const kanjiForm = t.base_form || surface;
-          return {
-            surface,
-            dictionary_form: kanjiForm,
-            pos: t.pos,
-            pos_detail: [],
-            reading: is_jp ? t.reading : { hiragana: "", romaji: "" },
-            is_japanese: is_jp,
-            jlpt_level: is_jp ? predictJlpt(surface) : null,
-            frequency_rank: null,
-            vietnamese_sound: isVietnamese && is_jp ? getHanViet(surface) : undefined,
-            definitions: [],
-          };
-        });
-
-        return {
-          text,
-          sentence_reading: sentenceReading,
-          token_count: tokenAnalyses.length,
-          difficulty_score: null,
-          difficulty_label: null,
-          tokens: tokenAnalyses,
-        };
-      }
-    } catch (e) {
-      console.warn("[Hakkutsu] Fast sentence reading alignment failed, falling back to per-token:", e);
-    }
-  }
-
   const tokenAnalyses: TokenAnalysis[] = await Promise.all(
     tokens.map(async (t) => {
       const surface = t.surface_form;
@@ -310,14 +270,29 @@ async function analyzeLocal(text: string, includeDefinitions = true): Promise<An
       let reading = sanitizeReading(rawReading, surface);
       let jlptLevel = firstEntry?.jlpt || predictJlpt(surface);
 
+      // If no reading found on surface and base_form differs (e.g. inflected verb/adj):
+      if (!reading && t.base_form && t.base_form !== surface) {
+        const baseEntries = await searchDictionary(t.base_form);
+        const baseFirst = baseEntries[0];
+        if (baseFirst?.readingElements?.[0]) {
+          const derived = deriveInflectedReading(surface, t.base_form, baseFirst.readingElements[0]);
+          reading = sanitizeReading(derived, surface);
+          if (!jlptLevel && baseFirst.jlpt) jlptLevel = baseFirst.jlpt;
+        }
+      }
+
       let definitions: DictionaryEntry[] = [];
 
       // Query target-language dictionary lookup
       try {
-        const dictInfo = includeDefinitions || !reading ? await lookupWord(t.base_form || surface, targetLang) : null;
+        const queryWord = (!reading && t.base_form && t.base_form !== surface) ? t.base_form : surface;
+        const dictInfo = includeDefinitions || !reading ? await lookupWord(queryWord, targetLang) : null;
         if (dictInfo) {
           if (dictInfo.reading && !reading) {
-            reading = sanitizeReading(dictInfo.reading, surface);
+            const raw = (queryWord !== surface)
+              ? deriveInflectedReading(surface, queryWord, dictInfo.reading)
+              : dictInfo.reading;
+            reading = sanitizeReading(raw, surface);
           }
           if (dictInfo.jlpt && !jlptLevel) {
             jlptLevel = dictInfo.jlpt;
@@ -336,6 +311,26 @@ async function analyzeLocal(text: string, includeDefinitions = true): Promise<An
         }
       } catch (e) {
         console.warn("[Hakkutsu] Token target dictionary lookup error:", surface, e);
+      }
+
+      // If still no reading and has kanji, try deinflecting:
+      if (!reading && hasKanji(surface)) {
+        const deinflected = deinflectWord(surface);
+        if (deinflected !== surface) {
+          try {
+            const deinflectedInfo = await lookupWord(deinflected, targetLang);
+            if (deinflectedInfo?.reading) {
+              const derived = deriveInflectedReading(surface, deinflected, deinflectedInfo.reading);
+              reading = sanitizeReading(derived, surface);
+              if (!jlptLevel && deinflectedInfo.jlpt) jlptLevel = deinflectedInfo.jlpt;
+            }
+          } catch {}
+        }
+      }
+
+      // Pure kana fallback:
+      if (!reading && !hasKanji(surface)) {
+        reading = katakanaToHiragana(surface);
       }
 
       // If no target language definition was found from adapter, use IndexedDB JMdict entries
