@@ -556,17 +556,19 @@ test('OCR corrections reject stale analysis, reanalyze edited text and save its 
   hooks.cleanup();
 });
 
-function mangaScanHarness({ recover = false, fallback = false, uncertain = false, ambiguous = false, zoom = 1, detectorRegions, cropLines, orientation = 'vertical' } = {}) {
+function mangaScanHarness({ recover = false, fallback = false, uncertain = false, ambiguous = false, zoom = 1, detectorRegions, cropLines, orientation = 'vertical', trackLayout = false } = {}) {
   const hooks = hookHarness(), requests = [], events = [], crops = [];
   const window = Object.assign(new Events(), { innerWidth: 800, innerHeight: 700, devicePixelRatio: 2 });
   window.addEventListener('hakkutsu:analyze', event => events.push(event.detail));
   let delayed, release;
+  const frames = new Map();
+  let frameId = 0;
   class Image {
     naturalWidth = 200; naturalHeight = 200; currentSrc = 'manga.png'; isConnected = true;
     decode() { return Promise.resolve(); }
-    getBoundingClientRect() { return fallback
+    getBoundingClientRect() { return this.rect || (fallback
       ? { left: -100, top: -100, right: 300, bottom: 300, width: 400, height: 400 }
-      : { left: 100, top: 100, right: 100 + 200 * zoom, bottom: 100 + 200 * zoom, width: 200 * zoom, height: 200 * zoom }; }
+      : { left: 100, top: 100, right: 100 + 200 * zoom, bottom: 100 + 200 * zoom, width: 200 * zoom, height: 200 * zoom }); }
   }
   const image = new Image();
   const document = Object.assign(new Events(), { createElement: () => {
@@ -583,7 +585,11 @@ function mangaScanHarness({ recover = false, fallback = false, uncertain = false
     ...(pixels.width >= 300 ? [{ bbox: { x0: 280, y0: 40, x1: 320, y1: 160 }, orientation: 'horizontal', orientationAmbiguous: ambiguous, type: 'text-cluster' }] : [])];
   const { MangaOcrImages } = load('src/components/manga-ocr-images.tsx', {
     window, document, Image, HTMLImageElement: Image, HTMLElement: Image, CustomEvent,
-    requestAnimationFrame: fn => fn(),
+    requestAnimationFrame: fn => {
+      if (trackLayout && fn.name === 'follow') { frames.set(++frameId, fn); return frameId; }
+      fn(); return 0;
+    },
+    ...(trackLayout ? { cancelAnimationFrame: id => frames.delete(id) } : {}),
     chrome: { runtime: { sendMessage: async message => {
       requests.push(message);
       if (message.type === 'FETCH_IMAGE') return { payload: { dataUrl: fallback ? null : 'original' } };
@@ -633,6 +639,9 @@ function mangaScanHarness({ recover = false, fallback = false, uncertain = false
     await flush();
   };
   return { render, regions, auto, select, requests, events, crops, image, window, cleanup: hooks.cleanup,
+    createImage: rect => Object.assign(new Image(), { rect }),
+    hover: target => { document.dispatchEvent({ type: 'mousemove', target }); render(); },
+    frame: () => { const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach(fn => fn()); },
     delay: () => { delayed = true; }, release: () => release() };
 }
 
@@ -646,6 +655,34 @@ test('batch overlays respect explicit orientation and recover uncovered text aft
   assert.equal(app.requests.filter(request => request.type === 'RUN_MANGA_OCR').length, 1);
   assert.equal(app.events.length, 0);
   app.cleanup();
+});
+
+test('displayed regions stay disjoint across overlapping images and return when a lightbox moves', async () => {
+  for (const zoom of [.75, 1, 1.25, 1.5, 2]) {
+    const app = mangaScanHarness({ zoom, trackLayout: true });
+    await app.auto();
+    const first = app.regions();
+    assert.equal(first.length, 2);
+    const secondImage = app.createImage(app.image.getBoundingClientRect());
+    app.hover(secondImage); await app.auto();
+    assert.equal(app.regions().length, 2, 'overlapping image elements do not duplicate clickable regions');
+    assertDisplayedDisjoint(app.regions());
+    const priorRect = secondImage.rect;
+    secondImage.rect = { ...priorRect, top: 350, bottom: 350 + priorRect.height };
+    app.frame();
+    assert.equal(app.regions().length, 4, 'retained regions return after layout separates the images');
+    assertDisplayedDisjoint(app.regions());
+    secondImage.rect = priorRect;
+    app.frame();
+    assert.equal(app.regions().length, 2);
+    assertDisplayedDisjoint(app.regions());
+    app.regions().forEach(node => {
+      assert.equal(node.props.style.border, 0);
+      assert.equal(node.props.style.outline, 0);
+      assert.equal(node.props.style.margin, 0);
+    });
+    app.cleanup();
+  }
 });
 
 test('single manual selection preserves outside highlights and updates corrected overlay text', async () => {

@@ -67,6 +67,32 @@ export function overlapFraction(a: Bounds, b: Bounds): number {
   return area / Math.max(1e-9, Math.min((a.x1 - a.x0) * (a.y1 - a.y0), (b.x1 - b.x0) * (b.y1 - b.y0)));
 }
 
+/** Final viewport guard, after projection and browser layout rounding. Keep
+ * callers' priority order (the most recently scanned image comes first).
+ * This also covers separate image elements displayed on top of each other. */
+export function resolveOcrDisplayOverlaps<T extends { bbox: Bounds }>(candidates: T[]): T[] {
+  const accepted: T[] = [];
+  for (const candidate of candidates) {
+    const b = candidate.bbox;
+    if (!Object.values(b).every(Number.isFinite) || b.x1 <= b.x0 || b.y1 <= b.y0) continue;
+    if (accepted.some(previous => Math.min(previous.bbox.x1, b.x1) > Math.max(previous.bbox.x0, b.x0) &&
+      Math.min(previous.bbox.y1, b.y1) > Math.max(previous.bbox.y0, b.y0))) continue;
+    accepted.push(candidate);
+  }
+  return accepted;
+}
+
+/** Round inward to whole CSS pixels so browser subpixel rounding cannot turn
+ * touching source rectangles into intersecting rendered buttons. */
+export function ocrDisplayBounds(b: Bounds, image: { left: number; top: number; width: number; height: number }): Bounds {
+  return {
+    x0: Math.ceil(image.left + Math.max(0, b.x0) * image.width),
+    y0: Math.ceil(image.top + Math.max(0, b.y0) * image.height),
+    x1: Math.floor(image.left + Math.min(1, b.x1) * image.width),
+    y1: Math.floor(image.top + Math.min(1, b.y1) * image.height),
+  };
+}
+
 /** Split only when the recognizer supplied a complete, non-overlapping reading.
  * Vertical Tesseract words often repeat entire column bounds; those are not
  * character positions and cannot be used to splice a partial transcription. */

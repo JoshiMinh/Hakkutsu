@@ -28,6 +28,8 @@ Acceptance: zero intersecting clickable regions on the fixture set; no face or w
 
 Validated with 109 passing tests, TypeScript, and Chrome/Firefox builds. Bundled-model fixtures pass passage and glyph coverage checks at native and 2× image scale, including clipped upper-bubble, sign-only, and separate-speaker selections. OCR and displayed rectangles have zero positive-area intersections at 75%, 100%, 125%, 150%, and 200% zoom, including the screenshot-fallback component path. Run `npm run ocr:diagnostics` for local JSON evidence and review overlays under ignored `test-results/ocr/`.
 
+Display follow-up: resolve conflicts across all scanned image elements after viewport projection, round bounds inward, and draw borders entirely inside buttons. Follow image movement without requiring a scroll or resize event; retain suppressed alternatives for layouts where they no longer intersect. Four additional regressions pass, including actual Chrome DOM measurements of ten layouts at 75–200% zoom. The full suite, TypeScript, and both browser builds pass.
+
 ### P1 — Improve transcription and ordering
 
 - [ ] Compare crop scale, white-border size, grayscale/contrast settings, and optional binarization using the bundled models. Select preprocessing from measured results instead of applying aggressive cleanup universally.

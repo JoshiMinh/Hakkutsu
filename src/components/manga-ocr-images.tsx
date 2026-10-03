@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Loader2, ScanText, Crop } from "lucide-react";
 import { cropViewportBox, cropCanvasRegion } from "~lib/services/image-cropper";
 import { detectMangaDialogueRegions } from "~lib/services/ocr-bubbles";
-import { canvasToImage, imageToCanvas, mapCropFragments, transformOcrFragment, overlapFraction, type ImageMapping, type Bounds } from "~lib/services/ocr-geometry";
+import { canvasToImage, imageToCanvas, mapCropFragments, transformOcrFragment, overlapFraction, ocrDisplayBounds, resolveOcrDisplayOverlaps, type ImageMapping, type Bounds } from "~lib/services/ocr-geometry";
 import { resolveOcrRegionOverlaps, type OcrTextRegion } from "~lib/services/ocr-regions";
 import { assembleOcrRegions } from "~lib/services/ocr-pipeline";
 import { useSettingsStore } from "~lib/utils/settings";
@@ -86,6 +86,26 @@ export function MangaOcrImages() {
       window.removeEventListener("resize", onLayout);
     };
   }, [dragBox]);
+
+  // Readers can move or resize images without a window resize/scroll event.
+  // Reproject only when their layout changes, including animated lightboxes.
+  useEffect(() => {
+    if (!scans.length || typeof cancelAnimationFrame !== "function") return;
+    const layout = () => scans.map(({ image, src }) => {
+      if (!image.isConnected || image.currentSrc !== src) return "detached";
+      const r = image.getBoundingClientRect();
+      return `${r.left}:${r.top}:${r.width}:${r.height}`;
+    }).join("|");
+    let previous = layout();
+    let frame: number;
+    const follow = () => {
+      const current = layout();
+      if (current !== previous) { previous = current; setLayoutVersion(version => version + 1); }
+      frame = requestAnimationFrame(follow);
+    };
+    frame = requestAnimationFrame(follow);
+    return () => cancelAnimationFrame(frame);
+  }, [scans]);
 
   /**
    * Loads the full-resolution image canvas or screen crop.
@@ -407,22 +427,30 @@ export function MangaOcrImages() {
     }
   };
 
+  // Resolve in displayed coordinates across every scanned image, not just
+  // within one page. Hidden alternatives remain retained for later layouts.
+  const displayed = resolveOcrDisplayOverlaps([...scans].reverse().flatMap(scan => {
+    if (!scan.image.isConnected || scan.image.currentSrc !== scan.src) return [];
+    const rect = scan.image.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return [];
+    return scan.highlights.map(highlight => ({ highlight,
+      bbox: ocrDisplayBounds({ x0: highlight.x, y0: highlight.y,
+        x1: highlight.x + highlight.width, y1: highlight.y + highlight.height }, rect),
+    })).filter(({ bbox: b }) => b.x1 > 0 && b.y1 > 0 && b.x0 < window.innerWidth && b.y0 < window.innerHeight);
+  }));
+
   return (
     <>
       <style>{`
         .hk-manga-region {
           box-sizing: border-box;
           background: rgba(56, 189, 248, 0.08);
-          border: 1.5px solid rgba(56, 189, 248, 0.65);
-          box-shadow: inset 0 0 3px rgba(56, 189, 248, 0.35);
-          transition: background 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+          box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.65);
+          transition: background 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
         }
         .hk-manga-region:hover, .hk-manga-region:focus-visible {
           background: rgba(56, 189, 248, 0.28);
-          border-color: #38bdf8;
-          outline: 2px solid #38bdf8;
-          outline-offset: -2px;
-          box-shadow: inset 0 0 6px rgba(56, 189, 248, 0.6);
+          box-shadow: inset 0 0 0 2px #38bdf8;
         }
         .hk-manga-select-marquee {
           border: 2px dashed #38bdf8;
@@ -562,15 +590,9 @@ export function MangaOcrImages() {
 
       {/* Render Detected OCR Highlights */}
       {!capturingRef.current &&
-        scans.map((scan) => {
-          if (!scan.image.isConnected || scan.image.currentSrc !== scan.src) return null;
-          const rect = scan.image.getBoundingClientRect();
-          return scan.highlights.map((highlight) => {
-            const x = rect.left + highlight.x * rect.width;
-            const y = rect.top + highlight.y * rect.height;
-            const width = highlight.width * rect.width;
-            const height = highlight.height * rect.height;
-            if (x + width < 0 || y + height < 0 || x > window.innerWidth || y > window.innerHeight) return null;
+        displayed.map(({ highlight, bbox }) => {
+            const x = bbox.x0, y = bbox.y0;
+            const width = bbox.x1 - x, height = bbox.y1 - y;
 
             return (
               <button
@@ -599,6 +621,9 @@ export function MangaOcrImages() {
                   )
                 }
                 style={{
+                  appearance: "none",
+                  display: "block",
+                  boxSizing: "border-box",
                   position: "fixed",
                   zIndex: 2147483645,
                   pointerEvents: "auto",
@@ -609,13 +634,21 @@ export function MangaOcrImages() {
                   height,
                   minWidth: 0,
                   minHeight: 0,
+                  maxWidth: "none",
+                  maxHeight: "none",
+                  margin: 0,
                   padding: 0,
+                  border: 0,
+                  outline: 0,
+                  overflow: "hidden",
+                  transform: "none",
+                  fontSize: 0,
+                  lineHeight: 0,
                   borderRadius: 4,
                   color: "transparent",
                 }}
               />
             );
-          });
         })}
     </>
   );

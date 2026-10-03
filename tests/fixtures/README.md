@@ -38,3 +38,11 @@ Reports contain source/model hashes, raw bounds, crop transforms, orientation,
 confidence, and rejection decisions. Nothing is added to ordinary lookup UI,
 lookup events, or persistent settings. This fixture substitutes for reported
 pages whose pristine originals have not been provided.
+
+`tests/ocr-display-bounds.test.cjs` additionally renders the production component
+in headless Chrome and measures actual button rectangles, including thin boxes,
+overlapping image elements, and focus styling at 75–200% zoom. It uses the local
+Windows Chrome installation or `HAKKUTSU_CHROME_PATH`; the browser measurement
+case is skipped when Chrome is unavailable. Local HTML and JSON layout reports
+are written under ignored `test-results/ocr/display/`. Component regressions
+also check moving lightboxes and restoration of retained highlights.
