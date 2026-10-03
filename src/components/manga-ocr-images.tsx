@@ -2,23 +2,39 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Loader2, ScanText, Crop } from "lucide-react";
 import { cropViewportBox, cropCanvasRegion } from "~lib/services/image-cropper";
 import { detectMangaDialogueRegions } from "~lib/services/ocr-bubbles";
-import { canvasToImage, imageToCanvas, mapCropFragments, overlapFraction, type ImageMapping, type Bounds } from "~lib/services/ocr-geometry";
-import { groupOcrRegions, mergeOcrRegionPasses, resolveOcrRegionOverlaps, type OcrTextRegion } from "~lib/services/ocr-regions";
+import { canvasToImage, imageToCanvas, mapCropFragments, transformOcrFragment, overlapFraction, type ImageMapping, type Bounds } from "~lib/services/ocr-geometry";
+import { resolveOcrRegionOverlaps, type OcrTextRegion } from "~lib/services/ocr-regions";
+import { assembleOcrRegions } from "~lib/services/ocr-pipeline";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
-import type { OcrCropItem, OcrCropResult, OcrExecutionResult } from "~lib/services/ocr-engine";
+import type { OcrCropItem, OcrCropResult, OcrExecutionResult, OcrFragment } from "~lib/services/ocr-engine";
 
-type Highlight = { id: string; text: string; imageUrl: string; x: number; y: number; width: number; height: number };
+type Highlight = { id: string; text: string; imageUrl: string; x: number; y: number; width: number; height: number; region: OcrTextRegion };
 type ScannedImage = { image: HTMLImageElement; src: string; highlights: Highlight[] };
 type PreparedImage = { canvas: HTMLCanvasElement; source: string; mapping: ImageMapping };
 
 type DragBox = { startX: number; startY: number; currentX: number; currentY: number };
+const transformRegion = (region: OcrTextRegion, transform: (bounds: Bounds) => Bounds): OcrTextRegion => ({
+  ...region, bbox: transform(region.bbox), fragments: region.fragments.map(fragment => transformOcrFragment(fragment, transform)),
+});
+const normalizedBounds = (bounds: Bounds, mapping: ImageMapping): Bounds => {
+  const b = canvasToImage(bounds, mapping);
+  return { x0: b.x, y0: b.y, x1: b.x + b.width, y1: b.y + b.height };
+};
+// Continuous inverse for stored evidence; unlike selection cropping, do not
+// round or clamp glyphs each time a user selects the same passage.
+const sourceBounds = (b: Bounds, m: ImageMapping): Bounds => ({
+  x0: (b.x0 - m.x) / m.width * m.canvasWidth, y0: (b.y0 - m.y) / m.height * m.canvasHeight,
+  x1: (b.x1 - m.x) / m.width * m.canvasWidth, y1: (b.y1 - m.y) / m.height * m.canvasHeight,
+});
 
 export function MangaOcrImages() {
   const { settings } = useSettingsStore();
   const { t } = useTranslation();
   const [hoveredImage, setHoveredImage] = useState<HTMLImageElement | null>(null);
   const [scans, setScans] = useState<ScannedImage[]>([]);
+  const scansRef = useRef<ScannedImage[]>([]);
+  scansRef.current = scans;
   const [busyImage, setBusyImage] = useState<HTMLImageElement | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -151,16 +167,32 @@ export function MangaOcrImages() {
     const { dataUrl } = cropCanvasRegion(prepared.canvas, {
       x: bounds.x0, y: bounds.y0, width: bounds.x1 - bounds.x0, height: bounds.y1 - bounds.y0,
     }, false);
-    return { id, text: region.text, imageUrl: dataUrl, ...canvasToImage(b, prepared.mapping) };
+    return { id, text: region.text, imageUrl: dataUrl, ...canvasToImage(b, prepared.mapping),
+      region: transformRegion(region, bounds => normalizedBounds(bounds, prepared.mapping)) };
   };
 
   /** Both selection paths use original pixels for geometry and attachments. */
-  const recognizeRegions = async (prepared: PreparedImage, scanId: number, manual: boolean): Promise<Highlight[]> => {
+  const recognizeRegions = async (prepared: PreparedImage, scanId: number, manual: boolean, selection?: Bounds): Promise<{ regions: OcrTextRegion[]; pixels: ImageData }> => {
     const { canvas } = prepared;
     const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) throw new Error("Could not acquire 2D canvas context");
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-    const detected = detectMangaDialogueRegions(pixels, { includeBorderlessText: true });
+    const scanBox = selection || { x0: 0, y0: 0, x1: canvas.width, y1: canvas.height };
+    const selectedCanvas = selection ? cropCanvasRegion(canvas, {
+      x: scanBox.x0, y: scanBox.y0, width: scanBox.x1 - scanBox.x0, height: scanBox.y1 - scanBox.y0,
+    }, false).canvas : canvas;
+    const selectedPixels = selection ? selectedCanvas.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, selectedCanvas.width, selectedCanvas.height) : pixels;
+    // Keep closed-bubble evidence from the available original image. Cropping
+    // its outline first can turn a readable upper bubble into edge noise.
+    let detected = detectMangaDialogueRegions(pixels, { includeBorderlessText: true }).flatMap(region => {
+      const bbox = { x0: Math.max(scanBox.x0, region.bbox.x0), y0: Math.max(scanBox.y0, region.bbox.y0),
+        x1: Math.min(scanBox.x1, region.bbox.x1), y1: Math.min(scanBox.y1, region.bbox.y1) };
+      return bbox.x1 > bbox.x0 && bbox.y1 > bbox.y0 ? [{ ...region, bbox }] : [];
+    });
+    if (selection && !detected.length) detected = detectMangaDialogueRegions(selectedPixels, { includeBorderlessText: true }).map(region => ({
+      ...region, bbox: { x0: region.bbox.x0 + scanBox.x0, y0: region.bbox.y0 + scanBox.y0,
+        x1: region.bbox.x1 + scanBox.x0, y1: region.bbox.y1 + scanBox.y0 },
+    }));
     const makeCrop = (b: Bounds, index: number, orientationHint?: "vertical" | "horizontal"): OcrCropItem => {
       const crop = cropCanvasRegion(canvas, {
         x: b.x0, y: b.y0, width: b.x1 - b.x0, height: b.y1 - b.y0,
@@ -175,15 +207,15 @@ export function MangaOcrImages() {
     // A tight sign or sound-effect selection may be too small for automatic
     // detection. It still needs crop segmentation instead of page segmentation.
     if (manual && !crops.length) {
-      crops.push(makeCrop({ x0: 0, y0: 0, x1: canvas.width, y1: canvas.height }, 0));
+      crops.push(makeCrop(scanBox, 0));
     }
     const options = { pixels, manual, automatic: !manual };
-    let regions: OcrTextRegion[] = [];
+    let fragments: OcrFragment[] = [];
     if (crops.length) {
       setStatusMessage(`${t("ocr_scanning")} (${crops.length})`);
       const response = await chrome.runtime.sendMessage({ type: "RUN_MANGA_OCR_BATCH", payload: { crops } });
       if (response?.type === "MANGA_OCR_BATCH_RESULT" && Array.isArray(response.payload)) {
-        const fragments = (response.payload as OcrCropResult[]).flatMap(result => {
+        fragments = (response.payload as OcrCropResult[]).flatMap(result => {
           const crop = crops.find(c => c.id === result.id);
           if (!crop) return [];
           // Manual selection may expose a low-confidence transcription even
@@ -195,40 +227,38 @@ export function MangaOcrImages() {
           }] : [];
           return mapCropFragments(lines, crop);
         });
-        regions = groupOcrRegions(fragments, options);
       }
     }
 
     // Recover uncovered text once, even when some detected crops succeeded.
     setStatusMessage(t("ocr_recognizing"));
-    const full = cropCanvasRegion(canvas, { x: 0, y: 0, width: canvas.width, height: canvas.height },
+    const full = cropCanvasRegion(canvas, { x: scanBox.x0, y: scanBox.y0, width: scanBox.x1 - scanBox.x0, height: scanBox.y1 - scanBox.y0 },
       settings.ocrPreprocessEnabled !== false);
     const response = await chrome.runtime.sendMessage({
       type: "RUN_MANGA_OCR", payload: {
         imageDataUrl: full.dataUrl, orientation: settings.ocrDefaultOrientation || "auto",
-        boxWidth: canvas.width, boxHeight: canvas.height,
+        boxWidth: full.canvas.width, boxHeight: full.canvas.height,
       },
     });
+    let recovered: OcrFragment[] = [];
     if (response?.type === "MANGA_OCR_RESULT") {
       const result = response.payload as OcrExecutionResult;
-      const recovered = groupOcrRegions(result.lines || [], options);
-      regions = mergeOcrRegionPasses(regions, recovered);
-      regions = groupOcrRegions(regions.flatMap(region => region.fragments), options);
-      // A deliberate selection can still be corrected when segmentation fails.
-      if (manual && !regions.length && result.text?.trim()) {
-        regions.push({ text: result.text.trim(), orientation: result.orientation, fragments: [],
-          bbox: { x0: 0, y0: 0, x1: canvas.width, y1: canvas.height } });
-      }
-    } else if (!regions.length) {
+      const lines = result.lines?.length ? result.lines : manual && !fragments.length && result.text?.trim() ? [{
+        text: result.text.trim(), orientation: result.orientation, confidence: result.confidence,
+        bbox: { x0: 0, y0: 0, x1: full.canvas.width, y1: full.canvas.height },
+      }] : [];
+      recovered = mapCropFragments(lines, { id: `${scanId}:page`, bbox: scanBox, dataUrl: full.dataUrl,
+        width: full.canvas.width, height: full.canvas.height, transform: full.transform });
+    } else if (!fragments.length) {
       throw new Error(response?.payload?.error || t("ocr_no_text"));
     }
-    regions = resolveOcrRegionOverlaps(regions);
+    const regions = assembleOcrRegions(fragments, recovered, options);
     regions.sort((a, b) => {
       const overlapY = Math.min(a.bbox.y1, b.bbox.y1) - Math.max(a.bbox.y0, b.bbox.y0);
       return overlapY > Math.min(a.bbox.y1 - a.bbox.y0, b.bbox.y1 - b.bbox.y0) * .5
         ? b.bbox.x0 - a.bbox.x0 : a.bbox.y0 - b.bbox.y0;
     });
-    return regions.map((region, index) => makeHighlight(prepared, region, `${scanId}:region:${index}`));
+    return { regions, pixels };
   };
 
   const scan = async (image: HTMLImageElement, selection?: Bounds) => {
@@ -247,33 +277,42 @@ export function MangaOcrImages() {
       // Let React remove OCR controls before a screenshot fallback.
       await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       if (!image.isConnected || image.currentSrc !== source) return;
-      let prepared: PreparedImage = await prepareImageCanvas(image);
+      const prepared: PreparedImage = await prepareImageCanvas(image);
       if (!image.isConnected || image.currentSrc !== source || prepared.source !== source) return;
       let selectedArea: ReturnType<typeof canvasToImage> | undefined;
+      let selectionBounds: Bounds | undefined;
       if (selection) {
         const bounds = imageToCanvas(selection, prepared.mapping);
         if (!bounds) throw new Error(t("ocr_no_text"));
         selectedArea = canvasToImage(bounds, prepared.mapping);
-        const crop = cropCanvasRegion(prepared.canvas, {
-          x: bounds.x0, y: bounds.y0, width: bounds.x1 - bounds.x0, height: bounds.y1 - bounds.y0,
-        }, false);
-        prepared = { ...prepared, canvas: crop.canvas, mapping: {
-          ...selectedArea, canvasWidth: crop.canvas.width, canvasHeight: crop.canvas.height,
-        } };
+        selectionBounds = bounds;
       }
-      const highlights = await recognizeRegions(prepared, ++scanIdRef.current, Boolean(selection));
+      const recognition = await recognizeRegions(prepared, ++scanIdRef.current, Boolean(selection), selectionBounds);
+      let regions = recognition.regions;
       if (!image.isConnected || image.currentSrc !== source) return;
-      if (!highlights.length) throw new Error(t("ocr_no_text_hint"));
-      setScans(current => {
-        const previous = current.find(item => item.image === image && item.src === source);
-        const outside = selectedArea ? (previous?.highlights || []).filter(h =>
+      if (!regions.length) throw new Error(t("ocr_no_text_hint"));
+      const previous = scansRef.current.find(item => item.image === image && item.src === source);
+      const outside = selectedArea ? (previous?.highlights || []).filter(h =>
           overlapFraction({ x0: h.x, y0: h.y, x1: h.x + h.width, y1: h.y + h.height }, {
             x0: selectedArea!.x, y0: selectedArea!.y,
             x1: selectedArea!.x + selectedArea!.width, y1: selectedArea!.y + selectedArea!.height,
           }) === 0) : [];
-        return [...current.filter(item => item.image !== image && item.image.isConnected).slice(-19),
-          { image, src: source, highlights: [...outside, ...highlights] }];
-      });
+      if (selection) {
+        const touched = (previous?.highlights || []).filter(h => !outside.includes(h));
+        regions = assembleOcrRegions(touched.flatMap(h => h.region.fragments.map(f =>
+          transformOcrFragment(f, b => sourceBounds(b, prepared.mapping)))), regions.flatMap(r => r.fragments), {
+          manual: true, pixels: recognition.pixels,
+        });
+      }
+      const fresh = regions.map((region, index) => makeHighlight(prepared, region, `${scanIdRef.current}:region:${index}`));
+      const final = resolveOcrRegionOverlaps([...outside.map(h => h.region), ...fresh.map(h => h.region)]);
+      const combined = final.map(region => [...outside, ...fresh].find(h => h.region === region) ||
+        makeHighlight(prepared, transformRegion(region, b => sourceBounds(b, prepared.mapping)), `${scanIdRef.current}:salvaged:${final.indexOf(region)}`));
+      const highlights = combined.filter(h => !outside.includes(h));
+      const next = [...scansRef.current.filter(item => item.image !== image && item.image.isConnected).slice(-19),
+        { image, src: source, highlights: combined }];
+      scansRef.current = next;
+      setScans(next);
       if (selection && highlights.length === 1) {
         const highlight = highlights[0];
         const currentRect = image.getBoundingClientRect();
@@ -311,7 +350,7 @@ export function MangaOcrImages() {
     const update = (event: Event) => {
       const { id, text } = (event as CustomEvent<{ id: string; text: string }>).detail;
       setScans(current => current.map(item => ({ ...item,
-        highlights: item.highlights.map(h => h.id === id ? { ...h, text } : h),
+        highlights: item.highlights.map(h => h.id === id ? { ...h, text, region: { ...h.region, text } } : h),
       })));
     };
     window.addEventListener("hakkutsu:ocr-region-updated", update);
@@ -376,7 +415,7 @@ export function MangaOcrImages() {
           background: rgba(56, 189, 248, 0.08);
           border: 1.5px solid rgba(56, 189, 248, 0.65);
           box-shadow: inset 0 0 3px rgba(56, 189, 248, 0.35);
-          transition: all 0.15s ease-in-out;
+          transition: background 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
         }
         .hk-manga-region:hover, .hk-manga-region:focus-visible {
           background: rgba(56, 189, 248, 0.28);

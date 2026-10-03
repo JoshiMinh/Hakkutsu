@@ -13,18 +13,20 @@ Keep processing local with the bundled `jpn` and `jpn_vert` Tesseract models. Au
 - [x] Add editable OCR text and Reanalyze; invalidate stale analysis and prevent saving mismatched text.
 - [x] Suppress overlapping region alternatives and keep highlight padding, borders, and hover effects from expanding into neighboring regions.
 - [x] Validate connected ink outside candidate rectangles and apply stronger filtering to weak short borderless guesses.
-- [x] Repair the overlay harness and add regression coverage. Current baseline: 94 tests, TypeScript, Chrome MV3 build, and Firefox MV2 build pass.
+- [x] Repair the overlay harness and add regression coverage. Before P0: 94 tests, TypeScript, Chrome MV3 build, and Firefox MV2 build passed.
 
 ### P0 — Reliable regions without overlaps or missing dialogue
 
-- [ ] Add reproducible fixtures from pristine source pages, rather than screenshots containing OCR highlights or lookup popups. Include the reported vertical sign, upper bubble, borderless thoughts, lower dialogue, furigana, and separate speakers.
-- [ ] Track raw fragment bounds, crop/page provenance, chosen orientation, confidence, and rejection reasons in local diagnostic output. Keep these details out of ordinary lookup flows.
-- [ ] Improve grouping so each bubble or thought passage forms one region without enclosing neighboring artwork. Avoid letting noisy fragments expand a readable region across flowers, hair, or panel borders.
-- [ ] Recover missing words and columns without reintroducing nested alternatives. Accept additional text only when its glyph bounds support uncovered text; resolve competing readings for the same pixels once.
-- [ ] Refine artwork filtering against hair, eyes, windows, panel frames, screentones, and decorative marks. Check that stricter filtering does not hide genuine small dialogue, short signs, or the upper bubble in a clipped selection.
-- [ ] Extend overlap regressions to containment, partial intersections, mixed orientations, furigana, repeated selections, and adjacent boxes at different zoom levels. Check final displayed rectangles as well as OCR bounds.
+- [x] Add reproducible, locally authored pristine source pages covering equivalents of the vertical sign, upper bubble, borderless thoughts, lower dialogue, furigana, and separate speakers. The specific reported originals remain unverified.
+- [x] Track raw fragment bounds, crop/page provenance, chosen orientation, confidence, and rejection reasons in local diagnostic output. Keep these details out of ordinary lookup flows.
+- [x] Improve grouping so each bubble or thought passage forms one region without enclosing neighboring artwork. Avoid letting noisy fragments expand a readable region across flowers, hair, or panel borders.
+- [x] Recover missing words and columns without reintroducing nested alternatives. Accept additional text only when validated glyph or word bounds and original ink support uncovered text; resolve competing readings for the same pixels once.
+- [x] Refine artwork filtering against hair, eyes, windows, panel frames, screentones, and decorative marks. Check that stricter filtering does not hide genuine small dialogue, short signs, or the upper bubble in a clipped selection.
+- [x] Extend overlap regressions to containment, partial intersections, mixed orientations, furigana, repeated selections, and adjacent boxes at different zoom levels. Check final displayed rectangles as well as OCR bounds.
 
 Acceptance: zero intersecting clickable regions on the fixture set; no face or whole-panel highlights; readable dialogue remains available; separate speakers remain independently selectable.
+
+Validated with 109 passing tests, TypeScript, and Chrome/Firefox builds. Bundled-model fixtures pass passage and glyph coverage checks at native and 2× image scale, including clipped upper-bubble, sign-only, and separate-speaker selections. OCR and displayed rectangles have zero positive-area intersections at 75%, 100%, 125%, 150%, and 200% zoom, including the screenshot-fallback component path. Run `npm run ocr:diagnostics` for local JSON evidence and review overlays under ignored `test-results/ocr/`.
 
 ### P1 — Improve transcription and ordering
 
@@ -58,4 +60,4 @@ Acceptance: reproducible before/after quality and latency results; no regression
 
 ### Remaining limitations
 
-The supplied screenshots currently produce non-overlapping regions, but the sign and some dialogue/thought text still contain character errors. A cropped detail can miss text recognized on the full page. Screenshots with existing overlays also contaminate OCR input. Automated tests and successful builds do not replace validation on pristine pages and live browser smoke tests.
+The locally authored pristine fixtures pass region coverage, speaker separation, and artwork exclusion checks. The specific reported pages remain unverified because their pristine originals are unavailable. Character errors can still occur, and broad transcription tuning remains P1 work. Screenshots with existing overlays contaminate OCR input. Automated fixture and component tests do not replace live Chrome and Firefox extension smoke tests.

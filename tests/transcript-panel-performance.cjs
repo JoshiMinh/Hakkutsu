@@ -27,6 +27,17 @@ class Events {
 }
 class CustomEvent { constructor(type, { detail } = {}) { this.type = type; this.detail = detail; } }
 const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+// These component tests mock recognition and test layout/state, not image
+// classification. Real ink and model acceptance live in fixture regressions.
+function layoutGrouping() {
+  const bubbles = load('src/lib/services/ocr-bubbles.ts');
+  return load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': { ...bubbles,
+    findTextInkEvidence: fragments => new Map(fragments.map(f => [f, { ratio: 1, ink: 30, components: 3, bbox: f.bbox }])),
+  } });
+}
+function layoutPipeline(grouping) {
+  return load('src/lib/services/ocr-pipeline.ts', {}, { './ocr-regions': grouping, './ocr-geometry': load('src/lib/services/ocr-geometry.ts') });
+}
 function hookHarness() {
   const slots = [];
   let index = 0;
@@ -121,7 +132,7 @@ test('manga overlays group text, open only on activation, crop attachments and f
       }) };
     return canvas;
   } });
-  const grouping = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') });
+  const grouping = layoutGrouping();
   let fallback = false;
   const { MangaOcrImages } = load('src/components/manga-ocr-images.tsx', {
     window, document, Image, HTMLImageElement: Image, HTMLElement: Image, CustomEvent,
@@ -137,6 +148,7 @@ test('manga overlays group text, open only on activation, crop attachments and f
   }, {
     react: hooks.react,
     '~lib/services/ocr-regions': grouping,
+    '~lib/services/ocr-pipeline': layoutPipeline(grouping),
     '~lib/services/ocr-bubbles': load('src/lib/services/ocr-bubbles.ts'),
     '~lib/services/ocr-geometry': load('src/lib/services/ocr-geometry.ts'),
     '~lib/services/image-cropper': load('src/lib/services/image-cropper.ts', { document, Image }, {}),
@@ -544,7 +556,7 @@ test('OCR corrections reject stale analysis, reanalyze edited text and save its 
   hooks.cleanup();
 });
 
-function mangaScanHarness({ recover = false, fallback = false, uncertain = false, ambiguous = false, zoom = 1 } = {}) {
+function mangaScanHarness({ recover = false, fallback = false, uncertain = false, ambiguous = false, zoom = 1, detectorRegions, cropLines, orientation = 'vertical' } = {}) {
   const hooks = hookHarness(), requests = [], events = [], crops = [];
   const window = Object.assign(new Events(), { innerWidth: 800, innerHeight: 700, devicePixelRatio: 2 });
   window.addEventListener('hakkutsu:analyze', event => events.push(event.detail));
@@ -566,8 +578,8 @@ function mangaScanHarness({ recover = false, fallback = false, uncertain = false
     return canvas;
   } });
   const geometry = load('src/lib/services/ocr-geometry.ts');
-  const grouping = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') });
-  const detector = pixels => [{ bbox: { x0: 40, y0: 40, x1: 80, y1: 160 }, orientation: 'horizontal', orientationAmbiguous: ambiguous, type: 'text-cluster' },
+  const grouping = layoutGrouping();
+  const detector = pixels => detectorRegions || [{ bbox: { x0: 40, y0: 40, x1: 80, y1: 160 }, orientation: 'horizontal', orientationAmbiguous: ambiguous, type: 'text-cluster' },
     ...(pixels.width >= 300 ? [{ bbox: { x0: 280, y0: 40, x1: 320, y1: 160 }, orientation: 'horizontal', orientationAmbiguous: ambiguous, type: 'text-cluster' }] : [])];
   const { MangaOcrImages } = load('src/components/manga-ocr-images.tsx', {
     window, document, Image, HTMLImageElement: Image, HTMLElement: Image, CustomEvent,
@@ -580,8 +592,8 @@ function mangaScanHarness({ recover = false, fallback = false, uncertain = false
         if (delayed) await new Promise(resolve => { release = resolve; });
         return { type: 'MANGA_OCR_BATCH_RESULT', payload: message.payload.crops.map((crop, index) => ({
           id: crop.id, bbox: crop.bbox, transform: crop.transform, text: index ? '別の台詞' : '日本語', confidence: uncertain ? 12 : 90, orientation: 'vertical',
-          lines: uncertain ? [] : [{ text: index ? '別の台詞' : '日本語', confidence: 90, orientation: 'vertical',
-            bbox: { x0: 10, y0: 10, x1: 30, y1: 110 } }],
+          lines: cropLines ? cropLines(crop, index) : uncertain ? [] : [{ text: index ? '別の台詞' : '日本語', confidence: 90, orientation: 'vertical',
+            bbox: { x0: 10, y0: 10, x1: Math.min(30, crop.width - 10), y1: Math.min(110, crop.height - 10) } }],
         })) };
       }
       return { type: 'MANGA_OCR_RESULT', payload: { text: '', orientation: 'vertical', lines: recover ? [{
@@ -591,11 +603,12 @@ function mangaScanHarness({ recover = false, fallback = false, uncertain = false
   }, {
     react: hooks.react,
     '~lib/services/ocr-regions': grouping, '~lib/services/ocr-geometry': geometry,
+    '~lib/services/ocr-pipeline': layoutPipeline(grouping),
     '~lib/services/ocr-bubbles': { detectMangaDialogueRegions: detector },
     '~lib/services/image-cropper': {
       ...load('src/lib/services/image-cropper.ts', { document }), cropViewportBox: async () => 'visible-crop',
     },
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ocrPreprocessEnabled: false, ocrDefaultOrientation: 'vertical' } }) },
+    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ocrPreprocessEnabled: false, ocrDefaultOrientation: orientation } }) },
     '~lib/locales': { useTranslation: () => ({ t: key => key }) },
   });
   const render = () => hooks.render(MangaOcrImages);
@@ -704,6 +717,64 @@ test('manual selections use the displayed image geometry at browser zoom', async
     assert.ok(app.crops.some(crop => crop[0] === 0 && crop[1] === 0 && crop[2] === 200 && crop[3] === 200));
     assert.equal(app.events.length, 1);
     assert.equal(app.events[0].x, 100 + 25 * zoom);
+    app.cleanup();
+  }
+});
+
+function assertDisplayedDisjoint(nodes) {
+  const rectangles = nodes.map(node => ({ x0: node.props.style.left, y0: node.props.style.top,
+    x1: node.props.style.left + node.props.style.width, y1: node.props.style.top + node.props.style.height }));
+  for (let i = 0; i < rectangles.length; i++) for (let j = i + 1; j < rectangles.length; j++) {
+    const a = rectangles[i], b = rectangles[j];
+    assert.ok(Math.min(a.x1, b.x1) <= Math.max(a.x0, b.x0) || Math.min(a.y1, b.y1) <= Math.max(a.y0, b.y0));
+  }
+}
+
+test('partial and repeated selections retain uncovered columns and independently selectable speakers at every zoom', async () => {
+  for (const zoom of [.75, 1, 1.25, 1.5, 2]) {
+    const app = mangaScanHarness({ zoom, detectorRegions: [
+      { bbox: { x0: 40, y0: 40, x1: 120, y1: 160 }, orientation: 'vertical', type: 'bubble' },
+      { bbox: { x0: 280, y0: 40, x1: 320, y1: 160 }, orientation: 'vertical', type: 'bubble' },
+    ], cropLines: (_crop, index) => index ? [{ text: '別の台詞', confidence: 90, orientation: 'vertical', bbox: { x0: 10, y0: 10, x1: 30, y1: 110 } }] : [
+      { text: '日本語', confidence: 90, orientation: 'vertical', bbox: { x0: 10, y0: 10, x1: 30, y1: 110 } },
+      { text: '学びます', confidence: 90, orientation: 'vertical', bbox: { x0: 50, y0: 10, x1: 70, y1: 110 } },
+    ] });
+    await app.auto();
+    const other = app.regions().find(r => r.props['aria-label'] === '別の台詞');
+    other.props.onClick({ currentTarget: app.image });
+    const outsideId = app.events.at(-1).ocrRegionId;
+    app.window.dispatchEvent(new CustomEvent('hakkutsu:ocr-region-updated', { detail: { id: outsideId, text: '修正済みの台詞' } }));
+    app.render();
+    for (let repeat = 0; repeat < 3; repeat++) {
+      await app.select(100 + 20 * zoom, 100 + 10 * zoom, 100 + 40 * zoom, 100 + 90 * zoom);
+      const nodes = app.regions();
+      assert.equal(nodes.length, 2);
+      assert.ok(nodes.some(r => r.props['aria-label'] === '学びます日本語'));
+      assert.ok(nodes.some(r => r.props['aria-label'] === '修正済みの台詞'));
+      assertDisplayedDisjoint(nodes);
+    }
+    assert.ok(app.events.every(event => !('evidence' in event) && !('diagnostics' in event)));
+    app.cleanup();
+  }
+});
+
+test('adjacent mixed-direction displayed buttons never acquire attachment padding, including screenshot fallback', async () => {
+  for (const fallback of [false, true]) for (const zoom of [.75, 1, 1.25, 1.5, 2]) {
+    const app = mangaScanHarness({ fallback, zoom, orientation: 'auto', detectorRegions: [
+      { bbox: { x0: 40, y0: 40, x1: 60, y1: 140 }, orientation: 'vertical', type: 'text-cluster' },
+      { bbox: { x0: 62, y0: 40, x1: 122, y1: 60 }, orientation: 'horizontal', type: 'text-cluster' },
+    ], cropLines: (_crop, index) => [{ text: index ? '見出し' : '日本語', confidence: 90,
+      orientation: index ? 'horizontal' : 'vertical', bbox: { x0: 10, y0: 10, x1: index ? 70 : 30, y1: index ? 30 : 110 } }] });
+    await app.auto();
+    const nodes = app.regions();
+    assert.equal(nodes.length, 2);
+    assertDisplayedDisjoint(nodes);
+    nodes.forEach(node => {
+      assert.equal(node.props.style.padding, 0);
+      assert.equal(node.props.style.minWidth, 0);
+      node.props.onClick({ currentTarget: app.image });
+    });
+    assert.equal(new Set(app.events.map(event => event.ocrRegionId)).size, 2);
     app.cleanup();
   }
 });

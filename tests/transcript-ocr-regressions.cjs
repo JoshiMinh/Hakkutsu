@@ -43,6 +43,16 @@ const page = words => ({ text: 'raw page', confidence: 80, blocks: [{ paragraphs
 }] }] }] });
 
 const { groupOcrRegions } = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') });
+const { assembleOcrRegions } = load('src/lib/services/ocr-pipeline.ts', {}, {
+  './ocr-regions': load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') }),
+  './ocr-geometry': load('src/lib/services/ocr-geometry.ts'),
+});
+// Confidence/shape-only tests supply trusted ink separately; their blank
+// buffers are coordinate placeholders, not real OCR inputs.
+const { groupOcrRegions: groupWithTrustedInk } = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': {
+  ...load('src/lib/services/ocr-bubbles.ts'),
+  findTextInkEvidence: fragments => new Map(fragments.map(f => [f, { ratio: 1, ink: 0, components: 3, bbox: f.bbox }])),
+} });
 const fragment = (text, x, y, w, h, orientation = 'vertical', paragraphId = 'dialogue') => ({
   text, confidence: 90, orientation, paragraphId, bbox: { x0: x, y0: y, x1: x + w, y1: y + h },
 });
@@ -207,7 +217,8 @@ test('packaged Japanese models read vertical dialogue beside horizontal text in 
     assert.ok(result.text.includes('日本語を勉強します'));
     assert.ok(result.text.includes('今日は晴れです'));
     assert.ok(result.text.includes('発売'));
-    const regions = groupOcrRegions(result.lines);
+    const { data, info } = await require('sharp')(path.join(__dirname, 'fixtures/manga-dialogue-regions.png')).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const regions = assembleOcrRegions([], result.lines, { automatic: true, pixels: { data: new Uint8ClampedArray(data), width: info.width, height: info.height } });
     assert.ok(regions.some(region => region.text.includes('日本語を勉強します')));
     assert.ok(regions.some(region => region.text.includes('今日は晴れです')));
     assert.ok(regions.some(region => region.text.includes('本を読みます') && region.text.includes('楽しいです')),
@@ -382,9 +393,9 @@ test('automatic acceptance excludes low-confidence and artwork-shaped guesses; m
     fragment('台詞', 200, 20, 20, 70),
     fragment('雑音ABCDEF', 260, 20, 20, 200),
   ];
-  const auto = groupOcrRegions(input, { pixels, automatic: true });
+  const auto = groupWithTrustedInk(input, { pixels, automatic: true });
   assert.deepEqual(Array.from(auto, region => region.text), ['台詞']);
-  assert.ok(groupOcrRegions(input, { pixels, manual: true }).some(region => region.text === '日本語'));
+  assert.ok(groupWithTrustedInk(input, { pixels, manual: true }).some(region => region.text === '日本語'));
 });
 
 test('vertical assembly repairs isolated sound marks and preserves numeric runs and V', () => {
@@ -531,6 +542,42 @@ test('a vertical column joins separated words without crossing a speaker boundar
 test('short borderless guesses need stronger confidence while remaining manually editable', () => {
   const pixels = { width: 300, height: 200, data: new Uint8ClampedArray(300 * 200 * 4).fill(255) };
   const input = [{ ...fragment('ウツしみ', 20, 30, 100, 20, 'horizontal'), confidence: 50 }, fragment('出口', 200, 30, 20, 60)];
-  assert.deepEqual(Array.from(groupOcrRegions(input, { pixels, automatic: true }), r => r.text), ['出口']);
-  assert.ok(groupOcrRegions(input, { pixels, manual: true }).some(r => r.text === 'ウツしみ'));
+  assert.deepEqual(Array.from(groupWithTrustedInk(input, { pixels, automatic: true }), r => r.text), ['出口']);
+  assert.ok(groupWithTrustedInk(input, { pixels, manual: true }).some(r => r.text === 'ウツしみ'));
+});
+
+test('recognition retains raw provenance but rejects invalid rotated character bounds', async () => {
+  const bbox = { x0: 10, y0: 10, x1: 30, y1: 80 };
+  const app = ocrHarness(async () => ({ text: '日本語', confidence: 90, blocks: [{ paragraphs: [{ lines: [{
+    text: '日本語', confidence: 90, bbox, words: [{ ...word('日本語', 90, bbox), symbols: [
+      { text: '日', confidence: 90, bbox: { x0: 0, y0: 10, x1: 0, y1: 30 } },
+      { text: '本', confidence: 90, bbox: { x0: 10, y0: 35, x1: 30, y1: 55 } },
+    ] }],
+  }] }] }] }));
+  const diagnostics = [];
+  const result = await app.ocrEngine.recognizeCrop({ id: 'sign', dataUrl: 'crop', width: 50, height: 100,
+    orientation: 'vertical', bbox }, event => diagnostics.push(event));
+  assert.equal(result.lines[0].evidence.source, 'crop');
+  assert.equal(result.lines[0].evidence.cropId, 'sign');
+  assert.equal(result.lines[0].evidence.passId, 'sign:vertical');
+  assert.deepEqual({ ...result.lines[0].evidence.rawBounds }, bbox);
+  assert.equal(result.lines[0].evidence.glyphs.length, 1);
+  assert.ok(diagnostics.some(event => event.reason === 'invalid-symbol-bounds'));
+  assert.ok(diagnostics.some(event => event.reason === 'chosen-crop-orientation'));
+});
+
+test('overlapping Tesseract lines cannot repeat a weak word on already recognized pixels', async () => {
+  const app = ocrHarness(async () => ({ text: '本をを読みます', confidence: 90, blocks: [{ paragraphs: [{ lines: [
+    { text: '本を', confidence: 51, bbox: { x0: 20, y0: 10, x1: 40, y1: 100 }, words: [
+      word('本', 96, { x0: 20, y0: 10, x1: 40, y1: 30 }), word('を', 5, { x0: 25, y0: 75, x1: 40, y1: 90 }),
+    ] },
+    { text: 'を読みます', confidence: 96, bbox: { x0: 20, y0: 50, x1: 40, y1: 180 }, words: [
+      word('を', 96, { x0: 20, y0: 50, x1: 40, y1: 100 }), word('読みます', 96, { x0: 20, y0: 105, x1: 40, y1: 180 }),
+    ] },
+  ] }] }] }));
+  const diagnostics = [];
+  const result = await app.ocrEngine.recognize('page', { orientation: 'vertical', diagnostics: event => diagnostics.push(event) });
+  assert.equal(groupOcrRegions(result.lines)[0].text, '本を読みます');
+  assert.ok(diagnostics.some(event => event.reason === 'nested-word-alternative'));
+  assert.equal(result.lines[0].bbox.y1, 30);
 });

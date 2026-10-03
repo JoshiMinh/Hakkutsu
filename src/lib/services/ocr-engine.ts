@@ -6,6 +6,7 @@
  */
 
 import { createWorker, PSM, type Worker, type Page } from "tesseract.js";
+import type { OcrDiagnosticCollector } from "./ocr-diagnostics";
 
 const extensionAssetUrl = (path: string) => browser.runtime.getURL(path as never);
 const workerUrl = extensionAssetUrl("/ocr/worker.min.js");
@@ -13,6 +14,8 @@ const coreUrl = extensionAssetUrl("/ocr/tesseract-core-simd-lstm.js");
 const langUrl = extensionAssetUrl("/ocr");
 
 export type OcrOrientation = "auto" | "vertical" | "horizontal";
+export type OcrBounds = { x0: number; y0: number; x1: number; y1: number };
+export type OcrTextBounds = { text: string; confidence?: number; bbox: OcrBounds };
 
 export type OcrFragment = {
   text: string;
@@ -20,7 +23,16 @@ export type OcrFragment = {
   orientation?: "vertical" | "horizontal";
   lineId?: string;
   paragraphId?: string;
-  bbox: { x0: number; y0: number; x1: number; y1: number };
+  bbox: OcrBounds;
+  evidence?: {
+    source: "page" | "crop";
+    passId: string;
+    cropId?: string;
+    rawBounds: OcrBounds;
+    words: OcrTextBounds[];
+    glyphs: OcrTextBounds[];
+    transform?: OcrCropItem["transform"];
+  };
 };
 
 export interface OcrCropItem {
@@ -213,6 +225,7 @@ class OcrEngineService {
       boxWidth?: number;
       boxHeight?: number;
       onProgress?: OcrProgressCallback;
+      diagnostics?: OcrDiagnosticCollector;
     } = {}
   ): Promise<OcrExecutionResult> {
     // Parameter changes and recognition must not interleave on cached workers.
@@ -221,38 +234,76 @@ class OcrEngineService {
     return task;
   }
 
-  private extractRegions(page: Page, orientation: "vertical" | "horizontal"): OcrExecutionResult["lines"] {
+  private extractRegions(page: Page, orientation: "vertical" | "horizontal", crop?: OcrCropItem, diagnostics?: OcrDiagnosticCollector): OcrExecutionResult["lines"] {
+    const validBounds = (b: OcrBounds) => Object.values(b).every(Number.isFinite) && b.x1 > b.x0 && b.y1 > b.y0;
+    const makeFragment = (text: string, confidence: number, bbox: OcrBounds, lineId: string, paragraphId: string, words: OcrTextBounds[], glyphs: OcrTextBounds[]): OcrFragment => {
+      const fragment: OcrFragment = { text, confidence, bbox, orientation, lineId, paragraphId,
+        evidence: { source: crop ? "crop" : "page", passId: `${crop?.id || "page"}:${orientation}`,
+          cropId: crop?.id, rawBounds: { ...bbox }, words, glyphs, transform: crop?.transform } };
+      diagnostics?.({ stage: "recognition", reason: "extracted", fragment });
+      return fragment;
+    };
     // Horizontal lines can span several speech bubbles and their artwork.
     // Use word bounds there, and tight column bounds for vertical dialogue.
     return (page.blocks || []).flatMap((block, blockIndex) =>
       block.paragraphs.flatMap((paragraph, paragraphIndex) => paragraph.lines.flatMap((line, lineIndex) => {
         const paragraphId = `${orientation}:${blockIndex}:${paragraphIndex}`;
         const lineId = `${paragraphId}:${lineIndex}`;
+        diagnostics?.({ stage: "recognition", reason: "raw-line", details: { text: line.text, confidence: line.confidence, bbox: line.bbox,
+          words: (line.words || []).map(w => ({ text: w.text, confidence: w.confidence, bbox: w.bbox })), orientation, cropId: crop?.id, lineId } });
+        const retainedWords = (line.words || []).filter(word => {
+          const text = this.cleanOcrText(word.text, false);
+          const competing = paragraph.lines.some(otherLine => (otherLine.words || []).some(other => other !== word && other.confidence >= word.confidence + 20 &&
+            (this.cleanOcrText(other.text, false).includes(text) || (otherLine !== line && word.confidence < 35)) &&
+            word.bbox.x0 >= other.bbox.x0 && word.bbox.y0 >= other.bbox.y0 && word.bbox.x1 <= other.bbox.x1 && word.bbox.y1 <= other.bbox.y1));
+          if (competing) diagnostics?.({ stage: "recognition", reason: "nested-word-alternative", details: { word: { text, confidence: word.confidence, bbox: word.bbox }, orientation, cropId: crop?.id, lineId } });
+          return !competing;
+        });
+        const words = retainedWords.filter(w => validBounds(w.bbox)).map(w => ({ text: this.cleanOcrText(w.text, false), confidence: w.confidence, bbox: w.bbox }));
+        const glyphs = retainedWords.flatMap(w => (w.symbols || []).flatMap(symbol => {
+          if (!validBounds(symbol.bbox) || symbol.bbox.x0 < w.bbox.x0 - 2 || symbol.bbox.y0 < w.bbox.y0 - 2 ||
+            symbol.bbox.x1 > w.bbox.x1 + 2 || symbol.bbox.y1 > w.bbox.y1 + 2) {
+            diagnostics?.({ stage: "recognition", reason: "invalid-symbol-bounds", details: { symbol, orientation, cropId: crop?.id, lineId } });
+            return [];
+          }
+          return [{ text: symbol.text, confidence: symbol.confidence, bbox: symbol.bbox }];
+        }));
         // jpn_vert word boxes can overlap the entire column. Keep a correctly
         // segmented vertical column as one readable phrase instead.
-        const bounds = line.bbox;
-        const orderedWords = [...(line.words || [])].sort((a, b) => a.bbox.y0 - b.bbox.y0);
+        const bounds = retainedWords.length && retainedWords.length < (line.words || []).length && retainedWords.every(word => validBounds(word.bbox)) ? {
+          x0: Math.min(...retainedWords.map(word => word.bbox.x0)), y0: Math.min(...retainedWords.map(word => word.bbox.y0)),
+          x1: Math.max(...retainedWords.map(word => word.bbox.x1)), y1: Math.max(...retainedWords.map(word => word.bbox.y1)),
+        } : line.bbox;
+        const orderedWords = [...retainedWords].sort((a, b) => a.bbox.y0 - b.bbox.y0);
         const hasLargeGap = orderedWords.some((word, index) => index > 0 &&
-          word.bbox.y0 - orderedWords[index - 1].bbox.y1 > (bounds.x1 - bounds.x0) * 1.5);
+          word.bbox.y0 - orderedWords[index - 1].bbox.y1 > (bounds.x1 - bounds.x0) * 3);
         if (orientation === "vertical" && line.confidence >= 25 &&
           !hasLargeGap &&
           bounds.y1 - bounds.y0 > (bounds.x1 - bounds.x0) * 1.5) {
-          const text = this.cleanOcrText(line.text, false);
+          const raw = this.cleanOcrText(line.text, false);
+          const text = retainedWords.length < (line.words || []).length &&
+            (line.words || []).map(word => this.cleanOcrText(word.text, false)).join("") === raw
+            ? words.map(word => word.text).join("") : raw;
           if (/[\u3040-\u30ff\u3400-\u9fff]/u.test(text) &&
             Object.values(bounds).every(Number.isFinite) && bounds.x1 > bounds.x0 && bounds.y1 > bounds.y0) {
-            return [{ text, confidence: line.confidence, bbox: bounds, orientation, lineId, paragraphId }];
+            return [makeFragment(text, line.confidence, bounds, lineId, paragraphId, words, glyphs)];
           }
         }
-        return (line.words || []).flatMap((word) => {
+        return retainedWords.flatMap((word) => {
           const text = this.cleanOcrText(word.text, false);
           const { x0, y0, x1, y1 } = word.bbox;
           const japanese = /[\u3040-\u30ff\u3400-\u9fff]/u.test(text);
           const punctuationOrNumber = /^[\p{N}\p{P}\p{S}]+$/u.test(text) || /^[A-Za-z]$/.test(text);
           const passesConfidence = japanese ? word.confidence >= 20 : word.confidence >= 45;
-          return passesConfidence && (japanese || punctuationOrNumber)
+          const accepted = passesConfidence && (japanese || punctuationOrNumber)
             && [x0, y0, x1, y1].every(Number.isFinite) && x1 > x0 && y1 > y0
             && (punctuationOrNumber || (orientation === "horizontal" ? y1 - y0 <= (x1 - x0) * 2 : x1 - x0 <= (y1 - y0) * 2))
-            ? [{ text, confidence: word.confidence, bbox: word.bbox, orientation, lineId, paragraphId }] : [];
+            ;
+          if (accepted) return [makeFragment(text, word.confidence, word.bbox, lineId, paragraphId,
+            [{ text, confidence: word.confidence, bbox: word.bbox }], glyphs.filter(g => g.bbox.x0 >= x0 && g.bbox.y0 >= y0 && g.bbox.x1 <= x1 && g.bbox.y1 <= y1))];
+          diagnostics?.({ stage: "recognition", reason: !validBounds(word.bbox) ? "invalid-word-bounds" : !passesConfidence ? "low-word-confidence" : "unsupported-word",
+            fragment: { text, confidence: word.confidence, bbox: word.bbox, orientation, lineId, paragraphId }, details: { cropId: crop?.id } });
+          return [];
         });
       }))
     );
@@ -260,7 +311,7 @@ class OcrEngineService {
 
   private async recognizeImage(
     imageDataUrl: string,
-    options: { orientation?: OcrOrientation; boxWidth?: number; boxHeight?: number; onProgress?: OcrProgressCallback }
+    options: { orientation?: OcrOrientation; boxWidth?: number; boxHeight?: number; onProgress?: OcrProgressCallback; diagnostics?: OcrDiagnosticCollector }
   ): Promise<OcrExecutionResult> {
     const resolvedOrientation = this.resolveOrientation(
       options.orientation || "auto",
@@ -288,7 +339,7 @@ class OcrEngineService {
         text: cleanedText,
         confidence,
         orientation: resolvedOrientation,
-        lines: this.extractRegions(result.data, resolvedOrientation),
+        lines: this.extractRegions(result.data, resolvedOrientation, undefined, options.diagnostics),
       };
       if (options.orientation && options.orientation !== "auto") return primary;
 
@@ -301,21 +352,10 @@ class OcrEngineService {
       } catch {
         return primary;
       }
-      const candidates = [...primary.lines, ...other.lines].sort((a, b) =>
+      // Keep both passes until original-pixel validation. Confidence alone
+      // cannot decide whether an overlapping reading is dialogue or artwork.
+      const lines = [...primary.lines, ...other.lines].sort((a, b) =>
         (b.confidence || 0) - (a.confidence || 0) || (a.orientation === "horizontal" ? -1 : 1));
-      const lines: OcrExecutionResult["lines"] = [];
-      for (const candidate of candidates) {
-        const a = candidate.bbox;
-        if (lines.some(({ bbox: b, text, orientation }) => {
-          // Japanese word boxes from the same pass can legitimately overlap.
-          if (orientation === candidate.orientation && text !== candidate.text) return false;
-          const overlap = Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0))
-            * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
-          return overlap / Math.min((a.x1 - a.x0) * (a.y1 - a.y0), (b.x1 - b.x0) * (b.y1 - b.y0))
-            > (text === candidate.text ? 0.25 : 0.5);
-        })) continue;
-        lines.push(candidate);
-      }
       lines.sort((a, b) => {
         const overlapY = Math.min(a.bbox.y1, b.bbox.y1) - Math.max(a.bbox.y0, b.bbox.y0);
         if (overlapY > Math.min(a.bbox.y1 - a.bbox.y0, b.bbox.y1 - b.bbox.y0) / 2) {
@@ -337,7 +377,7 @@ class OcrEngineService {
             text: this.cleanOcrText(fallbackResult?.data?.text || ""),
             confidence: fallbackResult?.data?.confidence || 0,
             orientation: "horizontal",
-            lines: this.extractRegions(fallbackResult.data, "horizontal"),
+            lines: this.extractRegions(fallbackResult.data, "horizontal", undefined, options.diagnostics),
           };
         } catch {}
       }
@@ -346,7 +386,7 @@ class OcrEngineService {
   }
 
   /** Crop results retain local fragments; the caller maps and groups them. */
-  private async executeRecognizeCrop(crop: OcrCropItem): Promise<OcrCropResult> {
+  private async executeRecognizeCrop(crop: OcrCropItem, diagnostics?: OcrDiagnosticCollector): Promise<OcrCropResult> {
     const explicit = crop.orientation && crop.orientation !== "auto";
     const direction = explicit ? crop.orientation as "vertical" | "horizontal"
       : crop.orientationHint || this.resolveOrientation("auto", crop.width, crop.height);
@@ -358,7 +398,7 @@ class OcrEngineService {
         user_defined_dpi: "300",
       });
       const { data } = await worker.recognize(crop.dataUrl, {}, { blocks: true });
-      const lines = this.extractRegions(data, orientation);
+      const lines = this.extractRegions(data, orientation, crop, diagnostics);
       return {
         id: crop.id, bbox: crop.bbox, transform: crop.transform, orientation, lines,
         text: this.cleanOcrText(data.text || "", false), confidence: data.confidence || 0,
@@ -395,6 +435,7 @@ class OcrEngineService {
         console.warn(`[Hakkutsu OCR] Crop ${crop.id} alternative failed:`, error);
       }
     }
+    diagnostics?.({ stage: "recognition", reason: "chosen-crop-orientation", details: { cropId: crop.id, orientation: primary?.orientation || direction, confidence: primary?.confidence || 0 } });
     return primary || {
       id: crop.id, bbox: crop.bbox, transform: crop.transform,
       text: "", confidence: 0, orientation: direction, lines: [],
@@ -404,8 +445,8 @@ class OcrEngineService {
   /**
    * Recognizes a single cropped speech bubble through the serialized task queue.
    */
-  public recognizeCrop(crop: OcrCropItem): Promise<OcrCropResult> {
-    const task = this.queue.then(() => this.executeRecognizeCrop(crop));
+  public recognizeCrop(crop: OcrCropItem, diagnostics?: OcrDiagnosticCollector): Promise<OcrCropResult> {
+    const task = this.queue.then(() => this.executeRecognizeCrop(crop, diagnostics));
     this.queue = task.catch(() => undefined);
     return task as Promise<OcrCropResult>;
   }
@@ -415,14 +456,15 @@ class OcrEngineService {
    */
   public recognizeBatch(
     crops: OcrCropItem[],
-    onProgress?: (current: number, total: number) => void
+    onProgress?: (current: number, total: number) => void,
+    diagnostics?: OcrDiagnosticCollector
   ): Promise<OcrCropResult[]> {
     const task = this.queue.then(async () => {
       const results: OcrCropResult[] = [];
       for (let i = 0; i < crops.length; i++) {
         const crop = crops[i];
         try {
-          const res = await this.executeRecognizeCrop(crop);
+          const res = await this.executeRecognizeCrop(crop, diagnostics);
           if (res.text && /[\u3040-\u30ff\u3400-\u9fff]/u.test(res.text)) {
             results.push(res);
           }

@@ -127,7 +127,9 @@ export function detectMangaDialogueRegions(
       }
     }
     const w = x1 - x0 + 1, h = y1 - y0 + 1;
-    if (tail < 5 || w > 72 || h > 72 || Math.max(w, h) > Math.min(w, h) * 8) continue;
+    // Detached prolonged marks and punctuation are thin genuine ink. Long
+    // frames remain excluded by their full connected-component extent.
+    if (tail < 5 || w > 72 || h > 72 || Math.max(w, h) > Math.min(w, h) * 24) continue;
     for (let i = 0; i < tail; i++) textInk[inkQueue[i]] = 1;
     glyphs.push({ x0, y0, x1: x1 + 1, y1: y1 + 1 });
   }
@@ -287,8 +289,12 @@ export function detectMangaDialogueRegions(
     // Directional morphological dilation: vertically connect characters in columns,
     // horizontally connect lines/words.
     const dilated = new Uint8Array(width * height);
-    const vertRadius = 4;
-    const horizRadius = 2;
+    const glyphHeights = glyphs.filter(g => g.x1 - g.x0 >= 5 && g.y1 - g.y0 >= 5)
+      .map(g => g.y1 - g.y0).sort((a, b) => a - b);
+    // Fixed four-pixel dilation loses widely spaced, readable columns. Derive
+    // the joining distance from local glyphs, bounded to avoid artwork bridges.
+    const vertRadius = Math.max(4, Math.min(16, Math.round((glyphHeights[Math.floor(glyphHeights.length * .75)] || 8) * .55)));
+    const horizRadius = 3;
 
     for (let y = vertRadius; y < height - vertRadius; y++) {
       for (let x = horizRadius; x < width - horizRadius; x++) {
@@ -357,7 +363,9 @@ export function detectMangaDialogueRegions(
       if (origH < 35 && origW < 35) continue;
       if (tail < 80) continue;
       // Reject long straight panel frame lines
-      if (sw > 10 * sh || sh > 10 * sw) continue;
+      // A long sign can contain many genuine glyphs in a narrow column. Full
+      // connected frames were removed before dilation; aspect alone is weak.
+      if (sw > 30 * sh || sh > 30 * sw) continue;
 
       // Check edge transitions and dark pixel density
       let darkInCluster = 0;
@@ -562,10 +570,11 @@ export function findBubbleMembership(fragments: OcrFragment[], pixels?: Pixels):
 
 type InkComponents = { labels: Int32Array; sizes: Array<{ width: number; height: number; area: number }>; width: number; height: number; scale: number };
 const inkComponentCache = new WeakMap<Pixels, InkComponents>();
+export type TextInkEvidence = { ratio: number; ink: number; components: number; bbox?: OcrFragment["bbox"] };
 
 /** Check the original connected ink, including its extent outside each OCR box.
  * Cropping a hair strand or panel edge can otherwise make it resemble a glyph. */
-export function findTextInkSupport(fragments: OcrFragment[], pixels: Pixels, bodySize: number): Map<OcrFragment, number> {
+export function findTextInkEvidence(fragments: OcrFragment[], pixels: Pixels, bodySize: number): Map<OcrFragment, TextInkEvidence> {
   let components = inkComponentCache.get(pixels);
   if (!components) {
     const scale = Math.max(1, Math.max(pixels.width, pixels.height) / 1300);
@@ -607,18 +616,41 @@ export function findTextInkSupport(fragments: OcrFragment[], pixels: Pixels, bod
   return new Map(fragments.map(fragment => {
     const b = fragment.bbox;
     const across = fragment.orientation === "vertical" ? b.x1 - b.x0 : b.y1 - b.y0;
-    const limit = Math.max(8, Math.min(across, bodySize * 1.5) / scale * 4);
+    const along = fragment.orientation === "vertical" ? b.y1 - b.y0 : b.x1 - b.x0;
+    const characters = [...fragment.text].filter(c => /[\u3040-\u30ff\u3400-\u9fff]/u.test(c) && !/[ー・]/u.test(c)).length;
+    const isolatedSupplement = characters === 0 && (/^[\p{N}\p{P}\p{S}A-Za-z]+$/u.test(fragment.text) || /^[ー・]+$/u.test(fragment.text));
+    const localSize = isolatedSupplement ? Math.max(across, along) : Math.min(across, along / Math.max(1, characters));
+    // Use the candidate's local body size. A large page heading must not make
+    // tiny dialogue disappear or turn nearby hair into supported glyphs.
+    const limit = Math.max(5, Math.min(96, Math.min(localSize, bodySize * 1.5) / scale * 2.5));
     let ink = 0, supported = 0;
+    let x0 = width, y0 = height, x1 = 0, y1 = 0;
+    const glyphs = new Set<number>();
     for (let y = Math.max(0, Math.floor(b.y0 / scale)); y < Math.min(height, Math.ceil(b.y1 / scale)); y++) {
       for (let x = Math.max(0, Math.floor(b.x0 / scale)); x < Math.min(width, Math.ceil(b.x1 / scale)); x++) {
         const id = labels[y * width + x];
         if (!id) continue;
         ink++;
         const component = sizes[id];
+        const markSize = isolatedSupplement ? localSize : across;
+        const soundMark = /[ー・！？…]/u.test(fragment.text) && Math.max(component.width, component.height) <= markSize / scale * 1.6 &&
+          Math.min(component.width, component.height) <= markSize / scale * .25;
         if (component.area >= 3 && component.width <= limit && component.height <= limit &&
-          Math.max(component.width, component.height) <= Math.min(component.width, component.height) * 6) supported++;
+          (Math.max(component.width, component.height) <= Math.min(component.width, component.height) * 6 || soundMark) &&
+          (soundMark || !(component.width * component.height > 25 && component.area / (component.width * component.height) > .9))) {
+          supported++;
+          glyphs.add(id);
+          x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + 1); y1 = Math.max(y1, y + 1);
+        }
       }
     }
-    return [fragment, ink ? supported / ink : 1];
+    return [fragment, { ratio: ink ? supported / ink : 0, ink, components: glyphs.size,
+      bbox: supported ? { x0: Math.max(b.x0, x0 * scale), y0: Math.max(b.y0, y0 * scale),
+        x1: Math.min(b.x1, x1 * scale), y1: Math.min(b.y1, y1 * scale) } : undefined }];
   }));
+}
+
+/** Compatibility API for callers interested only in the support ratio. */
+export function findTextInkSupport(fragments: OcrFragment[], pixels: Pixels, bodySize: number): Map<OcrFragment, number> {
+  return new Map([...findTextInkEvidence(fragments, pixels, bodySize)].map(([fragment, evidence]) => [fragment, evidence.ratio]));
 }
