@@ -368,6 +368,11 @@ export const en = {
   ocr_edit_hint: "Edit recognized text if needed",
   ocr_reanalyze: "Re-analyze",
   ocr_no_text: "No Japanese text detected in this image. Try another image or orientation.",
+  ocr_btn_select_box: "Select Box",
+  ocr_detecting: "Detecting dialogue...",
+  ocr_scanning: "Scanning dialogue...",
+  ocr_no_text_hint: "No dialogue bubbles detected. Try using Select Box (Alt + Drag).",
+  ocr_select_box_hint: "Drag a box over dialogue • Esc to cancel",
   settings_ocr_section: "Manga OCR",
 };
 

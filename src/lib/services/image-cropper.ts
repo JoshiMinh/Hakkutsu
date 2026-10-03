@@ -63,19 +63,33 @@ export function applyMangaPreprocess(
     if (gray > maxGray) maxGray = gray;
   }
 
-  // 2. Contrast Stretching / Histogram Normalization
-  const contrastRange = maxGray - minGray;
-  const needsStretch = enhanceContrast && contrastRange > 20 && contrastRange < 220;
+  // 2. Contrast Stretching / Percentile Histogram Normalization
+  const histogram = new Array(256).fill(0);
+  for (let j = 0; j < grayValues.length; j++) {
+    histogram[grayValues[j]]++;
+  }
+  const total = grayValues.length;
+  let count = 0;
+  let pLow = 0;
+  let pHigh = 255;
+  const lowCut = total * 0.02;
+  const highCut = total * 0.98;
+
+  for (let t = 0; t < 256; t++) {
+    count += histogram[t];
+    if (pLow === 0 && count >= lowCut) pLow = t;
+    if (count >= highCut) {
+      pHigh = t;
+      break;
+    }
+  }
+
+  const effectiveRange = Math.max(1, pHigh - pLow);
+  const needsStretch = enhanceContrast && effectiveRange > 15 && (pLow > 5 || pHigh < 250);
 
   // 3. Otsu Threshold Calculation (if binarization requested or automatic)
   let computedThreshold = threshold ?? 128;
   if (binarize && threshold === undefined) {
-    // Calculate Otsu threshold on grayscale histogram
-    const histogram = new Array(256).fill(0);
-    for (let j = 0; j < grayValues.length; j++) {
-      histogram[grayValues[j]]++;
-    }
-    const total = grayValues.length;
     let sum = 0;
     for (let t = 0; t < 256; t++) sum += t * histogram[t];
 
@@ -108,7 +122,7 @@ export function applyMangaPreprocess(
 
     // Contrast stretching
     if (needsStretch) {
-      gray = Math.round(((gray - minGray) / contrastRange) * 255);
+      gray = Math.max(0, Math.min(255, Math.round(((gray - pLow) / effectiveRange) * 255)));
     }
 
     // Binarization (if active)
@@ -124,6 +138,35 @@ export function applyMangaPreprocess(
   }
 
   ctx.putImageData(imageData, 0, 0);
+}
+
+/**
+ * Crops a bounding box region from an existing HTMLCanvasElement or HTMLImageElement,
+ * optionally applying contrast normalization for optimal Tesseract OCR.
+ */
+export function cropCanvasRegion(
+  source: HTMLCanvasElement | HTMLImageElement,
+  box: { x: number; y: number; width: number; height: number },
+  preprocess: boolean = true
+): { canvas: HTMLCanvasElement; dataUrl: string } {
+  const cropW = Math.max(1, Math.round(box.width));
+  const cropH = Math.max(1, Math.round(box.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = cropW;
+  canvas.height = cropH;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("Could not acquire 2D canvas context for crop");
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, cropW, cropH);
+  ctx.drawImage(source, box.x, box.y, box.width, box.height, 0, 0, cropW, cropH);
+  if (preprocess) {
+    applyMangaPreprocess(ctx, cropW, cropH, {
+      grayscale: true,
+      enhanceContrast: true,
+      binarize: false,
+    });
+  }
+  return { canvas, dataUrl: canvas.toDataURL("image/png") };
 }
 
 /**

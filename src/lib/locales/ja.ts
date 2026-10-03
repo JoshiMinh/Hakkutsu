@@ -368,6 +368,11 @@ export const ja = {
   ocr_edit_hint: "必要に応じて認識テキストを修正できます",
   ocr_reanalyze: "再解析",
   ocr_no_text: "この画像から日本語の文字を検出できませんでした。別の画像か文字方向を試してください。",
+  ocr_btn_select_box: "領域選択",
+  ocr_detecting: "フキダシを検出中...",
+  ocr_scanning: "テキストをスキャン中...",
+  ocr_no_text_hint: "フキダシが検出されませんでした。領域選択（Alt + ドラッグ）をお試しください。",
+  ocr_select_box_hint: "テキスト枠をドラッグ選択 • Escでキャンセル",
   settings_ocr_section: "Manga OCR",
 };
 

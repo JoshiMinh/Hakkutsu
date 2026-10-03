@@ -368,6 +368,11 @@ export const id = {
   ocr_edit_hint: "Edit teks hasil pindaian jika diperlukan",
   ocr_reanalyze: "Analisis Ulang",
   ocr_no_text: "Tidak ada teks Jepang terdeteksi pada gambar ini. Coba gambar atau orientasi lain.",
+  ocr_btn_select_box: "Pilih Area",
+  ocr_detecting: "Mendeteksi balon teks...",
+  ocr_scanning: "Memindai percakapan...",
+  ocr_no_text_hint: "Balon percakapan tidak terdeteksi. Coba Pilih Area (Alt + Tarik).",
+  ocr_select_box_hint: "Tarik kotak di atas teks • Tekan Esc untuk batal",
   settings_ocr_section: "Manga OCR",
 };
 

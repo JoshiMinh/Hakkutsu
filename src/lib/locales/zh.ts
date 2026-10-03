@@ -368,6 +368,11 @@ export const zh = {
   ocr_edit_hint: "可在上方直接修改识别结果",
   ocr_reanalyze: "重新解析",
   ocr_no_text: "未在此图片中识别到日语文本。请尝试其他图片或文字方向。",
+  ocr_btn_select_box: "框选区域",
+  ocr_detecting: "正在检测对白框...",
+  ocr_scanning: "正在扫描对白...",
+  ocr_no_text_hint: "未检测到对白气泡。请尝试使用框选（Alt + 拖动）。",
+  ocr_select_box_hint: "框选文字区域 • 按 Esc 取消",
   settings_ocr_section: "Manga OCR",
 };
 

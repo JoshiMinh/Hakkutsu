@@ -368,6 +368,11 @@ export const vi = {
   ocr_edit_hint: "Chỉnh sửa chữ nhận dạng nếu cần",
   ocr_reanalyze: "Phân tích lại",
   ocr_no_text: "Không nhận diện được chữ tiếng Nhật trong ảnh này. Hãy thử ảnh hoặc hướng chữ khác.",
+  ocr_btn_select_box: "Chọn vùng",
+  ocr_detecting: "Đang tìm lời thoại...",
+  ocr_scanning: "Đang quét lời thoại...",
+  ocr_no_text_hint: "Không tìm thấy bóng thoại. Hãy thử dùng Chọn vùng (Alt + Kéo chuột).",
+  ocr_select_box_hint: "Kéo thả khung quanh lời thoại • Phím Esc để hủy",
   settings_ocr_section: "Manga OCR",
 };
 

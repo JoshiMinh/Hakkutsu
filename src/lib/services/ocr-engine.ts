@@ -23,6 +23,23 @@ export type OcrFragment = {
   bbox: { x0: number; y0: number; x1: number; y1: number };
 };
 
+export interface OcrCropItem {
+  id: string;
+  dataUrl: string;
+  width: number;
+  height: number;
+  orientation?: "auto" | "vertical" | "horizontal";
+  bbox: { x0: number; y0: number; x1: number; y1: number };
+}
+
+export interface OcrCropResult {
+  id: string;
+  text: string;
+  confidence: number;
+  orientation: "vertical" | "horizontal";
+  bbox: { x0: number; y0: number; x1: number; y1: number };
+}
+
 export interface OcrExecutionResult {
   text: string;
   confidence: number;
@@ -98,6 +115,9 @@ class OcrEngineService {
 
     let text = rawText.trim();
 
+    // 0. Normalize CRLF / CR to standard LF
+    text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
     // 1. Normalize vertical punctuation variants to standard Japanese characters
     const vertPunctuationMap: Record<string, string> = {
       "︱": "ー",
@@ -122,15 +142,40 @@ class OcrEngineService {
       "︼": "〕",
       "｜": "ー",
       "|": "ー",
+      "丨": "ー",
     };
 
-    text = text.replace(/[\uFE10-\uFE19\uFE30-\uFE4F|｜]/g, (char) => vertPunctuationMap[char] || char);
+    text = text.replace(/[\uFE10-\uFE19\uFE30-\uFE4F|｜丨]/g, (char) => vertPunctuationMap[char] || char);
 
-    // 2. Remove line breaks within sentences while preserving paragraph separations
-    text = text.replace(/([^\n])\n([^\n])/g, "$1$2");
+    // 2. Normalize Katakana prolonged sound mark (ー / chōonpu) misrecognized as 1, l, I, | in vertical text
+    // E.g. "ゲー1ム" -> "ゲーム", "セ1ラー" -> "セーラー", "センタ1" -> "センター"
+    const kataChar = "[\u30A1-\u30FA\u30FC]";
+    const kataInterpRegex1 = new RegExp(`(${kataChar})\\s*[1lI|!丨]\\s*(${kataChar})`, "g");
+    const kataInterpRegex2 = new RegExp(`(${kataChar})\\s*[1lI|丨](?=[\\s、。！？「」『』（）…・\\n]|$)`, "g");
+    text = text.replace(kataInterpRegex1, "$1ー$2");
+    text = text.replace(kataInterpRegex2, "$1ー");
 
-    // 3. Remove spaces between Japanese characters (Kanji, Hiragana, Katakana, CJK punctuation)
+    // Handle when 1 or | is on its own isolated line between Katakana lines:
+    // e.g. "ゲー\n1\nム" -> "ゲーム"
+    text = text.replace(/([\u30A1-\u30FA\u30FC])\s*\n\s*[1lI|!丨]\s*\n\s*([\u30A1-\u30FA\u30FC])/g, "$1ー$2");
+
+    // 3. Remove line breaks within Japanese text while preserving distinct paragraphs
     const cjkPattern = "[\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\uFF00-\uFFEF]";
+    const jpNewlineRegex = new RegExp(`(${cjkPattern})\\s*\\n+\\s*(${cjkPattern})`, "g");
+    let prevText = "";
+    while (prevText !== text) {
+      prevText = text;
+      text = text.replace(jpNewlineRegex, "$1$2");
+    }
+
+    // Secondary pass for Katakana prolonged mark after newlines were joined
+    text = text.replace(kataInterpRegex1, "$1ー$2");
+    text = text.replace(kataInterpRegex2, "$1ー");
+
+    // Collapse duplicate Katakana prolonged sound marks caused by OCR artifacting (e.g. ゲーーム -> ゲーム)
+    text = text.replace(/([\u30A1-\u30FA])ーー+(?=[\u30A1-\u30FA])/g, "$1ー");
+
+    // 4. Remove spaces between Japanese characters (Kanji, Hiragana, Katakana, CJK punctuation)
     const spaceRegex = new RegExp(`(${cjkPattern})\\s+(${cjkPattern})`, "g");
 
     // Apply regex repeatedly to handle multi-space consecutive CJK tokens
@@ -140,7 +185,7 @@ class OcrEngineService {
       text = text.replace(spaceRegex, "$1$2");
     }
 
-    // 4. Remove surrounding stray quotes and artifacts
+    // 5. Remove surrounding stray quotes and artifacts
     text = text
       .replace(/^[\s`'"]+|[\s`'"]+$/g, "")
       .replace(/\n{3,}/g, "\n\n")
@@ -180,7 +225,7 @@ class OcrEngineService {
         const orderedWords = [...(line.words || [])].sort((a, b) => a.bbox.y0 - b.bbox.y0);
         const hasLargeGap = orderedWords.some((word, index) => index > 0 &&
           word.bbox.y0 - orderedWords[index - 1].bbox.y1 > (bounds.x1 - bounds.x0) * 1.5);
-        if (orientation === "vertical" && line.confidence >= 45 &&
+        if (orientation === "vertical" && line.confidence >= 25 &&
           !hasLargeGap &&
           bounds.y1 - bounds.y0 > (bounds.x1 - bounds.x0) * 1.5) {
           const text = this.cleanOcrText(line.text);
@@ -194,7 +239,8 @@ class OcrEngineService {
           const { x0, y0, x1, y1 } = word.bbox;
           const japanese = /[\u3040-\u30ff\u3400-\u9fff]/u.test(text);
           const punctuationOrNumber = /^[\p{N}\p{P}\p{S}]+$/u.test(text);
-          return word.confidence >= 45 && (japanese || punctuationOrNumber)
+          const passesConfidence = japanese ? word.confidence >= 20 : word.confidence >= 45;
+          return passesConfidence && (japanese || punctuationOrNumber)
             && [x0, y0, x1, y1].every(Number.isFinite) && x1 > x0 && y1 > y0
             && (punctuationOrNumber || (orientation === "horizontal" ? y1 - y0 <= (x1 - x0) * 2 : x1 - x0 <= (y1 - y0) * 2))
             ? [{ text, confidence: word.confidence, bbox: word.bbox, orientation, lineId, paragraphId }] : [];
@@ -288,6 +334,108 @@ class OcrEngineService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Recognizes a single cropped dialogue region using PSM.SINGLE_BLOCK.
+   */
+  private async executeRecognizeCrop(crop: OcrCropItem): Promise<OcrCropResult> {
+    const resolvedOrientation = this.resolveOrientation(
+      crop.orientation || "auto",
+      crop.width,
+      crop.height
+    );
+    const lang = resolvedOrientation === "vertical" ? "jpn_vert" : "jpn";
+
+    try {
+      const worker = await this.getWorker(lang);
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+        textord_tabfind_force_vertical_text: resolvedOrientation === "vertical" ? "1" : "0",
+        user_defined_dpi: "300",
+      });
+
+      const result = await worker.recognize(crop.dataUrl);
+      const rawText = result?.data?.text || "";
+      const confidence = result?.data?.confidence || 0;
+      let cleanedText = this.cleanOcrText(rawText);
+
+      // If vertical returned no Japanese text or very low confidence, attempt horizontal fallback
+      if (!/[\u3040-\u30ff\u3400-\u9fff]/u.test(cleanedText) && resolvedOrientation === "vertical") {
+        try {
+          const hWorker = await this.getWorker("jpn");
+          await hWorker.setParameters({
+            tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+            textord_tabfind_force_vertical_text: "0",
+            user_defined_dpi: "300",
+          });
+          const hResult = await hWorker.recognize(crop.dataUrl);
+          const hText = this.cleanOcrText(hResult?.data?.text || "");
+          if (/[\u3040-\u30ff\u3400-\u9fff]/u.test(hText)) {
+            return {
+              id: crop.id,
+              text: hText,
+              confidence: hResult?.data?.confidence || 0,
+              orientation: "horizontal",
+              bbox: crop.bbox,
+            };
+          }
+        } catch {}
+      }
+
+      return {
+        id: crop.id,
+        text: cleanedText,
+        confidence,
+        orientation: resolvedOrientation,
+        bbox: crop.bbox,
+      };
+    } catch (err) {
+      console.error(`[Hakkutsu OCR] Crop ${crop.id} recognition failed:`, err);
+      return {
+        id: crop.id,
+        text: "",
+        confidence: 0,
+        orientation: resolvedOrientation,
+        bbox: crop.bbox,
+      };
+    }
+  }
+
+  /**
+   * Recognizes a single cropped speech bubble through the serialized task queue.
+   */
+  public recognizeCrop(crop: OcrCropItem): Promise<OcrCropResult> {
+    const task = this.queue.then(() => this.executeRecognizeCrop(crop));
+    this.queue = task.catch(() => undefined);
+    return task as Promise<OcrCropResult>;
+  }
+
+  /**
+   * Recognizes a batch of cropped dialogue regions through the serialized task queue.
+   */
+  public recognizeBatch(
+    crops: OcrCropItem[],
+    onProgress?: (current: number, total: number) => void
+  ): Promise<OcrCropResult[]> {
+    const task = this.queue.then(async () => {
+      const results: OcrCropResult[] = [];
+      for (let i = 0; i < crops.length; i++) {
+        const crop = crops[i];
+        try {
+          const res = await this.executeRecognizeCrop(crop);
+          if (res.text && /[\u3040-\u30ff\u3400-\u9fff]/u.test(res.text)) {
+            results.push(res);
+          }
+        } catch (err) {
+          console.warn(`[Hakkutsu OCR] Batch crop ${crop.id} error:`, err);
+        }
+        onProgress?.(i + 1, crops.length);
+      }
+      return results;
+    });
+    this.queue = task.catch(() => undefined);
+    return task as Promise<OcrCropResult[]>;
   }
 
   /**

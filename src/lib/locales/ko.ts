@@ -368,6 +368,11 @@ export const ko = {
   ocr_edit_hint: "인식된 텍스트를 직접 수정할 수 있습니다",
   ocr_reanalyze: "다시 분석",
   ocr_no_text: "이 이미지에서 일본어 텍스트를 찾지 못했습니다. 다른 이미지나 문자 방향을 시도하세요.",
+  ocr_btn_select_box: "영역 선택",
+  ocr_detecting: "말풍선 감지 중...",
+  ocr_scanning: "대사 스캔 중...",
+  ocr_no_text_hint: "말풍선을 찾을 수 없습니다. 영역 선택(Alt + 드래그)을 사용해 보세요.",
+  ocr_select_box_hint: "텍스트 영역을 드래그하세요 • Esc로 취소",
   settings_ocr_section: "Manga OCR",
 };
 

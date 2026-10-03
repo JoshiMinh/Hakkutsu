@@ -63,7 +63,7 @@ export default defineBackground(() => {
   const closeTranscriptPanel = installTranscriptPanelRouter();
   // Listen for messages from popup and content scripts
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message?.type === "RUN_MANGA_OCR_OFFSCREEN") return false;
+    if (message?.type === "RUN_MANGA_OCR_OFFSCREEN" || message?.type === "RUN_MANGA_OCR_BATCH_OFFSCREEN") return false;
     if (/^TRANSCRIPT_(SNAPSHOT|CUE|UNAVAILABLE|LOOKUP_STATE)$/.test(message?.type || "")) return false;
     if (message?.type === "OPEN_TRANSCRIPT_PANEL") {
       const tabId = sender.tab?.id;
@@ -639,6 +639,28 @@ async function handleMessage(
       await ensureOcrDocument();
       return chrome.runtime.sendMessage({
         type: "RUN_MANGA_OCR_OFFSCREEN",
+        payload,
+      });
+    }
+
+    case "RUN_MANGA_OCR_BATCH": {
+      if ((await getSettings()).mangaOcrEnabled === false) {
+        return { type: "ERROR", payload: { error: "Manga OCR is disabled in settings." } };
+      }
+      const payload = message.payload as {
+        crops: Array<import("~lib/services/ocr-engine").OcrCropItem>;
+      } | undefined;
+      if (!payload?.crops || !Array.isArray(payload.crops)) {
+        return { type: "ERROR", payload: { error: "Missing OCR crops" } };
+      }
+      if (!chrome.offscreen?.createDocument && typeof Worker !== "undefined") {
+        const { ocrEngine } = await import("~lib/services/ocr-engine");
+        const results = await ocrEngine.recognizeBatch(payload.crops);
+        return { type: "MANGA_OCR_BATCH_RESULT", payload: results };
+      }
+      await ensureOcrDocument();
+      return chrome.runtime.sendMessage({
+        type: "RUN_MANGA_OCR_BATCH_OFFSCREEN",
         payload,
       });
     }
