@@ -385,6 +385,73 @@ test('ambiguous crop direction evaluates both models even when the first is conf
   assert.deepEqual(app.created, ['jpn', 'jpn_vert']);
 });
 
+test('crop direction alternatives survive until pixel validation even when the chosen text is different', async () => {
+  const app = ocrHarness(async language => {
+    const vertical = language === 'jpn_vert';
+    const text = vertical ? '日本語' : '本日';
+    const bbox = vertical ? { x0: 10, y0: 10, x1: 30, y1: 80 } : { x0: 10, y0: 10, x1: 60, y1: 30 };
+    const confidence = vertical ? 55 : 90;
+    return { text, confidence, blocks: [{ paragraphs: [{ lines: [{ text, confidence, bbox,
+      words: [word(text, confidence, bbox)] }] }] }] };
+  });
+  const result = await app.ocrEngine.recognizeCrop({ id: 'mixed', dataUrl: 'crop', width: 80, height: 100,
+    orientation: 'auto', orientationHint: 'vertical', bbox: { x0: 0, y0: 0, x1: 80, y1: 100 } });
+  assert.equal(result.text, '本日');
+  assert.deepEqual(Array.from(result.lines, line => line.text).sort(), ['日本語', '本日'].sort());
+  assert.equal(new Set(result.lines.map(line => line.evidence.passId)).size, 2);
+});
+
+test('individual characters read by the horizontal model still assemble along a detected vertical column', async () => {
+  const text = '何があった';
+  const app = ocrHarness(async language => {
+    if (language === 'jpn_vert') return { text: '', confidence: 0, blocks: [] };
+    const lines = [...text].map((glyph, index) => {
+      const bbox = { x0: 10 + index % 2, y0: 10 + index * 18, x1: 24, y1: 24 + index * 18 };
+      return { text: glyph, confidence: 95, bbox, words: [word(glyph, 95, bbox)] };
+    });
+    return { text, confidence: 95, blocks: [{ paragraphs: [{ lines }] }] };
+  });
+  const crop = { id: 'small-column', dataUrl: 'crop', width: 40, height: 120, orientation: 'auto',
+    orientationHint: 'vertical', textColumn: true, bbox: { x0: 0, y0: 0, x1: 40, y1: 120 } };
+  const result = await app.ocrEngine.recognizeCrop(crop);
+  assert.equal(result.orientation, 'vertical');
+  assert.ok(result.lines.every(line => line.orientation === 'vertical'));
+  assert.ok(result.lines.every(line => line.evidence.passId === 'small-column:horizontal'));
+  assert.deepEqual(Array.from(groupOcrRegions(result.lines), region => region.text), [text]);
+  const explicit = await app.ocrEngine.recognizeCrop({ ...crop, orientation: 'horizontal' });
+  assert.equal(explicit.orientation, 'horizontal');
+  assert.ok(explicit.lines.every(line => line.orientation === 'horizontal'));
+});
+
+test('adaptive crop retry honors explicit direction and resets thresholding on the cached worker', async () => {
+  let call = 0;
+  const app = ocrHarness(async () => {
+    const confidence = call++ === 0 ? 35 : 90;
+    const text = '日本語', bbox = { x0: 10, y0: 10, x1: 30, y1: 80 };
+    return { text, confidence: 90, blocks: [{ paragraphs: [{ lines: [{ text, confidence, bbox,
+      words: [word(text, confidence, bbox)] }] }] }] };
+  });
+  const crop = { id: 'colored', dataUrl: 'crop', width: 50, height: 100, orientation: 'vertical',
+    adaptiveThreshold: true, bbox: { x0: 0, y0: 0, x1: 50, y1: 100 } };
+  const result = await app.ocrEngine.recognizeCrop(crop);
+  assert.equal(result.confidence, 90);
+  assert.deepEqual(app.parameters.map(p => p.thresholding_method), ['0', '2']);
+  assert.deepEqual(app.created, ['jpn_vert']);
+  assert.ok(result.lines.some(line => line.evidence.passId.endsWith(':adaptive')));
+  await app.ocrEngine.recognizeCrop({ ...crop, adaptiveThreshold: false });
+  assert.equal(app.parameters.at(-1).thresholding_method, '0');
+});
+
+test('failed crop recognition remains distinguishable from a successful empty crop', async () => {
+  const app = ocrHarness(async () => { throw new Error('worker unavailable'); });
+  const results = await app.ocrEngine.recognizeBatch([{ id: 'failed', dataUrl: 'crop', width: 50, height: 100,
+    orientation: 'vertical', bbox: { x0: 0, y0: 0, x1: 50, y1: 100 } }]);
+  assert.equal(results.length, 1);
+  assert.ok(results[0].error.includes('worker unavailable'));
+  assert.equal(results[0].text, '');
+  assert.equal(results[0].lines.length, 0);
+});
+
 test('automatic acceptance excludes low-confidence and artwork-shaped guesses; manual permits correction', () => {
   const pixels = { data: new Uint8ClampedArray(300 * 300 * 4).fill(255), width: 300, height: 300 };
   const input = [

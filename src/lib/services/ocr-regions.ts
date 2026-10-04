@@ -126,7 +126,9 @@ export function groupOcrRegions(fragments: OcrFragment[], options: OcrRegionOpti
       if (!accepted) options.diagnostics?.({ stage: "grouping", reason: "incoherent-bubble-orientation", fragment: f });
       return accepted;
     });
-    const ordered = [...candidates].sort((a, b) => start(a.bbox, across) - start(b.bbox, across) || start(a.bbox, along) - start(b.bbox, along));
+    // Consume words in reading order along each line. A one-pixel x/y jitter
+    // must not visit a trailing word before the word that bridges its gap.
+    const ordered = [...candidates].sort((a, b) => start(a.bbox, along) - start(b.bbox, along) || start(a.bbox, across) - start(b.bbox, across));
     const lines: OcrTextRegion[] = [];
     const annotations = new Map<OcrFragment, OcrFragment>();
     for (const fragment of ordered) {

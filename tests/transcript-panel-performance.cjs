@@ -520,17 +520,20 @@ test('OCR corrections reject stale analysis, reanalyze edited text and save its 
   const render = () => hooks.render(() => Dictionary({}));
   const save = tree => find(tree, node => node.type === 'button' && node.props.title === 'def_btn_add_library');
   const resolve = (index, text) => requests[index].resolve({ type: 'ANALYZE_RESULT', payload: {
-    text, sentence_reading: 'にほんご', translation: 'Japanese', tokens: [{ surface: '日本語', dictionary_form: '日本語',
-      is_japanese: true, definitions: [{ glosses: ['Japanese'] }], reading: { hiragana: 'にほんご' } }],
+    text, sentence_reading: 'まもれる', translation: 'Can protect', tokens: [{ surface: '守れる', dictionary_form: '守る',
+      is_japanese: true, definitions: [{ glosses: ['protect'] }], reading: { hiragana: 'まもれる' }, dictionary_reading: 'まもる' }],
   } });
   render();
   window.dispatchEvent(new CustomEvent('hakkutsu:analyze', { detail: { text: '誤読', ocrRegionId: 'bubble',
     imageUrl: 'original-unfiltered-crop', mode: 'dictionary', transient: false, pauseVideo: false } }));
+  assert.equal(requests[0].args[0], 'ANALYZE_PHRASE');
+  assert.equal(requests[0].args[2], true);
+  assert.equal(requests[0].args[4], 'ocr');
   let tree = render();
   assert.equal(save(tree).props.disabled, true);
   const input = find(tree, node => node.type === 'textarea');
   assert.equal(input.props['aria-label'], 'ocr_edit_hint');
-  input.props.onChange({ target: { value: '日本語。' } });
+  input.props.onChange({ target: { value: '守れる。' } });
   tree = render();
   resolve(0, '誤読');
   await flush();
@@ -538,16 +541,21 @@ test('OCR corrections reject stale analysis, reanalyze edited text and save its 
   assert.equal(find(tree, node => node.type === 'tokens'), null);
   assert.equal(save(tree).props.disabled, true);
   find(tree, node => node.type === 'button' && node.props.children === 'ocr_reanalyze').props.onClick();
-  assert.equal(requests[1].args[1], '日本語。');
+  assert.equal(requests[1].args[1], '守れる。');
+  assert.equal(requests[1].args[0], 'ANALYZE_PHRASE');
+  assert.equal(requests[1].args[4], 'ocr');
   assert.equal(updates[0].id, 'bubble');
-  assert.equal(updates[0].text, '日本語。');
-  resolve(1, '日本語。');
+  assert.equal(updates[0].text, '守れる。');
+  resolve(1, '守れる。');
   await flush();
   tree = render();
   assert.equal(save(tree).props.disabled, false);
   await save(tree).props.onClick();
   const added = messages.find(message => message.type === 'ADD_SRS_CARD');
-  assert.equal(added.payload.sentence, '日本語。');
+  assert.equal(added.payload.sentence, '守れる。');
+  assert.equal(added.payload.word, '守る');
+  assert.equal(added.payload.reading, 'まもる');
+  assert.equal(added.payload.word_furigana, '守る[まもる]');
   assert.equal(added.payload.image_url, 'original-unfiltered-crop');
   find(tree, node => node.type === 'textarea').props.onChange({ target: { value: '' } });
   tree = render();
@@ -564,8 +572,10 @@ function mangaScanHarness({ recover = false, fallback = false, uncertain = false
   const frames = new Map();
   let frameId = 0;
   class Image {
-    naturalWidth = 200; naturalHeight = 200; currentSrc = 'manga.png'; isConnected = true;
-    decode() { return Promise.resolve(); }
+    // Model coordinates use a 400px original rendered at 200 CSS pixels.
+    // Screenshot fallback supplies only the visible 200px crop.
+    naturalWidth = 400; naturalHeight = 400; currentSrc = 'manga.png'; isConnected = true;
+    decode() { if (this.src === 'visible-crop') this.naturalWidth = this.naturalHeight = 200; return Promise.resolve(); }
     getBoundingClientRect() { return this.rect || (fallback
       ? { left: -100, top: -100, right: 300, bottom: 300, width: 400, height: 400 }
       : { left: 100, top: 100, right: 100 + 200 * zoom, bottom: 100 + 200 * zoom, width: 200 * zoom, height: 200 * zoom }); }
@@ -598,8 +608,15 @@ function mangaScanHarness({ recover = false, fallback = false, uncertain = false
         if (delayed) await new Promise(resolve => { release = resolve; });
         return { type: 'MANGA_OCR_BATCH_RESULT', payload: message.payload.crops.map((crop, index) => ({
           id: crop.id, bbox: crop.bbox, transform: crop.transform, text: index ? '別の台詞' : '日本語', confidence: uncertain ? 12 : 90, orientation: 'vertical',
-          lines: cropLines ? cropLines(crop, index) : uncertain ? [] : [{ text: index ? '別の台詞' : '日本語', confidence: 90, orientation: 'vertical',
-            bbox: { x0: 10, y0: 10, x1: Math.min(30, crop.width - 10), y1: Math.min(110, crop.height - 10) } }],
+          lines: (cropLines ? cropLines(crop, index) : uncertain ? [] : [{ text: index ? '別の台詞' : '日本語', confidence: 90, orientation: 'vertical',
+            bbox: { x0: 10, y0: 10, x1: 30, y1: 110 } }]).map(line => ({ ...line, bbox: {
+              // Recognition sees the scaled crop; fixture bounds above use
+              // original crop pixels plus the fixed 10px border.
+              x0: 10 + (line.bbox.x0 - 10) * crop.transform.scale,
+              y0: 10 + (line.bbox.y0 - 10) * crop.transform.scale,
+              x1: Math.min(crop.width - 10, 10 + (line.bbox.x1 - 10) * crop.transform.scale),
+              y1: Math.min(crop.height - 10, 10 + (line.bbox.y1 - 10) * crop.transform.scale),
+            } })),
         })) };
       }
       return { type: 'MANGA_OCR_RESULT', payload: { text: '', orientation: 'vertical', lines: recover ? [{

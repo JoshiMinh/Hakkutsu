@@ -89,15 +89,20 @@ interface SrsDBSchema extends DBSchema {
 
 class LocalSrsService {
   private dbName = "hakkutsu-srs";
-  private dbPromise: Promise<IDBPDatabase<SrsDBSchema>>;
+  private connection?: Promise<IDBPDatabase<SrsDBSchema>>;
 
-  constructor() {
-    this.dbPromise = openDB<SrsDBSchema>(this.dbName, 1, {
+  // Defer storage access until a card operation; importing this service in a
+  // restricted image document must not abort the OCR content script.
+  private get dbPromise(): Promise<IDBPDatabase<SrsDBSchema>> {
+    return this.connection ??= Promise.resolve().then(() => openDB<SrsDBSchema>(this.dbName, 1, {
       upgrade(db) {
         const store = db.createObjectStore("cards", { keyPath: "id" });
         store.createIndex("by-due-date", "due_date");
         store.createIndex("by-created-at", "created_at");
       },
+    })).catch((error) => {
+      this.connection = undefined;
+      throw error;
     });
   }
 

@@ -21,14 +21,19 @@ export function formatLocalDateKey(date: Date = new Date()): string {
 
 export class AnalyticsService {
   private dbName = "hakkutsu-analytics";
-  private dbPromise: Promise<IDBPDatabase<AnalyticsDBSchema>>;
+  private connection?: Promise<IDBPDatabase<AnalyticsDBSchema>>;
 
-  constructor() {
-    this.dbPromise = openDB<AnalyticsDBSchema>(this.dbName, 1, {
+  // Content scripts also import this service. Image documents can deny IDB,
+  // so opening storage must not prevent unrelated UI from mounting.
+  private get dbPromise(): Promise<IDBPDatabase<AnalyticsDBSchema>> {
+    return this.connection ??= Promise.resolve().then(() => openDB<AnalyticsDBSchema>(this.dbName, 1, {
       upgrade(db) {
         const store = db.createObjectStore("daily_activity", { keyPath: "date" });
         store.createIndex("by-date", "date");
       },
+    })).catch((error) => {
+      this.connection = undefined;
+      throw error;
     });
   }
 

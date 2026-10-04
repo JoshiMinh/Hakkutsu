@@ -8,6 +8,8 @@ export interface DetectedDialogueRegion {
   orientation: "vertical" | "horizontal";
   confidence?: number;
   orientationAmbiguous?: boolean;
+  textSize?: number;
+  textColumn?: boolean;
   type: "bubble" | "text-cluster";
 }
 
@@ -98,6 +100,8 @@ export function detectMangaDialogueRegions(
     y1: number;
     orientation: "vertical" | "horizontal";
     orientationAmbiguous?: boolean;
+    textSize?: number;
+    refinedColumn?: boolean;
     type: "bubble" | "text-cluster";
   };
 
@@ -108,7 +112,7 @@ export function detectMangaDialogueRegions(
   const inkVisited = new Uint8Array(width * height);
   const textInk = new Uint8Array(width * height);
   const inkQueue = new Int32Array(width * height);
-  const glyphs: Array<{ x0: number; y0: number; x1: number; y1: number }> = [];
+  const glyphs: Array<{ x0: number; y0: number; x1: number; y1: number; area: number }> = [];
   for (let seed = 0; seed < gray.length; seed++) {
     if (gray[seed] > 125 || inkVisited[seed]) continue;
     let head = 0, tail = 1;
@@ -131,7 +135,7 @@ export function detectMangaDialogueRegions(
     // frames remain excluded by their full connected-component extent.
     if (tail < 5 || w > 72 || h > 72 || Math.max(w, h) > Math.min(w, h) * 24) continue;
     for (let i = 0; i < tail; i++) textInk[inkQueue[i]] = 1;
-    glyphs.push({ x0, y0, x1: x1 + 1, y1: y1 + 1 });
+    glyphs.push({ x0, y0, x1: x1 + 1, y1: y1 + 1, area: tail });
   }
 
   // =========================================================================
@@ -249,6 +253,7 @@ export function detectMangaDialogueRegions(
       const cy1 = Math.min(by1, ty1 + padY);
 
       const orientation = inferTextOrientation(gray, width, { x0: tx0, y0: ty0, x1: tx1 + 1, y1: ty1 + 1 });
+      const textSizes = enclosedGlyphs.map(g => Math.max(g.x1 - g.x0, g.y1 - g.y0)).sort((a, b) => a - b);
       rawCandidates.push({
         x0: Math.max(0, Math.floor(cx0 * scale)),
         y0: Math.max(0, Math.floor(cy0 * scale)),
@@ -256,6 +261,7 @@ export function detectMangaDialogueRegions(
         y1: Math.min(pixels.height, Math.ceil((cy1 + 1) * scale)),
         orientation: orientation || (ty1 - ty0 >= (tx1 - tx0) * .85 ? "vertical" : "horizontal"),
         orientationAmbiguous: !orientation,
+        textSize: textSizes[Math.floor(textSizes.length * .75)] * scale,
         type: "bubble",
       });
     }
@@ -265,6 +271,57 @@ export function detectMangaDialogueRegions(
   // Pass 2: High-Precision Floating Text-Stroke Clustering (for Borderless Text)
   // =========================================================================
   if (includeBorderlessText) {
+    // A regular column of detached glyphs is stronger crop evidence than a
+    // dilated stroke rectangle, which can bridge into clouds or facial lines.
+    // Work at detection resolution; enlarge only these crops for recognition.
+    const columnGlyphs = glyphs.filter(g => {
+      const w = g.x1 - g.x0, h = g.y1 - g.y0;
+      return w >= 4 && h >= 4 && w <= 48 && h <= 48 &&
+        w / h >= .4 && w / h <= 2 && g.area / (w * h) < .85;
+    });
+    const columns: CandidateBox[] = [];
+    for (const seed of columnGlyphs) {
+      const size = Math.max(seed.x1 - seed.x0, seed.y1 - seed.y0);
+      const center = (seed.x0 + seed.x1) / 2;
+      const aligned = columnGlyphs.filter(g => {
+        const w = g.x1 - g.x0, h = g.y1 - g.y0;
+        return Math.abs((g.x0 + g.x1) / 2 - center) <= size * .4 &&
+          w >= size * .4 && w <= size * 1.5 && h >= size * .4 && h <= size * 1.5;
+      }).sort((a, b) => a.y0 - b.y0);
+      const runs: typeof aligned[] = [];
+      for (const glyph of aligned) {
+        const run = runs[runs.length - 1];
+        if (run && glyph.y0 - Math.max(...run.map(g => g.y1)) <= size * 1.2) run.push(glyph);
+        else runs.push([glyph]);
+      }
+      for (const run of runs) {
+        if (run.length < 4) continue;
+        const x0 = Math.min(...run.map(g => g.x0)), x1 = Math.max(...run.map(g => g.x1));
+        // Larger dialogue already has reliable bubble/stroke crops. Refining
+        // those can split a tall sign at its narrow prolonged sound mark.
+        if ((x1 - x0) * scale > 24) continue;
+        let y0 = run[0].y0, y1 = Math.max(...run.map(g => g.y1));
+        if (y1 - y0 < Math.max(size * 3, (x1 - x0) * 2.5)) continue;
+        // Keep detached dots, question marks and short prolonged marks at the
+        // column ends; they need not have a full character-sized component.
+        const marks = glyphs.filter(g => g.x0 >= x0 - size * .2 && g.x1 <= x1 + size * .2 &&
+          g.y0 >= y0 - size && g.y1 <= y1 + size && g.y1 - g.y0 <= size * 1.5);
+        y0 = Math.min(y0, ...marks.map(g => g.y0));
+        y1 = Math.max(y1, ...marks.map(g => g.y1));
+        const b = { x0: Math.floor(x0 * scale), y0: Math.floor(y0 * scale),
+          x1: Math.min(pixels.width, Math.ceil(x1 * scale)), y1: Math.min(pixels.height, Math.ceil(y1 * scale)) };
+        const covered = (other: CandidateBox) => {
+          const ox = Math.max(0, Math.min(other.x1, b.x1) - Math.max(other.x0, b.x0));
+          const oy = Math.max(0, Math.min(other.y1, b.y1) - Math.max(other.y0, b.y0));
+          return ox * oy / ((b.x1 - b.x0) * (b.y1 - b.y0)) > .7;
+        };
+        if (rawCandidates.some(covered) || columns.some(covered)) continue;
+        columns.push({ ...b, orientation: "vertical", type: "text-cluster", refinedColumn: true,
+          textSize: (x1 - x0) * scale });
+      }
+    }
+    rawCandidates.push(...columns);
+
     const strokeMask = new Uint8Array(width * height);
     for (let y = 1; y < height - 1; y++) {
       const rowOffset = y * width;
@@ -437,7 +494,13 @@ export function detectMangaDialogueRegions(
   const validBoxes = rawCandidates.filter((b) => {
     const w = b.x1 - b.x0;
     const h = b.y1 - b.y0;
-    if (w < 16 || h < 16) return false;
+    if (w < (b.refinedColumn ? 4 : 16) || h < 16) return false;
+    if (b.type === "text-cluster" && !b.refinedColumn && rawCandidates.some(column => {
+      if (!column.refinedColumn || column.orientation !== b.orientation) return false;
+      const ox = Math.max(0, Math.min(column.x1, b.x1) - Math.max(column.x0, b.x0));
+      const oy = Math.max(0, Math.min(column.y1, b.y1) - Math.max(column.y0, b.y0));
+      return ox * oy / ((column.x1 - column.x0) * (column.y1 - column.y0)) > .7;
+    })) return false;
     // Page numbers / edge markings
     if (b.y1 > pixels.height - edgeMarginY && h < 35 && w < 100) return false;
     if (b.y0 < edgeMarginY && h < 35 && w < 100) return false;
@@ -455,7 +518,7 @@ export function detectMangaDialogueRegions(
       const overlapArea = ox * oy;
       const minArea = Math.min((m.x1 - m.x0) * (m.y1 - m.y0), (box.x1 - box.x0) * (box.y1 - box.y0));
       // Distinct white components must never join through overlapping rectangles.
-      if (m.type === "bubble" && box.type === "bubble") return false;
+      if ((m.type === "bubble" && box.type === "bubble") || m.refinedColumn || box.refinedColumn) return false;
       const unionArea = (Math.max(m.x1, box.x1) - Math.min(m.x0, box.x0)) *
         (Math.max(m.y1, box.y1) - Math.min(m.y0, box.y0));
       return unionArea < pixels.width * pixels.height * maxBubbleAreaFraction &&
@@ -493,6 +556,8 @@ export function detectMangaDialogueRegions(
     bbox: { x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1 },
     orientation: box.orientation,
     orientationAmbiguous: box.orientationAmbiguous,
+    textSize: box.textSize,
+    textColumn: box.refinedColumn,
     type: box.type,
   }));
 }

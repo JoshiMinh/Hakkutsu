@@ -8,7 +8,7 @@ export function assembleOcrRegions(primary: OcrFragment[], recovered: OcrFragmen
   const crop = validateOcrFragments(primary, options);
   const page = validateOcrFragments(recovered, options);
   const lines = new Map<string, OcrFragment[]>();
-  for (const fragment of page) if (fragment.lineId && fragment.evidence) {
+  for (const fragment of [...crop, ...page]) if (fragment.lineId && fragment.evidence) {
     const key = `${fragment.evidence.passId}:${fragment.lineId}`;
     lines.set(key, [...(lines.get(key) || []), fragment]);
   }
@@ -26,8 +26,15 @@ export function assembleOcrRegions(primary: OcrFragment[], recovered: OcrFragmen
     return (fragment.confidence || 0) * Math.max(coherence([fragment], fragment.orientation),
       members ? coherence(members, fragment.orientation) : 0);
   };
-  page.sort((a, b) => score(b) - score(a) ||
-    (b.confidence || 0) - (a.confidence || 0) || a.bbox.y0 - b.bbox.y0 || a.bbox.x0 - b.bbox.x0);
-  const fragments = mergeOcrFragments(crop, page, options.diagnostics);
+  const rank = (a: OcrFragment, b: OcrFragment) => score(b) - score(a) ||
+    (b.confidence || 0) - (a.confidence || 0) || a.bbox.y0 - b.bbox.y0 || a.bbox.x0 - b.bbox.x0;
+  crop.sort(rank);
+  page.sort(rank);
+  const fragments = mergeOcrFragments(mergeOcrFragments([], crop, options.diagnostics), page, options.diagnostics);
   return resolveOcrRegionOverlaps(groupOcrRegions(fragments, { ...options, validated: true }), options);
+}
+
+/** Empty output is not proof that the detector found no speech bubbles. */
+export function classifyOcrFailure(detectedCount: number, recognizedText: boolean): "ocr_rejected_text" | "ocr_unreadable_text" | "ocr_no_text_hint" {
+  return recognizedText ? "ocr_rejected_text" : detectedCount ? "ocr_unreadable_text" : "ocr_no_text_hint";
 }

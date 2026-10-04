@@ -11,15 +11,16 @@ async function scanFixture(runtime, manifestPath, { selection, diagnostics, scal
   const image = await sharp(imagePath).resize(Math.round(manifest.width * scale), Math.round(manifest.height * scale)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const pixels = { data: new Uint8ClampedArray(image.data), width: image.info.width, height: image.info.height };
   const selected = selection ? bounds(selection.bbox.map(value => Math.round(value * scale))) : { x0: 0, y0: 0, x1: pixels.width, y1: pixels.height };
-  const rawCrop = async (b, padding) => {
+  const rawCrop = async (b, padding, cropScale = 1) => {
     const { data, info } = await sharp(image.data, { raw: { width: pixels.width, height: pixels.height, channels: 4 } })
       .extract({ left: b.x0, top: b.y0, width: b.x1 - b.x0, height: b.y1 - b.y0 })
+      .resize(Math.round((b.x1 - b.x0) * cropScale), Math.round((b.y1 - b.y0) * cropScale))
       .extend({ top: padding, bottom: padding, left: padding, right: padding, background: 'white' }).raw().toBuffer({ resolveWithObject: true });
     const output = new Uint8ClampedArray(data);
     if (preprocess) runtime.cropper.applyMangaPreprocess({ getImageData: () => ({ data: output }), putImageData() {} }, info.width, info.height);
     const png = await sharp(Buffer.from(output), { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
     return { dataUrl: `data:image/png;base64,${png.toString('base64')}`, width: info.width, height: info.height,
-      bbox: b, transform: { originX: b.x0, originY: b.y0, scale: 1, padding } };
+      bbox: b, transform: { originX: b.x0, originY: b.y0, scale: cropScale, padding } };
   };
   const local = await sharp(image.data, { raw: { width: pixels.width, height: pixels.height, channels: 4 } })
     .extract({ left: selected.x0, top: selected.y0, width: selected.x1 - selected.x0, height: selected.y1 - selected.y0 }).raw().toBuffer();
@@ -33,8 +34,8 @@ async function scanFixture(runtime, manifestPath, { selection, diagnostics, scal
   }));
   const crops = await Promise.all(detected.map(async region => {
     const b = region.bbox;
-    return { ...await rawCrop(b, 10), id: `${manifest.id}:${selection?.id || 'page'}:${region.id}`, orientation: 'auto',
-      orientationHint: region.orientationAmbiguous ? undefined : region.orientation };
+    return { ...await rawCrop(b, 10, runtime.cropper.ocrCropScale(b.x1 - b.x0, b.y1 - b.y0, region.textSize)), id: `${manifest.id}:${selection?.id || 'page'}:${region.id}`, orientation: 'auto', adaptiveThreshold: preprocess,
+      orientationHint: region.orientationAmbiguous ? undefined : region.orientation, textColumn: region.textColumn };
   }));
   if (selection && !crops.length) crops.push({ ...await rawCrop(selected, 10), id: `${manifest.id}:${selection.id}:manual`, orientation: 'auto' });
   diagnostics?.({ stage: 'grouping', reason: 'detected-crops', details: { crops: crops.map(({ dataUrl, ...crop }) => crop), selection, scale, preprocess } });

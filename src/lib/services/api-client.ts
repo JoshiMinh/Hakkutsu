@@ -50,6 +50,7 @@ function mapRawTokenToAnalysis(t: any): TokenAnalysis {
     surface,
     dictionary_form,
     reading,
+    dictionary_reading: typeof t.dictionary_reading === "string" ? t.dictionary_reading : undefined,
     pos: t.pos || "word",
     pos_detail: Array.isArray(t.pos_detail) ? t.pos_detail : [],
     is_japanese: typeof t.is_japanese === "boolean" ? t.is_japanese : containsJapanese(surface),
@@ -181,11 +182,11 @@ class ApiClient {
   /** Translate and deeply analyze a user-selected subtitle phrase */
   async analyzePhrase(request: AnalyzeRequest): Promise<PhraseAnalyzeResponse> {
     const targetLang = useSettingsStore.getState().settings.targetLanguage || "vi";
-    const cacheKey = `${targetLang}:${request.text.trim()}`;
+    const cacheKey = `${targetLang}:${request.source || "text"}:${request.text.trim()}`;
     const cached = this.phraseCache.get(cacheKey);
     if (cached) return cached;
 
-    const llmResult = await llmService.analyzeText(request.text, true, targetLang);
+    const llmResult = await llmService.analyzeText(request.text, true, targetLang, request.source === "ocr");
     
     const tokens: TokenAnalysis[] = llmResult.tokens?.map(mapRawTokenToAnalysis) || [];
 
@@ -207,7 +208,7 @@ class ApiClient {
     }
     this.phraseCache.set(cacheKey, response);
     this.analyzeCache.set(
-      `${targetLang}:${JSON.stringify({ text: request.text, include_definitions: true })}`,
+      `${targetLang}:${JSON.stringify({ text: request.text, include_definitions: true, ...(request.source ? { source: request.source } : {}) })}`,
       response
     );
     return response;

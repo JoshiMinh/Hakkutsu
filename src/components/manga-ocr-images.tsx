@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Loader2, ScanText, Crop } from "lucide-react";
-import { cropViewportBox, cropCanvasRegion } from "~lib/services/image-cropper";
+import { Loader2, ScanText, Crop, X } from "lucide-react";
+import { cropViewportBox, cropCanvasRegion, ocrCropScale } from "~lib/services/image-cropper";
 import { detectMangaDialogueRegions } from "~lib/services/ocr-bubbles";
 import { canvasToImage, imageToCanvas, mapCropFragments, transformOcrFragment, overlapFraction, ocrDisplayBounds, resolveOcrDisplayOverlaps, type ImageMapping, type Bounds } from "~lib/services/ocr-geometry";
 import { resolveOcrRegionOverlaps, type OcrTextRegion } from "~lib/services/ocr-regions";
-import { assembleOcrRegions } from "~lib/services/ocr-pipeline";
+import { assembleOcrRegions, classifyOcrFailure } from "~lib/services/ocr-pipeline";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
 import type { OcrCropItem, OcrCropResult, OcrExecutionResult, OcrFragment } from "~lib/services/ocr-engine";
@@ -28,10 +28,13 @@ const sourceBounds = (b: Bounds, m: ImageMapping): Bounds => ({
   x1: (b.x1 - m.x) / m.width * m.canvasWidth, y1: (b.y1 - m.y) / m.height * m.canvasHeight,
 });
 
+const standaloneImage = (): HTMLImageElement | null =>
+  document.contentType.startsWith("image/") ? document.images[0] ?? null : null;
+
 export function MangaOcrImages() {
   const { settings } = useSettingsStore();
   const { t } = useTranslation();
-  const [hoveredImage, setHoveredImage] = useState<HTMLImageElement | null>(null);
+  const [hoveredImage, setHoveredImage] = useState<HTMLImageElement | null>(standaloneImage);
   const [scans, setScans] = useState<ScannedImage[]>([]);
   const scansRef = useRef<ScannedImage[]>([]);
   scansRef.current = scans;
@@ -61,26 +64,33 @@ export function MangaOcrImages() {
         )
       ) {
         if (!isSelectingRef.current) {
-          setHoveredImage(null);
+          setHoveredImage(standaloneImage());
         }
       }
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        setError(null);
         setIsSelectingBox(false);
         setDragBox(null);
       }
     };
 
     const onLayout = () => setLayoutVersion((version) => version + 1);
+    const onImageLoad = () => {
+      const image = standaloneImage();
+      if (image) { setHoveredImage(image); onLayout(); }
+    };
     document.addEventListener("mousemove", onMove, true);
+    document.addEventListener("load", onImageLoad, true);
     document.addEventListener("keydown", onKeyDown);
     window.addEventListener("scroll", onLayout, true);
     window.addEventListener("resize", onLayout);
 
     return () => {
       document.removeEventListener("mousemove", onMove, true);
+      document.removeEventListener("load", onImageLoad, true);
       document.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("scroll", onLayout, true);
       window.removeEventListener("resize", onLayout);
@@ -90,8 +100,12 @@ export function MangaOcrImages() {
   // Readers can move or resize images without a window resize/scroll event.
   // Reproject only when their layout changes, including animated lightboxes.
   useEffect(() => {
-    if (!scans.length || typeof cancelAnimationFrame !== "function") return;
-    const layout = () => scans.map(({ image, src }) => {
+    if ((!scans.length && !hoveredImage) || typeof cancelAnimationFrame !== "function") return;
+    const tracked = scans.map(({ image, src }) => ({ image, src }));
+    if (hoveredImage && !tracked.some(({ image }) => image === hoveredImage)) {
+      tracked.push({ image: hoveredImage, src: hoveredImage.currentSrc });
+    }
+    const layout = () => tracked.map(({ image, src }) => {
       if (!image.isConnected || image.currentSrc !== src) return "detached";
       const r = image.getBoundingClientRect();
       return `${r.left}:${r.top}:${r.width}:${r.height}`;
@@ -105,7 +119,7 @@ export function MangaOcrImages() {
     };
     frame = requestAnimationFrame(follow);
     return () => cancelAnimationFrame(frame);
-  }, [scans]);
+  }, [scans, hoveredImage]);
 
   /**
    * Loads the full-resolution image canvas or screen crop.
@@ -128,7 +142,7 @@ export function MangaOcrImages() {
         const original = new Image();
         original.src = response.payload.dataUrl;
         await original.decode();
-        const scale = Math.min(2, 4096 / Math.max(original.naturalWidth, original.naturalHeight));
+        const scale = Math.min(1, 4096 / Math.max(original.naturalWidth, original.naturalHeight));
         const canvas = document.createElement("canvas");
         canvas.width = Math.max(1, Math.round(original.naturalWidth * scale));
         canvas.height = Math.max(1, Math.round(original.naturalHeight * scale));
@@ -192,7 +206,7 @@ export function MangaOcrImages() {
   };
 
   /** Both selection paths use original pixels for geometry and attachments. */
-  const recognizeRegions = async (prepared: PreparedImage, scanId: number, manual: boolean, selection?: Bounds): Promise<{ regions: OcrTextRegion[]; pixels: ImageData }> => {
+  const recognizeRegions = async (prepared: PreparedImage, scanId: number, manual: boolean, selection?: Bounds) => {
     const { canvas } = prepared;
     const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) throw new Error("Could not acquire 2D canvas context");
@@ -213,17 +227,20 @@ export function MangaOcrImages() {
       ...region, bbox: { x0: region.bbox.x0 + scanBox.x0, y0: region.bbox.y0 + scanBox.y0,
         x1: region.bbox.x1 + scanBox.x0, y1: region.bbox.y1 + scanBox.y0 },
     }));
-    const makeCrop = (b: Bounds, index: number, orientationHint?: "vertical" | "horizontal"): OcrCropItem => {
+    const makeCrop = (b: Bounds, index: number, orientationHint?: "vertical" | "horizontal", textSize?: number, textColumn = false): OcrCropItem => {
       const crop = cropCanvasRegion(canvas, {
         x: b.x0, y: b.y0, width: b.x1 - b.x0, height: b.y1 - b.y0,
-      }, settings.ocrPreprocessEnabled !== false, { padding: 10 });
+      }, settings.ocrPreprocessEnabled !== false, { padding: 10,
+        scale: ocrCropScale(b.x1 - b.x0, b.y1 - b.y0, textSize) });
       return {
         id: `${scanId}:${index}`, dataUrl: crop.dataUrl,
         width: crop.canvas.width, height: crop.canvas.height, bbox: b, transform: crop.transform,
         orientation: settings.ocrDefaultOrientation || "auto", orientationHint,
+        adaptiveThreshold: settings.ocrPreprocessEnabled !== false,
+        textColumn,
       };
     };
-    const crops = detected.map((region, index) => makeCrop(region.bbox, index, region.orientationAmbiguous ? undefined : region.orientation));
+    const crops = detected.map((region, index) => makeCrop(region.bbox, index, region.orientationAmbiguous ? undefined : region.orientation, region.textSize, region.textColumn));
     // A tight sign or sound-effect selection may be too small for automatic
     // detection. It still needs crop segmentation instead of page segmentation.
     if (manual && !crops.length) {
@@ -231,11 +248,15 @@ export function MangaOcrImages() {
     }
     const options = { pixels, manual, automatic: !manual };
     let fragments: OcrFragment[] = [];
+    let recognizedText = false;
+    let cropFailed = false;
     if (crops.length) {
       setStatusMessage(`${t("ocr_scanning")} (${crops.length})`);
       const response = await chrome.runtime.sendMessage({ type: "RUN_MANGA_OCR_BATCH", payload: { crops } });
       if (response?.type === "MANGA_OCR_BATCH_RESULT" && Array.isArray(response.payload)) {
+        cropFailed = response.payload.length > 0 && response.payload.every((result: OcrCropResult) => result.error);
         fragments = (response.payload as OcrCropResult[]).flatMap(result => {
+          recognizedText ||= /[\u3040-\u30ff\u3400-\u9fff]/u.test(result.text || "");
           const crop = crops.find(c => c.id === result.id);
           if (!crop) return [];
           // Manual selection may expose a low-confidence transcription even
@@ -247,7 +268,7 @@ export function MangaOcrImages() {
           }] : [];
           return mapCropFragments(lines, crop);
         });
-      }
+      } else cropFailed = true;
     }
 
     // Recover uncovered text once, even when some detected crops succeeded.
@@ -263,22 +284,27 @@ export function MangaOcrImages() {
     let recovered: OcrFragment[] = [];
     if (response?.type === "MANGA_OCR_RESULT") {
       const result = response.payload as OcrExecutionResult;
+      recognizedText ||= /[\u3040-\u30ff\u3400-\u9fff]/u.test(result.text || "");
       const lines = result.lines?.length ? result.lines : manual && !fragments.length && result.text?.trim() ? [{
         text: result.text.trim(), orientation: result.orientation, confidence: result.confidence,
         bbox: { x0: 0, y0: 0, x1: full.canvas.width, y1: full.canvas.height },
       }] : [];
       recovered = mapCropFragments(lines, { id: `${scanId}:page`, bbox: scanBox, dataUrl: full.dataUrl,
         width: full.canvas.width, height: full.canvas.height, transform: full.transform });
+      if (cropFailed && !fragments.length && !recovered.length && !recognizedText) {
+        throw new Error(t("ocr_recognition_failed"));
+      }
     } else if (!fragments.length) {
-      throw new Error(response?.payload?.error || t("ocr_no_text"));
+      throw new Error(t("ocr_recognition_failed"));
     }
+    recognizedText ||= fragments.length > 0 || recovered.length > 0;
     const regions = assembleOcrRegions(fragments, recovered, options);
     regions.sort((a, b) => {
       const overlapY = Math.min(a.bbox.y1, b.bbox.y1) - Math.max(a.bbox.y0, b.bbox.y0);
       return overlapY > Math.min(a.bbox.y1 - a.bbox.y0, b.bbox.y1 - b.bbox.y0) * .5
         ? b.bbox.x0 - a.bbox.x0 : a.bbox.y0 - b.bbox.y0;
     });
-    return { regions, pixels };
+    return { regions, pixels, failure: classifyOcrFailure(detected.length, recognizedText) };
   };
 
   const scan = async (image: HTMLImageElement, selection?: Bounds) => {
@@ -310,7 +336,7 @@ export function MangaOcrImages() {
       const recognition = await recognizeRegions(prepared, ++scanIdRef.current, Boolean(selection), selectionBounds);
       let regions = recognition.regions;
       if (!image.isConnected || image.currentSrc !== source) return;
-      if (!regions.length) throw new Error(t("ocr_no_text_hint"));
+      if (!regions.length) throw new Error(t(recognition.failure));
       const previous = scansRef.current.find(item => item.image === image && item.src === source);
       const outside = selectedArea ? (previous?.highlights || []).filter(h =>
           overlapFraction({ x0: h.x, y0: h.y, x1: h.x + h.width, y1: h.y + h.height }, {
@@ -386,6 +412,7 @@ export function MangaOcrImages() {
     imageRect.right > 0 &&
     imageRect.top < window.innerHeight &&
     imageRect.left < window.innerWidth;
+  const emptyResult = [t("ocr_no_text_hint"), t("ocr_unreadable_text"), t("ocr_rejected_text")].includes(error || "");
 
   // Handle Drag-to-Select interaction directly on image or overlay
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -491,7 +518,7 @@ export function MangaOcrImages() {
               gap: 5,
               borderRadius: 7,
               border: "1px solid rgba(255,255,255,.35)",
-              background: error ? "#7f1d1d" : "#141418",
+              background: error && !emptyResult ? "#7f1d1d" : "#141418",
               color: "white",
               font: "600 12px system-ui",
               boxShadow: "0 2px 10px rgba(0,0,0,.5)",
@@ -507,7 +534,8 @@ export function MangaOcrImages() {
             data-hakkutsu-manga-ocr="true"
             title={t("ocr_select_box_hint")}
             aria-label={t("ocr_btn_select_box")}
-            onClick={() => setIsSelectingBox((prev) => !prev)}
+            onClick={() => { setError(null); setIsSelectingBox((prev) => !prev); }}
+            aria-pressed={isSelectingBox}
             disabled={busyImage !== null}
             style={{
               cursor: busyImage !== null ? "default" : "pointer",
@@ -533,23 +561,36 @@ export function MangaOcrImages() {
       {showControls && error && !capturingRef.current && (
         <div
           data-hakkutsu-manga-ocr="true"
+          role={emptyResult ? "status" : "alert"}
           style={{
             position: "fixed",
             zIndex: 2147483646,
-            pointerEvents: "none",
+            pointerEvents: "auto",
             top: Math.max(8, imageRect.top + 46),
             left: Math.max(8, Math.min(window.innerWidth - 300, imageRect.right - 300)),
-            maxWidth: 290,
+            boxSizing: "border-box",
+            maxWidth: Math.min(290, window.innerWidth - 16),
             padding: "7px 10px",
             borderRadius: 7,
-            background: "#7f1d1d",
+            background: emptyResult ? "#1e1e24" : "#7f1d1d",
             color: "white",
             font: "12px system-ui",
             boxShadow: "0 4px 12px rgba(0,0,0,.6)",
             lineHeight: 1.4,
           }}
         >
-          {error}
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <span style={{ flex: 1 }}>{error}</span>
+            <button type="button" aria-label={t("dict_btn_close")} title={t("dict_btn_close")}
+              onClick={() => setError(null)} style={{ display: "flex", padding: 2, border: 0,
+                background: "transparent", color: "inherit", cursor: "pointer" }}><X size={14} /></button>
+          </div>
+          <button type="button" onClick={() => { setError(null); setIsSelectingBox(true); }}
+            disabled={busyImage !== null} style={{ display: "flex", alignItems: "center", gap: 5,
+              marginTop: 8, padding: "5px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,.35)",
+              background: "transparent", color: "inherit", font: "600 12px system-ui", cursor: "pointer" }}>
+            <Crop size={14} />{t("ocr_btn_select_box")}
+          </button>
         </div>
       )}
 

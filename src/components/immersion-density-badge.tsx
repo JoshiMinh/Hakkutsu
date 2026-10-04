@@ -39,7 +39,7 @@ export function ImmersionDensityBadge() {
   }, []);
 
   useEffect(() => {
-    if (settings.webpageDensityBadgeEnabled === false) {
+    if (settings.webpageDensityBadgeEnabled === false || document.contentType.startsWith("image/")) {
       setHidden(true);
       return;
     }

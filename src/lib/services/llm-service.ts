@@ -2,7 +2,7 @@ import { useSettingsStore } from "~lib/utils/settings";
 import type { ExtensionSettings, WebTranslateResponse } from "~lib/utils/types";
 import { googleTranslateService } from "./google-translate";
 import { lookupWord, type LookupResult } from "./dictionary-lookup";
-import { katakanaToHiragana, containsJapanese, hasKanji, romajiToHiragana, segmentJapaneseTokens } from "~lib/utils/japanese";
+import { katakanaToHiragana, containsJapanese, hasKanji, romajiToHiragana, segmentJapaneseTokens, deriveInflectedReading } from "~lib/utils/japanese";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { tokenize } from "./local-tokenizer";
@@ -31,13 +31,13 @@ class LlmService {
     return state.settings;
   }
 
-  async analyzeText(text: string, isPhrase: boolean = false, targetLang: string = "vi"): Promise<any> {
+  async analyzeText(text: string, isPhrase: boolean = false, targetLang: string = "vi", dictionaryAware = false): Promise<any> {
     const cleanText = text.trim();
     // 1. Start Google Translate for sentence translation in parallel
     const translationPromise = googleTranslateService.translate(cleanText, targetLang, "ja");
 
     // 2. Direct whole-word dictionary match check for single terms (e.g. "好き", "お知らせ")
-    if (containsJapanese(cleanText) && cleanText.length <= 16 && !/[\s\u3000、。！？!?…]/u.test(cleanText)) {
+    if (!dictionaryAware && containsJapanese(cleanText) && cleanText.length <= 16 && !/[\s\u3000、。！？!?…]/u.test(cleanText)) {
       try {
         const directDict = await lookupWord(cleanText, targetLang);
         if (directDict && directDict.meaning && directDict.meaning.trim().length > 0) {
@@ -64,15 +64,16 @@ class LlmService {
     
     // 3. Local Kuromoji Tokenizer + Dictionary Lookup
     try {
-      let tokenList: Array<{ surface: string; base_form: string; reading?: string; pos?: string }> = [];
+      let tokenList: Array<{ surface: string; base_form: string; reading?: string; dictionary_reading?: string; pos?: string }> = [];
 
       try {
-        const kTokens = await tokenize(text);
+        const kTokens = await tokenize(text, { dictionaryAware });
         if (kTokens && kTokens.length > 0) {
           tokenList = kTokens.map(t => ({
             surface: t.surface_form,
             base_form: t.base_form || t.surface_form,
             reading: t.reading,
+            dictionary_reading: t.dictionary_reading,
             pos: t.pos
           }));
         }
@@ -93,7 +94,11 @@ class LlmService {
           tokenList.map(async (t) => {
             const surface = t.surface;
             const baseForm = t.base_form || surface;
-            const isJp = containsJapanese(surface);
+            const isJp = dictionaryAware ? /[\u3041-\u3096\u30a1-\u30fa\u3400-\u9fff]/u.test(surface) : containsJapanese(surface);
+            if (dictionaryAware && !isJp) return {
+              surface, reading: "", pos: t.pos || "Punctuation", meaning: "",
+              dictionary_form: surface, is_japanese: false,
+            };
             const hiraganaFromRomaji = !isJp ? romajiToHiragana(surface) : "";
             const searchKey = isJp ? baseForm : (hiraganaFromRomaji !== surface ? hiraganaFromRomaji : baseForm);
 
@@ -106,11 +111,14 @@ class LlmService {
 
             const readingKana = t.reading
               ? katakanaToHiragana(t.reading)
-              : (hasKanji(baseForm) ? (dict.reading || surface) : (dict.reading || hiraganaFromRomaji || surface));
+              : (dictionaryAware && dict.reading && baseForm !== surface
+                ? deriveInflectedReading(surface, baseForm, dict.reading)
+                : hasKanji(baseForm) ? (dict.reading || surface) : (dict.reading || hiraganaFromRomaji || surface));
 
             return {
               surface,
               reading: readingKana,
+              dictionary_reading: t.dictionary_reading || dict.reading || (baseForm === surface ? readingKana : undefined),
               pos: t.pos || "Word",
               meaning: dict.meaning || "",
               dictionary_form: baseForm,

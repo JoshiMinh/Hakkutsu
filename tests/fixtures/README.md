@@ -46,3 +46,11 @@ Windows Chrome installation or `HAKKUTSU_CHROME_PATH`; the browser measurement
 case is skipped when Chrome is unavailable. Local HTML and JSON layout reports
 are written under ignored `test-results/ocr/display/`. Component regressions
 also check moving lightboxes and restoration of retained highlights.
+
+`colored-dialogue.png` is locally authored from `colored-dialogue.json` with
+`generate-colored-dialogue.ps1`. It uses real 16px Yu Gothic text over a colored
+gradient, with nearby curved artwork and a diagonal panel divider. It contains
+no third-party manga artwork. `tests/ocr-colored-fixtures.test.cjs` verifies
+exact transcripts, both speakers, glyph coverage and artwork exclusion at 1x
+and 2x, with preprocessing disabled and with manual selections. It exercises
+the same crop scaling and adaptive-threshold retry as production.

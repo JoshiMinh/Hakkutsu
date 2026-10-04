@@ -24,6 +24,29 @@ function noOverlap(result) {
   for (let i = 0; i < result.length; i++) for (let j = i + 1; j < result.length; j++) assert.equal(intersects(result[i].bbox, result[j].bbox), false);
 }
 
+test('a rejected crop direction cannot discard another direction supported by the original pixels', () => {
+  const c = canvas();
+  for (const y of [30, 52, 74, 96]) c.glyph(120, y);
+  // The higher-confidence horizontal reading extends into a connected frame.
+  for (let y = 0; y < 200; y++) for (let x = 145; x < 151; x++) c.ink(x, y);
+  const correct = fragment('日本語です', 120, 30, 16, 82, 'vertical', 75, 'crop:vertical');
+  const wrong = fragment('日本', 120, 45, 45, 24, 'horizontal', 99, 'crop:horizontal');
+  const result = pipeline.assembleOcrRegions([wrong, correct], [], { pixels: c.pixels, automatic: true });
+  assert.deepEqual(Array.from(result, r => r.text), ['日本語です']);
+});
+
+test('word-bound jitter does not split a vertical phrase before its bridging word is visited', () => {
+  const input = [fragment('何が', 83, 115, 14, 31), fragment('あっ', 84, 151, 12, 31), fragment('た', 83, 187, 13, 14)];
+  assert.deepEqual(Array.from(regions.groupOcrRegions(input), r => r.text), ['何があった']);
+});
+
+test('empty OCR feedback distinguishes detection, unreadable text and rejected readings', () => {
+  assert.equal(pipeline.classifyOcrFailure(0, false), 'ocr_no_text_hint');
+  assert.equal(pipeline.classifyOcrFailure(2, false), 'ocr_unreadable_text');
+  assert.equal(pipeline.classifyOcrFailure(2, true), 'ocr_rejected_text');
+  assert.equal(pipeline.classifyOcrFailure(0, true), 'ocr_rejected_text');
+});
+
 test('page recovery fills a missing column inside an existing passage rectangle', () => {
   const c = canvas();
   for (const x of [60, 90, 120]) for (const y of [30, 52, 74]) c.glyph(x, y);

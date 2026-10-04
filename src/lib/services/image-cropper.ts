@@ -14,6 +14,12 @@ export interface PreprocessOptions {
   threshold?: number; // 0-255, default: adaptive/Otsu
 }
 
+/** Keep page detection at source resolution and resize small text crops only. */
+export function ocrCropScale(width: number, height: number, textSize?: number): number {
+  if (!textSize || !Number.isFinite(textSize) || textSize <= 0) return 1;
+  return Math.max(1, Math.min(3, 24 / textSize, 4096 / Math.max(width, height)));
+}
+
 /**
  * Loads an image from a data URL into an HTMLImageElement.
  */

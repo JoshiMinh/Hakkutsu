@@ -12,7 +12,6 @@ import {
   ExternalLink,
   RefreshCw,
   Trash2,
-  CornerDownLeft,
   Volume2, Settings, PanelRight
 } from "lucide-react";
 
@@ -98,6 +97,8 @@ function TranslateQuickView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const shortcut = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform) ? "⌘+Enter" : "Ctrl+Enter";
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const handleTranslate = useCallback(async (text?: string) => {
     const textToAnalyze = (text ?? inputText).trim();
@@ -151,35 +152,25 @@ function TranslateQuickView() {
   return (
     <div className="hk-content hk-fade-in hk-translate-view">
       <div className="hk-translate-editor">
-        <label className="hk-translate-editor__label" htmlFor="popup-text">{t("popup_tab_translate")}</label>
+        <label className="hk-sr-only" htmlFor="popup-text">{t("popup_input_label")}</label>
         <textarea id="popup-text" rows={4} className="hk-translate-editor__input"
+          ref={inputRef}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder={t("popup_input_placeholder")}
-          aria-label={t("popup_input_placeholder")}
+          aria-describedby="popup-translate-shortcut"
+          spellCheck={false}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
               e.preventDefault();
-              handleTranslate();
+              if (!loading) void handleTranslate();
             }
           }}
         />
 
         <div className="hk-translate-editor__actions">
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{
-              fontSize: "11px",
-              color: "var(--hk-text-muted)",
-              background: "rgba(255, 255, 255, 0.05)",
-              padding: "3px 7px",
-              borderRadius: "4px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              fontWeight: 500
-            }}>
-              <CornerDownLeft size={10} /> Ctrl+Enter
-            </span>
+          <div className="hk-translate-editor__tools">
+            <kbd id="popup-translate-shortcut" className="hk-translate-editor__shortcut">{shortcut}</kbd>
             {inputText && (
               <button
                 type="button"
@@ -189,21 +180,13 @@ function TranslateQuickView() {
                   setResult(null);
                   setError(null);
                   setLoading(false);
+                  inputRef.current?.focus();
                 }}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--hk-text-muted)",
-                  cursor: "pointer",
-                  padding: "4px",
-                  display: "flex",
-                  alignItems: "center",
-                  borderRadius: "4px"
-                }}
-                title="Clear text"
-                aria-label="Clear text"
+                className="hk-translate-editor__clear"
+                title={t("popup_clear_text")}
+                aria-label={t("popup_clear_text")}
               >
-                <Trash2 size={13} />
+                <Trash2 size={15} aria-hidden="true" />
               </button>
             )}
           </div>
@@ -212,10 +195,10 @@ function TranslateQuickView() {
             type="button"
             onClick={() => void handleTranslate()}
             disabled={loading || !inputText.trim()}
-            className="hk-btn hk-btn--primary hk-btn--sm"
+            className="hk-btn hk-btn--primary hk-translate-editor__submit"
           >
-            {loading ? <RefreshCw size={13} className="hk-spin" style={{ marginRight: "4px" }} /> : null} 
-            {t("popup_btn_translate")}
+            {loading ? <RefreshCw size={15} className="hk-spin" aria-hidden="true" /> : <Languages size={15} aria-hidden="true" />}
+            {loading ? t("popup_analyzing") : t("popup_btn_translate")}
           </button>
         </div>
       </div>
@@ -407,16 +390,16 @@ function Popup() {
           <div><div className="hk-brand-title">Hakkutsu</div><div className="hk-popup-brand__subtitle">{t("popup_subtitle")}</div></div>
         </div>
         <div className="hk-popup-header__actions">
-          <button type="button" className="hk-popup-icon" onClick={handleOpenTranscript}
-            aria-label={t("drawer_title")} title={t("drawer_title")}><PanelRight size={17} /></button>
-          <a className="hk-popup-icon" href="https://ko-fi.com/joshiminh" target="_blank" rel="noopener noreferrer" aria-label="Support on Ko-fi" title="Support on Ko-fi">
-            <img src={kofiSvg} alt="" width={18} height={18} />
-          </a>
-          <button type="button" className="hk-popup-icon" onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html?tab=settings") })}
-            aria-label={t("nav_settings")} title={t("nav_settings")}><Settings size={17} /></button>
           <button type="button" className="hk-btn hk-btn--secondary hk-btn--sm" onClick={handleOpenAppTab}>
             {t("popup_btn_app")} <ExternalLink size={13} />
           </button>
+          <button type="button" className="hk-popup-icon" onClick={handleOpenTranscript}
+            aria-label={t("drawer_title")} title={t("drawer_title")}><PanelRight size={17} /></button>
+          <button type="button" className="hk-popup-icon" onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL("options.html?tab=settings") })}
+            aria-label={t("nav_settings")} title={t("nav_settings")}><Settings size={17} /></button>
+          <a className="hk-popup-icon" href="https://ko-fi.com/joshiminh" target="_blank" rel="noopener noreferrer" aria-label="Support on Ko-fi" title="Support on Ko-fi">
+            <img src={kofiSvg} alt="" width={18} height={18} />
+          </a>
         </div>
       </header>
 

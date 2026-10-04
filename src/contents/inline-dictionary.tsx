@@ -457,7 +457,8 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           setOcrCroppedImage(e.detail.imageUrl || null);
           setOcrRegionId(detail.ocrRegionId || null);
           const mode = String(e.detail.mode || "dictionary");
-          const isDeepPhrase = mode === "phrase";
+          const isOcr = Boolean(detail.ocrRegionId);
+          const isDeepPhrase = isOcr || mode === "phrase";
           const selectedIndex = Number.isInteger(e.detail.selectedIndex)
             ? Number(e.detail.selectedIndex)
             : null;
@@ -467,9 +468,10 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           analyzeText(
             e.detail.text,
             isDeepPhrase,
-            mode === "dictionary" || Boolean(e.detail.transient),
+            isOcr || mode === "dictionary" || Boolean(e.detail.transient),
             selectedIndex,
-            mode === "quick" || mode === "dictionary"
+            mode === "quick" || mode === "dictionary",
+            isOcr ? "ocr" : undefined
           );
           window.dispatchEvent(new CustomEvent("hakkutsu:analysis-opened"));
         };
@@ -580,7 +582,8 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
     deepPhraseAnalysis: boolean,
     includeDefinitions = true,
     preferredTokenIndex: number | null = null,
-    useJaviAnalysis = false
+    useJaviAnalysis = false,
+    source?: "ocr"
   ) => {
     const expectedText = text.trim();
     const requestId = ++analysisRequestRef.current;
@@ -595,7 +598,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           ? "ANALYZE_PHRASE"
           : useJaviAnalysis
             ? "ANALYZE_JAVI"
-            : "ANALYZE_TEXT", text, includeDefinitions, settingsRef.current.targetLanguage || "vi");
+            : "ANALYZE_TEXT", text, includeDefinitions, settingsRef.current.targetLanguage || "vi", source);
 
       if (response?.type === "ERROR") {
         throw new Error(response.payload.error);
@@ -621,6 +624,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           (t) => t.surface === expectedText || t.dictionary_form === expectedText
         );
         const firstJpIndex = analyzeResponse.tokens.findIndex((t) => t.is_japanese);
+        const firstDefinedIndex = analyzeResponse.tokens.findIndex((t) => t.is_japanese && t.definitions.length > 0);
 
         if (
           preferredTokenIndex !== null &&
@@ -630,7 +634,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         } else if (matchingTokenIndex !== -1) {
           setSelectedToken(matchingTokenIndex);
         } else if (includeDefinitions && firstJpIndex !== -1) {
-          setSelectedToken(firstJpIndex);
+          setSelectedToken(source === "ocr" && firstDefinedIndex !== -1 ? firstDefinedIndex : firstJpIndex);
         }
       } else {
         throw new Error("Invalid response from background script");
@@ -683,6 +687,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         console.error("Remove card failed", e);
       }
     } else {
+      const wordReading = selectedTokenData.dictionary_reading || selectedTokenData.reading.hiragana;
       const meanings = selectedTokenData.definitions
         .flatMap((d) => d.glosses)
         .join("; ");
@@ -692,8 +697,8 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           type: "ADD_SRS_CARD",
           payload: {
             word,
-            reading: selectedTokenData.reading.hiragana,
-            word_furigana: `${word}[${selectedTokenData.reading.hiragana}]`,
+            reading: wordReading,
+            word_furigana: `${word}[${wordReading}]`,
             meaning: meanings || "—",
             sentence: result?.text,
             sentence_furigana: result?.sentence_reading,
@@ -771,6 +776,14 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
     setSelectedToken(index);
   };
 
+  const reanalyzeOcrText = () => {
+    const text = inputText.trim();
+    if (!text || loading) return;
+    window.dispatchEvent(new CustomEvent("hakkutsu:ocr-region-updated", { detail: { id: ocrRegionId, text } }));
+    setPhraseMode(true);
+    void analyzeText(text, true, true, null, false, "ocr");
+  };
+
   const cardWidth = Math.max(0, Math.min(420, window.innerWidth - 32));
   const usePlayerOverlay = position?.placement === "player-overlay";
 
@@ -784,10 +797,11 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
   const aboveOffset = usePlayerOverlay ? 40 : 24;
   const availableHeightAbove = position ? Math.max(160, position.y - aboveOffset - 16) : 380;
   const availableHeightBelow = position ? Math.max(160, window.innerHeight - position.y - 24) : 380;
+  const maxLookupHeight = ocrRegionId ? 560 : 420;
   const computedMaxHeight = position
     ? placeAbove
-      ? Math.min(420, availableHeightAbove)
-      : Math.min(420, availableHeightBelow)
+      ? Math.min(maxLookupHeight, availableHeightAbove)
+      : Math.min(maxLookupHeight, availableHeightBelow)
     : 380;
 
   const popupStyle: React.CSSProperties = position
@@ -908,11 +922,27 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
 
           {/* Main Scrollable Content */}
           <div className="hk-content" style={{ overflowY: "auto", flex: 1 }}>
-            {ocrRegionId && <div className="hk-dict-section" style={{ whiteSpace: "pre-wrap", userSelect: "text" }}>
-              <label className="hk-dict-label" htmlFor="hk-ocr-text">{t("ocr_edit_hint")}</label>
+            {ocrRegionId && result && !loading && phraseTranslation && (
+              <div className="hk-dict-section hk-dict-section--highlight">
+                <div className="hk-dict-label">{t("dict_label_translation")}</div>
+                <div className="hk-translation-text">{phraseTranslation}</div>
+              </div>
+            )}
+            {ocrRegionId && <details className="hk-ocr-editor" open={!result}>
+              <summary>{t("ocr_edit_hint")}</summary>
+              <p className="hk-ocr-editor__hint">{t("ocr_review_hint")}</p>
+              {ocrCroppedImage && <img className="hk-ocr-editor__image" src={ocrCroppedImage} alt={t("ocr_source_image")} />}
+              <label className="hk-sr-only" htmlFor="hk-ocr-text">{t("ocr_edit_hint")}</label>
               <textarea
-                id="hk-ocr-text" className="hk-input__textarea" lang="ja" rows={3}
+                id="hk-ocr-text" className="hk-input__textarea hk-ocr-editor__input" lang="ja" rows={3}
+                spellCheck={false}
                 value={inputText} aria-label={t("ocr_edit_hint")}
+                onKeyDown={event => {
+                  if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                    if (!loading) reanalyzeOcrText();
+                  }
+                }}
                 onChange={event => {
                   ++analysisRequestRef.current;
                   activeLookupRef.current = "";
@@ -925,16 +955,18 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
                   setSrsError(null);
                 }}
               />
-              <button type="button" className="hk-btn hk-btn--secondary"
-                disabled={!inputText.trim() || loading}
-                onClick={() => {
-                  const text = inputText.trim();
-                  if (!text) return;
-                  window.dispatchEvent(new CustomEvent("hakkutsu:ocr-region-updated", { detail: { id: ocrRegionId, text } }));
-                  void analyzeText(text, false, true, null, true);
-                }}>{t("ocr_reanalyze")}</button>
-              {result && !loading && <TokenDisplay tokens={result.tokens} selectedIndex={selectedToken} onSelect={handleTokenSelect} />}
-            </div>}
+              <div className="hk-ocr-editor__actions">
+                <span>{t("ocr_reanalyze_hint")}</span>
+                <button type="button" className="hk-btn hk-btn--secondary hk-btn--sm"
+                  disabled={!inputText.trim() || loading}
+                  onClick={reanalyzeOcrText}>{t("ocr_reanalyze")}</button>
+              </div>
+            </details>}
+            {ocrRegionId && result && !loading && <section className="hk-ocr-breakdown">
+              <h3 className="hk-dict-label">{t("ocr_word_breakdown")}</h3>
+              <p>{t("ocr_select_word_hint")}</p>
+              <TokenDisplay tokens={result.tokens} selectedIndex={selectedToken} onSelect={handleTokenSelect} variant="sentence" />
+            </section>}
             {/* Translation Loading State */}
             {loading && (
               <div className="hk-loading">
@@ -957,7 +989,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
             {result && !loading && (
               <>
                 {/* Target Language sentence translation */}
-                {phraseTranslation && (
+                {!ocrRegionId && phraseTranslation && (
                   <div className="hk-dict-section hk-dict-section--highlight">
                     <div
                       className="hk-dict-label"
@@ -1015,7 +1047,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
                 className={`hk-btn ${
                   srsError ? "hk-btn--danger" : srsAdded ? "hk-btn--success" : "hk-btn--primary"
                 }`}
-                disabled={Boolean(ocrRegionId) && (loading || !selectedTokenData || result?.text.trim() !== inputText.trim())}
+                disabled={Boolean(ocrRegionId) && (loading || !selectedTokenData?.is_japanese || result?.text.trim() !== inputText.trim())}
                 onClick={() => handleSrsAdd(ocrCroppedImage || undefined)}
                 title={srsError || (srsAdded ? t("def_btn_added_library") : t("def_btn_add_library"))}
                 style={{

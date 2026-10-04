@@ -44,9 +44,12 @@ test('projection rounds inward at every zoom and clips to the image without expa
 
 // Render the actual component and its CSS, with retained scan evidence. Model
 // recognition and coverage have their own bundled-model fixture gate.
-function renderScans(scans) {
+function renderScans(scans, { hoveredImage = null, error = null } = {}) {
   let state = 0;
-  const react = { ...React, useState: initial => [state++ === 1 ? scans : initial, () => {}],
+  const react = { ...React, useState: initial => {
+    const index = state++;
+    return [index === 0 ? hoveredImage : index === 1 ? scans : index === 4 ? error : initial, () => {}];
+  },
     useRef: initial => ({ current: initial }), useCallback: fn => fn, useEffect() {} };
   const imports = {
     react, '~lib/services/ocr-geometry': geometry, '~lib/services/ocr-regions': runtime.regions,
@@ -62,6 +65,20 @@ function renderScans(scans) {
   vm.runInNewContext(source, { exports, window: { innerWidth: 800, innerHeight: 700 }, require: name => imports[name] || require(name) });
   return renderToStaticMarkup(exports.MangaOcrImages());
 }
+
+test('empty OCR notices expose a selectable recovery action and dismissal; runtime failures are alerts', () => {
+  const hoveredImage = { isConnected: true, getBoundingClientRect: () => ({
+    left: 10, top: 10, right: 400, bottom: 500, width: 390, height: 490,
+  }) };
+  for (const error of ['ocr_no_text_hint', 'ocr_unreadable_text', 'ocr_rejected_text']) {
+    const html = renderScans([], { hoveredImage, error });
+    assert.ok(html.includes('role="status"'));
+    assert.equal((html.match(/ocr_btn_select_box/g) || []).length, 3); // Toolbar label, aria-label, and notice action.
+    assert.ok(html.includes('aria-label="dict_btn_close"'));
+    assert.ok(html.includes('aria-pressed="false"'));
+  }
+  assert.ok(renderScans([], { hoveredImage, error: 'ocr_recognition_failed' }).includes('role="alert"'));
+});
 function scan(id, rect, boxes) {
   return { src: id, image: { isConnected: true, currentSrc: id, getBoundingClientRect: () => rect },
     highlights: boxes.map((box, index) => ({ id: `${id}:${index}`, text: '日本語', imageUrl: 'crop',

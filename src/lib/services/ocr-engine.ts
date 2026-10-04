@@ -28,6 +28,7 @@ export type OcrFragment = {
     source: "page" | "crop";
     passId: string;
     cropId?: string;
+    textColumn?: boolean;
     rawBounds: OcrBounds;
     words: OcrTextBounds[];
     glyphs: OcrTextBounds[];
@@ -42,12 +43,15 @@ export interface OcrCropItem {
   height: number;
   orientation?: OcrOrientation;
   orientationHint?: "vertical" | "horizontal";
+  adaptiveThreshold?: boolean;
+  textColumn?: boolean;
   // Maps recognition pixels (including padding) into source-canvas pixels.
   transform?: { originX: number; originY: number; scale: number; padding: number };
   bbox: { x0: number; y0: number; x1: number; y1: number };
 }
 
 export interface OcrCropResult {
+  error?: string;
   lines: OcrFragment[];
   transform?: OcrCropItem["transform"];
   id: string;
@@ -66,6 +70,11 @@ export interface OcrExecutionResult {
 
 export interface OcrProgressCallback {
   (progress: { status: string; progress: number }): void;
+}
+
+function cropReadingOrientation(crop: OcrCropItem | undefined, modelOrientation: "vertical" | "horizontal") {
+  return crop?.textColumn && (!crop.orientation || crop.orientation === "auto")
+    ? crop.orientationHint || modelOrientation : modelOrientation;
 }
 
 class OcrEngineService {
@@ -236,10 +245,14 @@ class OcrEngineService {
 
   private extractRegions(page: Page, orientation: "vertical" | "horizontal", crop?: OcrCropItem, diagnostics?: OcrDiagnosticCollector): OcrExecutionResult["lines"] {
     const validBounds = (b: OcrBounds) => Object.values(b).every(Number.isFinite) && b.x1 > b.x0 && b.y1 > b.y0;
+    // The horizontal language model can correctly read individual glyphs in a
+    // vertical column. Its model direction must not split that known column
+    // into horizontal snippets. Retain the actual model in pass provenance.
+    const readingOrientation = cropReadingOrientation(crop, orientation);
     const makeFragment = (text: string, confidence: number, bbox: OcrBounds, lineId: string, paragraphId: string, words: OcrTextBounds[], glyphs: OcrTextBounds[]): OcrFragment => {
-      const fragment: OcrFragment = { text, confidence, bbox, orientation, lineId, paragraphId,
+      const fragment: OcrFragment = { text, confidence, bbox, orientation: readingOrientation, lineId, paragraphId,
         evidence: { source: crop ? "crop" : "page", passId: `${crop?.id || "page"}:${orientation}`,
-          cropId: crop?.id, rawBounds: { ...bbox }, words, glyphs, transform: crop?.transform } };
+          cropId: crop?.id, textColumn: crop?.textColumn, rawBounds: { ...bbox }, words, glyphs, transform: crop?.transform } };
       diagnostics?.({ stage: "recognition", reason: "extracted", fragment });
       return fragment;
     };
@@ -328,6 +341,7 @@ class OcrEngineService {
         tessedit_pageseg_mode: resolvedOrientation === "vertical" ? PSM.AUTO : PSM.SPARSE_TEXT,
         textord_tabfind_force_vertical_text: resolvedOrientation === "vertical" ? "1" : "0",
         user_defined_dpi: "300",
+        thresholding_method: "0",
       });
       const result = await worker.recognize(imageDataUrl, {}, { blocks: true });
 
@@ -371,7 +385,7 @@ class OcrEngineService {
       if (lang === "jpn_vert" && (!options.orientation || options.orientation === "auto")) {
         try {
           const fallbackWorker = await this.getWorker("jpn", options.onProgress);
-          await fallbackWorker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT, textord_tabfind_force_vertical_text: "0" });
+          await fallbackWorker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT, textord_tabfind_force_vertical_text: "0", thresholding_method: "0" });
           const fallbackResult = await fallbackWorker.recognize(imageDataUrl, {}, { blocks: true });
           return {
             text: this.cleanOcrText(fallbackResult?.data?.text || ""),
@@ -390,26 +404,36 @@ class OcrEngineService {
     const explicit = crop.orientation && crop.orientation !== "auto";
     const direction = explicit ? crop.orientation as "vertical" | "horizontal"
       : crop.orientationHint || this.resolveOrientation("auto", crop.width, crop.height);
-    const run = async (orientation: "vertical" | "horizontal"): Promise<OcrCropResult> => {
+    const attempts: OcrCropResult[] = [];
+    let lastError: unknown;
+    const run = async (orientation: "vertical" | "horizontal", adaptive = false): Promise<OcrCropResult> => {
       const worker = await this.getWorker(orientation === "vertical" ? "jpn_vert" : "jpn");
       await worker.setParameters({
         tessedit_pageseg_mode: orientation === "vertical" ? PSM.SINGLE_BLOCK_VERT_TEXT : PSM.SINGLE_BLOCK,
         textord_tabfind_force_vertical_text: orientation === "vertical" ? "1" : "0",
         user_defined_dpi: "300",
+        thresholding_method: adaptive ? "2" : "0",
       });
       const { data } = await worker.recognize(crop.dataUrl, {}, { blocks: true });
       const lines = this.extractRegions(data, orientation, crop, diagnostics);
-      return {
-        id: crop.id, bbox: crop.bbox, transform: crop.transform, orientation, lines,
+      if (adaptive) for (const line of lines) {
+        if (line.evidence) line.evidence.passId += ":adaptive";
+        line.lineId += ":adaptive";
+        line.paragraphId += ":adaptive";
+      }
+      const result: OcrCropResult = {
+        id: crop.id, bbox: crop.bbox, transform: crop.transform, orientation: cropReadingOrientation(crop, orientation), lines,
         text: this.cleanOcrText(data.text || "", false), confidence: data.confidence || 0,
       };
+      attempts.push(result);
+      return result;
     };
     const score = (result: OcrCropResult) => {
       const count = (text: string) => [...text].filter(c => /[\u3040-\u30ff\u3400-\u9fff]/u.test(c) && !/[ー・]/u.test(c)).length;
       const japanese = count(result.text);
       const groups = new Map<string, OcrFragment[]>();
       result.lines.forEach((fragment, index) => {
-        const key = fragment.lineId || String(index);
+        const key = crop.textColumn && result.orientation === crop.orientationHint ? crop.id : fragment.lineId || String(index);
         groups.set(key, [...(groups.get(key) || []), fragment]);
       });
       let supported = 0;
@@ -421,10 +445,13 @@ class OcrEngineService {
         const across = result.orientation === "vertical" ? x1 - x0 : y1 - y0;
         if (characters >= 2 && along >= across * characters * .4 && along <= across * characters * 2.5) supported += characters;
       }
-      return japanese && supported ? result.confidence * Math.min(1, supported / japanese) : -1;
+      const fragmentConfidence = result.lines.reduce((sum, f) => sum + (f.confidence || 0) * count(f.text), 0) /
+        Math.max(1, result.lines.reduce((sum, f) => sum + count(f.text), 0));
+      return japanese && supported ? Math.min(result.confidence, fragmentConfidence) * Math.min(1, supported / japanese) : -1;
     };
     let primary: OcrCropResult | undefined;
     try { primary = await run(direction); } catch (error) {
+      lastError = error;
       console.warn(`[Hakkutsu OCR] Crop ${crop.id} failed in ${direction}:`, error);
     }
     if (!explicit && (!primary || score(primary) < 60 || !crop.orientationHint)) {
@@ -432,13 +459,28 @@ class OcrEngineService {
         const other = await run(direction === "vertical" ? "horizontal" : "vertical");
         if (!primary || score(other) > score(primary)) primary = other;
       } catch (error) {
+        lastError = error;
         console.warn(`[Hakkutsu OCR] Crop ${crop.id} alternative failed:`, error);
       }
     }
+    // Retry uneven colored backgrounds only when the ordinary crop reading is
+    // weak. This changes Tesseract's local thresholding, not source geometry.
+    if (crop.adaptiveThreshold && (!primary || score(primary) < 60)) {
+      for (const orientation of explicit ? [direction] : [direction, direction === "vertical" ? "horizontal" as const : "vertical" as const]) {
+        try {
+          const result = await run(orientation, true);
+          if (!primary || score(result) > score(primary)) primary = result;
+        } catch (error) { lastError = error; }
+      }
+    }
     diagnostics?.({ stage: "recognition", reason: "chosen-crop-orientation", details: { cropId: crop.id, orientation: primary?.orientation || direction, confidence: primary?.confidence || 0 } });
-    return primary || {
+    // Preserve every attempted fragment for validation against original pixels.
+    // The chosen text remains useful for an editable manual fallback.
+    if (primary) return { ...primary, lines: attempts.flatMap(result => result.lines) };
+    return {
       id: crop.id, bbox: crop.bbox, transform: crop.transform,
       text: "", confidence: 0, orientation: direction, lines: [],
+      error: lastError instanceof Error ? lastError.message : String(lastError || "Recognition failed"),
     };
   }
 
@@ -465,7 +507,7 @@ class OcrEngineService {
         const crop = crops[i];
         try {
           const res = await this.executeRecognizeCrop(crop, diagnostics);
-          if (res.text && /[\u3040-\u30ff\u3400-\u9fff]/u.test(res.text)) {
+          if (res.error || (res.text && /[\u3040-\u30ff\u3400-\u9fff]/u.test(res.text)) || res.lines.length) {
             results.push(res);
           }
         } catch (err) {

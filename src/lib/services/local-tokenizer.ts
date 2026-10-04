@@ -9,6 +9,7 @@ export interface Token {
   surface_form: string;
   pos: string;
   reading?: string;
+  dictionary_reading?: string;
   base_form: string;
 }
 
@@ -18,13 +19,15 @@ export async function initNLP(): Promise<void> {
 }
 
 import { deinflectWord, mergeOkuriganaTokens } from "~lib/utils/japanese";
+import { refineJapaneseTokens } from "./japanese-token-refinement";
+import { getDB, searchDictionary } from "./local-lookup";
 
 export { deinflectWord, mergeOkuriganaTokens };
 
 /**
  * Tokenize Japanese text into words and punctuation tokens.
  */
-export async function tokenize(text: string): Promise<Token[]> {
+export async function tokenize(text: string, options: { dictionaryAware?: boolean } = {}): Promise<Token[]> {
   if (!text || !text.trim()) return [];
 
   const cleanText = text.trim();
@@ -45,6 +48,16 @@ export async function tokenize(text: string): Promise<Token[]> {
       base_form: s.segment,
     }));
 
+    if (options.dictionaryAware) {
+      // An uninstalled local dictionary is a normal state, not a reason to
+      // issue a failing database query for every possible compound.
+      try {
+        const db = await getDB();
+        if (db.objectStoreNames.contains("jmdict")) {
+          return mergeOkuriganaTokens(await refineJapaneseTokens(rawTokens, searchDictionary));
+        }
+      } catch { /* Keep the standard local segmentation available. */ }
+    }
     return mergeOkuriganaTokens(rawTokens);
   }
 

@@ -88,6 +88,7 @@ export interface TokenAnalysis {
   surface: string;
   dictionary_form: string;
   reading: TokenReading;
+  dictionary_reading?: string;
   pos: string;
   pos_detail: string[];
   is_japanese: boolean;
@@ -108,6 +109,7 @@ export interface TokenAnalysis {
 
 export interface AnalyzeRequest {
   text: string;
+  source?: "ocr";
   include_definitions?: boolean;
   include_examples?: boolean;
   user_id?: string;
