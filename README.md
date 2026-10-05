@@ -71,6 +71,24 @@ wxt.config.ts           Extension manifest and WXT configuration
 
 For Firefox development, run `pnpm build:firefox` and load `.output/firefox-mv2/manifest.json` as a temporary add-on from `about:debugging`.
 
+## Releases
+
+Publishing a GitHub Release builds Chrome and Firefox packages and attaches store-ready ZIPs plus ZIPs containing the unpacked build folders. If store credentials are configured, the workflow also publishes to the Chrome Web Store and submits the Firefox build to Firefox Add-ons (AMO).
+
+To enable store publishing, configure these repository variables and secrets:
+
+| Name | Type | Purpose |
+| --- | --- | --- |
+| `CHROME_WEB_STORE_EXTENSION_ID` | Variable | Extension ID from the Chrome Web Store dashboard |
+| `CHROME_WEB_STORE_PUBLISHER_ID` | Variable | Chrome Web Store publisher account ID |
+| `CHROME_WEB_STORE_CLIENT_ID` | Secret | Google API OAuth client ID |
+| `CHROME_WEB_STORE_CLIENT_SECRET` | Secret | Google API OAuth client secret |
+| `CHROME_WEB_STORE_REFRESH_TOKEN` | Secret | Google API OAuth refresh token |
+| `AMO_JWT_ISSUER` | Secret | Firefox Add-ons API key |
+| `AMO_JWT_SECRET` | Secret | Firefox Add-ons API secret |
+
+Store steps are skipped when their credentials are missing; GitHub Release assets are still created.
+
 ## Contributing
 
 Issues and focused pull requests are welcome. Before submitting a change, run `pnpm typecheck`, `pnpm build`, and `pnpm build:firefox`.

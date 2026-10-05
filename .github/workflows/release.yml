@@ -1,0 +1,95 @@
+name: Build and publish release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Chrome and Firefox extensions
+        run: |
+          pnpm build
+          pnpm build:firefox
+
+      - name: Package release assets
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          (cd .output/chrome-mv3 && zip -qr "../../release-assets/hakkutsu-${RELEASE_TAG}-chrome.zip" .)
+          zip -qr "release-assets/hakkutsu-${RELEASE_TAG}-chrome-unpacked.zip" .output/chrome-mv3
+          (cd .output/firefox-mv2 && zip -qr "../../release-assets/hakkutsu-${RELEASE_TAG}-firefox.zip" .)
+          zip -qr "release-assets/hakkutsu-${RELEASE_TAG}-firefox-unpacked.zip" .output/firefox-mv2
+
+      # Configure these repository secrets to enable automatic store publishing.
+      # Without them, GitHub release assets are still built and uploaded.
+      - name: Upload and publish to Chrome Web Store
+        env:
+          EXTENSION_ID: ${{ vars.CHROME_WEB_STORE_EXTENSION_ID }}
+          PUBLISHER_ID: ${{ vars.CHROME_WEB_STORE_PUBLISHER_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_WEB_STORE_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_WEB_STORE_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_WEB_STORE_REFRESH_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ -z "$EXTENSION_ID" || -z "$PUBLISHER_ID" || -z "$CLIENT_ID" || -z "$CLIENT_SECRET" || -z "$REFRESH_TOKEN" ]]; then
+            echo "Chrome Web Store credentials are not configured; skipping store publish."
+            exit 0
+          fi
+          npx --yes chrome-webstore-upload-cli upload \
+            --source "release-assets/hakkutsu-${RELEASE_TAG}-chrome.zip" \
+            --extension-id "$EXTENSION_ID" \
+            --publisher-id "$PUBLISHER_ID"
+          npx --yes chrome-webstore-upload-cli publish \
+            --extension-id "$EXTENSION_ID" \
+            --publisher-id "$PUBLISHER_ID"
+
+      - name: Sign and submit to Firefox Add-ons
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ -z "$AMO_JWT_ISSUER" || -z "$AMO_JWT_SECRET" ]]; then
+            echo "AMO credentials are not configured; skipping Firefox Add-ons submission."
+            exit 0
+          fi
+          npx --yes web-ext sign \
+            --source-dir .output/firefox-mv2 \
+            --artifacts-dir release-assets/amo \
+            --channel listed \
+            --api-key "$AMO_JWT_ISSUER" \
+            --api-secret "$AMO_JWT_SECRET"
+
+      - name: Attach ZIPs and signed Firefox package to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$RELEASE_TAG" release-assets/*.zip --clobber
+          if compgen -G "release-assets/amo/*.xpi" > /dev/null; then
+            gh release upload "$RELEASE_TAG" release-assets/amo/*.xpi --clobber
+          fi
