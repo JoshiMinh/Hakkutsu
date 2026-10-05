@@ -22,7 +22,7 @@ import type {
 import { tokenize } from "~lib/services/local-tokenizer";
 import { searchDictionary } from "~lib/services/local-lookup";
 import { getHanViet } from "~lib/utils/hanviet-dict";
-import { containsJapanese, katakanaToHiragana, hasKanji, sanitizeReading, alignTokensWithReading, deriveInflectedReading, deinflectWord } from "~lib/utils/japanese";
+import { containsJapanese, katakanaToHiragana, hasKanji, sanitizeReading, alignTokensWithReading, deriveInflectedReading, deinflectWord, getPeopleCounterReading } from "~lib/utils/japanese";
 import { lookupWord, type LookupResult } from "~lib/services/dictionary-lookup";
 import { googleTranslateService } from "~lib/services/google-translate";
 import { fetchIrasutoyaImagesDirect } from "~lib/services/irasutoya-service";
@@ -150,9 +150,10 @@ async function analyzeLocal(text: string, includeDefinitions = true): Promise<An
     );
 
     if (hasExactHeadword) {
-      const firstEntry = fullTextDictEntries[0];
+      const firstEntry = fullTextDictEntries.find(e =>
+        e.kanjiElements?.includes(cleanText) || e.readingElements?.includes(cleanText))!;
       const kanjiForm = firstEntry?.kanjiElements?.[0] || cleanText;
-      const rawReading = firstEntry?.readingElements?.[0] || fullTextDictInfo?.reading || "";
+      const rawReading = getPeopleCounterReading(cleanText) || firstEntry?.readingElements?.[0] || fullTextDictInfo?.reading || "";
       const reading = sanitizeReading(rawReading, cleanText);
       const jlptLevel = firstEntry?.jlpt || fullTextDictInfo?.jlpt || predictJlpt(cleanText);
 

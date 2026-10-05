@@ -1,25 +1,12 @@
-import { openDB } from "idb"
+import { getDB } from "./local-lookup"
 
-// A sample CDN URL. In a real scenario, this would point to your hosted JMdict JSON
-const JMDICT_CDN_URL = "https://hakkutsu-assets.example.com/jmdict-optimized.json"
-const DB_NAME = "HakkutsuDictDB"
 const STORE_NAME = "jmdict"
 
 export async function initDictionaryDB() {
-  const db = await openDB(DB_NAME, 1, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: "id" })
-        // Create indexes for fast lookup by kanji or reading
-        store.createIndex("kanji", "kanjiElements", { multiEntry: true })
-        store.createIndex("reading", "readingElements", { multiEntry: true })
-      }
-    }
-  })
-  return db
+  return getDB()
 }
 
-export async function syncDictionary() {
+export async function syncDictionary(sourceUrl?: string): Promise<number> {
   try {
     const db = await initDictionaryDB()
     
@@ -27,39 +14,49 @@ export async function syncDictionary() {
     const count = await db.count(STORE_NAME)
     if (count > 0) {
       console.log(`[Hakkutsu] Dictionary already synced (${count} entries).`)
-      return
+      return count
     }
 
+    if (!sourceUrl) throw new Error("Provide a dictionary JSON source URL before downloading JMdict.")
+    const url = new URL(sourceUrl)
+    if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("Dictionary source must be an HTTP or HTTPS URL.")
     console.log("[Hakkutsu] Downloading JMdict...")
-    // Simulate fetching the dictionary. In reality, you'd stream and chunk this 
-    // due to size, or download a highly compressed version.
-    const response = await fetch(JMDICT_CDN_URL)
+    const response = await fetch(url.href)
     
     if (!response.ok) {
       throw new Error("Failed to fetch dictionary")
     }
 
     const dictData = await response.json()
+    const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === "string" && item.trim())
+    if (!Array.isArray(dictData) || dictData.length === 0) throw new Error("Dictionary JSON must contain a nonempty array of entries.")
+    for (const [index, entry] of dictData.entries()) {
+      if (!entry || (typeof entry.id !== "string" && !(Number.isSafeInteger(entry.id) && entry.id > 0)) ||
+        !String(entry.id).trim() || !strings(entry.kanjiElements) || !strings(entry.readingElements) || !entry.readingElements.length ||
+        !Array.isArray(entry.senses) || entry.senses.some((sense: any) => !sense || !strings(sense.partOfSpeech) || !strings(sense.glosses))) {
+        throw new Error(`Dictionary entry ${index + 1} is invalid.`)
+      }
+    }
     
     console.log("[Hakkutsu] Populating IndexedDB...")
     const tx = db.transaction(STORE_NAME, "readwrite")
     const store = tx.objectStore(STORE_NAME)
 
-    // Insert entries
-    for (const entry of dictData) {
-      await store.put(entry)
+    const completion = tx.done
+    void completion.catch(() => {})
+    try {
+      // IndexedDB keys and deduplication use the same ID type for every source.
+      for (const entry of dictData) await store.put({ ...entry, id: String(entry.id) })
+      await completion
+    } catch (error) {
+      try { tx.abort() } catch { /* Already aborted. */ }
+      await completion.catch(() => {})
+      throw error
     }
-
-    await tx.done
     console.log("[Hakkutsu] Dictionary sync complete!")
+    return await db.count(STORE_NAME)
   } catch (error) {
     console.error("[Hakkutsu] Dictionary sync failed:", error)
+    throw error
   }
 }
-
-// In Manifest V3, service workers run event listeners
-chrome.runtime.onInstalled.addListener(() => {
-  console.log("[Hakkutsu] Extension installed/updated. Syncing dictionary...")
-  // We can't block the install event, so run async
-  syncDictionary().catch(console.error)
-})

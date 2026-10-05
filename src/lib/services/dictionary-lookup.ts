@@ -180,8 +180,12 @@ export async function lookupWordEnglish(word: string): Promise<LookupResult> {
             .slice(0, 3) || [];
           
           const meaning = englishDefs.join("; ");
-          const matchedJp = match.japanese?.find((j: any) => j.word === key || j.reading === key) || match.japanese?.[0];
-          const rawReading = matchedJp?.reading || match.japanese?.[0]?.reading || "";
+          // Search results may be related words rather than this headword.
+          // Their meanings remain useful, but their readings are not furigana
+          // for the requested surface (e.g. 食べ物 returned for 食べ).
+          const exactReading = match.japanese?.find((j: any) =>
+            j.word === key || j.word === rawKey || j.reading === key || j.reading === rawKey);
+          const rawReading = exactReading?.reading || "";
           const reading = sanitizeReading(rawReading, rawKey);
           const jlpt = match.jlpt?.length ? match.jlpt[0].replace(/jlpt-/i, "").toUpperCase() : undefined;
 
@@ -261,7 +265,8 @@ export async function lookupWordVietnamese(word: string): Promise<LookupResult> 
             .slice(0, 3);
 
           const meaning = means.join("; ");
-          const reading = sanitizeReading(match.phonetic || key, rawKey);
+          const exactMatch = match.word === key || match.word === rawKey || match.phonetic === key;
+          const reading = exactMatch ? sanitizeReading(match.phonetic || key, rawKey) : "";
           const result: LookupResult = {
             meaning: meaning || "",
             reading,
@@ -335,7 +340,8 @@ export async function lookupWordChinese(word: string): Promise<LookupResult> {
             .slice(0, 3);
 
           const meaning = means.join("; ");
-          const reading = sanitizeReading(match.phonetic || key, rawKey);
+          const exactMatch = match.word === key || match.word === rawKey || match.phonetic === key;
+          const reading = exactMatch ? sanitizeReading(match.phonetic || key, rawKey) : "";
           if (meaning) {
             const result: LookupResult = { meaning, reading, source: "mazii-zh" };
             setBoundedMap(lookupCache, cacheKey, result);
@@ -413,7 +419,8 @@ export async function lookupWordKorean(word: string): Promise<LookupResult> {
             .slice(0, 3);
 
           const meaning = means.join("; ");
-          const reading = sanitizeReading(match.phonetic || key, rawKey);
+          const exactMatch = match.word === key || match.word === rawKey || match.phonetic === key;
+          const reading = exactMatch ? sanitizeReading(match.phonetic || key, rawKey) : "";
           if (meaning) {
             const result: LookupResult = { meaning, reading, source: "mazii-ko" };
             setBoundedMap(lookupCache, cacheKey, result);

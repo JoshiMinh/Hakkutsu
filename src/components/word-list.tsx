@@ -24,6 +24,7 @@ import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { lookupWord } from "~lib/services/dictionary-lookup";
 import { useTranslation } from "~lib/locales";
 import { ankiClient } from "~lib/services/anki-connect";
+import { createVocabularyCsv } from "~lib/services/vocabulary-csv";
 import { useSettingsStore } from "~lib/utils/settings";
 import {
   createVocabularyBackup,
@@ -164,51 +165,7 @@ export function WordList({
     const targetCards = specificCards || (selectedIds.size > 0 ? cards.filter(c => selectedIds.has(c.id)) : cards);
     if (targetCards.length === 0) return;
 
-    const headers = showHanViet ? [
-      "Word", "Furigana", "Word Meaning", 
-      "Han Viet", "Example Sentence", "JLPT",
-      "Frequency Rank", "Status", "Date Added", "Date Updated", "Tags"
-    ] : [
-      "Word", "Furigana", "Word Meaning", 
-      "Example Sentence", "JLPT",
-      "Frequency Rank", "Status", "Date Added", "Date Updated", "Tags"
-    ];
-
-    const escapeCsv = (str?: string) => {
-      if (!str) return '""';
-      return `"${str.replace(/"/g, '""')}"`;
-    };
-
-    const getStatusText = (c: SrsCard) => {
-      if (c.repetition === 0) return "New";
-      if (c.due_date <= Date.now()) return "Due";
-      if (c.interval >= 21) return `Graduated (${c.interval}d)`;
-      return `Learning (${c.interval}d)`;
-    };
-
-    const csvContent = [
-      headers.join(","),
-      ...targetCards.map(c => {
-        const row = [
-          escapeCsv(c.word),
-          escapeCsv(c.reading),
-          escapeCsv(c.meaning),
-        ];
-        if (showHanViet) {
-          row.push(escapeCsv(c.vietnamese_sound || getHanViet(c.word)));
-        }
-        row.push(
-          escapeCsv(c.sentence),
-          escapeCsv(c.jlpt),
-          escapeCsv(c.frequency_rank ? `#${c.frequency_rank}` : ""),
-          escapeCsv(getStatusText(c)),
-          escapeCsv(new Date(c.created_at).toISOString()),
-          escapeCsv(new Date(c.updated_at).toISOString()),
-          escapeCsv((c.tags || []).join("; "))
-        );
-        return row.join(",");
-      })
-    ].join("\n");
+    const csvContent = createVocabularyCsv(targetCards, showHanViet);
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -218,7 +175,7 @@ export function WordList({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const handleBackup = async () => {
@@ -277,7 +234,11 @@ export function WordList({
               reading: card.reading || "",
               meaning: card.meaning || "",
               sentence: card.sentence || "",
-              sentenceReading: card.sentence_furigana,
+              wordFurigana: card.word_furigana,
+              sentenceFurigana: card.sentence_furigana,
+              sentenceMeaning: card.sentence_meaning,
+              vietnameseSound: card.vietnamese_sound,
+              sourceUrl: card.source_url,
               jlptLevel: card.jlpt || "",
               pos: "Word",
               imageUrl: card.image_url

@@ -10,6 +10,8 @@ export interface DetectedDialogueRegion {
   orientationAmbiguous?: boolean;
   textSize?: number;
   textColumn?: boolean;
+  annotationBounds?: OcrFragment["bbox"][];
+  terminalPunctuation?: { text: string; bbox: OcrFragment["bbox"] };
   type: "bubble" | "text-cluster";
 }
 
@@ -102,6 +104,8 @@ export function detectMangaDialogueRegions(
     orientationAmbiguous?: boolean;
     textSize?: number;
     refinedColumn?: boolean;
+    annotationBounds?: OcrFragment["bbox"][];
+    terminalPunctuation?: DetectedDialogueRegion["terminalPunctuation"];
     type: "bubble" | "text-cluster";
   };
 
@@ -112,7 +116,7 @@ export function detectMangaDialogueRegions(
   const inkVisited = new Uint8Array(width * height);
   const textInk = new Uint8Array(width * height);
   const inkQueue = new Int32Array(width * height);
-  const glyphs: Array<{ x0: number; y0: number; x1: number; y1: number; area: number }> = [];
+  const glyphs: Array<{ x0: number; y0: number; x1: number; y1: number; area: number; pixels?: Int32Array }> = [];
   for (let seed = 0; seed < gray.length; seed++) {
     if (gray[seed] > 125 || inkVisited[seed]) continue;
     let head = 0, tail = 1;
@@ -135,7 +139,8 @@ export function detectMangaDialogueRegions(
     // frames remain excluded by their full connected-component extent.
     if (tail < 5 || w > 72 || h > 72 || Math.max(w, h) > Math.min(w, h) * 24) continue;
     for (let i = 0; i < tail; i++) textInk[inkQueue[i]] = 1;
-    glyphs.push({ x0, y0, x1: x1 + 1, y1: y1 + 1, area: tail });
+    glyphs.push({ x0, y0, x1: x1 + 1, y1: y1 + 1, area: tail,
+      pixels: w < h * .8 && h >= 8 ? inkQueue.slice(0, tail) : undefined });
   }
 
   // =========================================================================
@@ -239,9 +244,22 @@ export function detectMangaDialogueRegions(
     }
 
     const enclosedGlyphs = glyphs.filter(g => g.x0 > bx0 && g.x1 < bx1 && g.y0 > by0 && g.y1 < by1);
+    // Direct white neighbors count only the boundary of a thick character.
+    // Use the full component area when its surrounding whitespace belongs to
+    // this interior, so enlarging an image does not make its ink disappear.
+    const enclosedInk = enclosedGlyphs.reduce((sum, g) => {
+      const cx = Math.floor((g.x0 + g.x1) / 2), cy = Math.floor((g.y0 + g.y1) / 2);
+      const samples = [[g.x0 - 1, cy], [g.x1, cy], [cx, g.y0 - 1], [cx, g.y1]];
+      return sum + (samples.filter(([x, y]) => bubbleLabels[y * width + x] === bubbleId).length >= 2 ? g.area : 0);
+    }, 0);
+    const largeCharacters = enclosedGlyphs.filter(g => Math.min(g.x1 - g.x0, g.y1 - g.y0) >= 32 &&
+      Math.max(g.x1 - g.x0, g.y1 - g.y0) <= Math.min(g.x1 - g.x0, g.y1 - g.y0) * 2).length;
+    // Small facial strokes surrounded by white are weak text evidence. Apply
+    // the thick-stroke correction only to several full-size large characters.
+    const textInkCount = largeCharacters >= 3 ? Math.max(darkCount, enclosedInk) : darkCount;
     // Multiple glyphs with sufficient ink density are needed; empty panel
     // interiors and glyph counters must not become speech bubbles.
-    if (enclosedGlyphs.length >= 2 && darkCount / Math.max(1, (tx1 - tx0 + 1) * (ty1 - ty0 + 1)) >= .025 && transitions >= 6 && darkCount >= 8 && tx1 >= tx0 && ty1 >= ty0) {
+    if (enclosedGlyphs.length >= 2 && textInkCount / Math.max(1, (tx1 - tx0 + 1) * (ty1 - ty0 + 1)) >= .025 && transitions >= 6 && darkCount >= 8 && tx1 >= tx0 && ty1 >= ty0) {
       // Keep ink bounds tight. Recognition adds a clean white border separately,
       // rather than including nearby curved bubble outlines in the image.
       const padX = 0;
@@ -266,6 +284,95 @@ export function detectMangaDialogueRegions(
       });
     }
   }
+
+  // Furigana can make Tesseract segment a vertical bubble as horizontal rows.
+  // Recognize its full-size columns separately, retaining the bubble crop for
+  // annotation bounds and any text the column pass cannot recover.
+  const bubbleColumns: CandidateBox[] = [];
+  for (const bubble of rawCandidates) {
+    const x0 = Math.floor(bubble.x0 / scale), x1 = Math.ceil(bubble.x1 / scale);
+    const y0 = Math.floor(bubble.y0 / scale), y1 = Math.ceil(bubble.y1 / scale);
+    const projection = new Uint32Array(x1 - x0);
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      if (textInk[y * width + x]) projection[x - x0]++;
+    }
+    const threshold = Math.max(2, Math.max(...projection) * .02);
+    const bands: Array<{ x0: number; x1: number }> = [];
+    for (let x = 0; x < projection.length; x++) {
+      if (projection[x] < threshold) continue;
+      const previous = bands[bands.length - 1];
+      if (previous && x + x0 - previous.x1 <= 1) previous.x1 = x + x0 + 1;
+      else bands.push({ x0: x + x0, x1: x + x0 + 1 });
+    }
+    const bodySize = Math.max(...bands.map(b => b.x1 - b.x0), 0);
+    const hasAnnotations = bands.some(b => b.x1 - b.x0 >= 2 && b.x1 - b.x0 < bodySize * .6);
+    const bodyBands = bands.filter(b => b.x1 - b.x0 >= Math.max(8, bodySize * .65));
+    if (!hasAnnotations || bodyBands.length < 2) continue;
+    const inkBounds = (b: { x0: number; x1: number }) => {
+      let top = y1, bottom = y0;
+      for (let y = y0; y < y1; y++) for (let x = b.x0; x < b.x1; x++) if (textInk[y * width + x]) {
+        top = Math.min(top, y); bottom = Math.max(bottom, y + 1);
+      }
+      return { x0: Math.floor(b.x0 * scale), x1: Math.min(pixels.width, Math.ceil(b.x1 * scale)),
+        y0: Math.floor(top * scale), y1: Math.min(pixels.height, Math.ceil(bottom * scale)) };
+    };
+    const columns = bodyBands.flatMap(b => {
+      const bounds = inkBounds(b);
+      if (bounds.y1 - bounds.y0 < (bounds.x1 - bounds.x0) * 2.5) return [];
+      const annotationBounds = bands.filter(reading => reading.x0 >= b.x1 && reading.x0 - b.x1 < bodySize * .6 &&
+        reading.x1 - reading.x0 < (b.x1 - b.x0) * .6).map(inkBounds)
+        .filter(reading => reading.y0 >= bounds.y0 - bodySize * scale * .5 && reading.y1 <= bounds.y1 + bodySize * scale * .5);
+      // Slanted manga exclamation marks are often read as グ, ダ or a slash.
+      // Require a straight narrow stem and a separate dot below it, at the
+      // column's end. Kana dakuten above a stroke do not satisfy this shape.
+      const size = b.x1 - b.x0;
+      const localGlyphs = glyphs.filter(g => g.x0 >= b.x0 - 1 && g.x1 <= b.x1 + 1 &&
+        g.y0 >= bounds.y0 / scale && g.y1 <= bounds.y1 / scale);
+      const pairs: Array<{ stem: typeof glyphs[number]; dot: typeof glyphs[number] }> = [];
+      for (const stem of localGlyphs) {
+        const w = stem.x1 - stem.x0, h = stem.y1 - stem.y0;
+        if (!stem.pixels || h < size * .5 || h > size * 1.3 || h < w * 1.4 || w > size * .65) continue;
+        const rows: Array<{ y: number; x: number; width: number }> = [];
+        for (let y = stem.y0; y < stem.y1; y++) {
+          const xs: number[] = [];
+          for (const pixel of stem.pixels) if (Math.floor(pixel / width) === y) xs.push(pixel % width);
+          if (xs.length) rows.push({ y, x: xs.reduce((sum, x) => sum + x, 0) / xs.length, width: xs.length });
+        }
+        if (rows.length < h * .8 || rows.some(row => row.width > size * .3)) continue;
+        const meanY = rows.reduce((sum, row) => sum + row.y, 0) / rows.length;
+        const meanX = rows.reduce((sum, row) => sum + row.x, 0) / rows.length;
+        const slope = rows.reduce((sum, row) => sum + (row.y - meanY) * (row.x - meanX), 0) /
+          Math.max(1, rows.reduce((sum, row) => sum + (row.y - meanY) ** 2, 0));
+        if (Math.abs(slope) > .8 || rows.some(row => Math.abs(row.x - meanX - slope * (row.y - meanY)) > Math.max(1, size * .08))) continue;
+        const dot = localGlyphs.filter(g => g !== stem && !pairs.some(pair => pair.dot === g) &&
+          g.y0 >= stem.y1 && g.y0 - stem.y1 <= size * .3 &&
+          g.x1 - g.x0 <= size * .3 && g.y1 - g.y0 <= size * .3 &&
+          Math.min(g.x1 - g.x0, g.y1 - g.y0) >= 2 &&
+          g.y1 >= bounds.y1 / scale - size * .2 &&
+          Math.abs((g.x0 + g.x1) / 2 - (meanX + slope * ((g.y0 + g.y1) / 2 - meanY))) <= size * .2)
+          .sort((a, c) => Math.abs((a.x0 + a.x1) / 2 - stem.x0) - Math.abs((c.x0 + c.x1) / 2 - stem.x0))[0];
+        if (dot) pairs.push({ stem, dot });
+      }
+      const punctuationTop = Math.min(...pairs.map(pair => pair.stem.y0));
+      const terminalPunctuation = pairs.length && localGlyphs.every(g => g.y1 <= punctuationTop || pairs.some(pair => pair.stem === g || pair.dot === g)) ? {
+        text: "！".repeat(pairs.length), bbox: {
+          x0: Math.floor(Math.min(...pairs.flatMap(pair => [pair.stem.x0, pair.dot.x0])) * scale),
+          y0: Math.floor(punctuationTop * scale),
+          x1: Math.ceil(Math.max(...pairs.flatMap(pair => [pair.stem.x1, pair.dot.x1])) * scale),
+          y1: Math.ceil(Math.max(...pairs.map(pair => pair.dot.y1)) * scale),
+        },
+      } : undefined;
+      return [{ ...bounds, y1: terminalPunctuation?.bbox.y0 ?? bounds.y1, annotationBounds, terminalPunctuation,
+        orientation: "vertical" as const, type: "text-cluster" as const, refinedColumn: true,
+        textSize: (b.x1 - b.x0) * scale }];
+    });
+    if (columns.length >= 2) {
+      bubble.orientation = "vertical";
+      bubble.orientationAmbiguous = false;
+      bubbleColumns.push(...columns);
+    }
+  }
+  rawCandidates.push(...bubbleColumns);
 
   // =========================================================================
   // Pass 2: High-Precision Floating Text-Stroke Clustering (for Borderless Text)
@@ -558,6 +665,8 @@ export function detectMangaDialogueRegions(
     orientationAmbiguous: box.orientationAmbiguous,
     textSize: box.textSize,
     textColumn: box.refinedColumn,
+    annotationBounds: box.annotationBounds,
+    terminalPunctuation: box.terminalPunctuation,
     type: box.type,
   }));
 }

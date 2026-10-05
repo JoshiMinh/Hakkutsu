@@ -5,12 +5,25 @@ const DB_NAME = "HakkutsuDictDB"
 const STORE_NAME = "jmdict"
 
 let dbInstance: IDBPDatabase | null = null
+let opening: Promise<IDBPDatabase> | null = null
 
 export async function getDB(): Promise<IDBPDatabase> {
-  if (!dbInstance) {
-    dbInstance = await openDB(DB_NAME, 1)
+  if (dbInstance) return dbInstance
+  if (!opening) {
+    // Version 1 could be created by lookup without any stores. Upgrade both
+    // fresh installations and those empty databases using the same schema.
+    opening = Promise.resolve().then(() => openDB(DB_NAME, 2, {
+      upgrade(db, _oldVersion, _newVersion, transaction) {
+        const store = db.objectStoreNames.contains(STORE_NAME)
+          ? transaction.objectStore(STORE_NAME) : db.createObjectStore(STORE_NAME, { keyPath: "id" })
+        if (!store.indexNames.contains("kanji")) store.createIndex("kanji", "kanjiElements", { multiEntry: true })
+        if (!store.indexNames.contains("reading")) store.createIndex("reading", "readingElements", { multiEntry: true })
+      },
+      blocking() { dbInstance?.close(); dbInstance = null; opening = null },
+      terminated() { dbInstance = null; opening = null },
+    })).then(db => { dbInstance = db; return db }).catch(error => { opening = null; throw error })
   }
-  return dbInstance
+  return opening
 }
 
 export interface DictEntry {
@@ -31,6 +44,8 @@ export async function searchDictionary(query: string): Promise<DictEntry[]> {
 
     // Try kanji match first
     const tx = db.transaction(STORE_NAME, "readonly")
+    const completion = tx.done
+    void completion.catch(() => {})
     const store = tx.objectStore(STORE_NAME)
     
     // Using IDBKeyRange to match keys exactly
@@ -41,6 +56,7 @@ export async function searchDictionary(query: string): Promise<DictEntry[]> {
 
     const byKanji = await kanjiIndex.getAll(query)
     const byReading = await readingIndex.getAll(query)
+    await completion
 
     // Deduplicate results
     const seen = new Set<string>()

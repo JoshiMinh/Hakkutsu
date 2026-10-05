@@ -1,12 +1,22 @@
 import type { OcrFragment } from "./ocr-engine";
-import { mergeOcrFragments } from "./ocr-geometry";
+import { mergeOcrFragments, overlapFraction } from "./ocr-geometry";
 import { groupOcrRegions, resolveOcrRegionOverlaps, validateOcrFragments, type OcrRegionOptions } from "./ocr-regions";
 
 /** Shared by extension scans and the offline fixture runner. Both passes are
  * validated against original pixels before competing readings are reconciled. */
 export function assembleOcrRegions(primary: OcrFragment[], recovered: OcrFragment[], options: OcrRegionOptions = {}) {
-  const crop = validateOcrFragments(primary, options);
-  const page = validateOcrFragments(recovered, options);
+  const validatedCrop = validateOcrFragments(primary, options);
+  const validatedPage = validateOcrFragments(recovered, options);
+  const annotations = validatedCrop.flatMap(fragment => (fragment.evidence?.annotationBounds || []).map(bbox => ({ bbox, body: fragment.bbox })));
+  const bodyReading = (fragment: OcrFragment) => {
+    const b = fragment.bbox;
+    const annotation = annotations.some(({ bbox, body }) => b.x1 - b.x0 < (body.x1 - body.x0) * .6 &&
+      b.x0 >= bbox.x0 - 1 && b.y0 >= bbox.y0 - 1 && b.x1 <= bbox.x1 + 1 && b.y1 <= bbox.y1 + 1 && overlapFraction(b, bbox) >= .7);
+    if (annotation) options.diagnostics?.({ stage: "validation", reason: "detected-reading-annotation", fragment });
+    return !annotation;
+  };
+  const crop = validatedCrop.filter(bodyReading);
+  const page = validatedPage.filter(bodyReading);
   const lines = new Map<string, OcrFragment[]>();
   for (const fragment of [...crop, ...page]) if (fragment.lineId && fragment.evidence) {
     const key = `${fragment.evidence.passId}:${fragment.lineId}`;
@@ -26,7 +36,11 @@ export function assembleOcrRegions(primary: OcrFragment[], recovered: OcrFragmen
     return (fragment.confidence || 0) * Math.max(coherence([fragment], fragment.orientation),
       members ? coherence(members, fragment.orientation) : 0);
   };
-  const rank = (a: OcrFragment, b: OcrFragment) => score(b) - score(a) ||
+  // A validated crop of one detected column has explicit reading direction.
+  // Whole-bubble/page singletons can be more confident yet describe the same
+  // pixels in horizontal rows, or cover only the last glyph of that column.
+  const columnReading = (fragment: OcrFragment) => Boolean(fragment.evidence?.textColumn && coherence([fragment], fragment.orientation) >= .8);
+  const rank = (a: OcrFragment, b: OcrFragment) => Number(columnReading(b)) - Number(columnReading(a)) || score(b) - score(a) ||
     (b.confidence || 0) - (a.confidence || 0) || a.bbox.y0 - b.bbox.y0 || a.bbox.x0 - b.bbox.x0;
   crop.sort(rank);
   page.sort(rank);

@@ -31,6 +31,7 @@ export function transformOcrFragment(fragment: OcrFragment, transform: (bounds: 
   return { ...fragment, bbox: transform(fragment.bbox), evidence: fragment.evidence && { ...fragment.evidence,
     words: fragment.evidence.words.map(word => ({ ...word, bbox: transform(word.bbox) })),
     glyphs: fragment.evidence.glyphs.map(glyph => ({ ...glyph, bbox: transform(glyph.bbox) })),
+    annotationBounds: fragment.evidence.annotationBounds?.map(transform),
   } };
 }
 
@@ -40,7 +41,7 @@ export function mapCropFragments(lines: OcrFragment[], crop: OcrCropItem, diagno
   };
   const transform = (b: Bounds) => ({ x0: originX + (b.x0 - padding) / scale, y0: originY + (b.y0 - padding) / scale,
     x1: originX + (b.x1 - padding) / scale, y1: originY + (b.y1 - padding) / scale });
-  return lines.flatMap(line => {
+  const mappedLines = lines.flatMap(line => {
     const original = transform(line.bbox);
     const bbox = {
       x0: Math.max(crop.bbox.x0, original.x0), y0: Math.max(crop.bbox.y0, original.y0),
@@ -56,9 +57,20 @@ export function mapCropFragments(lines: OcrFragment[], crop: OcrCropItem, diagno
     const mapped = { ...transformOcrFragment(line, transform), bbox,
       lineId: `${crop.id}:${line.lineId}`, paragraphId: `${crop.id}:${line.paragraphId}`,
     };
+    if (mapped.evidence && crop.annotationBounds?.length) mapped.evidence.annotationBounds = crop.annotationBounds;
     diagnostics?.({ stage: "mapping", reason: "mapped-to-source", fragment: mapped, details: { cropId: crop.id, transform: crop.transform } });
     return [mapped];
   });
+  if (mappedLines.length && crop.terminalPunctuation) {
+    const { text, bbox } = crop.terminalPunctuation;
+    const first = mappedLines[0];
+    const rawBounds = { x0: (bbox.x0 - originX) * scale + padding, y0: (bbox.y0 - originY) * scale + padding,
+      x1: (bbox.x1 - originX) * scale + padding, y1: (bbox.y1 - originY) * scale + padding };
+    mappedLines.push({ text, bbox, confidence: 100, orientation: "vertical", lineId: first.lineId, paragraphId: first.paragraphId,
+      evidence: { source: "crop", passId: `${crop.id}:punctuation`, cropId: crop.id, textColumn: true,
+        rawBounds, words: [{ text, bbox, confidence: 100 }], glyphs: [], transform: crop.transform } });
+  }
+  return mappedLines;
 }
 
 export function overlapFraction(a: Bounds, b: Bounds): number {

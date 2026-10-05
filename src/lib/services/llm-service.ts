@@ -2,7 +2,7 @@ import { useSettingsStore } from "~lib/utils/settings";
 import type { ExtensionSettings, WebTranslateResponse } from "~lib/utils/types";
 import { googleTranslateService } from "./google-translate";
 import { lookupWord, type LookupResult } from "./dictionary-lookup";
-import { katakanaToHiragana, containsJapanese, hasKanji, romajiToHiragana, segmentJapaneseTokens, deriveInflectedReading } from "~lib/utils/japanese";
+import { katakanaToHiragana, containsJapanese, hasKanji, romajiToHiragana, segmentJapaneseTokens, deriveInflectedReading, getPeopleCounterReading } from "~lib/utils/japanese";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { tokenize } from "./local-tokenizer";
@@ -48,7 +48,7 @@ class LlmService {
             tokens: [
               {
                 surface: cleanText,
-                reading: directDict.reading || cleanText,
+                reading: getPeopleCounterReading(cleanText) || directDict.reading || cleanText,
                 pos: "Word",
                 meaning: directDict.meaning,
                 dictionary_form: cleanText,
@@ -111,7 +111,7 @@ class LlmService {
 
             const readingKana = t.reading
               ? katakanaToHiragana(t.reading)
-              : (dictionaryAware && dict.reading && baseForm !== surface
+              : (dict.reading && baseForm !== surface
                 ? deriveInflectedReading(surface, baseForm, dict.reading)
                 : hasKanji(baseForm) ? (dict.reading || surface) : (dict.reading || hiraganaFromRomaji || surface));
 

@@ -172,14 +172,8 @@ export function sanitizeReading(rawReading: string, surface?: string): string {
 
   if (rawVariants.length === 0) return "";
 
-  // Deduplicate variants while cleaning doubled strings (e.g. おもいおもい -> おmoい)
-  const variants = Array.from(new Set(rawVariants)).map((v) => {
-    if (v.length >= 4 && v.length % 2 === 0) {
-      const half = v.slice(0, v.length / 2);
-      if (half + half === v) return half;
-    }
-    return v;
-  });
+  // Repeated readings can be legitimate (e.g. 時々 → ときどき).
+  const variants = Array.from(new Set(rawVariants));
 
   let reading = variants[0];
 
@@ -190,11 +184,8 @@ export function sanitizeReading(rawReading: string, surface?: string): string {
       reading = exactMatch;
     } else {
       // Match by trailing kana suffix (e.g. 勝ち -> かち instead of がち)
-      const endMatch = variants.find((v) => {
-        const sEnd = cleanSurface.slice(-1);
-        const vEnd = v.slice(-1);
-        return sEnd && vEnd && sEnd === vEnd;
-      });
+      const suffix = cleanSurface.match(/[\u3041-\u3096ー]+$/u)?.[0];
+      const endMatch = suffix && variants.find((v) => v.endsWith(suffix));
       if (endMatch) reading = endMatch;
     }
 
@@ -290,6 +281,9 @@ export function deinflectWord(surface: string): string {
   if (surface.endsWith("いた")) return surface.slice(0, -2) + "く";
   if (surface.endsWith("いだ")) return surface.slice(0, -2) + "ぐ";
   if (surface.endsWith("した")) return surface.slice(0, -2) + "する";
+  // Intl.Segmenter emits continuative stems such as 食 + べ or 食べ + たら.
+  // These are lemma candidates; dictionary lookup must still confirm them.
+  if (hasKanji(surface) && /[えけげせぜてでねへべぺめれ]$/u.test(surface)) return surface + "る";
   return surface;
 }
 
@@ -314,7 +308,12 @@ export function deriveInflectedReading(surface: string, baseForm: string, baseRe
   }
 
   const baseOkurigana = baseForm.slice(lastKanjiIdx + 1);
-  const cleanBaseReading = katakanaToHiragana(baseReading.trim());
+  const cleanBaseReading = sanitizeReading(baseReading, baseForm);
+
+  // A different headword (食べ物 for 食べ) cannot supply an inflected reading.
+  const surfaceKanjiIdx = [...surface].reduce((last, char, index) => isKanji(char) ? index : last, -1);
+  if (surface.slice(0, surfaceKanjiIdx + 1) !== baseForm.slice(0, lastKanjiIdx + 1) ||
+      (baseOkurigana && !cleanBaseReading.endsWith(katakanaToHiragana(baseOkurigana)))) return "";
 
   // Extract kanji stem reading from baseReading
   let stemReading = cleanBaseReading;
@@ -323,11 +322,6 @@ export function deriveInflectedReading(surface: string, baseForm: string, baseRe
   }
 
   // Find surface okurigana (everything after last kanji)
-  const surfaceKanjiIdx = surface
-    .split("")
-    .map((c, i) => (isKanji(c) ? i : -1))
-    .reduce((max, i) => Math.max(max, i), -1);
-
   const surfaceOkurigana = surfaceKanjiIdx !== -1 ? surface.slice(surfaceKanjiIdx + 1) : "";
 
   return stemReading + surfaceOkurigana;
@@ -339,7 +333,33 @@ export interface MergeableToken {
   dictionary_form?: string;
   base_form?: string;
   pos?: string;
+  reading?: string | { hiragana: string; romaji?: string; [key: string]: any };
+  dictionary_reading?: string;
+  is_japanese?: boolean;
   [key: string]: any;
+}
+
+/** Read the people counter together with its number, including full-width digits. */
+export function getPeopleCounterReading(surface: string): string {
+  const match = surface.normalize("NFKC").match(/^([0-9]+|[一二三四五六七八九十]+)人$/u);
+  if (!match) return "";
+  const digits: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  const numeral = match[1];
+  let number: number;
+  if (/^[0-9]+$/.test(numeral)) number = Number(numeral);
+  else if (numeral === "十") number = 10;
+  else if (digits[numeral]) number = digits[numeral];
+  else {
+    const tens = numeral.match(/^([二三四五六七八九]?)十([一二三四五六七八九]?)$/u);
+    if (!tens) return "";
+    number = (digits[tens[1]] || 1) * 10 + (digits[tens[2]] || 0);
+  }
+  if (!Number.isInteger(number) || number < 1 || number > 99) return "";
+  if (number === 1) return "ひとり";
+  if (number === 2) return "ふたり";
+  const units = ["", "いち", "に", "さん", "よ", "ご", "ろく", "しち", "はち", "きゅう"];
+  const tens = ["", "", "に", "さん", "よん", "ご", "ろく", "なな", "はち", "きゅう"];
+  return (number >= 10 ? tens[Math.floor(number / 10)] + "じゅう" : "") + units[number % 10] + "にん";
 }
 
 export function mergeOkuriganaTokens<T extends MergeableToken>(rawTokens: T[]): T[] {
@@ -360,6 +380,23 @@ export function mergeOkuriganaTokens<T extends MergeableToken>(rawTokens: T[]): 
   while (i < rawTokens.length) {
     const cur = { ...rawTokens[i] };
     const curSurface = getSurface(cur);
+
+    // Keep irregular counters (４人 → よにん, 一人 → ひとり) in one ruby base.
+    const nextSurface = i + 1 < rawTokens.length ? getSurface(rawTokens[i + 1]) : "";
+    const counterSurface = nextSurface === "人" ? curSurface + nextSurface : curSurface;
+    const counterReading = getPeopleCounterReading(counterSurface);
+    if (counterReading) {
+      setSurface(cur, counterSurface);
+      setBase(cur, counterSurface);
+      cur.pos = "Word";
+      if (typeof cur.is_japanese === "boolean") cur.is_japanese = true;
+      cur.reading = typeof cur.reading === "object" && cur.reading !== null
+        ? { ...cur.reading, hiragana: counterReading, romaji: "" } : counterReading;
+      cur.dictionary_reading = counterReading;
+      merged.push(cur);
+      i += nextSurface === "人" ? 2 : 1;
+      continue;
+    }
 
     // 1. Honorific prefix お/ご + next word (e.g. お前, お弁当, ご飯)
     if (
@@ -425,7 +462,15 @@ export function mergeOkuriganaTokens<T extends MergeableToken>(rawTokens: T[]): 
         i++;
       }
       setSurface(cur, combinedSurface);
-      setBase(cur, deinflectWord(combinedSurface));
+      if (combinedSurface !== curSurface || getBase(cur) === curSurface) {
+        const base = deinflectWord(combinedSurface);
+        const originalReading = typeof cur.reading === "string" ? cur.reading : cur.reading?.hiragana;
+        if (combinedSurface !== curSurface && originalReading) {
+          const reading = deriveInflectedReading(combinedSurface, getBase(cur), cur.dictionary_reading || originalReading);
+          cur.reading = typeof cur.reading === "object" ? { ...cur.reading, hiragana: reading } : reading;
+        }
+        setBase(cur, base);
+      }
     }
 
     merged.push(cur);
@@ -453,7 +498,7 @@ export interface RubySegment {
 export function distributeFurigana(text: string, reading?: string): RubySegment[] {
   if (!text) return [];
 
-  const cleanText = text.trim();
+  const cleanText = text;
 
   // If text has bracket format like 漢[かん]字[じ] or 彼女[かのじょ]
   if (cleanText.includes("[") && cleanText.includes("]")) {
@@ -479,100 +524,43 @@ export function distributeFurigana(text: string, reading?: string): RubySegment[
     return [{ text: cleanText }];
   }
 
-  let cleanReading = reading.trim();
-  if (cleanText.length === 1 && cleanReading.length >= 4 && cleanReading.length % 2 === 0) {
-    const half = cleanReading.slice(0, cleanReading.length / 2);
-    if (half + half === cleanReading) {
-      cleanReading = half;
-    }
-  }
+  const cleanReading = sanitizeReading(reading, cleanText);
+  if (!/^[\u3041-\u3096ー]+$/u.test(cleanReading)) return [{ text: cleanText }];
+  if (getPeopleCounterReading(cleanText) === cleanReading) return [{ text: cleanText, ruby: cleanReading }];
 
-  // Step 1: Strip common kana prefixes
-  let start = 0;
-  while (
-    start < cleanText.length &&
-    start < cleanReading.length &&
-    !isKanji(cleanText[start]) &&
-    cleanText[start] === cleanReading[start]
-  ) {
-    start++;
-  }
-
-  // Step 2: Strip common kana suffixes
-  let endText = cleanText.length - 1;
-  let endReading = cleanReading.length - 1;
-  while (
-    endText >= start &&
-    endReading >= start &&
-    !isKanji(cleanText[endText]) &&
-    cleanText[endText] === cleanReading[endReading]
-  ) {
-    endText--;
-    endReading--;
-  }
-
-  const prefix = cleanText.slice(0, start);
-  const suffix = cleanText.slice(endText + 1);
-  const middleText = cleanText.slice(start, endText + 1);
-  const middleReading = cleanReading.slice(start, endReading + 1);
-
-  const result: RubySegment[] = [];
-  if (prefix) result.push({ text: prefix });
-
-  if (middleText) {
-    // Check if middleText contains internal kana separators (e.g. "思" + "い" + "出")
-    const parts = middleText.split(/([^\u4E00-\u9FFF\u3400-\u4DBF]+)/).filter(Boolean);
-    if (parts.length > 1) {
-      let currentReading = middleReading;
-      let matchedAll = true;
-      const subSegments: RubySegment[] = [];
-
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        if (!hasKanji(part)) {
-          // Kana part: find where it occurs in currentReading
-          const idx = currentReading.indexOf(part);
-          if (idx !== -1) {
-            subSegments.push({ text: part });
-            currentReading = currentReading.slice(idx + part.length);
-          } else {
-            matchedAll = false;
-            break;
-          }
-        } else {
-          // Kanji part: it takes the reading up to the next kana part
-          const nextKana = parts[i + 1];
-          if (nextKana) {
-            const nextIdx = currentReading.indexOf(nextKana);
-            if (nextIdx !== -1) {
-              const kanjiReading = currentReading.slice(0, nextIdx);
-              subSegments.push({ text: part, ruby: kanjiReading });
-              currentReading = currentReading.slice(nextIdx);
-            } else {
-              matchedAll = false;
-              break;
-            }
-          } else {
-            // Last part takes the remainder
-            subSegments.push({ text: part, ruby: currentReading });
-            currentReading = "";
-          }
-        }
-      }
-
-      if (matchedAll && currentReading.length === 0) {
-        result.push(...subSegments);
-      } else {
-        result.push({ text: middleText, ruby: middleReading });
+  // Align every written kana with the reading. Backtrack when kana also occurs
+  // inside a kanji reading (聞き返す → ききかえす). Never put a guessed reading
+  // over unmatched okurigana or discard any source characters.
+  const parts = cleanText.split(/([\u4E00-\u9FFF\u3400-\u4DBF々]+)/u).filter(Boolean);
+  const failed = new Set<string>();
+  const align = (partIndex: number, readingIndex: number): RubySegment[] | null => {
+    if (partIndex === parts.length) return readingIndex === cleanReading.length ? [] : null;
+    const key = partIndex + ":" + readingIndex;
+    if (failed.has(key)) return null;
+    const part = parts[partIndex];
+    if (hasKanji(part)) {
+      const maxEnd = Math.min(cleanReading.length, readingIndex + part.length * 5 + 4);
+      for (let end = readingIndex + 1; end <= maxEnd; end++) {
+        const rest = align(partIndex + 1, end);
+        if (rest) return [{ text: part, ruby: cleanReading.slice(readingIndex, end) }, ...rest];
       }
     } else {
-      result.push({ text: middleText, ruby: middleReading });
+      let end = readingIndex;
+      let matches = true;
+      for (const char of katakanaToHiragana(part)) {
+        if (cleanReading[end] === char) end++;
+        else if (/[\u3041-\u3096ーa-zA-Z0-9０-９]/u.test(char)) { matches = false; break; }
+        // Punctuation and whitespace need no pronunciation.
+      }
+      if (matches) {
+        const rest = align(partIndex + 1, end);
+        if (rest) return [{ text: part }, ...rest];
+      }
     }
-  }
-
-  if (suffix) result.push({ text: suffix });
-
-  return result;
+    failed.add(key);
+    return null;
+  };
+  return align(0, 0) || [{ text: cleanText }];
 }
 
 /** Common Japanese particles for boundary splitting */

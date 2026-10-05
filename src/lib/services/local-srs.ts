@@ -87,6 +87,27 @@ interface SrsDBSchema extends DBSchema {
   };
 }
 
+/** Validate the entire import before opening a write transaction. Older partial cards remain supported. */
+export function validateSrsCards(value: unknown): asserts value is SrsCard[] {
+  if (!Array.isArray(value)) throw new Error("Backup cards must be an array.");
+  const strings = ["id", "reading", "meaning", "sentence", "source_url", "source_title", "source_domain", "image_url",
+    "word_furigana", "jlpt", "vietnamese_sound", "sentence_furigana", "sentence_meaning"];
+  const numbers = ["lapse_count", "stability", "difficulty", "state", "last_review", "retrievability", "elapsed_days",
+    "scheduled_days", "due_date", "interval", "repetition", "efactor", "created_at", "updated_at"];
+  value.forEach((card, index) => {
+    const invalid = (field: string): never => { throw new Error(`Backup card ${index + 1} has an invalid ${field}.`); };
+    if (!card || typeof card !== "object" || Array.isArray(card) || typeof card.word !== "string" || !card.word.trim()) invalid("word");
+    for (const field of strings) if (card[field] !== undefined && typeof card[field] !== "string") invalid(field);
+    if (card.id !== undefined && !card.id.trim()) invalid("id");
+    for (const field of numbers) if (card[field] !== undefined && (!Number.isFinite(card[field]) || card[field] < 0)) invalid(field);
+    if (card.state !== undefined && (!Number.isInteger(card.state) || card.state > 3)) invalid("state");
+    if (card.frequency_rank !== undefined && card.frequency_rank !== null &&
+      (!Number.isFinite(card.frequency_rank) || card.frequency_rank < 0)) invalid("frequency rank");
+    if (card.tags !== undefined && (!Array.isArray(card.tags) || card.tags.some((tag: unknown) => typeof tag !== "string"))) invalid("tags");
+    if (card.is_leech !== undefined && typeof card.is_leech !== "boolean") invalid("leech status");
+  });
+}
+
 class LocalSrsService {
   private dbName = "hakkutsu-srs";
   private connection?: Promise<IDBPDatabase<SrsDBSchema>>;
@@ -460,48 +481,53 @@ class LocalSrsService {
 
   /** Merge a backup into the local database without discarding newer fields. */
   async restoreSrsCards(cards: SrsCard[]): Promise<number> {
+    validateSrsCards(cards);
     const db = await this.dbPromise;
     const tx = db.transaction("cards", "readwrite");
     const store = tx.objectStore("cards");
-    const existingCards = await store.getAll();
-    const existingByWord = new Map(
-      existingCards.map((card) => [card.word.trim().toLocaleLowerCase(), card])
-    );
-    let restored = 0;
-
-    for (const candidate of cards) {
-      if (!candidate || typeof candidate.word !== "string" || !candidate.word.trim()) continue;
-      const now = Date.now();
-      const existing = existingByWord.get(candidate.word.trim().toLocaleLowerCase());
-      const card: SrsCard = {
-        ...existing,
-        ...candidate,
-        id: existing?.id || candidate.id || crypto.randomUUID(),
-        word: candidate.word.trim(),
-        lapse_count: Number.isFinite(candidate.lapse_count) ? candidate.lapse_count : existing?.lapse_count || 0,
-        is_leech: candidate.is_leech ?? existing?.is_leech ?? false,
-        source_domain: candidate.source_domain || existing?.source_domain,
-        stability: Number.isFinite(candidate.stability) ? candidate.stability : existing?.stability,
-        difficulty: Number.isFinite(candidate.difficulty) ? candidate.difficulty : existing?.difficulty,
-        state: Number.isFinite(candidate.state) ? candidate.state : existing?.state,
-        last_review: Number.isFinite(candidate.last_review) ? candidate.last_review : existing?.last_review,
-        retrievability: Number.isFinite(candidate.retrievability) ? candidate.retrievability : existing?.retrievability,
-        elapsed_days: Number.isFinite(candidate.elapsed_days) ? candidate.elapsed_days : existing?.elapsed_days,
-        scheduled_days: Number.isFinite(candidate.scheduled_days) ? candidate.scheduled_days : existing?.scheduled_days,
-        due_date: Number.isFinite(candidate.due_date) ? candidate.due_date : now,
-        interval: Number.isFinite(candidate.interval) ? candidate.interval : 0,
-        repetition: Number.isFinite(candidate.repetition) ? candidate.repetition : 0,
-        efactor: Number.isFinite(candidate.efactor) ? candidate.efactor : 2.5,
-        created_at: Number.isFinite(candidate.created_at) ? candidate.created_at : now,
-        updated_at: Number.isFinite(candidate.updated_at) ? candidate.updated_at : now,
-      };
-      await store.put(card);
-      existingByWord.set(card.word.toLocaleLowerCase(), card);
-      restored += 1;
+    const completion = tx.done;
+    // Observe aborts immediately, even if a request fails before we await done.
+    void completion.catch(() => {});
+    try {
+      const existingCards = await store.getAll();
+      const existingByWord = new Map(existingCards.map(card => [card.word.trim().toLocaleLowerCase(), card]));
+      const usedIds = new Set(existingCards.map(card => card.id));
+      const restoredIds = new Set<string>();
+      for (const candidate of cards) {
+        const now = Date.now();
+        const key = candidate.word.trim().toLocaleLowerCase();
+        const existing = existingByWord.get(key);
+        const candidateFields = Object.fromEntries(Object.entries(candidate).filter(([, value]) => value !== undefined));
+        const existingIsNewer = existing && (existing.updated_at || 0) > (candidate.updated_at || 0);
+        const merged = (existingIsNewer ? { ...candidateFields, ...existing } : { ...existing, ...candidateFields }) as Partial<SrsCard>;
+        let id = existing?.id || candidate.id || crypto.randomUUID();
+        // An imported ID may belong to a different word in this installation.
+        while (!existing && usedIds.has(id)) id = crypto.randomUUID();
+        const card: SrsCard = {
+          ...merged,
+          id,
+          word: (merged.word || candidate.word).trim(),
+          due_date: merged.due_date ?? now,
+          interval: merged.interval ?? 0,
+          repetition: merged.repetition ?? 0,
+          efactor: merged.efactor ?? 2.5,
+          created_at: merged.created_at ?? now,
+          updated_at: merged.updated_at ?? now,
+          lapse_count: merged.lapse_count ?? 0,
+          is_leech: merged.is_leech ?? false,
+        };
+        await store.put(card);
+        usedIds.add(id);
+        existingByWord.set(key, card);
+        restoredIds.add(id);
+      }
+      await completion;
+      return restoredIds.size;
+    } catch (error) {
+      try { tx.abort(); } catch { /* The transaction may have already aborted. */ }
+      await completion.catch(() => {});
+      throw error;
     }
-
-    await tx.done;
-    return restored;
   }
 
   async submitSrsReview(cardId: string, quality: number): Promise<SrsCard> {

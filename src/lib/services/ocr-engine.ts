@@ -29,6 +29,7 @@ export type OcrFragment = {
     passId: string;
     cropId?: string;
     textColumn?: boolean;
+    annotationBounds?: OcrBounds[];
     rawBounds: OcrBounds;
     words: OcrTextBounds[];
     glyphs: OcrTextBounds[];
@@ -45,6 +46,9 @@ export interface OcrCropItem {
   orientationHint?: "vertical" | "horizontal";
   adaptiveThreshold?: boolean;
   textColumn?: boolean;
+  // Detected furigana in source-canvas coordinates, outside the body crop.
+  annotationBounds?: OcrBounds[];
+  terminalPunctuation?: { text: string; bbox: OcrBounds };
   // Maps recognition pixels (including padding) into source-canvas pixels.
   transform?: { originX: number; originY: number; scale: number; padding: number };
   bbox: { x0: number; y0: number; x1: number; y1: number };

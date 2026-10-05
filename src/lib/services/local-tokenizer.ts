@@ -53,7 +53,7 @@ export async function tokenize(text: string, options: { dictionaryAware?: boolea
       // issue a failing database query for every possible compound.
       try {
         const db = await getDB();
-        if (db.objectStoreNames.contains("jmdict")) {
+        if (db.objectStoreNames.contains("jmdict") && await db.count("jmdict") > 0) {
           return mergeOkuriganaTokens(await refineJapaneseTokens(rawTokens, searchDictionary));
         }
       } catch { /* Keep the standard local segmentation available. */ }

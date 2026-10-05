@@ -31,6 +31,17 @@ glyph coverage together with overlaps and artwork false positives; suppressing
 text cannot produce a passing result. Exact sign and thought transcripts are
 also asserted by the bundled-model regression.
 
+`vertical-furigana-dialogue.png` contains two text-only crops from the image
+reported by the user on [Manga Japanese for Beginners](https://jtalkonline.com/manga-japanese-for-beginners/).
+The source is `https://www.twilightvisions.com/ichigo/manga/Ichigo152raw.jpg`;
+crop rectangles are `(627,32,76,118)` and `(99,291,88,148)`. Only the dialogue
+typography is retained, arranged on locally drawn bubbles and a panel divider.
+The fixture checks exact reading order, furigana exclusion and preserved bounds,
+and single/double slanted exclamation marks with bundled models, at 1x and 2x,
+with preprocessing on/off and manual selections. A negative case removes the
+dots so ordinary diagonal strokes cannot be rewritten as punctuation. The full
+source image and diagnostic traces stay in ignored `test-results/ocr/`.
+
 Run `npm run ocr:diagnostics` for local JSON traces and review images in
 `test-results/ocr/` (ignored by Git). The runner uses production recognition,
 preprocessing, mapping, validation, recovery, and grouping with bundled models.

@@ -40,6 +40,28 @@ test('word-bound jitter does not split a vertical phrase before its bridging wor
   assert.deepEqual(Array.from(regions.groupOcrRegions(input), r => r.text), ['何があった']);
 });
 
+test('dakuten ink between words cannot reorder a detected vertical column', () => {
+  const c = canvas();
+  // The OCR box for で omits its upper strokes; those strokes look like a
+  // divider if the known column is split and its parts are sorted by x.
+  for (let y = 66; y < 70; y++) for (let x = 86; x < 103; x++) c.ink(x, y);
+  const input = [fragment('死ん', 86, 30, 17, 33), fragment('で', 87.5, 72, 15.5, 9), fragment('も', 88, 87, 15, 12)];
+  for (const f of input) { f.lineId = 'column:line'; f.evidence.textColumn = true; f.evidence.cropId = 'column'; }
+  assert.deepEqual(Array.from(regions.groupOcrRegions(input, { pixels: c.pixels, validated: true }), r => r.text), ['死んでも']);
+});
+
+test('detected furigana cannot win overlap resolution as a high-confidence singleton', () => {
+  const body = fragment('仕事だ', 100, 30, 28, 85, 'vertical', 85);
+  body.evidence.textColumn = true;
+  body.evidence.annotationBounds = [{ x0: 132, y0: 38, x1: 144, y1: 85 }];
+  const guess = fragment('上', 132, 38, 12, 11, 'horizontal', 99, 'page');
+  const result = pipeline.assembleOcrRegions([body], [guess], { manual: true });
+  assert.deepEqual(Array.from(result, r => r.text), ['仕事だ']);
+  assert.equal(result[0].bbox.x1, 144);
+  const transformed = geometry.transformOcrFragment(result[0].fragments[0], b => ({x0:b.x0*2,y0:b.y0*2,x1:b.x1*2,y1:b.y1*2}));
+  assert.equal(transformed.evidence.annotationBounds[0].x1, 288);
+});
+
 test('empty OCR feedback distinguishes detection, unreadable text and rejected readings', () => {
   assert.equal(pipeline.classifyOcrFailure(0, false), 'ocr_no_text_hint');
   assert.equal(pipeline.classifyOcrFailure(2, false), 'ocr_unreadable_text');

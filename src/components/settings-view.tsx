@@ -4,6 +4,7 @@ import type { ExtensionSettings, SelectiveFuriganaMode } from "~lib/utils/types"
 import { t } from "~lib/locales";
 import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from "~lib/locales";
 import { ankiClient } from "~lib/services/anki-connect";
+import { inferAnkiFieldMapping } from "~lib/services/anki-fields";
 const ankiSvg = "/assets/logo/anki.png";
 const kofiSvg = "/assets/logo/kofi.png";
 const usFlag = "/assets/language/en.png";
@@ -382,23 +383,29 @@ export function SettingsView({
   const [fields, setFields] = useState<string[]>([]);
   const [ankiConnected, setAnkiConnected] = useState<boolean>(false);
   const [loadingAnki, setLoadingAnki] = useState<boolean>(false);
+  const modelRequest = useRef(0);
+  const refreshRequest = useRef(0);
 
   const fetchAnkiData = useCallback(async (selectedModel?: string) => {
+    const request = ++refreshRequest.current;
     setLoadingAnki(true);
     try {
       const connected = await ankiClient.isConnected();
+      if (request !== refreshRequest.current) return;
       setAnkiConnected(connected);
       if (connected) {
         const [dList, mList] = await Promise.all([
           ankiClient.getDecks().catch(() => [] as string[]),
           ankiClient.getModels().catch(() => [] as string[]),
         ]);
+        if (request !== refreshRequest.current) return;
         setDecks(dList);
         setModels(mList);
 
         const currentModel = selectedModel || settings.ankiModel || (mList.length > 0 ? mList[0] : "");
         if (currentModel) {
           const fList = await ankiClient.getModelFields(currentModel).catch(() => [] as string[]);
+          if (request !== refreshRequest.current) return;
           setFields(fList);
         } else {
           setFields([]);
@@ -410,108 +417,42 @@ export function SettingsView({
       }
     } catch (e) {
       console.error("Anki data load error:", e);
-      setAnkiConnected(false);
+      if (request === refreshRequest.current) setAnkiConnected(false);
     } finally {
-      setLoadingAnki(false);
+      if (request === refreshRequest.current) setLoadingAnki(false);
     }
   }, [settings.ankiModel]);
 
   useEffect(() => {
     if (settings.ankiEnabled !== false) void fetchAnkiData();
-    else { setAnkiConnected(false); setDecks([]); setModels([]); setFields([]); }
+    else {
+      ++modelRequest.current;
+      ++refreshRequest.current;
+      setAnkiConnected(false); setDecks([]); setModels([]); setFields([]); setLoadingAnki(false);
+    }
   }, [settings.ankiEnabled, fetchAnkiData]);
 
-  const inferDefaultMapping = (fieldName: string): string => {
-    const lower = fieldName.toLowerCase().replace(/[-_]/g, " ");
-
-    // 1. Audio / Sound
-    if (lower.includes("audio") || lower.includes("sound")) {
-      if (lower.includes("sentence") || lower.includes("expression") || lower.includes("example")) return "sentenceAudio";
-      return "audio";
-    }
-
-    // 2. Furigana
-    if (lower.includes("furigana")) {
-      if (lower.includes("sentence") || lower.includes("expression") || lower.includes("example")) return "sentenceFurigana";
-      return "wordFurigana";
-    }
-
-    // 3. Reading / Pronunciation / Kana
-    if (lower.includes("reading") || lower.includes("kana") || lower.includes("pronunciation")) {
-      if (lower.includes("sentence") || lower.includes("expression") || lower.includes("example")) return "sentenceReading";
-      return "reading";
-    }
-
-    // 4. Meaning / Definition / Translation / Gloss
-    if (lower.includes("meaning") || lower.includes("definition") || lower.includes("translation") || lower.includes("gloss")) {
-      if (lower.includes("sentence") || lower.includes("expression") || lower.includes("example")) return "sentenceMeaning";
-      return "meaning";
-    }
-
-    // 5. Sino-Vietnamese / Han-Viet / Vietnamese
-    if (lower.includes("vietnamese") || lower.includes("hanviet") || lower.includes("sino")) {
-      return "vietnameseSound";
-    }
-
-    // 6. Sentence / Context / Example
-    if (lower.includes("sentence") || lower.includes("context") || lower.includes("example")) {
-      return "sentence";
-    }
-
-    // 7. Image / Picture / Illustration
-    if (lower.includes("image") || lower.includes("picture") || lower.includes("illustration")) {
-      return "imageUrl";
-    }
-
-    // 8. Screenshot
-    if (lower.includes("screenshot")) {
-      return "screenshot";
-    }
-
-    // 9. JLPT
-    if (lower.includes("jlpt") || lower.includes("level")) {
-      return "jlptLevel";
-    }
-
-    // 10. POS / Part of speech
-    if (lower.includes("pos") || lower.includes("part of speech")) {
-      return "pos";
-    }
-
-    // 11. Front / Back HTML
-    if (lower === "front") return "frontHtml";
-    if (lower === "back") return "backHtml";
-
-    // 12. Word / Kanji / Vocabulary
-    if (lower.includes("word") || lower.includes("kanji") || lower.includes("vocab")) {
-      return "word";
-    }
-
-    return "none";
-  };
+  const inferDefaultMapping = inferAnkiFieldMapping;
 
   const handleModelChange = async (newModel: string) => {
+    const request = ++modelRequest.current;
+    ++refreshRequest.current;
     onUpdate({ ankiModel: newModel });
     setLoadingAnki(true);
     try {
       const fList = await ankiClient.getModelFields(newModel).catch(() => [] as string[]);
+      if (request !== modelRequest.current) return;
       setFields(fList);
 
-      const existingMap = { ...(settings.ankiFieldMap || {}) };
-      let updated = false;
+      const existingMap: Record<string, string> = {};
       for (const f of fList) {
-        if (!existingMap[f]) {
-          existingMap[f] = inferDefaultMapping(f);
-          updated = true;
-        }
+        existingMap[f] = settings.ankiFieldMap?.[f] || inferDefaultMapping(f);
       }
-      if (updated) {
-        onUpdate({ ankiModel: newModel, ankiFieldMap: existingMap });
-      }
+      onUpdate({ ankiModel: newModel, ankiFieldMap: existingMap });
     } catch {
       setFields([]);
     } finally {
-      setLoadingAnki(false);
+      if (request === modelRequest.current) setLoadingAnki(false);
     }
   };
 
@@ -954,7 +895,7 @@ export function SettingsView({
                   <button
                     type="button"
                     onClick={() => {
-                      const newMap: Record<string, string> = { ...(settings.ankiFieldMap || {}) };
+                      const newMap: Record<string, string> = {};
                       for (const f of fields) {
                         newMap[f] = inferDefaultMapping(f);
                       }

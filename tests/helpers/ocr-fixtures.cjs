@@ -29,13 +29,20 @@ async function scanFixture(runtime, manifestPath, { selection, diagnostics, scal
       x1: Math.min(selected.x1, region.bbox.x1), y1: Math.min(selected.y1, region.bbox.y1) };
     return bbox.x1 > bbox.x0 && bbox.y1 > bbox.y0 ? [{ ...region, bbox }] : [];
   });
-  if (selection && !detected.length) detected = runtime.bubbles.detectMangaDialogueRegions({ data: new Uint8ClampedArray(local), width: selected.x1 - selected.x0, height: selected.y1 - selected.y0 }).map(region => ({
-    ...region, bbox: { x0: region.bbox.x0 + selected.x0, y0: region.bbox.y0 + selected.y0, x1: region.bbox.x1 + selected.x0, y1: region.bbox.y1 + selected.y0 },
-  }));
+  if (selection && !detected.length) {
+    const toSource = b => ({ x0: b.x0 + selected.x0, y0: b.y0 + selected.y0, x1: b.x1 + selected.x0, y1: b.y1 + selected.y0 });
+    detected = runtime.bubbles.detectMangaDialogueRegions({ data: new Uint8ClampedArray(local), width: selected.x1 - selected.x0, height: selected.y1 - selected.y0 }).map(region => ({
+      ...region, bbox: toSource(region.bbox), annotationBounds: region.annotationBounds?.map(toSource),
+      terminalPunctuation: region.terminalPunctuation && { ...region.terminalPunctuation, bbox: toSource(region.terminalPunctuation.bbox) },
+    }));
+  }
   const crops = await Promise.all(detected.map(async region => {
     const b = region.bbox;
-    return { ...await rawCrop(b, 10, runtime.cropper.ocrCropScale(b.x1 - b.x0, b.y1 - b.y0, region.textSize)), id: `${manifest.id}:${selection?.id || 'page'}:${region.id}`, orientation: 'auto', adaptiveThreshold: preprocess,
-      orientationHint: region.orientationAmbiguous ? undefined : region.orientation, textColumn: region.textColumn };
+    return { ...await rawCrop(b, region.textColumn && region.annotationBounds ? 20 : 10, runtime.cropper.ocrCropScale(b.x1 - b.x0, b.y1 - b.y0, region.textSize)), id: `${manifest.id}:${selection?.id || 'page'}:${region.id}`, orientation: 'auto', adaptiveThreshold: preprocess,
+      orientationHint: region.orientationAmbiguous ? undefined : region.orientation, textColumn: region.textColumn,
+      annotationBounds: region.annotationBounds?.filter(b => b.x0 >= selected.x0 && b.y0 >= selected.y0 && b.x1 <= selected.x1 && b.y1 <= selected.y1),
+      terminalPunctuation: region.terminalPunctuation && region.terminalPunctuation.bbox.x0 >= selected.x0 && region.terminalPunctuation.bbox.y0 >= selected.y0 &&
+        region.terminalPunctuation.bbox.x1 <= selected.x1 && region.terminalPunctuation.bbox.y1 <= selected.y1 ? region.terminalPunctuation : undefined };
   }));
   if (selection && !crops.length) crops.push({ ...await rawCrop(selected, 10), id: `${manifest.id}:${selection.id}:manual`, orientation: 'auto' });
   diagnostics?.({ stage: 'grouping', reason: 'detected-crops', details: { crops: crops.map(({ dataUrl, ...crop }) => crop), selection, scale, preprocess } });

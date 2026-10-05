@@ -147,10 +147,12 @@ export function groupOcrRegions(fragments: OcrFragment[], options: OcrRegionOpti
       const line = lines.find(line => {
         const typical = median(line.fragments.map(f => span(f.bbox, across)));
         if (differentBubbles(line.fragments, [fragment])) return false;
+        const sameColumn = fragment.evidence?.textColumn && line.fragments.some(f => f.evidence?.textColumn &&
+          f.evidence.cropId === fragment.evidence?.cropId && f.lineId === fragment.lineId);
         return overlap(line.bbox, fragment.bbox, across) >= Math.min(typical, size) * .55 &&
           Math.max(typical, size) / Math.min(typical, size) <= (supplement ? 12 : 1.8) &&
           gap(line.bbox, fragment.bbox, along) <= (supplement ? Math.max(typical, size) : Math.min(typical, size)) * (sameBubble(line.fragments, [fragment]) ? 3 : 1.8) &&
-          !separated(line.bbox, fragment.bbox, along, options.pixels);
+          (sameColumn || !separated(line.bbox, fragment.bbox, along, options.pixels));
       });
       if (line) { line.fragments.push(fragment); line.bbox = union(line.bbox, fragment.bbox); }
       else lines.push({ text: "", orientation, fragments: [fragment], bbox: { ...fragment.bbox } });
@@ -205,7 +207,9 @@ export function groupOcrRegions(fragments: OcrFragment[], options: OcrRegionOpti
         characterCount / Math.max(1, characterCount + latinCount) < .6 ||
         span(bodyBounds, along) > typicalSize * Math.max(2, characterCount) * 2.5)) { rejectGroup("implausible-passage", members); continue; }
       const withAnnotations = [...members, ...[...annotations].filter(([, body]) => members.includes(body)).map(([reading]) => reading)];
-      regions.push({ text, orientation, fragments: withAnnotations, bbox: withAnnotations.reduce((b, f) => union(b, f.bbox), members[0].bbox) });
+      const bounds = withAnnotations.reduce((b, f) => union(b, f.bbox), members[0].bbox);
+      const detectedAnnotations = members.flatMap(f => f.evidence?.annotationBounds || []);
+      regions.push({ text, orientation, fragments: withAnnotations, bbox: detectedAnnotations.reduce(union, bounds) });
       options.diagnostics?.({ stage: "grouping", reason: "accepted-passage", details: { region: regions[regions.length - 1] } });
     }
   }

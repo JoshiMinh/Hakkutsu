@@ -223,14 +223,21 @@ export function MangaOcrImages() {
         x1: Math.min(scanBox.x1, region.bbox.x1), y1: Math.min(scanBox.y1, region.bbox.y1) };
       return bbox.x1 > bbox.x0 && bbox.y1 > bbox.y0 ? [{ ...region, bbox }] : [];
     });
-    if (selection && !detected.length) detected = detectMangaDialogueRegions(selectedPixels, { includeBorderlessText: true }).map(region => ({
-      ...region, bbox: { x0: region.bbox.x0 + scanBox.x0, y0: region.bbox.y0 + scanBox.y0,
-        x1: region.bbox.x1 + scanBox.x0, y1: region.bbox.y1 + scanBox.y0 },
-    }));
-    const makeCrop = (b: Bounds, index: number, orientationHint?: "vertical" | "horizontal", textSize?: number, textColumn = false): OcrCropItem => {
+    if (selection && !detected.length) {
+      const toSource = (b: Bounds): Bounds => ({ x0: b.x0 + scanBox.x0, y0: b.y0 + scanBox.y0,
+        x1: b.x1 + scanBox.x0, y1: b.y1 + scanBox.y0 });
+      detected = detectMangaDialogueRegions(selectedPixels, { includeBorderlessText: true }).map(region => ({
+        ...region, bbox: toSource(region.bbox), annotationBounds: region.annotationBounds?.map(toSource),
+        terminalPunctuation: region.terminalPunctuation && { ...region.terminalPunctuation, bbox: toSource(region.terminalPunctuation.bbox) },
+      }));
+    }
+    // Column crops exclude detected vertical punctuation from the bitmap.
+    // Keep the complete bubble when the user explicitly requests horizontal OCR.
+    if (settings.ocrDefaultOrientation === "horizontal") detected = detected.filter(region => !region.annotationBounds);
+    const makeCrop = (b: Bounds, index: number, orientationHint?: "vertical" | "horizontal", textSize?: number, textColumn = false, annotationBounds?: Bounds[], terminalPunctuation?: OcrCropItem["terminalPunctuation"]): OcrCropItem => {
       const crop = cropCanvasRegion(canvas, {
         x: b.x0, y: b.y0, width: b.x1 - b.x0, height: b.y1 - b.y0,
-      }, settings.ocrPreprocessEnabled !== false, { padding: 10,
+      }, settings.ocrPreprocessEnabled !== false, { padding: textColumn && annotationBounds ? 20 : 10,
         scale: ocrCropScale(b.x1 - b.x0, b.y1 - b.y0, textSize) });
       return {
         id: `${scanId}:${index}`, dataUrl: crop.dataUrl,
@@ -238,9 +245,12 @@ export function MangaOcrImages() {
         orientation: settings.ocrDefaultOrientation || "auto", orientationHint,
         adaptiveThreshold: settings.ocrPreprocessEnabled !== false,
         textColumn,
+        annotationBounds: annotationBounds?.filter(b => b.x0 >= scanBox.x0 && b.y0 >= scanBox.y0 && b.x1 <= scanBox.x1 && b.y1 <= scanBox.y1),
+        terminalPunctuation: terminalPunctuation && terminalPunctuation.bbox.x0 >= scanBox.x0 && terminalPunctuation.bbox.y0 >= scanBox.y0 &&
+          terminalPunctuation.bbox.x1 <= scanBox.x1 && terminalPunctuation.bbox.y1 <= scanBox.y1 ? terminalPunctuation : undefined,
       };
     };
-    const crops = detected.map((region, index) => makeCrop(region.bbox, index, region.orientationAmbiguous ? undefined : region.orientation, region.textSize, region.textColumn));
+    const crops = detected.map((region, index) => makeCrop(region.bbox, index, region.orientationAmbiguous ? undefined : region.orientation, region.textSize, region.textColumn, region.annotationBounds, region.terminalPunctuation));
     // A tight sign or sound-effect selection may be too small for automatic
     // detection. It still needs crop segmentation instead of page segmentation.
     if (manual && !crops.length) {
