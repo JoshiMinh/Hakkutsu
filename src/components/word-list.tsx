@@ -18,7 +18,7 @@ import {
   Image as ImageIcon,
   Upload
 } from "lucide-react";
-import { JlptBadge, FrequencyBadge } from "~components/badges";
+import { JlptBadge, FrequencyBadge } from "~components/Badges";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
 import { lookupWord } from "~lib/services/dictionary-lookup";

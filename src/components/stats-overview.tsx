@@ -15,7 +15,7 @@ import { ttsService } from "~lib/services/tts-service";
 import type { OverallAnalyticsSummary } from "~lib/utils/types";
 import { useSettingsStore } from "~lib/utils/settings";
 import { useTranslation } from "~lib/locales";
-import { JlptBadge } from "./badges";
+import { JlptBadge } from "./Badges";
 import { ActivityHeatmap } from "./activity-heatmap";
 import { DashboardForecast, DashboardBreakdown } from "./dashboard-insights";
 

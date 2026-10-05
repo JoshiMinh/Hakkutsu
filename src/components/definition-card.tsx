@@ -4,7 +4,7 @@ import { formatPosLabel } from "~lib/utils/constants";
 import { getHanViet } from "~lib/utils/hanviet-dict";
 import { hasKanji, distributeFurigana } from "~lib/utils/japanese";
 import { predictJlpt } from "~lib/utils/jlpt-classifier";
-import { JlptBadge, PosBadge, FrequencyBadge } from "./badges";
+import { JlptBadge, PosBadge, FrequencyBadge } from "./Badges";
 import { Volume2, BookmarkPlus, Copy, Check, Sparkles, BookOpen, MessageSquareText, Loader2, Image as ImageIcon, AlertCircle } from "lucide-react";
 import { useTranslation } from "~lib/locales";
 import { ttsService } from "~lib/services/tts-service";
