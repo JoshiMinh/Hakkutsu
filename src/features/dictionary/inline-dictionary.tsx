@@ -1,0 +1,1084 @@
+import { memo, useEffect, useState, useRef } from "react";
+import {
+  X,
+  Loader2,
+  Sparkles,
+  Languages,
+  Zap,
+  Check,
+  BookmarkPlus,
+  AlertCircle,
+} from "lucide-react";
+import { containsJapanese } from "~/shared/japanese/japanese";
+import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis } from "~/features/dictionary/types";
+import type { AnkiExportData } from "~/features/anki/types";
+import { DefinitionCard } from "~/features/dictionary/definition-card";
+import { TokenDisplay } from "~/features/dictionary/token-display";
+import { GrammarExplanations } from "~/features/dictionary/grammar-explanations";
+import { MangaOcrImages } from "~/features/ocr/manga-ocr-images";
+import { useSettingsStore } from "~/features/settings/settings-store";
+import { useTranslation } from "~/shared/locales";
+import { requestLookupAnalysis } from "~/features/dictionary/lookup-analysis";
+
+// Content scripts render inside arbitrary websites, so root-relative URLs point
+// at the host page. Resolve the packaged asset against the extension origin.
+const logoUrl = browser.runtime.getURL("/assets/icon.png");
+
+function cleanJapaneseText(raw: string): string {
+  return raw
+    .trim()
+    .replace(
+      /^[\s\u3000\u3001\u3002\uff0c\uff0e\uff01\uff1f\u300c\u300d\u300e\u300f()（）\[\]【】"'\-—~〜…・]+|[\s\u3000\u3001\u3002\uff0c\uff0e\uff01\uff1f\u300c\u300d\u300e\u300f()（）\[\]【】"'\-—~〜…・]+$/g,
+      ""
+    )
+    .trim();
+}
+
+interface WordPointResult {
+  text: string;
+  rect: DOMRect;
+  rects: DOMRect[];
+}
+
+function getWordAtPoint(x: number, y: number): WordPointResult | null {
+  let range: Range | null = null;
+  if (document.caretRangeFromPoint) {
+    range = document.caretRangeFromPoint(x, y);
+  } else if ((document as any).caretPositionFromPoint) {
+    const pos = (document as any).caretPositionFromPoint(x, y);
+    if (pos && pos.offsetNode) {
+      range = document.createRange();
+      range.setStart(pos.offsetNode, pos.offset);
+      range.setEnd(pos.offsetNode, pos.offset);
+    }
+  }
+
+  if (!range || !range.startContainer || range.startContainer.nodeType !== Node.TEXT_NODE) {
+    return null;
+  }
+
+  const textNode = range.startContainer;
+  const content = textNode.textContent || "";
+  const offset = range.startOffset;
+
+  if (!content || offset < 0 || offset >= content.length) return null;
+
+  let start = -1;
+  let end = -1;
+  let matchedWord = "";
+
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const segmenter = new (Intl as any).Segmenter("ja-JP", { granularity: "word" });
+    const segments = Array.from(segmenter.segment(content)) as Array<{
+      segment: string;
+      index: number;
+      input: string;
+      isWordLike?: boolean;
+    }>;
+
+    const targetSegment = segments.find(
+      (s) => offset >= s.index && offset < s.index + s.segment.length
+    );
+
+    if (targetSegment && targetSegment.segment && containsJapanese(targetSegment.segment)) {
+      matchedWord = targetSegment.segment.trim();
+      start = targetSegment.index;
+      end = targetSegment.index + targetSegment.segment.length;
+    }
+  }
+
+  if (!matchedWord || start < 0 || end < 0) {
+    let s = offset;
+    let e = offset;
+    while (s > 0 && containsJapanese(content[s - 1])) {
+      s--;
+    }
+    while (e < content.length && containsJapanese(content[e])) {
+      e++;
+    }
+    matchedWord = content.substring(s, e).trim();
+    start = s;
+    end = e;
+  }
+
+  if (!matchedWord || !containsJapanese(matchedWord)) return null;
+
+  const wordRange = document.createRange();
+  wordRange.setStart(textNode, start);
+  wordRange.setEnd(textNode, end);
+  const rect = wordRange.getBoundingClientRect();
+  const rawRects = Array.from(wordRange.getClientRects());
+  const rects = rawRects.filter((r) => r.width > 0 && r.height > 0);
+
+  return { text: matchedWord, rect, rects: rects.length > 0 ? rects : [rect] };
+}
+
+const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nativePanel?: boolean; sourceUrl?: string; sourceTitle?: string }) => {
+  const [position, setPosition] = useState<{
+    x: number;
+    y: number;
+    placement?: "anchor" | "player-overlay";
+    above?: boolean;
+  } | null>(null);
+  const [inputText, setInputText] = useState("");
+  const [result, setResult] = useState<AnalyzeResponse | null>(null);
+  const [selectedToken, setSelectedToken] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [ankiConnected, setAnkiConnected] = useState(false);
+  const [phraseMode, setPhraseMode] = useState(false);
+  const [sentenceMode, setSentenceMode] = useState(false);
+  const [transientMode, setTransientMode] = useState(false);
+  const transientModeRef = useRef(transientMode);
+  transientModeRef.current = transientMode;
+  const isMouseOverPopupRef = useRef(false);
+  const [srsAdded, setSrsAdded] = useState(false);
+  const [srsError, setSrsError] = useState<string | null>(null);
+  const [hoverHighlightRects, setHoverHighlightRects] = useState<DOMRect[] | null>(null);
+  const [ocrCroppedImage, setOcrCroppedImage] = useState<string | null>(null);
+  const [ocrRegionId, setOcrRegionId] = useState<string | null>(null);
+  const { settings, isHydrated } = useSettingsStore();
+  const { t, isVietnamese, lang } = useTranslation();
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const analysisRequestRef = useRef(0);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeLookupRef = useRef("");
+  const remoteLookupRef = useRef(false);
+  const dragRef = useRef<{ x: number; y: number; left: number; top: number; width: number; height: number } | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const closeLookup = () => {
+    ++analysisRequestRef.current;
+    dragRef.current = null;
+    if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+    if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
+    hoverTimerRef.current = dismissTimerRef.current = null;
+    activeLookupRef.current = "";
+    isMouseOverPopupRef.current = false;
+    setPosition(null);
+    setHoverHighlightRects(null);
+    setOcrCroppedImage(null);
+    setOcrRegionId(null);
+    setTransientMode(false);
+    window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+    if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus({ preventScroll: true });
+    returnFocusRef.current = null;
+  };
+  const positionRef = useRef(position);
+  positionRef.current = position;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const isHydratedRef = useRef(isHydrated);
+  isHydratedRef.current = isHydrated;
+
+  useEffect(() => {
+    if (ocrRegionId && position) containerRef.current?.focus({ preventScroll: true });
+  }, [ocrRegionId]);
+
+  useEffect(() => {
+    if (settings.ankiEnabled === false) { setAnkiConnected(false); return; }
+    chrome.runtime
+      .sendMessage({ type: "CHECK_ANKI" })
+      .then((response) => {
+        if (response?.type === "ANKI_STATUS") {
+          setAnkiConnected(response.payload.connected);
+        }
+      })
+      .catch(() => setAnkiConnected(false));
+  }, [settings.ankiEnabled]);
+
+  // Ensure shadow host is placed inside the active fullscreen or player element
+  useEffect(() => {
+    const syncHostPlacement = (event?: Event) => {
+      const host = document.getElementById("hakkutsu-inline-dictionary-host") || document.querySelector<HTMLElement>("hakkutsu-inline-dictionary-host");
+      if (!host) return;
+
+      const fsEl = document.fullscreenElement as HTMLElement | null;
+      if (fsEl) {
+        if (!fsEl.contains(host)) {
+          fsEl.appendChild(host);
+        }
+      } else {
+        const netflixPlayer = document.querySelector<HTMLElement>(".watch-video");
+        const ytPlayer = document.querySelector<HTMLElement>("#movie_player");
+        const fromTranscript = (event as CustomEvent)?.detail?.fromTranscript || remoteLookupRef.current;
+        const target = fromTranscript ? document.body : netflixPlayer || ytPlayer || document.body;
+        if (target && !target.contains(host)) {
+          target.appendChild(host);
+        }
+      }
+    };
+
+    document.addEventListener("fullscreenchange", syncHostPlacement);
+    window.addEventListener("hakkutsu:analyze", syncHostPlacement);
+    syncHostPlacement();
+
+    return () => {
+      document.removeEventListener("fullscreenchange", syncHostPlacement);
+      window.removeEventListener("hakkutsu:analyze", syncHostPlacement);
+    };
+  }, []);
+
+  const lastHoverWordRef = useRef<string | null>(null);
+  const selectionTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const isClickInsidePopup = (e: MouseEvent): boolean => {
+      const path = (e.composedPath && e.composedPath()) || [];
+      if (
+        containerRef.current &&
+        (containerRef.current.contains(e.target as Node) ||
+          path.includes(containerRef.current))
+      ) {
+        return true;
+      }
+      return path.some(
+        (el: any) =>
+          el?.id === "hakkutsu-inline-dictionary" ||
+          el?.id === "hakkutsu-inline-dictionary-host" ||
+          el?.dataset?.hakkutsuMangaOcr === "true" ||
+          el?.classList?.contains?.("hk-popup") ||
+          el?.classList?.contains?.("hk-sub-token")
+      );
+    };
+
+    const checkModifierKey = (e: MouseEvent, keyMode: string): boolean => {
+      if (keyMode === "alt") return e.altKey;
+      if (keyMode === "ctrl") return e.ctrlKey;
+      if (keyMode === "shift") return e.shiftKey;
+      if (keyMode === "meta") return e.metaKey;
+      return false;
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (isClickInsidePopup(e)) return;
+      if (isHydratedRef.current && settingsRef.current.textAnalysisEnabled === false) return;
+
+      const keyMode = settingsRef.current.hoverModifierKey || "alt";
+      if (keyMode === "none") return;
+
+      if (checkModifierKey(e, keyMode)) {
+        const res = getWordAtPoint(e.clientX, e.clientY);
+        if (res && res.text) {
+          setHoverHighlightRects(res.rects);
+          if (lastHoverWordRef.current === res.text && positionRef.current) {
+            return;
+          }
+          lastHoverWordRef.current = res.text;
+
+          const rect = res.rect;
+          const x = Math.max(16, Math.min(rect.left, window.innerWidth - 340));
+          const placeAbove = window.innerHeight - rect.bottom < 360 && rect.top > 360;
+
+          setPosition({
+            x,
+            y: placeAbove ? rect.top : rect.bottom,
+            placement: "anchor",
+            above: placeAbove,
+          });
+          setInputText(res.text);
+          setSentenceMode(false);
+          setTransientMode(true);
+          setOcrCroppedImage(null);
+          setOcrRegionId(null);
+          analyzeText(res.text, false, true);
+        } else {
+          lastHoverWordRef.current = null;
+          setHoverHighlightRects(null);
+        }
+      } else {
+        lastHoverWordRef.current = null;
+        setHoverHighlightRects(null);
+      }
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      const keyMode = settingsRef.current.hoverModifierKey || "alt";
+      if (keyMode === "none") return;
+
+      const isMatchingKey =
+        (keyMode === "alt" && e.key === "Alt") ||
+        (keyMode === "ctrl" && e.key === "Control") ||
+        (keyMode === "shift" && e.key === "Shift") ||
+        (keyMode === "meta" && e.key === "Meta");
+
+      if (isMatchingKey) {
+        lastHoverWordRef.current = null;
+        setHoverHighlightRects(null);
+      }
+    };
+
+    const onScroll = () => {
+      setHoverHighlightRects(null);
+    };
+
+    const handleSelection = (e: MouseEvent, isDoubleClick: boolean) => {
+      if (isClickInsidePopup(e)) {
+        return;
+      }
+
+      if (
+        isHydratedRef.current &&
+        settingsRef.current.textAnalysisEnabled === false
+      ) {
+        return;
+      }
+
+      if (selectionTimerRef.current) {
+        clearTimeout(selectionTimerRef.current);
+        selectionTimerRef.current = null;
+      }
+
+      const clientX = e.clientX;
+      const clientY = e.clientY;
+
+      const processSelection = () => {
+        let rawSelectedText = "";
+        let rect: DOMRect | null = null;
+
+        const activeEl = document.activeElement;
+        if (
+          activeEl &&
+          (activeEl instanceof HTMLInputElement ||
+            activeEl instanceof HTMLTextAreaElement) &&
+          typeof activeEl.selectionStart === "number" &&
+          typeof activeEl.selectionEnd === "number" &&
+          activeEl.selectionStart !== activeEl.selectionEnd
+        ) {
+          rawSelectedText = activeEl.value.substring(
+            activeEl.selectionStart,
+            activeEl.selectionEnd
+          );
+          rect = activeEl.getBoundingClientRect();
+        } else {
+          const selection = window.getSelection();
+          if (selection && !selection.isCollapsed) {
+            rawSelectedText = selection.toString();
+            if (selection.rangeCount > 0) {
+              rect = selection.getRangeAt(0).getBoundingClientRect();
+            }
+          }
+        }
+
+        const selectedText = cleanJapaneseText(rawSelectedText);
+
+        if (!selectedText || !containsJapanese(selectedText)) {
+          if (!isDoubleClick && positionRef.current) {
+            setPosition(null);
+            window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+          }
+          return;
+        }
+
+        const hasValidRect = Boolean(rect && (rect.width > 0 || rect.height > 0));
+        const x = hasValidRect && rect ? rect.left : clientX;
+
+        const estimatedPanelHeight = 360;
+        const y = hasValidRect && rect ? rect.bottom : clientY + 12;
+        const placeAbove = Boolean(
+          hasValidRect &&
+          rect &&
+          window.innerHeight - rect.bottom < estimatedPanelHeight &&
+          rect.top > estimatedPanelHeight
+        );
+        setPosition({
+          x: Math.max(16, Math.min(x, window.innerWidth - 340)),
+          y: placeAbove && rect ? rect.top : y,
+          placement: "anchor",
+          above: placeAbove,
+        });
+        setInputText(selectedText);
+        setOcrCroppedImage(null);
+        setOcrRegionId(null);
+        analyzeText(selectedText, false, true);
+        window.dispatchEvent(new CustomEvent("hakkutsu:analysis-opened"));
+      };
+
+      if (isDoubleClick) {
+        selectionTimerRef.current = setTimeout(processSelection, 120);
+      }
+    };
+
+    const onMouseUp = (e: MouseEvent) => handleSelection(e, false);
+    const onDoubleClick = (e: MouseEvent) => handleSelection(e, true);
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && positionRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeLookup();
+      }
+    };
+
+    const onCustomAnalyze = (e: any) => {
+      if (e.detail?.text) {
+        if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+        if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
+        hoverTimerRef.current = dismissTimerRef.current = null;
+        const detail = e.detail;
+        const open = () => {
+          hoverTimerRef.current = null;
+          const lookupKey = JSON.stringify([detail.text, detail.mode || "dictionary", detail.selectedIndex, settingsRef.current.targetLanguage, Boolean(detail.fromTranscript), detail.ocrRegionId]);
+          if (activeLookupRef.current === lookupKey && positionRef.current) {
+            if (!detail.transient) setTransientMode(false);
+            return;
+          }
+          activeLookupRef.current = lookupKey;
+          remoteLookupRef.current = Boolean(detail.fromTranscript);
+          if (!detail.transient && (nativePanel || detail.ocrRegionId)) returnFocusRef.current = detail.returnFocus || document.activeElement as HTMLElement | null;
+          const video = document.querySelector<HTMLVideoElement>("video");
+          if (e.detail.pauseVideo !== false && video && !video.paused) {
+            try {
+              video.pause();
+            } catch {}
+          }
+
+          const x = Number.isFinite(e.detail.x)
+            ? e.detail.x
+            : window.innerWidth / 2;
+          const y = Number.isFinite(e.detail.y)
+            ? e.detail.y
+            : window.innerHeight / 2;
+          setPosition({
+            x,
+            y: y + 8,
+            above: detail.fromTranscript ? false : undefined,
+            placement:
+              e.detail.placement === "player-overlay"
+                ? "player-overlay"
+                : "anchor",
+          });
+          setInputText(e.detail.text);
+          setOcrCroppedImage(e.detail.imageUrl || null);
+          setOcrRegionId(detail.ocrRegionId || null);
+          const mode = String(e.detail.mode || "dictionary");
+          const isOcr = Boolean(detail.ocrRegionId);
+          const isDeepPhrase = isOcr || mode === "phrase";
+          const selectedIndex = Number.isInteger(e.detail.selectedIndex)
+            ? Number(e.detail.selectedIndex)
+            : null;
+          setSentenceMode(Boolean(detail.ocrRegionId) || mode === "quick" || isDeepPhrase);
+          setPhraseMode(isDeepPhrase);
+          setTransientMode(Boolean(e.detail.transient));
+          analyzeText(
+            e.detail.text,
+            isDeepPhrase,
+            isOcr || mode === "dictionary" || Boolean(e.detail.transient),
+            selectedIndex,
+            mode === "quick" || mode === "dictionary",
+            isOcr ? "ocr" : undefined
+          );
+          window.dispatchEvent(new CustomEvent("hakkutsu:analysis-opened"));
+        };
+        if (detail.transient) hoverTimerRef.current = setTimeout(open, 180);
+        else open();
+      }
+    };
+    const onTokenHover = (e: any) => {
+      const index = Number(e.detail?.index);
+      if (Number.isInteger(index) && index >= 0) {
+        setSelectedToken(index);
+      }
+    };
+    const onDismissAnalysis = (e?: any) => {
+      if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+      if ((nativePanel || remoteLookupRef.current) && !e?.detail?.force) return;
+      if (isMouseOverPopupRef.current && !e?.detail?.force) {
+        return;
+      }
+      if (!transientModeRef.current && !e?.detail?.force) {
+        return;
+      }
+      if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
+      dismissTimerRef.current = setTimeout(() => {
+        if (e?.detail?.force || !isMouseOverPopupRef.current) closeLookup();
+      }, e?.detail?.force ? 0 : 250);
+    };
+
+    const onDocumentPointerDown = (e: MouseEvent) => {
+      if (!positionRef.current) return;
+      if (!isClickInsidePopup(e)) {
+        if (!nativePanel) closeLookup();
+      }
+    };
+
+    document.addEventListener("mousedown", onDocumentPointerDown, true);
+    document.addEventListener("mousemove", onMouseMove, true);
+    document.addEventListener("mouseup", onMouseUp, true);
+    document.addEventListener("dblclick", onDoubleClick, true);
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keyup", onKeyUp, true);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("hakkutsu:analyze", onCustomAnalyze);
+    window.addEventListener("hakkutsu:analysis-dismiss", onDismissAnalysis);
+    window.addEventListener("hakkutsu:token-hover", onTokenHover);
+
+    return () => {
+      ++analysisRequestRef.current;
+      window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+      if (selectionTimerRef.current) clearTimeout(selectionTimerRef.current);
+      if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+      if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
+      document.removeEventListener("mousedown", onDocumentPointerDown, true);
+      document.removeEventListener("mousemove", onMouseMove, true);
+      document.removeEventListener("mouseup", onMouseUp, true);
+      document.removeEventListener("dblclick", onDoubleClick, true);
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("hakkutsu:analyze", onCustomAnalyze);
+      window.removeEventListener("hakkutsu:analysis-dismiss", onDismissAnalysis);
+      window.removeEventListener("hakkutsu:token-hover", onTokenHover);
+    };
+  }, []);
+
+  useEffect(() => {
+    const listener = (message: any, _sender: unknown, reply: (value: unknown) => void) => {
+      if (message.type === "LOOKUP_TRANSCRIPT") {
+        const text = message.payload?.text;
+        if (typeof text !== "string" || !text.trim() || text.length > 1000) return;
+        window.dispatchEvent(new CustomEvent("hakkutsu:analyze", { detail: {
+          text, mode: "dictionary", transient: Boolean(message.payload.transient), fromTranscript: true,
+          pauseVideo: false, x: window.innerWidth - Math.min(420, window.innerWidth - 32) / 2 - 16,
+          y: Math.max(16, (window.innerHeight - 440) / 2),
+        } }));
+        reply({ ok: true });
+      } else if (message.type === "CANCEL_TRANSCRIPT_LOOKUP") {
+        if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = null;
+        if (message.payload?.force && remoteLookupRef.current) closeLookup();
+        reply({ ok: true });
+      }
+    };
+    const publish = (open: boolean) => {
+      if (remoteLookupRef.current) void chrome.runtime.sendMessage({ type: "TRANSCRIPT_LOOKUP_STATE", payload: { open } }).catch(() => {});
+      if (!open) remoteLookupRef.current = false;
+    };
+    const opened = () => publish(true);
+    const closed = () => publish(false);
+    const libraryUpdated = () => {
+      if (remoteLookupRef.current) void chrome.runtime.sendMessage({ type: "TRANSCRIPT_LOOKUP_STATE", payload: { open: true, libraryUpdated: true } }).catch(() => {});
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    window.addEventListener("hakkutsu:analysis-opened", opened);
+    window.addEventListener("hakkutsu:analysis-closed", closed);
+    window.addEventListener("hakkutsu:srs-updated", libraryUpdated);
+    return () => {
+      chrome.runtime.onMessage.removeListener(listener);
+      window.removeEventListener("hakkutsu:analysis-opened", opened);
+      window.removeEventListener("hakkutsu:analysis-closed", closed);
+      window.removeEventListener("hakkutsu:srs-updated", libraryUpdated);
+    };
+  }, []);
+
+  const analyzeText = async (
+    text: string,
+    deepPhraseAnalysis: boolean,
+    includeDefinitions = true,
+    preferredTokenIndex: number | null = null,
+    useJaviAnalysis = false,
+    source?: "ocr"
+  ) => {
+    const expectedText = text.trim();
+    const requestId = ++analysisRequestRef.current;
+    setLoading(true);
+    setError(null);
+    setSrsError(null);
+    setSelectedToken(null);
+    setResult(null);
+
+    try {
+      const response = await requestLookupAnalysis(deepPhraseAnalysis
+          ? "ANALYZE_PHRASE"
+          : useJaviAnalysis
+            ? "ANALYZE_JAVI"
+            : "ANALYZE_TEXT", text, includeDefinitions, settingsRef.current.targetLanguage || "vi", source);
+
+      if (response?.type === "ERROR") {
+        throw new Error(response.payload.error);
+      }
+
+      if (
+        response?.type === "ANALYZE_RESULT" ||
+        response?.type === "ANALYZE_PHRASE_RESULT"
+      ) {
+        const analyzeResponse = response.payload as AnalyzeResponse | PhraseAnalyzeResponse;
+        if (requestId !== analysisRequestRef.current) return;
+        if (analyzeResponse.text.trim() !== expectedText) {
+          throw new Error(
+            isVietnamese
+              ? "Backend trả kết quả của một câu khác. Vui lòng thử lại."
+              : "Analysis result text mismatch. Please retry."
+          );
+        }
+        setResult(analyzeResponse);
+
+        // Prefer selecting token matching expectedText if present, or first Japanese token
+        const matchingTokenIndex = analyzeResponse.tokens.findIndex(
+          (t) => t.surface === expectedText || t.dictionary_form === expectedText
+        );
+        const firstJpIndex = analyzeResponse.tokens.findIndex((t) => t.is_japanese);
+        const firstDefinedIndex = analyzeResponse.tokens.findIndex((t) => t.is_japanese && t.definitions.length > 0);
+
+        if (
+          preferredTokenIndex !== null &&
+          analyzeResponse.tokens[preferredTokenIndex]
+        ) {
+          setSelectedToken(preferredTokenIndex);
+        } else if (matchingTokenIndex !== -1) {
+          setSelectedToken(matchingTokenIndex);
+        } else if (includeDefinitions && firstJpIndex !== -1) {
+          setSelectedToken(source === "ocr" && firstDefinedIndex !== -1 ? firstDefinedIndex : firstJpIndex);
+        }
+      } else {
+        throw new Error("Invalid response from background script");
+      }
+    } catch (e) {
+      if (requestId === analysisRequestRef.current) {
+        setError(e instanceof Error ? e.message : "Analysis failed");
+      }
+    } finally {
+      if (requestId === analysisRequestRef.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleExport = async (data: AnkiExportData) => {
+    if (ocrRegionId && (loading || result?.text.trim() !== inputText.trim())) return;
+    try {
+      await chrome.runtime.sendMessage({
+        type: "EXPORT_ANKI",
+        payload: {
+          ...data,
+          screenshot: ocrCroppedImage || data.screenshot,
+          imageUrl: ocrCroppedImage || data.imageUrl,
+        },
+      });
+    } catch (e) {
+      console.error("Export failed", e);
+    }
+  };
+
+  const handleSrsAdd = async (selectedImageUrl?: string) => {
+    if (!selectedTokenData || (ocrRegionId && (loading || result?.text.trim() !== inputText.trim()))) return;
+    const word = selectedTokenData.dictionary_form || selectedTokenData.surface;
+    if (!word) return;
+
+    if (srsAdded) {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: "REMOVE_SRS_CARD",
+          payload: { word },
+        });
+        if (response?.type !== "REMOVE_SRS_CARD_RESULT" || !response.payload?.success) {
+          throw new Error(response?.payload?.error || "Could not remove card");
+        }
+        setSrsAdded(false);
+        setSrsError(null);
+        window.dispatchEvent(new Event("hakkutsu:srs-updated"));
+      } catch (e: any) {
+        console.error("Remove card failed", e);
+      }
+    } else {
+      const wordReading = selectedTokenData.dictionary_reading || selectedTokenData.reading.hiragana;
+      const meanings = selectedTokenData.definitions
+        .flatMap((d) => d.glosses)
+        .join("; ");
+
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: "ADD_SRS_CARD",
+          payload: {
+            word,
+            reading: wordReading,
+            word_furigana: `${word}[${wordReading}]`,
+            meaning: meanings || "—",
+            sentence: result?.text,
+            sentence_furigana: result?.sentence_reading,
+            sentence_meaning: phraseTranslation,
+            vietnamese_sound: selectedTokenData.vietnamese_sound,
+            jlpt: selectedTokenData.jlpt_level,
+            image_url: selectedImageUrl || ocrCroppedImage || undefined,
+            source_url: sourceUrl || window.location.href,
+            source_title: sourceTitle || document.title,
+          },
+        });
+        if (response?.type !== "SRS_RESULT") throw new Error(response?.payload?.error || "Could not save card");
+        setSrsAdded(true);
+        setSrsError(null);
+        window.dispatchEvent(new Event("hakkutsu:srs-updated"));
+      } catch (e: any) {
+        console.error("SRS Add failed", e);
+      }
+    }
+  };
+
+  const selectedTokenData =
+    result && selectedToken !== null ? result.tokens?.[selectedToken] : null;
+
+  useEffect(() => {
+    if (nativePanel && position && !transientMode) containerRef.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+  }, [nativePanel, position, transientMode]);
+
+  useEffect(() => {
+    let stopped = false;
+    setSrsAdded(false);
+    if (!selectedTokenData || !selectedTokenData.is_japanese) {
+      setSrsAdded(false);
+      return;
+    }
+    const word = selectedTokenData.dictionary_form || selectedTokenData.surface;
+    if (!word) return;
+
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime
+        .sendMessage({
+          type: "CHECK_CARD_EXISTS",
+          payload: { word },
+        })
+        .then((res) => {
+          if (stopped) return;
+          if (res && res.type === "CARD_EXISTS_RESULT" && res.payload?.exists) {
+            setSrsAdded(true);
+          } else {
+            setSrsAdded(false);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => { stopped = true; };
+  }, [selectedTokenData]);
+
+  const phraseTranslation =
+    result && "translation" in result
+      ? String((result as any).translation || "").trim()
+      : "";
+
+  const handleTokenSelect = (index: number) => {
+    const token = result?.tokens[index];
+    if (
+      result &&
+      sentenceMode &&
+      !phraseMode &&
+      token?.is_japanese &&
+      token.definitions.length === 0
+    ) {
+      analyzeText(result.text, false, true, index, true);
+      return;
+    }
+    setSelectedToken(index);
+  };
+
+  const reanalyzeOcrText = () => {
+    const text = inputText.trim();
+    if (!text || loading) return;
+    window.dispatchEvent(new CustomEvent("hakkutsu:ocr-region-updated", { detail: { id: ocrRegionId, text } }));
+    setPhraseMode(true);
+    void analyzeText(text, true, true, null, false, "ocr");
+  };
+
+  const cardWidth = Math.max(0, Math.min(420, window.innerWidth - 32));
+  const usePlayerOverlay = position?.placement === "player-overlay";
+
+  const panelLeft = position
+    ? Math.max(16, Math.min(window.innerWidth - cardWidth - 16, position.x - cardWidth / 2))
+    : 0;
+
+  const isLower = position ? position.y > window.innerHeight * 0.42 : false;
+  const placeAbove = usePlayerOverlay || (position?.above ?? isLower);
+
+  const aboveOffset = usePlayerOverlay ? 40 : 24;
+  const availableHeightAbove = position ? Math.max(160, position.y - aboveOffset - 16) : 380;
+  const availableHeightBelow = position ? Math.max(160, window.innerHeight - position.y - 24) : 380;
+  const maxLookupHeight = ocrRegionId ? 560 : 420;
+  const computedMaxHeight = position
+    ? placeAbove
+      ? Math.min(maxLookupHeight, availableHeightAbove)
+      : Math.min(maxLookupHeight, availableHeightBelow)
+    : 380;
+
+  const popupStyle: React.CSSProperties = position
+    ? placeAbove
+      ? {
+          position: "fixed",
+          bottom: `${Math.max(16, window.innerHeight - position.y + aboveOffset)}px`,
+          left: `${panelLeft}px`,
+          width: `${cardWidth}px`,
+          maxHeight: `${computedMaxHeight}px`,
+          zIndex: 2147483647,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }
+      : {
+          position: "fixed",
+          top: `${Math.max(16, position.y + 8)}px`,
+          left: `${panelLeft}px`,
+          width: `${cardWidth}px`,
+          maxHeight: `${computedMaxHeight}px`,
+          zIndex: 2147483647,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }
+    : {};
+
+  return (
+    <>
+      {!nativePanel && settings.mangaOcrEnabled !== false && <MangaOcrImages />}
+
+      {/* Yomichan-style soft blue hover highlight overlay */}
+      {hoverHighlightRects &&
+        hoverHighlightRects.map((rect, idx) => (
+          <div
+            key={idx}
+            style={{
+              position: "fixed",
+              top: `${rect.top}px`,
+              left: `${rect.left}px`,
+              width: `${rect.width}px`,
+              height: `${rect.height}px`,
+              backgroundColor: "rgba(59, 130, 246, 0.3)",
+              border: "1px solid rgba(59, 130, 246, 0.6)",
+              borderRadius: "3px",
+              pointerEvents: "none",
+              zIndex: 2147483646,
+              boxSizing: "border-box",
+              transition: "all 0.05s ease-out",
+            }}
+          />
+        ))}
+
+      {position && (
+        <div
+          ref={containerRef}
+          className={`hk-popup hk-lookup ${nativePanel ? "hk-lookup--panel" : "hk-fade-in"}`}
+          style={nativePanel ? undefined : popupStyle}
+          role={ocrRegionId ? "dialog" : "region"} aria-label="Hakkutsu Lookup"
+          tabIndex={ocrRegionId ? -1 : undefined}
+          onMouseEnter={() => {
+            isMouseOverPopupRef.current = true;
+            if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
+          }}
+          onMouseLeave={() => {
+            isMouseOverPopupRef.current = false;
+            if (!nativePanel && !remoteLookupRef.current && transientModeRef.current) {
+              dismissTimerRef.current = setTimeout(() => {
+                if (!isMouseOverPopupRef.current) {
+                  window.dispatchEvent(
+                    new CustomEvent("hakkutsu:analysis-dismiss", { detail: { force: true } })
+                  );
+                }
+              }, 250);
+            }
+          }}
+        >
+          {/* Header */}
+          <header className="hk-header"
+            onPointerDown={(event) => {
+              if (nativePanel || event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
+              const rect = containerRef.current!.getBoundingClientRect();
+              dragRef.current = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+              event.currentTarget.setPointerCapture(event.pointerId);
+              event.preventDefault();
+            }}
+            onPointerMove={(event) => {
+              const drag = dragRef.current;
+              if (!drag) return;
+              const left = Math.max(16, Math.min(window.innerWidth - drag.width - 16, drag.left + event.clientX - drag.x));
+              const top = Math.max(16, Math.min(window.innerHeight - drag.height - 16, drag.top + event.clientY - drag.y));
+              setPosition({ x: left + cardWidth / 2, y: top - 8, placement: "anchor", above: false });
+            }}
+            onPointerUp={() => { dragRef.current = null; }}
+            onPointerCancel={() => { dragRef.current = null; }}
+          >
+            <div className="hk-header__logo">
+              <img src={logoUrl} alt="Hakkutsu" style={{ width: 18, height: 18, borderRadius: "4px" }} />
+              <h2 className="hk-header__title hk-brand-title">
+                Hakkutsu Lookup
+              </h2>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              {/* Close Button */}
+              <button
+                type="button"
+                className="hk-btn-icon-subtle"
+                onClick={closeLookup}
+                aria-label={t("dict_btn_close")}
+                title={t("dict_btn_close")}
+                style={{ width: "24px", height: "24px" }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+          </header>
+
+          {/* Main Scrollable Content */}
+          <div className="hk-content" style={{ overflowY: "auto", flex: 1 }}>
+            {ocrRegionId && result && !loading && phraseTranslation && (
+              <div className="hk-dict-section hk-dict-section--highlight">
+                <div className="hk-dict-label">{t("dict_label_translation")}</div>
+                <div className="hk-translation-text">{phraseTranslation}</div>
+              </div>
+            )}
+            {ocrRegionId && <details className="hk-ocr-editor" open={!result}>
+              <summary>{t("ocr_edit_hint")}</summary>
+              <p className="hk-ocr-editor__hint">{t("ocr_review_hint")}</p>
+              {ocrCroppedImage && <img className="hk-ocr-editor__image" src={ocrCroppedImage} alt={t("ocr_source_image")} />}
+              <label className="hk-sr-only" htmlFor="hk-ocr-text">{t("ocr_edit_hint")}</label>
+              <textarea
+                id="hk-ocr-text" className="hk-input__textarea hk-ocr-editor__input" lang="ja" rows={3}
+                spellCheck={false}
+                value={inputText} aria-label={t("ocr_edit_hint")}
+                onKeyDown={event => {
+                  if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                    if (!loading) reanalyzeOcrText();
+                  }
+                }}
+                onChange={event => {
+                  ++analysisRequestRef.current;
+                  activeLookupRef.current = "";
+                  setInputText(event.target.value);
+                  setResult(null);
+                  setSelectedToken(null);
+                  setLoading(false);
+                  setError(null);
+                  setSrsAdded(false);
+                  setSrsError(null);
+                }}
+              />
+              <div className="hk-ocr-editor__actions">
+                <span>{t("ocr_reanalyze_hint")}</span>
+                <button type="button" className="hk-btn hk-btn--secondary hk-btn--sm"
+                  disabled={!inputText.trim() || loading}
+                  onClick={reanalyzeOcrText}>{t("ocr_reanalyze")}</button>
+              </div>
+            </details>}
+            {ocrRegionId && result && !loading && <section className="hk-ocr-breakdown">
+              <h3 className="hk-dict-label">{t("ocr_word_breakdown")}</h3>
+              <p>{t("ocr_select_word_hint")}</p>
+              <TokenDisplay tokens={result.tokens} selectedIndex={selectedToken} onSelect={handleTokenSelect} variant="sentence" />
+            </section>}
+            {/* Translation Loading State */}
+            {loading && (
+              <div className="hk-loading">
+                <Loader2
+                  className="hk-spin"
+                  size={20}
+                  style={{ color: "#38bdf8", margin: "0 auto 8px" }}
+                />
+                <div style={{ color: "#a1a1aa", fontSize: "13px" }}>
+                  {phraseMode
+                      ? t("dict_loading_phrase")
+                      : t("dict_loading_syntax")}
+                </div>
+              </div>
+            )}
+
+            {/* Error Box */}
+            {error && <div className="hk-error-box">{error}</div>}
+
+            {result && !loading && (
+              <>
+                {/* Target Language sentence translation */}
+                {!ocrRegionId && phraseTranslation && (
+                  <div className="hk-dict-section hk-dict-section--highlight">
+                    <div
+                      className="hk-dict-label"
+                      style={{ color: "#14b8a6", display: "flex", alignItems: "center", gap: "5px" }}
+                    >
+                      <Languages size={13} />
+                      {t("dict_label_translation")}
+                    </div>
+                    <div className="hk-translation-text">{phraseTranslation}</div>
+                  </div>
+                )}
+
+                {/* Selected Token Definition Card */}
+                <div>
+                  {selectedTokenData && selectedTokenData.is_japanese ? (
+                    <DefinitionCard
+                      key={selectedTokenData.dictionary_form || selectedTokenData.surface}
+                      token={selectedTokenData}
+                      onExport={handleExport}
+                      ankiConnected={settings.ankiEnabled !== false && ankiConnected}
+                      originalText={result.text}
+                      sentenceReading={result.sentence_reading}
+                      onSrsAdd={handleSrsAdd}
+                      hideBottomAction={true}
+                    />
+                  ) : (
+                    <div className="hk-empty">
+                      <p className="hk-empty__text">
+                        {transientMode ? t("dict_empty_transient") : t("dict_empty_select")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Grammar Patterns */}
+                {result.grammar_patterns && result.grammar_patterns.length > 0 && (
+                  <GrammarExplanations patterns={result.grammar_patterns} />
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Pinned Bottom Footer Action */}
+          {(ocrRegionId || (selectedTokenData && selectedTokenData.is_japanese)) && (
+            <div
+              className="hk-popup__footer"
+              style={{
+                padding: "10px 14px",
+                background: "#141418",
+                borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                flexShrink: 0,
+              }}
+            >
+              <button
+                className={`hk-btn ${
+                  srsError ? "hk-btn--danger" : srsAdded ? "hk-btn--success" : "hk-btn--primary"
+                }`}
+                disabled={Boolean(ocrRegionId) && (loading || !selectedTokenData?.is_japanese || result?.text.trim() !== inputText.trim())}
+                onClick={() => handleSrsAdd(ocrCroppedImage || undefined)}
+                title={srsError || (srsAdded ? t("def_btn_added_library") : t("def_btn_add_library"))}
+                style={{
+                  width: "100%",
+                  justifyContent: "center",
+                  padding: "8px 16px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  borderRadius: "8px",
+                  gap: "6px",
+                  backgroundColor: srsError ? "#ef4444" : undefined,
+                  borderColor: srsError ? "#ef4444" : undefined,
+                  color: srsError ? "#ffffff" : undefined,
+                }}
+              >
+                {srsError ? (
+                  <>
+                    <AlertCircle size={14} /> {srsError}
+                  </>
+                ) : srsAdded ? (
+                  <>
+                    <Check size={14} /> {t("def_btn_added_library")}
+                  </>
+                ) : (
+                  <>
+                    <BookmarkPlus size={14} /> {t("def_btn_add_library")}
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+};
+
+export default memo(InlineDictionary);

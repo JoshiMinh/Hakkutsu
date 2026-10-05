@@ -11,7 +11,7 @@ function render(activities, metric = "all") {
   const focused = [];
   let hook = 0;
   const source = ts.transpileModule(
-    fs.readFileSync("src/components/activity-heatmap.tsx", "utf8"),
+    fs.readFileSync("src/features/analytics/activity-heatmap.tsx", "utf8"),
     {
       compilerOptions: {
         target: ts.ScriptTarget.ES2022,
@@ -32,7 +32,7 @@ function render(activities, metric = "all") {
               (value) => changes.push(value),
             ],
           }
-        : name === "~lib/locales"
+        : name === "~/shared/locales"
           ? { useTranslation: () => ({ t: (key) => key, lang: "en" }) }
           : require(name),
   };

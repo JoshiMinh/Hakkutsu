@@ -1,0 +1,14 @@
+/* ── Badges & Empties ────────────────────────────────────────────── */
+
+.hk-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: var(--hk-radius-full);
+  font-size: var(--hk-text-xs);
+  font-weight: 600;
+  background: var(--hk-bg-secondary);
+  border: 1px solid var(--hk-border);
+}
+

@@ -13,9 +13,8 @@ function load(file, imports = {}, globals = {}) {
     ...globals, require: name => imports[name] || require(name) });
   return exports;
 }
-const constants = load('src/lib/utils/constants.ts');
-const japanese = load('src/lib/utils/japanese.ts', { './constants': constants });
-const fieldMappings = load('src/lib/services/anki-fields.ts');
+const japanese = load('src/shared/japanese/japanese.ts');
+const fieldMappings = load('src/features/anki/anki-fields.ts');
 const clone = value => JSON.parse(JSON.stringify(value));
 const card = (word, id = word) => ({ id, word, reading: 'よみ', meaning: 'meaning',
   due_date: 3000, interval: 2, repetition: 2, efactor: 2.5, created_at: 1000, updated_at: 2000,
@@ -44,15 +43,15 @@ function backupHarness(initial = [], history = [], options = {}) {
       aborts++; records.clear(); for (const [key, item] of snapshot) records.set(key, item);
     } };
   } };
-  const srs = load('src/lib/services/local-srs.ts', {
-    idb: { openDB: async () => db }, '~lib/utils/hanviet-dict': {}, './dictionary-lookup': {}, './google-translate': {},
-    './storage': {}, './analytics-service': {}, './fsrs-engine': {},
+  const srs = load('src/features/srs/local-srs.ts', {
+    idb: { openDB: async () => db }, '~/shared/japanese/hanviet-dict': {}, '~/features/dictionary/dictionary-lookup': {}, '~/features/dictionary/google-translate': {},
+    '~/features/settings/settings-storage': {}, '~/features/analytics/analytics-service': {}, '~/features/srs/fsrs-engine': {},
   }, { crypto: { randomUUID: () => 'generated-' + (++uuid) } });
   const chrome = { runtime: { getManifest: () => ({ version: '2.4' }) }, storage: { local: {
     get: async () => { if (options.failRead) throw Error('Storage denied'); return { hakkutsu_vocabulary: clone(storedHistory) }; },
     set: async value => { historyWrites++; if (options.failHistoryWrite) throw Error('Quota exceeded'); storedHistory = clone(value.hakkutsu_vocabulary); },
   } } };
-  const backup = load('src/lib/services/data-backup.ts', { './local-srs': srs }, { chrome,
+  const backup = load('src/features/vocabulary/data-backup.ts', { '~/features/srs/local-srs': srs }, { chrome,
     crypto: { randomUUID: () => 'legacy-' + (++uuid) } });
   return { ...backup, ...srs, records, options, history: () => storedHistory,
     activity: () => ({ puts, transactions, aborts, historyWrites }) };
@@ -169,9 +168,9 @@ test('legacy history merges by word, preserves saved values, handles ID collisio
 function ankiHarness(modelFields = ['Front', 'Back'], responder, globals = {}) {
   const requests = [];
   const settings = { ankiEnabled: true };
-  const service = load('src/lib/services/anki-connect.ts', {
-    '~lib/utils/constants': constants, '~lib/services/storage': { getSettings: async () => settings },
-    './anki-fields': fieldMappings, '~lib/utils/japanese': japanese,
+  const service = load('src/features/anki/anki-connect.ts', {
+    '~/features/anki/constants': load('src/features/anki/constants.ts'), '~/features/settings/settings-storage': { getSettings: async () => settings },
+    './anki-fields': fieldMappings, '~/shared/japanese/japanese': japanese,
   }, { fetch: async (_url, options) => {
     const request = JSON.parse(options.body); requests.push(request);
     const custom = responder?.(request, options);
@@ -267,7 +266,7 @@ function csvRecords(csv) {
 }
 
 test('CSV exports retain Japanese, Vietnamese, quotes, commas and embedded newlines with aligned columns', () => {
-  const { createVocabularyCsv } = load('src/lib/services/vocabulary-csv.ts', { '~lib/utils/hanviet-dict': { getHanViet: () => 'THỰC' } });
+  const { createVocabularyCsv } = load('src/features/vocabulary/vocabulary-csv.ts', { '~/shared/japanese/hanviet-dict': { getHanViet: () => 'THỰC' } });
   const original = { ...card('食べる'), meaning: 'eat, "food"\n飲む', sentence: '日本語\r\nTiếng Việt', created_at: NaN };
   for (const showHanViet of [false, true]) {
     const csv = createVocabularyCsv([original], showHanViet, 2000);
@@ -290,15 +289,23 @@ test('the vocabulary export button passes saved furigana, sentence meaning, Han 
   const exports = [];
   const original = { ...card('本'), word_furigana: '本[ほん]', sentence_furigana: '本[ほん]を読む。',
     sentence_meaning: 'Read a book.', vietnamese_sound: 'BỔN', source_url: 'https://example.com/book' };
-  const { WordList } = load('src/components/word-list.tsx', {
+  const imports = {
     react: { ...React, useState: initial => [Array.isArray(initial) ? [original] : initial === true ? false : initial, () => {}],
       useEffect() {}, useRef: () => ({ current: null }) },
-    '~lib/services/local-srs': {}, '~lib/utils/hanviet-dict': { getHanViet: () => '' }, '~lib/utils/jlpt-classifier': { predictJlpt: () => null },
-    '~components/badges': { JlptBadge: () => null, FrequencyBadge: () => null }, '~lib/services/dictionary-lookup': {}, '~lib/services/data-backup': {}, '~lib/services/vocabulary-csv': {},
-    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: {} }) },
-    '~lib/services/anki-connect': { ankiClient: { isConnected: async () => true, exportVocabulary: async data => exports.push(data) } },
-  }, { alert() {} });
+    '~/features/srs/local-srs': {}, '~/shared/japanese/hanviet-dict': { getHanViet: () => '' }, '~/shared/japanese/jlpt-classifier': { predictJlpt: () => null },
+    '~/shared/ui/badges': { JlptBadge: () => null, FrequencyBadge: () => null }, '~/features/dictionary/dictionary-lookup': {}, '~/features/vocabulary/data-backup': {}, '~/features/vocabulary/vocabulary-csv': {},
+    '~/shared/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings: {} }) },
+    '~/features/anki/anki-connect': { ankiClient: { isConnected: async () => true, exportVocabulary: async data => exports.push(data) } },
+  };
+  const globals = { alert() {} };
+  const hooks = {
+    './use-vocabulary-cards': load('src/features/vocabulary/use-vocabulary-cards.ts', imports, globals),
+    './use-vocabulary-exports': load('src/features/vocabulary/use-vocabulary-exports.ts', imports, globals),
+    './edit-card-modal': { EditCardModal: () => null },
+    './vocabulary-table': { VocabularyTable: () => null },
+  };
+  const { WordList } = load('src/features/vocabulary/word-list.tsx', { ...imports, ...hooks }, globals);
   const button = visit(WordList({})).find(node => node.type === 'button' && node.props.title === 'vocab_btn_export_anki');
   assert.ok(button);
   await button.props.onClick();
@@ -315,7 +322,7 @@ test('dictionary lookup initializes and repairs indexes, shares concurrent opens
     const indexes = new Set(hasStore ? ['kanji'] : []);
     const store = { indexNames: { contains: name => indexes.has(name) }, createIndex(name) { indexes.add(name); } };
     const db = { objectStoreNames: { contains: () => hasStore }, createObjectStore() { creates++; return store; }, close() {} };
-    const service = load('src/lib/services/local-lookup.ts', { idb: { openDB: async (_name, version, options) => {
+    const service = load('src/features/dictionary/local-lookup.ts', { idb: { openDB: async (_name, version, options) => {
       opens++; assert.equal(version, 2); upgradeOptions = options;
       if (opens === 1) throw Error('Storage denied');
       options.upgrade(db, 1, 2, { objectStore: () => store }); return db;
@@ -338,7 +345,7 @@ function dictionaryHarness(payload, options = {}) {
         if (++puts === options.failPut) throw Error('Dictionary write failed'); entries.set(entry.id, entry);
       } }) };
   } };
-  const service = load('src/lib/services/dictionary-sync.ts', { './local-lookup': { getDB: async () => db } }, {
+  const service = load('src/features/dictionary/dictionary-sync.ts', { './local-lookup': { getDB: async () => db } }, {
     console: { log() {}, error() {} }, fetch: async () => {
       fetches++;
       if (options.failFetch) throw Error('Network failed');
@@ -377,8 +384,8 @@ test('dictionary writes normalize IDs, deduplicate entries and abort failed impo
 
 test('empty initialized dictionaries skip expensive compound token queries', async () => {
   let queries = 0;
-  const { tokenize } = load('src/lib/services/local-tokenizer.ts', {
-    '~lib/utils/japanese': japanese,
+  const { tokenize } = load('src/features/dictionary/local-tokenizer.ts', {
+    '~/shared/japanese/japanese': japanese,
     './japanese-token-refinement': { refineJapaneseTokens: async () => { throw Error('Should not refine an empty dictionary'); } },
     './local-lookup': { getDB: async () => ({ objectStoreNames: { contains: () => true }, count: async () => 0 }),
       searchDictionary: async () => { queries++; return []; } },
@@ -392,21 +399,18 @@ test('empty initialized dictionaries skip expensive compound token queries', asy
 test('switching Anki models removes stale mappings and delayed results cannot restore an older selection', async () => {
   const changes = [], requests = [], refs = [];
   let stateIndex = 0, refIndex = 0;
-  const { SettingsView } = load('src/components/settings-view.tsx', {
+  const { useAnkiSettings } = load('src/features/settings/use-anki-settings.ts', {
     react: { ...React, useState(initial) {
       const states = [['Deck'], ['Old', 'A', 'B'], ['Removed'], true, false];
       const index = stateIndex++; return [index < states.length ? states[index] : initial, () => {}];
     },
       useRef: initial => refs[refIndex++] ||= { current: initial }, useEffect() {}, useCallback: fn => fn },
-    '~lib/locales': { t: key => key, SUPPORTED_LANGUAGES: [] },
-    '~lib/services/anki-connect': { ankiClient: { getModelFields: model => new Promise(resolve => requests.push({ model, resolve })) } },
-    '~lib/services/anki-fields': fieldMappings,
+    '~/shared/locales': { t: key => key, SUPPORTED_LANGUAGES: [] },
+    '~/features/anki/anki-connect': { ankiClient: { getModelFields: model => new Promise(resolve => requests.push({ model, resolve })) } },
+    '~/features/anki/anki-fields': fieldMappings,
   });
-  const tree = SettingsView({ settings: { targetLanguage: 'en', ankiModel: 'Old', ankiFieldMap: { Removed: 'word' } },
-    onUpdate: patch => changes.push(patch) });
-  const select = visit(tree).find(node => typeof node.type === 'function' && node.props.value === 'Old');
-  assert.ok(select);
-  const first = select.props.onChange('A'), second = select.props.onChange('B');
+  const { handleModelChange } = useAnkiSettings({ targetLanguage: 'en', ankiModel: 'Old', ankiFieldMap: { Removed: 'word' } }, patch => changes.push(patch));
+  const first = handleModelChange('A'), second = handleModelChange('B');
   requests[1].resolve(['Front', 'Back']); await second;
   requests[0].resolve(['Removed']); await first;
   assert.equal(changes.at(-1).ankiModel, 'B');

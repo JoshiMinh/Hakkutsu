@@ -1,0 +1,52 @@
+/* ── Subtitle View ─────────────────────────────────────────────── */
+
+.hk-subtitle__input-group {
+  display: flex;
+  gap: var(--hk-space-sm);
+  margin-bottom: var(--hk-space-lg);
+}
+
+.hk-subtitle__url-input {
+  flex: 1;
+  padding: var(--hk-space-sm) var(--hk-space-md);
+  background: var(--hk-bg-secondary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-sm);
+  color: var(--hk-text-primary);
+  font-family: var(--hk-font-sans);
+  font-size: var(--hk-text-sm);
+}
+
+.hk-subtitle__url-input:focus {
+  outline: none;
+  border-color: var(--hk-border-focus);
+}
+
+.hk-subtitle__segment {
+  padding: var(--hk-space-sm) var(--hk-space-md);
+  background: var(--hk-bg-secondary);
+  border-radius: var(--hk-radius-sm);
+  margin-bottom: var(--hk-space-xs);
+  cursor: pointer;
+  transition: background var(--hk-transition-fast);
+  border: 1px solid transparent;
+}
+
+.hk-subtitle__segment:hover {
+  background: var(--hk-bg-hover);
+  border-color: var(--hk-border);
+}
+
+.hk-subtitle__time {
+  font-size: var(--hk-text-xs);
+  color: var(--hk-accent-teal);
+  font-family: var(--hk-font-mono);
+  margin-bottom: 2px;
+}
+
+.hk-subtitle__text {
+  font-family: var(--hk-font-jp);
+  font-size: var(--hk-text-base);
+  color: var(--hk-text-primary);
+}
+

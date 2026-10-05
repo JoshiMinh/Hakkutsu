@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
 const React = require('react');
@@ -11,18 +12,22 @@ function load(file, imports = {}, globals = {}) {
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, { exports, Intl, console, AbortController, setTimeout, clearTimeout,
-    ...globals, require: name => imports[name] || require(name) });
+    ...globals, require: name => {
+      if (imports[name]) return imports[name];
+      if (name.startsWith('~/')) return load(`src/${name.slice(2)}.ts`, imports, globals);
+      if (name.startsWith('./')) return load(path.join(path.dirname(file), `${name}.ts`), imports, globals);
+      return require(name);
+    } });
   return exports;
 }
-const constants = load('src/lib/utils/constants.ts');
-const japanese = load('src/lib/utils/japanese.ts', { './constants': constants });
-const refinement = load('src/lib/services/japanese-token-refinement.ts', { '~lib/utils/japanese': japanese });
+const japanese = load('src/shared/japanese/japanese.ts');
+const refinement = load('src/features/dictionary/japanese-token-refinement.ts', { '~/shared/japanese/japanese': japanese });
 const entry = (word, reading) => ({ kanjiElements: [word], readingElements: [reading], senses: [] });
 
 function dictionaryService(data, requests = []) {
-  return load('src/lib/services/dictionary-lookup.ts', {
-    '~lib/utils/japanese': japanese,
-    '~lib/utils/hanviet-dict': { getHanViet: () => '' },
+  return load('src/features/dictionary/dictionary-lookup.ts', {
+    '~/shared/japanese/japanese': japanese,
+    '~/shared/japanese/hanviet-dict': { getHanViet: () => '' },
     './google-translate': { googleTranslateService: { translateWithReading: async () => ({ translation: '', reading: '' }) } },
   }, { fetch: async (url, options) => {
     requests.push(options?.body ? JSON.parse(options.body).query : new URL(url).searchParams.get('keyword'));
@@ -34,8 +39,8 @@ function subtitleBackground(extraEntries = {}) {
   const localEntries = { 人: entry('人', 'ひと'), 店: entry('店', 'みせ'), 物: entry('物', 'もの'), 全部: entry('全部', 'ぜんぶ'), ...extraEntries };
   const local = { searchDictionary: async word => localEntries[word] ? [localEntries[word]] : [],
     getDB: async () => ({ objectStoreNames: { contains: () => false } }) };
-  const tokenizer = load('src/lib/services/local-tokenizer.ts', {
-    '~lib/utils/japanese': japanese, './japanese-token-refinement': refinement, './local-lookup': local,
+  const tokenizer = load('src/features/dictionary/local-tokenizer.ts', {
+    '~/shared/japanese/japanese': japanese, './japanese-token-refinement': refinement, './local-lookup': local,
   });
   const requests = [];
   // Reproduce the dictionary's related search hit that caused たべもの on 食べ.
@@ -44,17 +49,22 @@ function subtitleBackground(extraEntries = {}) {
   let listener;
   const chrome = { runtime: { onMessage: { addListener: fn => { listener = fn; } } } };
   const imports = {
-    '~lib/services/storage': { getSettings: async () => ({ targetLanguage: 'en' }) },
-    '~lib/services/api-client': { apiClient: { analyzePhrase: async () => { throw Error('Offline'); } } },
-    '~lib/services/local-tokenizer': tokenizer, '~lib/services/local-lookup': local,
-    '~lib/services/dictionary-lookup': dictionary, '~lib/utils/japanese': japanese,
-    '~lib/utils/hanviet-dict': { getHanViet: () => '' }, '~lib/utils/jlpt-classifier': { predictJlpt: () => null },
-    '~lib/services/transcript-panel-router': { installTranscriptPanelRouter: () => () => {} },
+    '~/features/settings/settings-storage': { getSettings: async () => ({ targetLanguage: 'en' }) },
+    '~/features/dictionary/api-client': { apiClient: { analyzePhrase: async () => { throw Error('Offline'); } } },
+    '~/features/dictionary/local-tokenizer': tokenizer, '~/features/dictionary/local-lookup': local,
+    '~/features/dictionary/dictionary-lookup': dictionary, '~/shared/japanese/japanese': japanese,
+    '~/shared/japanese/hanviet-dict': { getHanViet: () => '' }, '~/shared/japanese/jlpt-classifier': { predictJlpt: () => null },
+    '~/features/subtitles/shared/transcript-panel-router': { installTranscriptPanelRouter: () => () => {} },
   };
-  for (const name of ['local-srs', 'anki-connect', 'llm-service', 'analytics-service', 'google-translate', 'irasutoya-service', 'subtitle-parsers']) {
-    imports['~lib/services/' + name] = {};
+  for (const name of ['llm-service', 'google-translate', 'irasutoya-service']) {
+    imports['~/features/dictionary/' + name] = {};
   }
-  load('src/entrypoints/background.ts', imports, { chrome, console: { warn() {} }, defineBackground: fn => fn() });
+  imports['~/features/anki/anki-connect'] = {};
+  imports['~/features/srs/local-srs'] = {};
+  imports['~/features/subtitles/shared/subtitle-parsers'] = {};
+  imports['~/features/analytics/analytics-service'] = {};
+  const background = load('src/app/background.ts', imports, { chrome, console: { warn() {} } });
+  load('src/entrypoints/background.ts', { '~/app/background': background }, { defineBackground: fn => fn() });
   return { tokenizer, requests, analyze: (text, includeDefinitions = false) => new Promise(resolve => {
     assert.equal(listener({ type: 'ANALYZE_TEXT', payload: { text, include_definitions: includeDefinitions } }, {}, resolve), true);
   }) };
@@ -63,7 +73,7 @@ function subtitleBackground(extraEntries = {}) {
 test('subtitle message routing reads the screenshot sentence correctly despite unrelated dictionary hits', async () => {
   const background = subtitleBackground();
   const text = 'この４人が店の物を全部食べたら';
-  const { TokenDisplay } = load('src/components/token-display.tsx', { '~lib/utils/japanese': japanese });
+  const { TokenDisplay } = load('src/features/dictionary/token-display.tsx', { '~/shared/japanese/japanese': japanese });
   for (const includeDefinitions of [false, true]) {
     const response = await background.analyze(text, includeDefinitions);
     assert.equal(response.type, 'ANALYZE_RESULT');

@@ -1,0 +1,13 @@
+.hk-empty {
+  padding: 60px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hk-empty__text {
+  color: var(--hk-text-muted);
+  font-size: var(--hk-text-sm);
+}
+

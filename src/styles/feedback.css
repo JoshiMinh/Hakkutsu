@@ -1,0 +1,75 @@
+/* ── Status Indicators ─────────────────────────────────────────── */
+
+.hk-status {
+  display: flex;
+  align-items: center;
+  gap: var(--hk-space-xs);
+  font-size: var(--hk-text-xs);
+  color: var(--hk-text-muted);
+}
+
+.hk-status__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hk-text-muted);
+}
+
+.hk-status__dot--connected {
+  background: var(--hk-jlpt-n5);
+  box-shadow: 0 0 6px var(--hk-jlpt-n5);
+}
+
+.hk-status__dot--disconnected {
+  background: var(--hk-jlpt-n2);
+}
+
+/* ── Loading ───────────────────────────────────────────────────── */
+
+.hk-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hk-space-2xl);
+  color: var(--hk-text-muted);
+  gap: var(--hk-space-md);
+}
+
+.hk-loading__spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--hk-border);
+  border-top-color: var(--hk-accent-primary);
+  border-radius: 50%;
+  animation: hk-spin 0.8s linear infinite;
+}
+
+@keyframes hk-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Empty State ───────────────────────────────────────────────── */
+
+.hk-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hk-space-2xl);
+  text-align: center;
+  color: var(--hk-text-muted);
+}
+
+.hk-empty__icon {
+  font-size: 48px;
+  margin-bottom: var(--hk-space-md);
+  opacity: 0.3;
+}
+
+.hk-empty__text {
+  font-size: var(--hk-text-sm);
+  max-width: 240px;
+  line-height: 1.6;
+}
+

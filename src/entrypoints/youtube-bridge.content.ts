@@ -1,4 +1,4 @@
-import { initYouTubePageBridge } from "~/lib/services/youtube-bridge";
+import { initYouTubePageBridge } from "~/features/subtitles/youtube/youtube-bridge";
 
 export default defineContentScript({
   matches: ["https://www.youtube.com/*", "https://m.youtube.com/*"],

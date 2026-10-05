@@ -15,6 +15,7 @@ function loadSource(file, globals = {}, imports = {}) {
   vm.runInNewContext(source, {
     exports, URL, URLSearchParams, console, ArrayBuffer, AbortController, Error,
     require(name) {
+      if (name === '~/shared/japanese/text-normalization') return loadSource('src/shared/japanese/text-normalization.ts');
       if (!(name in imports)) throw new Error(`Unexpected test import: ${name}`);
       return imports[name];
     },
@@ -63,7 +64,7 @@ test('YouTube SPA navigation uses the current player response and preserves its 
   const window = new Events();
   window.location = { pathname: '/watch', search: '?v=new', href: 'https://www.youtube.com/watch?v=new' };
   window.ytInitialPlayerResponse = captionResponse('old');
-  const bridge = loadSource('src/lib/services/youtube-bridge.ts', {
+  const bridge = loadSource('src/features/subtitles/youtube/youtube-bridge.ts', {
     window, document, CustomEvent, ...bridgeClock(),
   });
   bridge.initYouTubePageBridge();
@@ -85,7 +86,7 @@ test('YouTube rejects stale initial captions and fetches tracks for the new vide
   window.ytInitialPlayerResponse = captionResponse('old');
   window.ytcfg = { get: key => key === 'INNERTUBE_API_KEY' ? 'key' : 'en' };
   let requested;
-  const bridge = loadSource('src/lib/services/youtube-bridge.ts', {
+  const bridge = loadSource('src/features/subtitles/youtube/youtube-bridge.ts', {
     window, document, CustomEvent, ...bridgeClock(),
     fetch: async (_url, options) => {
       requested = JSON.parse(options.body).videoId;
@@ -110,7 +111,7 @@ test('YouTube waits for the runtime token and prefers it to static captions', as
   const window = new Events();
   window.location = new URL('https://www.youtube.com/watch?v=new');
   window.ytcfg = { get: () => 'WEB' };
-  loadSource('src/lib/services/youtube-bridge.ts', { window, document, CustomEvent, ...bridgeClock() }).initYouTubePageBridge();
+  loadSource('src/features/subtitles/youtube/youtube-bridge.ts', { window, document, CustomEvent, ...bridgeClock() }).initYouTubePageBridge();
   document.dispatchEvent(new CustomEvent('hakkutsu:request-youtube-tracks'));
   document.dispatchEvent(new CustomEvent('hakkutsu:request-youtube-tracks'));
   await flush();
@@ -129,7 +130,7 @@ test('YouTube page fetch accepts only caption URLs for the current video', async
   const window = new Events();
   window.location = new URL('https://www.youtube.com/watch?v=new');
   const requests = [];
-  loadSource('src/lib/services/youtube-bridge.ts', {
+  loadSource('src/features/subtitles/youtube/youtube-bridge.ts', {
     window, document, CustomEvent, ...bridgeClock(),
     fetch: async (url, options) => { requests.push({ url, options }); return { ok: true, text: async () => 'captions' }; },
   }).initYouTubePageBridge();
@@ -167,22 +168,22 @@ function componentHarness(platform) {
   const imports = {
     react,
     'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }), Fragment: 'fragment' },
-    '~lib/utils/youtube-subtitle-styles': { youtubeToolbarCss: '' },
-    '~components/subtitle-overlay': { SubtitleOverlay: 'overlay' },
-    '~components/select-subtitles-modal': { SelectSubtitlesModal: 'modal' },
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: {}, updateSettings() {} }) },
-    '~lib/locales': { useTranslation: () => ({ t: value => value }) },
-    '~lib/services/subtitle-parsers': {
+    '~/features/subtitles/youtube/toolbar-styles': { youtubeToolbarCss: '' },
+    '~/features/subtitles/shared/subtitle-overlay': { SubtitleOverlay: 'overlay' },
+    '~/features/subtitles/shared/select-subtitles-modal': { SelectSubtitlesModal: 'modal' },
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings: {}, updateSettings() {} }) },
+    '~/shared/locales': { useTranslation: () => ({ t: value => value }) },
+    '~/features/subtitles/shared/subtitle-parsers': {
       parseNetflixTtml: content => [{ text: content, start: 0, duration: 1 }],
       parseYouTubeJson3: content => [{ text: content, start: 0, duration: 1 }],
       parseYouTubeTimedTextXml: content => [{ text: content, start: 0, duration: 1 }],
     },
-    '~lib/services/smart-cue': { buildSmartCues: cues => cues },
-    '~lib/services/youtube-caption-loader': { loadYouTubeCaptionTrack: track => new Promise((resolve, reject) => requests.push({ url: track.url, reject, resolve: text => resolve([{ text, start: 0, duration: 1 }]) })) },
-    '~lib/services/video-runtime': {},
-    '~lib/services/transcript-panel': { useTranscriptPanelToggle: () => react.useState(false) },
+    '~/features/subtitles/shared/smart-cue': { buildSmartCues: cues => cues },
+    '~/features/subtitles/youtube/youtube-caption-loader': { loadYouTubeCaptionTrack: track => new Promise((resolve, reject) => requests.push({ url: track.url, reject, resolve: text => resolve([{ text, start: 0, duration: 1 }]) })) },
+    '~/features/subtitles/shared/video-runtime': {},
+    '~/features/subtitles/shared/transcript-panel': { useTranscriptPanelToggle: () => react.useState(false) },
   };
-  const { default: Component } = loadSource(`src/contents/${platform}-subtitles.tsx`, {
+  const { default: Component } = loadSource(`src/features/subtitles/${platform}/${platform}-subtitles.tsx`, {
     document, CustomEvent,
     window: { location: { href: 'https://example.com/watch/1', pathname: '/watch/1' } },
     fetch: url => new Promise(resolve => requests.push({ url, resolve: text => resolve({ ok: true, text: async () => text }) })),
@@ -251,9 +252,9 @@ function captionLoaderHarness({ direct = () => '', page = () => '', background =
     document.dispatchEvent(new CustomEvent('hakkutsu:youtube-caption-content', { detail: { requestId: 'unrelated', text: jsonCaptions } }));
     document.dispatchEvent(new CustomEvent('hakkutsu:youtube-caption-content', { detail: { requestId, text: page(url) } }));
   });
-  const parsers = loadSource('src/lib/services/subtitle-parsers.ts');
-  const smartCues = loadSource('src/lib/services/smart-cue.ts');
-  const loader = loadSource('src/lib/services/youtube-caption-loader.ts', {
+  const parsers = loadSource('src/features/subtitles/shared/subtitle-parsers.ts');
+  const smartCues = loadSource('src/features/subtitles/shared/smart-cue.ts');
+  const loader = loadSource('src/features/subtitles/youtube/youtube-caption-loader.ts', {
     document, CustomEvent, window: { location: new URL('https://www.youtube.com/watch?v=new') },
     setTimeout: fn => { const id = ++timerId; timers.set(id, fn); return id; },
     clearTimeout: id => timers.delete(id),
@@ -262,7 +263,7 @@ function captionLoaderHarness({ direct = () => '', page = () => '', background =
       requests.push({ transport: 'background', url: message.payload.url });
       return { payload: { success: true, text: background(message.payload.url) } };
     } } },
-  }, { '~lib/services/subtitle-parsers': parsers, '~lib/services/smart-cue': smartCues });
+  }, { '~/features/subtitles/shared/subtitle-parsers': parsers, '~/features/subtitles/shared/smart-cue': smartCues });
   return { ...loader, requests, timers, document };
 }
 
@@ -296,7 +297,7 @@ test('caption fetch exhaustion reports a failure instead of a successful empty t
 });
 
 test('invisible caption formatting is discarded instead of producing empty subtitle bars', () => {
-  const { cleanSubtitleText, parseYouTubeJson3 } = loadSource('src/lib/services/subtitle-parsers.ts');
+  const { cleanSubtitleText, parseYouTubeJson3 } = loadSource('src/features/subtitles/shared/subtitle-parsers.ts');
   assert.equal(cleanSubtitleText('<b>\u200b\u200f\ufeff</b>'), '');
   assert.equal(parseYouTubeJson3(JSON.stringify({ events: [{ tStartMs: 0, dDurationMs: 1000, segs: [{ utf8: '\u200b' }] }] })).length, 0);
 });
@@ -343,7 +344,7 @@ test('Netflix republishes unchanged track lists when advancing to another episod
       getAllPlayerSessionIds: () => ['session'], getVideoPlayerBySessionId: () => player,
     } }) } } } },
   };
-  loadSource('src/lib/services/netflix-bridge.ts', {
+  loadSource('src/features/subtitles/netflix/netflix-bridge.ts', {
     window, document, CustomEvent, setInterval: fn => { poll = fn; },
   }).runNetflixBridgeMain();
   poll();
@@ -376,7 +377,7 @@ test('Netflix serializes and deduplicates lazy loads, waiting for delayed CDN UR
       getState: () => ({ videoPlayer: { cadmiumPlayerRepository: { playersById: { session: root } } } }),
     } } } },
   };
-  loadSource('src/lib/services/netflix-bridge.ts', {
+  loadSource('src/features/subtitles/netflix/netflix-bridge.ts', {
     window, document, CustomEvent, setInterval() {},
     setTimeout(resolve) {
       if (++ticks === 4) root[selected.trackId] = {
@@ -424,7 +425,7 @@ test('Netflix bridge handles seek event and supports dictionary URL mappings', a
       getState: () => ({ videoPlayer: { cadmiumPlayerRepository: { playersById: { 'sess-1': root } } } }),
     } } } },
   };
-  loadSource('src/lib/services/netflix-bridge.ts', {
+  loadSource('src/features/subtitles/netflix/netflix-bridge.ts', {
     window, document, CustomEvent, setInterval() {}, setTimeout() {},
   }).runNetflixBridgeMain();
 
@@ -441,7 +442,7 @@ test('Netflix bridge handles seek event and supports dictionary URL mappings', a
 });
 
 test('subtitle-parsers: cleanSubtitleText strips TTML ruby pronunciation guides and WebVTT parses commas', () => {
-  const parsers = loadSource('src/lib/services/subtitle-parsers.ts');
+  const parsers = loadSource('src/features/subtitles/shared/subtitle-parsers.ts');
 
   // 1. TTML ruby annotation text stripping
   const ttmlRuby = '<span><span tts:ruby="base">日本語</span><span tts:ruby="text">にほんご</span></span>を勉強する';
@@ -463,7 +464,7 @@ test('subtitle-parsers: cleanSubtitleText strips TTML ruby pronunciation guides 
 });
 
 test('video-runtime: subscribeToVideoTime binds timeupdate and ratechange listeners and unbinds them cleanly', () => {
-  const runtime = loadSource('src/lib/services/video-runtime.ts');
+  const runtime = loadSource('src/features/subtitles/shared/video-runtime.ts');
   const listeners = new Map();
   const video = {
     paused: true,

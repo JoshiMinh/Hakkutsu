@@ -3,15 +3,12 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "paths": {
-      "~components": ["./src/components"],
-      "~components/*": ["./src/components/*"],
-      "~lib": ["./src/lib"],
-      "~lib/*": ["./src/lib/*"],
-      "~contents": ["./src/contents"],
-      "~contents/*": ["./src/contents/*"],
-      "~style.css": ["./src/style.css"],
-      "~": ["./src"],
-      "~/*": ["./src/*"]
+      "~": [
+        "./src"
+      ],
+      "~/*": [
+        "./src/*"
+      ]
     }
   }
 }

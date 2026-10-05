@@ -1,0 +1,43 @@
+/* ── Navigation Tabs ───────────────────────────────────────────── */
+
+.hk-nav {
+  display: flex;
+  padding: 5px 10px;
+  background: #09090b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 4px;
+}
+
+.hk-nav__tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--hk-text-muted);
+  font-size: 12px;
+  font-family: var(--hk-font-sans);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.hk-nav__tab:hover {
+  color: var(--hk-text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hk-nav__tab--active {
+  color: #ffffff;
+  background: rgba(168, 85, 247, 0.18);
+  border-color: rgba(168, 85, 247, 0.4);
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.25);
+  font-weight: 600;
+}
+

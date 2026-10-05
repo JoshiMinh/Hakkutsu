@@ -1,0 +1,47 @@
+/* ── Header ────────────────────────────────────────────────────── */
+
+.hk-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(20, 20, 26, 0.98) 0%,
+    rgba(12, 12, 16, 0.98) 100%
+  );
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(12px);
+}
+
+.hk-header__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--hk-space-sm);
+}
+
+.hk-header__title,
+.hk-brand-title {
+  font-family: var(--hk-font-brand);
+  font-size: var(--hk-text-lg);
+  font-weight: 800;
+  color: var(--hk-text-primary);
+  letter-spacing: -0.015em;
+}
+
+.hk-header__subtitle {
+  font-size: var(--hk-text-xs);
+  color: var(--hk-text-muted);
+  font-weight: 400;
+}
+
+.hk-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--hk-space-sm);
+}
+

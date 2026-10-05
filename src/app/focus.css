@@ -1,0 +1,1 @@
+.hk-popup :is(button, a, textarea):focus-visible, .hk-smartdeck__control:focus-visible { outline: 2px solid var(--hk-accent-primary); outline-offset: 2px; }

@@ -1,4 +1,4 @@
-import { initNetflixPageBridge } from "~/lib/services/netflix-bridge";
+import { initNetflixPageBridge } from "~/features/subtitles/netflix/netflix-bridge";
 
 export default defineContentScript({
   matches: ["https://www.netflix.com/*"],

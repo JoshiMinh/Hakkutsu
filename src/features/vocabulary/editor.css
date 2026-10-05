@@ -1,0 +1,77 @@
+/* ── Modal & Forms ───────────────────────────────────────────────── */
+
+.hk-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: var(--hk-space-lg);
+}
+
+.hk-modal {
+  background: var(--hk-bg-primary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-lg);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--hk-shadow-lg);
+}
+
+.hk-modal__header {
+  padding: var(--hk-space-lg);
+  border-bottom: 1px solid var(--hk-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hk-modal__title {
+  margin: 0;
+  font-size: var(--hk-text-lg);
+  color: var(--hk-text-primary);
+  font-weight: 600;
+}
+
+.hk-modal__body {
+  padding: var(--hk-space-lg);
+  overflow-y: auto;
+}
+
+.hk-modal__footer {
+  padding: var(--hk-space-lg);
+  border-top: 1px solid var(--hk-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--hk-space-md);
+  background: var(--hk-bg-secondary);
+  border-bottom-left-radius: var(--hk-radius-lg);
+  border-bottom-right-radius: var(--hk-radius-lg);
+}
+
+.hk-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--hk-space-lg);
+}
+
+.hk-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hk-space-xs);
+}
+
+.hk-form-label {
+  font-size: var(--hk-text-xs);
+  color: var(--hk-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+

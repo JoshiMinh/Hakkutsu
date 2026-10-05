@@ -1,0 +1,2 @@
+.hk-popup-empty { display: flex; align-items: center; flex-direction: column; gap: var(--hk-space-lg); padding: var(--hk-space-2xl) var(--hk-space-xl); text-align: center; font-size: var(--hk-text-sm); color: var(--hk-text-secondary); line-height: 1.8; }
+.hk-popup-empty svg { color: var(--hk-accent-primary); }

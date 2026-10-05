@@ -1,0 +1,39 @@
+/* ── Popup Container ───────────────────────────────────────────── */
+
+body.hk-extension-page {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  background: #09090b;
+  color: #f4f4f5;
+  font-family: var(--hk-font-sans);
+  overflow-x: hidden;
+}
+
+body.hk-popup-body {
+  width: 440px;
+  min-height: 0;
+  height: auto;
+  max-height: 600px;
+}
+
+body.hk-popup-body .hk-popup {
+  width: 440px;
+  height: auto;
+  max-height: 600px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #09090b;
+  color: #f4f4f5;
+  font-family: var(--hk-font-sans);
+  font-size: var(--hk-text-base);
+  line-height: 1.5;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+}
+

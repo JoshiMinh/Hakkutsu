@@ -1,0 +1,139 @@
+/* ── Glassmorphic Modal System ───────────────────────────────────────── */
+
+.hk-modal-overlay,
+.hk-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: hkFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hk-modal {
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: #141418;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  animation: hkPopIn 0.2s ease-out;
+}
+
+@keyframes hkPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.hk-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hk-modal__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hk-modal__title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hk-modal__subtitle {
+  font-size: 12px;
+  color: var(--hk-text-muted);
+}
+
+.hk-modal__body {
+  padding: 24px;
+  overflow-y: auto;
+  max-height: 70vh;
+}
+
+.hk-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  background: rgba(12, 12, 15, 0.8);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hk-modal-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #a855f7;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hk-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.hk-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hk-form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hk-text-secondary);
+}
+
+.hk-form-input {
+  width: 100%;
+  background: #09090b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #ffffff;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.hk-form-input:focus {
+  border-color: #a855f7;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.25), inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.hk-form-input--jp {
+  font-family: var(--hk-font-jp);
+}
+

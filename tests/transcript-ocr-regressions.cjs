@@ -20,7 +20,7 @@ function load(file, globals = {}, imports = {}) {
 function ocrHarness(recognize) {
   const parameters = [];
   const created = [];
-  const { ocrEngine } = load('src/lib/services/ocr-engine.ts', {
+  const { ocrEngine } = load('src/features/ocr/ocr-engine.ts', {
     browser: { runtime: { getURL: path => `extension://${path}` } },
   }, {
     'tesseract.js': {
@@ -42,15 +42,15 @@ const page = words => ({ text: 'raw page', confidence: 80, blocks: [{ paragraphs
   text: 'a line that spans the page', bbox: { x0: 0, y0: 0, x1: 900, y1: 40 }, words,
 }] }] }] });
 
-const { groupOcrRegions } = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') });
-const { assembleOcrRegions } = load('src/lib/services/ocr-pipeline.ts', {}, {
-  './ocr-regions': load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') }),
-  './ocr-geometry': load('src/lib/services/ocr-geometry.ts'),
+const { groupOcrRegions } = load('src/features/ocr/ocr-regions.ts', {}, { './ocr-bubbles': load('src/features/ocr/ocr-bubbles.ts') });
+const { assembleOcrRegions } = load('src/features/ocr/ocr-pipeline.ts', {}, {
+  './ocr-regions': load('src/features/ocr/ocr-regions.ts', {}, { './ocr-bubbles': load('src/features/ocr/ocr-bubbles.ts') }),
+  './ocr-geometry': load('src/features/ocr/ocr-geometry.ts'),
 });
 // Confidence/shape-only tests supply trusted ink separately; their blank
 // buffers are coordinate placeholders, not real OCR inputs.
-const { groupOcrRegions: groupWithTrustedInk } = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': {
-  ...load('src/lib/services/ocr-bubbles.ts'),
+const { groupOcrRegions: groupWithTrustedInk } = load('src/features/ocr/ocr-regions.ts', {}, { './ocr-bubbles': {
+  ...load('src/features/ocr/ocr-bubbles.ts'),
   findTextInkEvidence: fragments => new Map(fragments.map(f => [f, { ratio: 1, ink: 0, components: 3, bbox: f.bbox }])),
 } });
 const fragment = (text, x, y, w, h, orientation = 'vertical', paragraphId = 'dialogue') => ({
@@ -205,7 +205,7 @@ test('explicit horizontal OCR avoids the second pass', async () => {
 
 test('packaged Japanese models read vertical dialogue beside horizontal text in a manga layout', async () => {
   const tesseract = require('tesseract.js');
-  const { ocrEngine } = load('src/lib/services/ocr-engine.ts', {
+  const { ocrEngine } = load('src/features/ocr/ocr-engine.ts', {
     browser: { runtime: { getURL: value => value } },
   }, {
     'tesseract.js': { ...tesseract, createWorker: (language, oem) => tesseract.createWorker(language, oem, {
@@ -269,7 +269,7 @@ function routerHarness(sendMessage = async () => ({ type: 'TRANSCRIPT_SNAPSHOT',
       return sendMessage(tabId, message);
     } },
   };
-  const close = load('src/lib/services/transcript-panel-router.ts', { chrome }).installTranscriptPanelRouter();
+  const close = load('src/features/subtitles/shared/transcript-panel-router.ts', { chrome }).installTranscriptPanelRouter();
   const panel = () => {
     const messages = [];
     const port = { name: 'hakkutsu-transcript-panel', onMessage: new Event(), onDisconnect: new Event(), postMessage: message => messages.push(message) };
@@ -466,7 +466,7 @@ test('automatic acceptance excludes low-confidence and artwork-shaped guesses; m
 });
 
 test('vertical assembly repairs isolated sound marks and preserves numeric runs and V', () => {
-  const { normalizeRegionText } = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') });
+  const { normalizeRegionText } = load('src/features/ocr/ocr-regions.ts', {}, { './ocr-bubbles': load('src/features/ocr/ocr-bubbles.ts') });
   assert.equal(normalizeRegionText('クラウンゲー1ムセンター', 'vertical'), 'クラウンゲームセンター');
   assert.equal(normalizeRegionText('セ1ラーV第12回レベル1', 'vertical'), 'セーラーV第12回レベル1');
   assert.equal(normalizeRegionText('セ1ラーV', 'horizontal'), 'セ1ラーV');
@@ -478,7 +478,7 @@ test('vertical assembly repairs isolated sound marks and preserves numeric runs 
 });
 
 test('crop padding and scale map local fragments into source coordinates and clip padding', () => {
-  const { mapCropFragments, canvasToImage, imageToCanvas } = load('src/lib/services/ocr-geometry.ts');
+  const { mapCropFragments, canvasToImage, imageToCanvas } = load('src/features/ocr/ocr-geometry.ts');
   const crop = { id: 'crop', bbox: { x0: 100, y0: 200, x1: 150, y1: 280 },
     transform: { originX: 100, originY: 200, scale: 2, padding: 10 } };
   const mapped = mapCropFragments([fragment('日本語', 6, 10, 104, 160)], crop);
@@ -497,14 +497,14 @@ test('crop padding and scale map local fragments into source coordinates and cli
 test('bundled models recognize crop batches as ordered dialogue regions', async () => {
   const sharp = require('sharp');
   const tesseract = require('tesseract.js');
-  const { ocrEngine } = load('src/lib/services/ocr-engine.ts', { browser: { runtime: { getURL: value => value } } }, {
+  const { ocrEngine } = load('src/features/ocr/ocr-engine.ts', { browser: { runtime: { getURL: value => value } } }, {
     'tesseract.js': { ...tesseract, createWorker: (language, oem) => tesseract.createWorker(language, oem, {
       langPath: path.join(__dirname, '../public/ocr'), cacheMethod: 'none',
     }) },
   });
   try {
     const { data, info } = await sharp(path.join(__dirname, 'fixtures/manga-dialogue-regions.png')).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const bubbles = load('src/lib/services/ocr-bubbles.ts');
+    const bubbles = load('src/features/ocr/ocr-bubbles.ts');
     const detected = bubbles.detectMangaDialogueRegions({ data: new Uint8ClampedArray(data), width: info.width, height: info.height });
     const crops = [];
     for (const region of detected) {
@@ -517,7 +517,7 @@ test('bundled models recognize crop batches as ordered dialogue regions', async 
         transform: { originX: b.x0, originY: b.y0, scale: 1, padding: 10 } });
     }
     const results = await ocrEngine.recognizeBatch(crops);
-    const { mapCropFragments } = load('src/lib/services/ocr-geometry.ts');
+    const { mapCropFragments } = load('src/features/ocr/ocr-geometry.ts');
     const regions = groupOcrRegions(results.flatMap(result => mapCropFragments(result.lines, crops.find(c => c.id === result.id))), {
       pixels: { data: new Uint8ClampedArray(data), width: info.width, height: info.height }, automatic: true,
     });
@@ -528,7 +528,7 @@ test('bundled models recognize crop batches as ordered dialogue regions', async 
 
 
 test('recovery corrects a weaker crop without accepting broad overlapping guesses or duplicates', () => {
-  const { mergeOcrFragments, mapCropFragments } = load('src/lib/services/ocr-geometry.ts');
+  const { mergeOcrFragments, mapCropFragments } = load('src/features/ocr/ocr-geometry.ts');
   const primary = [{ ...fragment('狐本語', 100, 20, 20, 90), confidence: 70 }];
   const result = mergeOcrFragments(primary, [
     { ...fragment('日本語', 100, 20, 20, 90), confidence: 95 },
@@ -556,7 +556,7 @@ test('automatic validation rejects punctuation-only, tiny and densely hallucinat
 
 
 test('recovery preserves overlapping Japanese word boxes from the same pass', () => {
-  const { mergeOcrFragments } = load('src/lib/services/ocr-geometry.ts');
+  const { mergeOcrFragments } = load('src/features/ocr/ocr-geometry.ts');
   const heading = [
     fragment('漫画', 160, 746, 276, 36, 'horizontal'),
     fragment('の', 260, 742, 35, 54, 'horizontal'),
@@ -570,7 +570,7 @@ test('recovery preserves overlapping Japanese word boxes from the same pass', ()
 
 
 test('region recovery does not insert nested alternatives or expand accepted dialogue into artwork', () => {
-  const { mergeOcrRegionPasses, resolveOcrRegionOverlaps } = load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': load('src/lib/services/ocr-bubbles.ts') });
+  const { mergeOcrRegionPasses, resolveOcrRegionOverlaps } = load('src/features/ocr/ocr-regions.ts', {}, { './ocr-bubbles': load('src/features/ocr/ocr-bubbles.ts') });
   const region = f => ({ text: f.text, orientation: f.orientation, fragments: [f], bbox: f.bbox });
   const primary = region(fragment('こんなテスト', 100, 30, 20, 120));
   const nested = region(fragment('テスト', 100, 70, 20, 60));

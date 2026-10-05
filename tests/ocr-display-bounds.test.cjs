@@ -52,14 +52,14 @@ function renderScans(scans, { hoveredImage = null, error = null } = {}) {
   },
     useRef: initial => ({ current: initial }), useCallback: fn => fn, useEffect() {} };
   const imports = {
-    react, '~lib/services/ocr-geometry': geometry, '~lib/services/ocr-regions': runtime.regions,
-    '~lib/services/ocr-pipeline': runtime.pipeline, '~lib/services/ocr-bubbles': runtime.bubbles,
-    '~lib/services/image-cropper': runtime.cropper,
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: {} }) },
-    '~lib/locales': { useTranslation: () => ({ t: key => key }) },
+    react, '~/features/ocr/ocr-geometry': geometry, '~/features/ocr/ocr-regions': runtime.regions,
+    '~/features/ocr/ocr-pipeline': runtime.pipeline, '~/features/ocr/ocr-bubbles': runtime.bubbles,
+    '~/features/ocr/image-cropper': runtime.cropper,
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings: {} }) },
+    '~/shared/locales': { useTranslation: () => ({ t: key => key }) },
   };
   const exports = {};
-  const source = ts.transpileModule(fs.readFileSync(path.join(root, 'src/components/manga-ocr-images.tsx'), 'utf8'), {
+  const source = ts.transpileModule(fs.readFileSync(path.join(root, 'src/features/ocr/manga-ocr-images.tsx'), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   vm.runInNewContext(source, { exports, window: { innerWidth: 800, innerHeight: 700 }, require: name => imports[name] || require(name) });

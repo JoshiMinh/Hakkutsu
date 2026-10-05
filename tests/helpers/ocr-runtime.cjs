@@ -25,12 +25,12 @@ function createOcrRuntime() {
     return exports;
   }
   return {
-    engine: load('src/lib/services/ocr-engine.ts').ocrEngine,
-    geometry: load('src/lib/services/ocr-geometry.ts'),
-    bubbles: load('src/lib/services/ocr-bubbles.ts'),
-    regions: load('src/lib/services/ocr-regions.ts'),
-    pipeline: load('src/lib/services/ocr-pipeline.ts'),
-    cropper: load('src/lib/services/image-cropper.ts'),
+    engine: load('src/features/ocr/ocr-engine.ts').ocrEngine,
+    geometry: load('src/features/ocr/ocr-geometry.ts'),
+    bubbles: load('src/features/ocr/ocr-bubbles.ts'),
+    regions: load('src/features/ocr/ocr-regions.ts'),
+    pipeline: load('src/features/ocr/ocr-pipeline.ts'),
+    cropper: load('src/features/ocr/image-cropper.ts'),
   };
 }
 module.exports = { createOcrRuntime, root };

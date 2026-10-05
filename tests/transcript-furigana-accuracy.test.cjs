@@ -28,6 +28,7 @@ function load(file, globals = {}, imports = {}) {
     Intl,
     ...globals,
     require: (name) => {
+      if (name === '~/shared/japanese/text-normalization') return load('src/shared/japanese/text-normalization.ts');
       if (name in imports) return imports[name];
       if (name === 'react') return { ...React, default: React };
       if (name === 'react/jsx-runtime' || name === 'lucide-react') return require(name);
@@ -37,8 +38,7 @@ function load(file, globals = {}, imports = {}) {
   return exports;
 }
 
-const constants = load('src/lib/utils/constants.ts');
-const japanese = load('src/lib/utils/japanese.ts', {}, { './constants': constants });
+const japanese = load('src/shared/japanese/japanese.ts', {});
 
 test('japanese.distributeFurigana accurately distributes reading to kanji and leaves okurigana plain', () => {
   // 1. 洪水 -> こうずい
@@ -285,20 +285,20 @@ test('japanese.alignTokensWithReading aligns sentence reading accurately across 
 
 test('transcript cue component renders accurate ruby markup for problem video lines', () => {
   const settings = { showFurigana: true };
-  const parsers = load('src/lib/services/subtitle-parsers.ts');
+  const parsers = load('src/features/subtitles/shared/subtitle-parsers.ts');
 
   // Mock TranscriptCue by loading SubtitleScriptDrawer
   const drawerModule = load(
-    'src/components/subtitle-script-drawer.tsx',
+    'src/features/subtitles/shared/subtitle-script-drawer.tsx',
     {
       window: { innerWidth: 360, location: { href: 'extension://sidepanel' }, setTimeout() {}, clearTimeout() {} },
       document: { querySelector: () => null },
     },
     {
-      '~lib/services/use-transcript-window': {
+      '~/features/subtitles/shared/use-transcript-window': {
         useTranscriptWindow: () => ({ start: 0, end: 4, before: 0, after: 0, scrollToRow() {} }),
       },
-      '~lib/services/transcript-readings': {
+      '~/features/subtitles/shared/transcript-readings': {
         requestTranscriptReadings: async (text) => {
           if (text === '毎日の登校が楽になります') {
             return [
@@ -342,11 +342,11 @@ test('transcript cue component renders accurate ruby markup for problem video li
           return [];
         },
       },
-      '~lib/services/subtitle-parsers': parsers,
-      '~lib/utils/japanese': japanese,
-      '~lib/utils/jlpt-classifier': { predictJlpt: () => null },
-      '~lib/utils/settings': { useSettingsStore: () => ({ settings, updateSettings() {} }) },
-      '~lib/locales': { useTranslation: () => ({ t: (k) => k, lang: 'en' }) },
+      '~/features/subtitles/shared/subtitle-parsers': parsers,
+      '~/shared/japanese/japanese': japanese,
+      '~/shared/japanese/jlpt-classifier': { predictJlpt: () => null },
+      '~/features/settings/settings-store': { useSettingsStore: () => ({ settings, updateSettings() {} }) },
+      '~/shared/locales': { useTranslation: () => ({ t: (k) => k, lang: 'en' }) },
     }
   );
 

@@ -13,9 +13,8 @@ function load(file, imports = {}, globals = {}) {
   }).outputText, { exports, Intl, ...globals, require: name => imports[name] || require(name) });
   return exports;
 }
-const constants = load('src/lib/utils/constants.ts');
-const japanese = load('src/lib/utils/japanese.ts', { './constants': constants });
-const { refineJapaneseTokens } = load('src/lib/services/japanese-token-refinement.ts', { '~lib/utils/japanese': japanese });
+const japanese = load('src/shared/japanese/japanese.ts');
+const { refineJapaneseTokens } = load('src/features/dictionary/japanese-token-refinement.ts', { '~/shared/japanese/japanese': japanese });
 const raw = text => [...new Intl.Segmenter('ja', { granularity: 'word' }).segment(text)].map(segment => ({
   surface_form: segment.segment, base_form: segment.segment, pos: segment.isWordLike ? 'Word' : 'Punctuation',
 }));
@@ -47,7 +46,7 @@ test('unavailable dictionaries and partial matches cannot invent words or remove
 });
 
 test('sentence breakdown exposes native word buttons with aligned ruby and leaves punctuation unselectable', () => {
-  const { TokenDisplay } = load('src/components/token-display.tsx', { '~lib/utils/japanese': japanese });
+  const { TokenDisplay } = load('src/features/dictionary/token-display.tsx', { '~/shared/japanese/japanese': japanese });
   const tokens = [
     { surface: '取り逃がした', dictionary_form: '取り逃がす', reading: { hiragana: 'とりのがした' }, pos: 'Word', is_japanese: true },
     { surface: '?9・', reading: { hiragana: '' }, is_japanese: false },
@@ -70,16 +69,16 @@ test('sentence breakdown exposes native word buttons with aligned ruby and leave
 
 test('OCR phrase analysis passes refinement to the tokenizer, preserves junk as non-Japanese, and derives inflected readings', async () => {
   const seen = [], lookups = [];
-  const { llmService } = load('src/lib/services/llm-service.ts', {
-    '~lib/utils/settings': { useSettingsStore: {} }, './storage': {},
+  const { llmService } = load('src/features/dictionary/llm-service.ts', {
+    '~/features/settings/settings-store': { useSettingsStore: {} }, '~/features/settings/settings-storage': {},
     './google-translate': { googleTranslateService: { translate: async () => 'Can you protect the future?' } },
     './local-tokenizer': { tokenize: async (text, options) => {
       seen.push(options);
       return [{ surface_form: '守れる', base_form: '守る', pos: 'Word' }, { surface_form: '9?・', base_form: '9?・', pos: 'Punctuation' }];
     } },
     './dictionary-lookup': { lookupWord: async word => { lookups.push(word); return { meaning: 'protect', reading: 'まもる' }; } },
-    '~lib/utils/japanese': japanese,
-    '~lib/utils/hanviet-dict': { getHanViet: () => '' }, '~lib/utils/jlpt-classifier': { predictJlpt: () => null },
+    '~/shared/japanese/japanese': japanese,
+    '~/shared/japanese/hanviet-dict': { getHanViet: () => '' }, '~/shared/japanese/jlpt-classifier': { predictJlpt: () => null },
   });
   const result = await llmService.analyzeText('守れる9?・', true, 'en', true);
   assert.equal(seen[0].dictionaryAware, true);
@@ -93,13 +92,14 @@ test('OCR phrase analysis passes refinement to the tokenizer, preserves junk as 
 
 test('selected definitions use the dictionary reading while the sentence retains its inflected reading', () => {
   const noop = () => {};
-  const { DefinitionCard } = load('src/components/definition-card.tsx', {
+  const { DefinitionCard } = load('src/features/dictionary/definition-card.tsx', {
     react: { ...React, useState: initial => [initial, noop], useEffect: noop, useRef: () => ({ current: null }) },
-    '~lib/utils/constants': constants, '~lib/utils/japanese': japanese,
-    '~lib/utils/hanviet-dict': { getHanViet: () => '' }, '~lib/utils/jlpt-classifier': { predictJlpt: () => null },
-    './badges': { JlptBadge: () => null, PosBadge: () => null, FrequencyBadge: () => null },
-    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
-    '~lib/services/tts-service': {}, '~lib/services/dictionary-lookup': {}, '~lib/services/irasutoya-service': {},
+    '~/features/dictionary/pos-labels': load('src/features/dictionary/pos-labels.ts'), '~/shared/japanese/japanese': japanese,
+    '~/shared/japanese/hanviet-dict': { getHanViet: () => '' }, '~/shared/japanese/jlpt-classifier': { predictJlpt: () => null },
+    '~/shared/ui/badges': { JlptBadge: () => null, FrequencyBadge: () => null },
+    './pos-badge': { PosBadge: () => null },
+    '~/shared/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~/shared/browser/tts-service': {}, '~/features/dictionary/dictionary-lookup': {}, '~/features/dictionary/irasutoya-service': {},
   });
   const token = { surface: '守れる', dictionary_form: '守る', reading: { hiragana: 'まもれる' },
     dictionary_reading: 'まもる', pos: 'Word', is_japanese: true, definitions: [{ glosses: ['protect'] }] };
@@ -110,7 +110,7 @@ test('selected definitions use the dictionary reading while the sentence retains
 
 test('OCR and ordinary lookup requests do not share a cached tokenization', async () => {
   const requests = [];
-  const { requestLookupAnalysis } = load('src/lib/services/lookup-analysis.ts', {}, {
+  const { requestLookupAnalysis } = load('src/features/dictionary/lookup-analysis.ts', {}, {
     chrome: { runtime: { sendMessage: async message => {
       requests.push(message);
       return { type: 'ANALYZE_PHRASE_RESULT', payload: { text: message.payload.text } };
@@ -125,8 +125,8 @@ test('OCR and ordinary lookup requests do not share a cached tokenization', asyn
 
 test('OCR tokenization skips compound queries when the local dictionary is not installed', async () => {
   let queries = 0;
-  const { tokenize } = load('src/lib/services/local-tokenizer.ts', {
-    '~lib/utils/japanese': japanese,
+  const { tokenize } = load('src/features/dictionary/local-tokenizer.ts', {
+    '~/shared/japanese/japanese': japanese,
     './japanese-token-refinement': { refineJapaneseTokens },
     './local-lookup': { getDB: async () => ({ objectStoreNames: { contains: () => false } }),
       searchDictionary: async () => { queries++; return []; } },

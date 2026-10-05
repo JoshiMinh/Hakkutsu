@@ -1,8 +1,9 @@
 import { createRoot } from "react-dom/client";
-import cssText from "~/style.css?inline";
-import { youtubeSubtitleCss, genericPlayerCss } from "~/lib/utils/youtube-subtitle-styles";
-import GenericSubtitlesOverlay from "~/contents/generic-subtitles";
-import { findPrimaryVideo } from "~/lib/services/video-runtime";
+import cssText from "~/styles/global.css?inline";
+import { youtubeSubtitleCss } from "~/features/subtitles/shared/overlay-styles";
+import { genericPlayerCss } from "~/features/subtitles/generic/player-styles";
+import GenericSubtitlesOverlay from "~/features/subtitles/generic/generic-subtitles";
+import { findPrimaryVideo } from "~/features/subtitles/shared/video-runtime";
 
 export default defineContentScript({
   matches: ["<all_urls>"],

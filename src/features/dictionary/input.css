@@ -1,0 +1,41 @@
+/* ── Input Section ─────────────────────────────────────────────── */
+
+.hk-input {
+  position: relative;
+  margin-bottom: var(--hk-space-lg);
+}
+
+.hk-input__textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: var(--hk-space-md);
+  background: var(--hk-bg-secondary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-md);
+  color: var(--hk-text-primary);
+  font-family: var(--hk-font-jp);
+  font-size: var(--hk-text-lg);
+  line-height: 1.7;
+  resize: vertical;
+  transition: border-color var(--hk-transition-fast);
+}
+
+.hk-input__textarea::placeholder {
+  color: var(--hk-text-muted);
+  font-family: var(--hk-font-sans);
+  font-size: var(--hk-text-base);
+}
+
+.hk-input__textarea:focus {
+  outline: none;
+  border-color: var(--hk-border-focus);
+  box-shadow: var(--hk-shadow-glow);
+}
+
+.hk-input__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--hk-space-sm);
+  margin-top: var(--hk-space-sm);
+}
+

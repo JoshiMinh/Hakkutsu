@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap');
+
+/*
+ * Hakkutsu Design System
+ * Dark-mode-first Japanese aesthetic with warm accents.
+ */
+
+/* ── Design Tokens ─────────────────────────────────────────────── */
+
+:root, :host, #hakkutsu-inline-dictionary, .hk-popup {
+  /* Base palette */
+  --hk-bg-primary: #09090b;
+  --hk-bg-secondary: #121214;
+  --hk-bg-tertiary: #18181b;
+  --hk-bg-hover: #27272a;
+  --hk-bg-glass: rgba(9, 9, 11, 0.85);
+
+  /* Text */
+  --hk-text-primary: #f4f4f5;
+  --hk-text-secondary: #a1a1aa;
+  --hk-text-muted: #71717a;
+  --hk-text-accent: #a855f7;
+
+  /* Accent colors */
+  --hk-accent-purple: #a855f7;
+  --hk-accent-primary: var(--hk-accent-purple);
+  --hk-accent-crimson: #e85d75;
+  --hk-accent-sakura: #f5a0c0;
+  --hk-accent-teal: #5ec4b6;
+  --hk-accent-indigo: #7c83ff;
+
+  /* JLPT level colors */
+  --hk-jlpt-n5: #22c55e;
+  --hk-jlpt-n4: #3b82f6;
+  --hk-jlpt-n3: #f59e0b;
+  --hk-jlpt-n2: #ef4444;
+  --hk-jlpt-n1: #a855f7;
+
+  /* Borders & shadows */
+  --hk-border: rgba(255, 255, 255, 0.08);
+  --hk-border-focus: rgba(168, 85, 247, 0.5);
+  --hk-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --hk-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --hk-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --hk-shadow-glow: 0 0 20px rgba(168, 85, 247, 0.25);
+
+  /* Spacing */
+  --hk-space-xs: 4px;
+  --hk-space-sm: 8px;
+  --hk-space-md: 12px;
+  --hk-space-lg: 16px;
+  --hk-space-xl: 24px;
+  --hk-space-2xl: 32px;
+
+  /* Typography */
+  --hk-font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --hk-font-brand: "Outfit", "Plus Jakarta Sans", "Trebuchet MS", -apple-system, system-ui, sans-serif;
+  --hk-font-jp: "Noto Sans JP", "Hiragino Kaku Gothic Pro", "Yu Gothic", sans-serif;
+  --hk-font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  --hk-text-xs: 11px;
+  --hk-text-sm: 12px;
+  --hk-text-base: 14px;
+  --hk-text-lg: 16px;
+  --hk-text-xl: 20px;
+  --hk-text-2xl: 24px;
+
+  /* Radius */
+  --hk-radius-sm: 6px;
+  --hk-radius-md: 8px;
+  --hk-radius-lg: 12px;
+  --hk-radius-full: 9999px;
+
+  /* Transitions */
+  --hk-transition-fast: 150ms ease;
+  --hk-transition-normal: 250ms ease;
+  --hk-transition-slow: 400ms ease;
+}
+
+/* ── Base Reset ────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+

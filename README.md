@@ -54,13 +54,15 @@ Production output is written to `.output/`.
 
 ```text
 public/                 Packaged images and static assets
-src/components/         Shared React interface components
-src/contents/           Dictionary and subtitle implementations
-src/entrypoints/          WXT pages, background worker, and content scripts
-src/lib/services/       Storage, dictionary, subtitle, Anki, and SRS services
-src/lib/utils/          Shared types and language utilities
+src/entrypoints/        WXT pages and script registration/mounting
+src/app/                Application shell, navigation, and background routing
+src/features/           Dictionary, OCR, Anki, analytics, subtitles, vocabulary, SRS, settings
+src/shared/             Cross-feature UI, browser, Japanese, and locale modules
+src/styles/             Ordered stylesheet composition, resets, tokens, shared primitives
 wxt.config.ts           Extension manifest and WXT configuration
 ```
+
+See [source ownership](src/README.md) for feature responsibilities and preserved boundaries.
 
 ## Load an unpacked build
 

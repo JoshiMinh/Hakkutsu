@@ -1,0 +1,72 @@
+/* ── Token Display ─────────────────────────────────────────────── */
+
+.hk-tokens-container {
+  margin-bottom: 4px;
+}
+
+.hk-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(18, 18, 22, 0.6);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hk-token {
+  font: inherit;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hk-token:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.hk-token--selected {
+  background: rgba(168, 85, 247, 0.18) !important;
+  border-color: rgba(168, 85, 247, 0.6) !important;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.25);
+}
+
+.hk-token__reading {
+  font-size: 11px;
+  color: #f472b6;
+  font-family: var(--hk-font-jp);
+  line-height: 1;
+  margin-bottom: 2px;
+  min-height: 13px;
+  font-weight: 500;
+}
+
+.hk-token__surface {
+  font-size: var(--hk-text-lg);
+  font-family: var(--hk-font-jp);
+  color: var(--hk-text-primary);
+  font-weight: 500;
+}
+
+.hk-token--non-jp .hk-token__surface {
+  color: var(--hk-text-muted);
+  font-family: var(--hk-font-sans);
+}
+
+.hk-tokens--sentence { display: block; padding: var(--hk-space-md); background: var(--hk-bg-secondary); line-height: 2.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hk-tokens--sentence .hk-token { display: inline; padding: 3px 2px; margin: 0 1px; background: transparent; border-color: transparent; border-radius: var(--hk-radius-sm); white-space: normal; vertical-align: baseline; }
+.hk-tokens--sentence .hk-token__surface { font-size: var(--hk-text-lg); }
+.hk-tokens--sentence ruby { ruby-align: center; }
+.hk-tokens--sentence rt { font-size: var(--hk-text-xs); color: var(--hk-text-secondary); }
+.hk-token-punctuation { color: var(--hk-text-secondary); font-family: var(--hk-font-jp); }
+.hk-token:focus-visible { outline: 2px solid var(--hk-accent-primary); outline-offset: 2px; }

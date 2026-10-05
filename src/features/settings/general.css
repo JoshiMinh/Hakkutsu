@@ -1,0 +1,53 @@
+/* General settings: everyday preferences first, scheduling on demand. */
+.hk-anki-header__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--hk-space-sm);
+  min-width: 0;
+}
+.hk-anki-refresh { white-space: nowrap; }
+.hk-general-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.hk-general-group { min-width: 0; }
+.hk-general-group + .hk-general-group { border-left: 1px solid var(--hk-border); }
+.hk-general-group h4 {
+  margin: 0;
+  padding: var(--hk-space-md) 18px var(--hk-space-xs);
+  color: var(--hk-text-secondary);
+  font-size: var(--hk-text-sm);
+  font-weight: 600;
+}
+.hk-general-group .hk-settings-row__info { min-width: 0; }
+.hk-general-group .hk-settings-row { min-height: 72px; }
+.hk-general-review-options, .hk-general-advanced__fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.hk-general-review-options:disabled, .hk-general-advanced__fields:disabled { opacity: 0.5; }
+.hk-general-field { display: flex; flex-direction: column; gap: var(--hk-space-sm); padding-top: var(--hk-space-sm); min-width: 0; }
+.hk-general-field > label { display: flex; justify-content: space-between; gap: var(--hk-space-sm); }
+.hk-general-group > .hk-general-field { padding: 14px 18px; }
+.hk-general-field output { color: var(--hk-text-secondary); font-variant-numeric: tabular-nums; }
+.hk-general-select {
+  width: 100%;
+  min-width: 0;
+  padding: var(--hk-space-sm) var(--hk-space-md);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-md);
+  background: var(--hk-bg-tertiary);
+  color: var(--hk-text-primary);
+  font: 13px var(--hk-font-sans);
+}
+.hk-general-field input[type="range"] { width: 100%; margin: var(--hk-space-xs) 0; accent-color: var(--hk-accent-primary); }
+.hk-general-advanced { border-top: 1px solid var(--hk-border); padding: 14px 18px; }
+.hk-general-advanced summary { color: var(--hk-text-primary); font-size: var(--hk-text-base); font-weight: 500; cursor: pointer; }
+.hk-general-advanced__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--hk-space-lg); padding-top: var(--hk-space-sm); }
+.hk-general-card :is(select, summary):focus-visible,
+.hk-general-card .hk-toggle:has(input:focus-visible) { outline: 2px solid var(--hk-accent-primary); outline-offset: 3px; border-radius: var(--hk-radius-sm); }
+
+@media (max-width: 640px) {
+  .hk-general-grid, .hk-general-advanced__fields { grid-template-columns: minmax(0, 1fr); }
+  .hk-general-group + .hk-general-group { border-left: 0; border-top: 1px solid var(--hk-border); }
+  .hk-anki-header { gap: var(--hk-space-sm); }
+  .hk-anki-header__title { flex: 1; }
+}

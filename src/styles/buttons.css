@@ -1,0 +1,74 @@
+/* ── Buttons ───────────────────────────────────────────────────── */
+
+.hk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hk-space-xs);
+  padding: var(--hk-space-sm) var(--hk-space-lg);
+  border: none;
+  border-radius: var(--hk-radius-sm);
+  font-family: var(--hk-font-sans);
+  font-size: var(--hk-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--hk-transition-fast);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hk-btn--primary {
+  background: var(--hk-accent-primary);
+  color: #fff;
+}
+
+.hk-btn--primary:hover {
+  transform: translateY(-1px);
+  background: #9333ea;
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+}
+
+.hk-btn--primary:active {
+  transform: translateY(0);
+}
+
+.hk-btn--secondary {
+  background: var(--hk-bg-tertiary);
+  color: var(--hk-text-secondary);
+  border: 1px solid var(--hk-border);
+}
+
+.hk-btn--secondary:hover {
+  background: var(--hk-bg-hover);
+  color: var(--hk-text-primary);
+}
+
+.hk-btn--ghost {
+  background: transparent;
+  color: var(--hk-text-muted);
+  padding: var(--hk-space-xs) var(--hk-space-sm);
+}
+
+.hk-btn--ghost:hover {
+  color: var(--hk-text-primary);
+  background: var(--hk-bg-hover);
+}
+
+.hk-btn--sm {
+  padding: var(--hk-space-xs) var(--hk-space-sm);
+  font-size: var(--hk-text-xs);
+}
+
+.hk-btn--icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--hk-radius-sm);
+}
+
+.hk-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+

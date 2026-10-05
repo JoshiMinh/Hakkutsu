@@ -6,7 +6,7 @@ const ts = require("typescript");
 
 function loadOcrEngine() {
   const source = ts.transpileModule(
-    fs.readFileSync("src/lib/services/ocr-engine.ts", "utf8"),
+    fs.readFileSync("src/features/ocr/ocr-engine.ts", "utf8"),
     {
       compilerOptions: {
         target: ts.ScriptTarget.ES2022,

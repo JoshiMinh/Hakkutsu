@@ -1,0 +1,106 @@
+/* ── Word List Data Table ────────────────────────────────────────── */
+
+.hk-table-container {
+  overflow-x: auto;
+  background: var(--hk-bg-primary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-lg);
+  box-shadow: var(--hk-shadow-sm);
+}
+
+.hk-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: var(--hk-text-sm);
+  color: var(--hk-text-primary);
+}
+
+.hk-table th {
+  padding: var(--hk-space-md) var(--hk-space-lg);
+  background: var(--hk-bg-secondary);
+  font-weight: 600;
+  color: var(--hk-text-secondary);
+  border-bottom: 1px solid var(--hk-border);
+  white-space: nowrap;
+}
+
+.hk-table td {
+  padding: var(--hk-space-md) var(--hk-space-lg);
+  border-bottom: 1px solid var(--hk-border);
+  vertical-align: middle;
+}
+
+.hk-table tr:last-child td {
+  border-bottom: none;
+}
+
+.hk-table tr:hover {
+  background: var(--hk-bg-hover);
+}
+
+.hk-table-cell--bold {
+  font-weight: 700;
+  font-family: var(--hk-font-jp);
+  font-size: var(--hk-text-base);
+}
+
+.hk-table-cell--truncate {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hk-vocab-actions {
+  display: inline-flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+
+.hk-vocab-actions .hk-btn {
+  min-height: 32px;
+  padding: 6px 10px;
+  gap: 6px;
+  border-radius: 0;
+  font-size: 12px;
+}
+
+.hk-vocab-actions .hk-btn + .hk-btn {
+  margin-left: -1px;
+}
+
+.hk-vocab-actions .hk-btn:first-of-type {
+  border-radius: 6px 0 0 6px;
+}
+
+.hk-vocab-actions .hk-btn:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.hk-vocab-table {
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.hk-vocab-table td,
+.hk-vocab-table th {
+  white-space: nowrap;
+}
+
+.hk-vocab-cell--clip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hk-frequency {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+

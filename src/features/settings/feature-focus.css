@@ -1,0 +1,1 @@
+.hk-feature-switch:has(input:focus-visible) { outline: 2px solid var(--hk-accent-primary); outline-offset: 4px; border-radius: var(--hk-radius-sm); }

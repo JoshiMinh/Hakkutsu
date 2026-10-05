@@ -1,0 +1,3 @@
+.hk-settings-card__header .hk-feature-switch { margin-left: auto; flex-shrink: 0; }
+.hk-feature-body { border: 0; min-width: 0; margin: 0; }
+.hk-feature-body:disabled { opacity: 0.5; }

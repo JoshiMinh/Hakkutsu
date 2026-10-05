@@ -1,0 +1,13 @@
+/* Popup and compact review controls */
+.hk-popup-header { display: flex; align-items: center; justify-content: space-between; gap: var(--hk-space-md); padding: var(--hk-space-lg); border-bottom: 1px solid var(--hk-border); background: var(--hk-bg-secondary); flex-shrink: 0; }
+.hk-popup-brand { display: flex; align-items: center; gap: var(--hk-space-sm); min-width: 0; }
+.hk-popup-brand .hk-brand-title { font-size: var(--hk-text-lg); font-weight: 800; line-height: 1.3; }
+.hk-popup-brand__subtitle { font-size: var(--hk-text-xs); color: var(--hk-text-secondary); }
+.hk-popup-header__actions { display: flex; align-items: center; gap: var(--hk-space-sm); }
+.hk-popup-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: transparent; color: var(--hk-text-secondary); border: 1px solid transparent; border-radius: var(--hk-radius-sm); cursor: pointer; }
+.hk-popup-icon:hover { background: var(--hk-bg-hover); color: var(--hk-text-primary); }
+.hk-popup .hk-popup-nav { margin: var(--hk-space-md) var(--hk-space-lg) 0; padding: var(--hk-space-xs); gap: var(--hk-space-xs); border: 1px solid var(--hk-border); border-radius: var(--hk-radius-md); background: var(--hk-bg-secondary); flex-shrink: 0; }
+.hk-popup-nav .hk-nav__tab { border-radius: var(--hk-radius-sm); padding: var(--hk-space-sm); font-size: var(--hk-text-sm); }
+.hk-popup-nav .hk-nav__tab--active { background: var(--hk-bg-hover); color: var(--hk-text-primary); box-shadow: inset 0 -2px var(--hk-accent-primary); }
+.hk-popup-panel { flex: 0 1 auto; min-height: 0; overflow-y: auto; padding: var(--hk-space-lg); }
+.hk-popup-panel .hk-content { padding: 0; overflow: visible; }

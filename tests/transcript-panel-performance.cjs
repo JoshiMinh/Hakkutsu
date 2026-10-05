@@ -12,7 +12,8 @@ function load(file, globals = {}, imports = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   vm.runInNewContext(source, { exports, console, Error, Map, Set, URL, Event, ...globals, require: name => {
-    if (name in imports) return imports[name];
+    if (name === '~/shared/japanese/text-normalization') return load('src/shared/japanese/text-normalization.ts');
+      if (name in imports) return imports[name];
     if (name === 'react') return { ...React, default: React };
     if (name === 'react/jsx-runtime' || name === 'lucide-react') return require(name);
     throw new Error(`Unexpected import ${name}`);
@@ -30,13 +31,13 @@ const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve()
 // These component tests mock recognition and test layout/state, not image
 // classification. Real ink and model acceptance live in fixture regressions.
 function layoutGrouping() {
-  const bubbles = load('src/lib/services/ocr-bubbles.ts');
-  return load('src/lib/services/ocr-regions.ts', {}, { './ocr-bubbles': { ...bubbles,
+  const bubbles = load('src/features/ocr/ocr-bubbles.ts');
+  return load('src/features/ocr/ocr-regions.ts', {}, { './ocr-bubbles': { ...bubbles,
     findTextInkEvidence: fragments => new Map(fragments.map(f => [f, { ratio: 1, ink: 30, components: 3, bbox: f.bbox }])),
   } });
 }
 function layoutPipeline(grouping) {
-  return load('src/lib/services/ocr-pipeline.ts', {}, { './ocr-regions': grouping, './ocr-geometry': load('src/lib/services/ocr-geometry.ts') });
+  return load('src/features/ocr/ocr-pipeline.ts', {}, { './ocr-regions': grouping, './ocr-geometry': load('src/features/ocr/ocr-geometry.ts') });
 }
 function hookHarness() {
   const slots = [];
@@ -66,19 +67,19 @@ test('OCR dialog scopes text and images by region, rejects stale analysis, and r
   const requests = [];
   let restored = 0;
   const trigger = { isConnected: true, focus: () => restored++ };
-  const { default: Dictionary } = load('src/contents/inline-dictionary.tsx', {
+  const { default: Dictionary } = load('src/features/dictionary/inline-dictionary.tsx', {
     window, document, CustomEvent, setTimeout, clearTimeout,
     browser: { runtime: { getURL: value => value } },
     chrome: { runtime: { onMessage: { addListener() {}, removeListener() {} } } },
   }, {
     react: hooks.react,
-    '~lib/utils/japanese': { containsJapanese: () => true },
-    '~components/definition-card': { DefinitionCard: 'definition' },
-    '~components/token-display': { TokenDisplay: 'tokens' }, '~components/grammar-explanations': {},
-    '~components/manga-ocr-images': { MangaOcrImages: 'ocr' },
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ankiEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
-    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
-    '~lib/services/lookup-analysis': { requestLookupAnalysis: (...args) => new Promise(resolve => requests.push({ args, resolve })) },
+    '~/shared/japanese/japanese': { containsJapanese: () => true },
+    '~/features/dictionary/definition-card': { DefinitionCard: 'definition' },
+    '~/features/dictionary/token-display': { TokenDisplay: 'tokens' }, '~/features/dictionary/grammar-explanations': {},
+    '~/features/ocr/manga-ocr-images': { MangaOcrImages: 'ocr' },
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings: { ankiEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
+    '~/shared/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~/features/dictionary/lookup-analysis': { requestLookupAnalysis: (...args) => new Promise(resolve => requests.push({ args, resolve })) },
   });
   const render = () => hooks.render(() => Dictionary({}));
   const open = (id, text) => window.dispatchEvent(new CustomEvent('hakkutsu:analyze', { detail: {
@@ -134,7 +135,7 @@ test('manga overlays group text, open only on activation, crop attachments and f
   } });
   const grouping = layoutGrouping();
   let fallback = false;
-  const { MangaOcrImages } = load('src/components/manga-ocr-images.tsx', {
+  const { MangaOcrImages } = load('src/features/ocr/manga-ocr-images.tsx', {
     window, document, Image, HTMLImageElement: Image, HTMLElement: Image, CustomEvent,
     requestAnimationFrame: fn => fn(), queueMicrotask,
     chrome: { runtime: { sendMessage: async message => {
@@ -147,13 +148,13 @@ test('manga overlays group text, open only on activation, crop attachments and f
     } } },
   }, {
     react: hooks.react,
-    '~lib/services/ocr-regions': grouping,
-    '~lib/services/ocr-pipeline': layoutPipeline(grouping),
-    '~lib/services/ocr-bubbles': load('src/lib/services/ocr-bubbles.ts'),
-    '~lib/services/ocr-geometry': load('src/lib/services/ocr-geometry.ts'),
-    '~lib/services/image-cropper': load('src/lib/services/image-cropper.ts', { document, Image }, {}),
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ocrPreprocessEnabled: false } }) },
-    '~lib/locales': { useTranslation: () => ({ t: key => key }) },
+    '~/features/ocr/ocr-regions': grouping,
+    '~/features/ocr/ocr-pipeline': layoutPipeline(grouping),
+    '~/features/ocr/ocr-bubbles': load('src/features/ocr/ocr-bubbles.ts'),
+    '~/features/ocr/ocr-geometry': load('src/features/ocr/ocr-geometry.ts'),
+    '~/features/ocr/image-cropper': load('src/features/ocr/image-cropper.ts', { document, Image }, {}),
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings: { ocrPreprocessEnabled: false } }) },
+    '~/shared/locales': { useTranslation: () => ({ t: key => key }) },
   });
   const render = () => hooks.render(MangaOcrImages);
   render();
@@ -188,23 +189,23 @@ test('manga overlays group text, open only on activation, crop attachments and f
 });
 
 test('large transcripts mount only a bounded window of rows', () => {
-  const layout = load('src/lib/services/transcript-layout.ts');
-  const hooks = load('src/lib/services/use-transcript-window.ts', {}, { './transcript-layout': layout,
+  const layout = load('src/features/subtitles/shared/transcript-layout.ts');
+  const hooks = load('src/features/subtitles/shared/use-transcript-window.ts', {}, { '~/features/subtitles/shared/transcript-layout': layout,
     react: { ...React, useLayoutEffect() {} },
   });
-  const parsers = load('src/lib/services/subtitle-parsers.ts');
-  const japanese = load('src/lib/utils/japanese.ts', {}, { './constants': load('src/lib/utils/constants.ts') });
+  const parsers = load('src/features/subtitles/shared/subtitle-parsers.ts');
+  const japanese = load('src/shared/japanese/japanese.ts');
   const settings = {};
   const imports = {
-    '~lib/services/use-transcript-window': hooks,
-    '~lib/services/transcript-readings': { requestTranscriptReadings: async () => [] },
-    '~lib/services/subtitle-parsers': parsers,
-    '~lib/utils/japanese': japanese,
-    '~lib/utils/jlpt-classifier': { predictJlpt: () => null },
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings, updateSettings() {} }) },
-    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~/features/subtitles/shared/use-transcript-window': hooks,
+    '~/features/subtitles/shared/transcript-readings': { requestTranscriptReadings: async () => [] },
+    '~/features/subtitles/shared/subtitle-parsers': parsers,
+    '~/shared/japanese/japanese': japanese,
+    '~/shared/japanese/jlpt-classifier': { predictJlpt: () => null },
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings, updateSettings() {} }) },
+    '~/shared/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
   };
-  const { SubtitleScriptDrawer } = load('src/components/subtitle-script-drawer.tsx', {
+  const { SubtitleScriptDrawer } = load('src/features/subtitles/shared/subtitle-script-drawer.tsx', {
     window: { innerWidth: 360, location: { href: 'extension://sidepanel' } },
   }, imports);
   const segments = Array.from({ length: 2000 }, (_, i) => ({ start: i * 3, duration: 2, text: '日本語を勉強します。' }));
@@ -215,7 +216,7 @@ test('large transcripts mount only a bounded window of rows', () => {
 });
 
 test('virtual windows cover variable-height rows at the start, middle and end', () => {
-  const { transcriptOffsets, transcriptWindow } = load('src/lib/services/transcript-layout.ts');
+  const { transcriptOffsets, transcriptWindow } = load('src/features/subtitles/shared/transcript-layout.ts');
   const heights = Array.from({ length: 2000 }, (_, i) => i % 3 === 0 ? 200 : 80);
   const offsets = transcriptOffsets(heights);
   for (const top of [0, 40000, offsets.at(-1) - 600]) {
@@ -229,7 +230,7 @@ test('virtual windows cover variable-height rows at the start, middle and end', 
 
 test('transcript readings queue is bounded, shares repeated cues and avoids definition requests', async () => {
   const requests = [];
-  const { requestTranscriptReadings } = load('src/lib/services/transcript-readings.ts', { chrome: { runtime: {
+  const { requestTranscriptReadings } = load('src/features/subtitles/shared/transcript-readings.ts', { chrome: { runtime: {
     sendMessage: message => new Promise(resolve => requests.push({ message, resolve })),
   } } });
   const first = requestTranscriptReadings('建物', 'en');
@@ -260,18 +261,18 @@ test('mounted transcript rows display ruby after readings arrive and honor the f
   for (const name of ['useState', 'useRef', 'useMemo', 'useCallback', 'useEffect']) react[name] = (...args) => currentHooks.react[name](...args);
   let resolve;
   const settings = { showFurigana: true };
-  const { SubtitleScriptDrawer } = load('src/components/subtitle-script-drawer.tsx', {
+  const { SubtitleScriptDrawer } = load('src/features/subtitles/shared/subtitle-script-drawer.tsx', {
     window: Object.assign(new Events(), { innerWidth: 360, location: { href: 'extension://sidepanel' }, setTimeout() {}, clearTimeout() {} }),
     document: { querySelector: () => null },
   }, {
     react,
-    '~lib/services/use-transcript-window': { useTranscriptWindow: () => ({ start: 0, end: 1, before: 0, after: 0, scrollToRow() {} }) },
-    '~lib/services/transcript-readings': { requestTranscriptReadings: () => new Promise(done => resolve = done) },
-    '~lib/services/subtitle-parsers': load('src/lib/services/subtitle-parsers.ts'),
-    '~lib/utils/japanese': load('src/lib/utils/japanese.ts', {}, { './constants': load('src/lib/utils/constants.ts') }),
-    '~lib/utils/jlpt-classifier': { predictJlpt: () => null },
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings, updateSettings() {} }) },
-    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~/features/subtitles/shared/use-transcript-window': { useTranscriptWindow: () => ({ start: 0, end: 1, before: 0, after: 0, scrollToRow() {} }) },
+    '~/features/subtitles/shared/transcript-readings': { requestTranscriptReadings: () => new Promise(done => resolve = done) },
+    '~/features/subtitles/shared/subtitle-parsers': load('src/features/subtitles/shared/subtitle-parsers.ts'),
+    '~/shared/japanese/japanese': load('src/shared/japanese/japanese.ts'),
+    '~/shared/japanese/jlpt-classifier': { predictJlpt: () => null },
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings, updateSettings() {} }) },
+    '~/shared/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
   });
   const cue = { text: '建物', start: 0, duration: 2 };
   const tree = parent.render(() => SubtitleScriptDrawer({ isOpen: true, onClose() {}, subtitleData: { segments: [cue] }, currentSegment: cue }));
@@ -289,7 +290,7 @@ test('mounted transcript rows display ruby after readings arrive and honor the f
 
 test('repeated lookup requests share work and cache results separately by language', async () => {
   const requests = [];
-  const { requestLookupAnalysis } = load('src/lib/services/lookup-analysis.ts', { chrome: { runtime: { sendMessage: message => new Promise(resolve => requests.push({ message, resolve })) } } });
+  const { requestLookupAnalysis } = load('src/features/dictionary/lookup-analysis.ts', { chrome: { runtime: { sendMessage: message => new Promise(resolve => requests.push({ message, resolve })) } } });
   const first = requestLookupAnalysis('ANALYZE_JAVI', '最後', true, 'en');
   const second = requestLookupAnalysis('ANALYZE_JAVI', '最後', true, 'en');
   assert.equal(requests.length, 1);
@@ -308,7 +309,7 @@ test('repeated lookup requests share work and cache results separately by langua
 });
 
 test('manual duplicate cues collapse while later repetitions remain separate', () => {
-  const { buildSmartCues } = load('src/lib/services/smart-cue.ts');
+  const { buildSmartCues } = load('src/features/subtitles/shared/smart-cue.ts');
   const cues = [{ start: 0, duration: 1, text: '最後です。' }, { start: 0, duration: 2, text: '最後です。' }, { start: 10, duration: 1, text: '最後です。' }];
   for (const auto of [false, true]) {
     const result = buildSmartCues(cues, auto);
@@ -319,7 +320,7 @@ test('manual duplicate cues collapse while later repetitions remain separate', (
 });
 
 test('equal cloned snapshots preserve track identity, but source and content changes reset it', () => {
-  const { mergeTranscriptSnapshot } = load('src/lib/services/transcript-state.ts');
+  const { mergeTranscriptSnapshot } = load('src/features/subtitles/shared/transcript-state.ts');
   const previous = { sourceUrl: 'https://youtube.com/watch?v=1', subtitleData: { language: 'ja', trackName: 'Japanese', segments: [{ start: 0, duration: 2, text: '日本語' }] } };
   const clone = JSON.parse(JSON.stringify(previous));
   clone.loading = false;
@@ -342,17 +343,17 @@ test('lookup pauses auto-scroll, Escape leaves the sidebar open, and older TTS r
   const requests = [];
   const played = [];
   class Audio { constructor(url) { this.url = url; } play() { played.push(this.url); return Promise.resolve(); } pause() {} }
-  const { SubtitleScriptDrawer } = load('src/components/subtitle-script-drawer.tsx', {
+  const { SubtitleScriptDrawer } = load('src/features/subtitles/shared/subtitle-script-drawer.tsx', {
     window, document, CustomEvent, Audio,
     chrome: { runtime: { sendMessage: message => new Promise(resolve => requests.push({ message, resolve })) } },
   }, {
     react: hooks.react,
-    '~lib/services/transcript-readings': { requestTranscriptReadings: async () => [] },
-    '~lib/services/use-transcript-window': { useTranscriptWindow: () => ({ start: 0, end: 3, before: 0, after: 0, scrollToRow }) },
-    '~lib/services/subtitle-parsers': load('src/lib/services/subtitle-parsers.ts'),
-    '~lib/utils/japanese': {}, '~lib/utils/jlpt-classifier': {},
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: {}, updateSettings() {} }) },
-    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~/features/subtitles/shared/transcript-readings': { requestTranscriptReadings: async () => [] },
+    '~/features/subtitles/shared/use-transcript-window': { useTranscriptWindow: () => ({ start: 0, end: 3, before: 0, after: 0, scrollToRow }) },
+    '~/features/subtitles/shared/subtitle-parsers': load('src/features/subtitles/shared/subtitle-parsers.ts'),
+    '~/shared/japanese/japanese': {}, '~/shared/japanese/jlpt-classifier': {},
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings: {}, updateSettings() {} }) },
+    '~/shared/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
   });
   const segments = [0, 3, 6].map(start => ({ start, duration: 2, text: String(start) }));
   let closed = 0;
@@ -387,7 +388,7 @@ test('sidebar source does not resend entire tracks while closed or unchanged cue
   const listeners = new Set();
   const messages = [];
   const chrome = { runtime: { onMessage: { addListener: fn => listeners.add(fn), removeListener: fn => listeners.delete(fn) }, sendMessage: message => { messages.push(message); return Promise.resolve(); } } };
-  const { useTranscriptSource } = load('src/lib/services/transcript-panel.ts', { chrome }, { react: hooks.react });
+  const { useTranscriptSource } = load('src/features/subtitles/shared/transcript-panel.ts', { chrome }, { react: hooks.react });
   let snapshot = { sourceUrl: 'https://youtube.com/watch?v=1', subtitleData: null, offset: 0, videoTitle: 'Video', currentSegment: null };
   const render = () => hooks.render(() => useTranscriptSource(snapshot, () => {}));
   render();
@@ -413,17 +414,17 @@ test('sidebar hover debounce and dismissal cancel stale lookup results and timer
   const clearTimeout = id => timers.delete(id);
   const tick = () => { const waiting = [...timers.values()]; timers.clear(); for (const timer of waiting) timer.fn(); };
   const requests = [];
-  const { default: Dictionary } = load('src/contents/inline-dictionary.tsx', { window, document, CustomEvent, setTimeout, clearTimeout,
+  const { default: Dictionary } = load('src/features/dictionary/inline-dictionary.tsx', { window, document, CustomEvent, setTimeout, clearTimeout,
     browser: { runtime: { getURL: value => value } },
     chrome: { runtime: { onMessage: { addListener() {}, removeListener() {} } } },
   }, {
     react: hooks.react,
-    '~lib/utils/japanese': { containsJapanese: () => true },
-    '~components/definition-card': { DefinitionCard: 'definition' },
-    '~components/token-display': {}, '~components/grammar-explanations': {}, '~components/manga-ocr-images': { MangaOcrImages: 'ocr' },
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ankiEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
-    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
-    '~lib/services/lookup-analysis': { requestLookupAnalysis: (...args) => new Promise(resolve => requests.push({ args, resolve })) },
+    '~/shared/japanese/japanese': { containsJapanese: () => true },
+    '~/features/dictionary/definition-card': { DefinitionCard: 'definition' },
+    '~/features/dictionary/token-display': {}, '~/features/dictionary/grammar-explanations': {}, '~/features/ocr/manga-ocr-images': { MangaOcrImages: 'ocr' },
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings: { ankiEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
+    '~/shared/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~/features/dictionary/lookup-analysis': { requestLookupAnalysis: (...args) => new Promise(resolve => requests.push({ args, resolve })) },
   });
   const render = () => hooks.render(() => Dictionary({ nativePanel: true }));
   const analyze = text => window.dispatchEvent(new CustomEvent('hakkutsu:analyze', { detail: { text, mode: 'dictionary', transient: true, pauseVideo: false } }));
@@ -458,19 +459,19 @@ test('lookup requests from the transcript create a draggable popup on the source
   const messages = [];
   const window = Object.assign(new Events(), { innerWidth: 640, innerHeight: 700, location: { href: 'https://youtube.com/watch?v=1' } });
   const document = Object.assign(new Events(), { querySelector: () => null, getElementById: () => null, activeElement: null });
-  const { default: Dictionary } = load('src/contents/inline-dictionary.tsx', {
+  const { default: Dictionary } = load('src/features/dictionary/inline-dictionary.tsx', {
     window, document, CustomEvent, setTimeout: () => 1, clearTimeout() {},
     browser: { runtime: { getURL: value => value } },
     chrome: { runtime: { onMessage: { addListener: fn => listeners.add(fn), removeListener: fn => listeners.delete(fn) },
       sendMessage: message => { messages.push(message); return Promise.resolve(); } } },
   }, {
     react: hooks.react,
-    '~lib/utils/japanese': { containsJapanese: () => true },
-    '~components/definition-card': { DefinitionCard: 'definition' },
-    '~components/token-display': {}, '~components/grammar-explanations': {}, '~components/manga-ocr-images': { MangaOcrImages: 'ocr' },
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ankiEnabled: false, mangaOcrEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
-    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
-    '~lib/services/lookup-analysis': { requestLookupAnalysis: () => new Promise(() => {}) },
+    '~/shared/japanese/japanese': { containsJapanese: () => true },
+    '~/features/dictionary/definition-card': { DefinitionCard: 'definition' },
+    '~/features/dictionary/token-display': {}, '~/features/dictionary/grammar-explanations': {}, '~/features/ocr/manga-ocr-images': { MangaOcrImages: 'ocr' },
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings: { ankiEnabled: false, mangaOcrEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
+    '~/shared/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~/features/dictionary/lookup-analysis': { requestLookupAnalysis: () => new Promise(() => {}) },
   });
   const render = () => hooks.render(() => Dictionary({}));
   render();
@@ -500,7 +501,7 @@ test('OCR corrections reject stale analysis, reanalyze edited text and save its 
   const document = Object.assign(new Events(), { querySelector: () => null, getElementById: () => null, activeElement: null, title: 'Manga' });
   const requests = [], messages = [], updates = [];
   window.addEventListener('hakkutsu:ocr-region-updated', event => updates.push(event.detail));
-  const { default: Dictionary } = load('src/contents/inline-dictionary.tsx', {
+  const { default: Dictionary } = load('src/features/dictionary/inline-dictionary.tsx', {
     window, document, CustomEvent, setTimeout, clearTimeout,
     browser: { runtime: { getURL: value => value } },
     chrome: { runtime: { onMessage: { addListener() {}, removeListener() {} }, sendMessage: async message => {
@@ -509,13 +510,13 @@ test('OCR corrections reject stale analysis, reanalyze edited text and save its 
     } } },
   }, {
     react: hooks.react,
-    '~lib/utils/japanese': { containsJapanese: () => true },
-    '~components/definition-card': { DefinitionCard: 'definition' },
-    '~components/token-display': { TokenDisplay: 'tokens' }, '~components/grammar-explanations': {},
-    '~components/manga-ocr-images': { MangaOcrImages: 'ocr' },
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ankiEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
-    '~lib/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
-    '~lib/services/lookup-analysis': { requestLookupAnalysis: (...args) => new Promise(resolve => requests.push({ args, resolve })) },
+    '~/shared/japanese/japanese': { containsJapanese: () => true },
+    '~/features/dictionary/definition-card': { DefinitionCard: 'definition' },
+    '~/features/dictionary/token-display': { TokenDisplay: 'tokens' }, '~/features/dictionary/grammar-explanations': {},
+    '~/features/ocr/manga-ocr-images': { MangaOcrImages: 'ocr' },
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings: { ankiEnabled: false, targetLanguage: 'en' }, isHydrated: true }) },
+    '~/shared/locales': { useTranslation: () => ({ t: key => key, lang: 'en' }) },
+    '~/features/dictionary/lookup-analysis': { requestLookupAnalysis: (...args) => new Promise(resolve => requests.push({ args, resolve })) },
   });
   const render = () => hooks.render(() => Dictionary({}));
   const save = tree => find(tree, node => node.type === 'button' && node.props.title === 'def_btn_add_library');
@@ -589,11 +590,11 @@ function mangaScanHarness({ recover = false, fallback = false, uncertain = false
       }) };
     return canvas;
   } });
-  const geometry = load('src/lib/services/ocr-geometry.ts');
+  const geometry = load('src/features/ocr/ocr-geometry.ts');
   const grouping = layoutGrouping();
   const detector = pixels => detectorRegions || [{ bbox: { x0: 40, y0: 40, x1: 80, y1: 160 }, orientation: 'horizontal', orientationAmbiguous: ambiguous, type: 'text-cluster' },
     ...(pixels.width >= 300 ? [{ bbox: { x0: 280, y0: 40, x1: 320, y1: 160 }, orientation: 'horizontal', orientationAmbiguous: ambiguous, type: 'text-cluster' }] : [])];
-  const { MangaOcrImages } = load('src/components/manga-ocr-images.tsx', {
+  const { MangaOcrImages } = load('src/features/ocr/manga-ocr-images.tsx', {
     window, document, Image, HTMLImageElement: Image, HTMLElement: Image, CustomEvent,
     requestAnimationFrame: fn => {
       if (trackLayout && fn.name === 'follow') { frames.set(++frameId, fn); return frameId; }
@@ -625,14 +626,14 @@ function mangaScanHarness({ recover = false, fallback = false, uncertain = false
     } } },
   }, {
     react: hooks.react,
-    '~lib/services/ocr-regions': grouping, '~lib/services/ocr-geometry': geometry,
-    '~lib/services/ocr-pipeline': layoutPipeline(grouping),
-    '~lib/services/ocr-bubbles': { detectMangaDialogueRegions: detector },
-    '~lib/services/image-cropper': {
-      ...load('src/lib/services/image-cropper.ts', { document }), cropViewportBox: async () => 'visible-crop',
+    '~/features/ocr/ocr-regions': grouping, '~/features/ocr/ocr-geometry': geometry,
+    '~/features/ocr/ocr-pipeline': layoutPipeline(grouping),
+    '~/features/ocr/ocr-bubbles': { detectMangaDialogueRegions: detector },
+    '~/features/ocr/image-cropper': {
+      ...load('src/features/ocr/image-cropper.ts', { document }), cropViewportBox: async () => 'visible-crop',
     },
-    '~lib/utils/settings': { useSettingsStore: () => ({ settings: { ocrPreprocessEnabled: false, ocrDefaultOrientation: orientation } }) },
-    '~lib/locales': { useTranslation: () => ({ t: key => key }) },
+    '~/features/settings/settings-store': { useSettingsStore: () => ({ settings: { ocrPreprocessEnabled: false, ocrDefaultOrientation: orientation } }) },
+    '~/shared/locales': { useTranslation: () => ({ t: key => key }) },
   });
   const render = () => hooks.render(MangaOcrImages);
   const regions = () => {

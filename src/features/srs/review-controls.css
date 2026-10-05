@@ -1,0 +1,26 @@
+.hk-review-view { display: flex; flex-direction: column; gap: var(--hk-space-md); width: 100%; min-width: 0; }
+.hk-review-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--hk-space-md) var(--hk-space-lg); margin-bottom: var(--hk-space-sm); }
+.hk-review-heading__title { display: inline-flex; align-items: center; gap: var(--hk-space-sm); margin: 0; font-size: var(--hk-text-xl); font-weight: 700; color: var(--hk-text-primary); }
+.hk-review-heading__title svg { color: var(--hk-accent-primary); flex-shrink: 0; }
+.hk-smartdeck { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--hk-space-sm); margin-left: auto; min-width: 0; }
+.hk-smartdeck__filters, .hk-smartdeck__modes { display: flex; align-items: center; flex-wrap: wrap; gap: var(--hk-space-xs); min-width: 0; }
+.hk-smartdeck__icon { margin: 0 var(--hk-space-xs); color: var(--hk-text-secondary); flex-shrink: 0; }
+.hk-smartdeck__control { display: inline-flex; align-items: center; justify-content: center; gap: var(--hk-space-xs); min-height: 30px; max-width: 100%; padding: var(--hk-space-xs) var(--hk-space-sm); border: 1px solid transparent; border-radius: var(--hk-radius-sm); background: transparent; color: var(--hk-text-secondary); font: 500 var(--hk-text-xs)/1.4 var(--hk-font-sans); cursor: pointer; }
+select.hk-smartdeck__control { background: var(--hk-bg-tertiary); color: var(--hk-text-primary); border-color: var(--hk-border); }
+.hk-smartdeck__source { max-width: 132px; }
+.hk-smartdeck__control:hover { background: var(--hk-bg-hover); color: var(--hk-text-primary); }
+.hk-smartdeck__control[aria-pressed="true"] { color: var(--hk-text-primary); border-color: var(--hk-border-focus); background: rgba(168, 85, 247, 0.14); }
+.hk-smartdeck__control[aria-pressed]::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.25; }
+.hk-smartdeck__control[aria-pressed="true"]::after { opacity: 1; background: var(--hk-accent-primary); }
+/* Shared card layout for the popup and full review page. */
+.hk-review-view .hk-srs-container { flex: none; height: auto; width: 100%; max-width: 720px; min-width: 0; padding: var(--hk-space-md) 0; overflow: visible; }
+.hk-review-view .hk-srs-header { flex-wrap: wrap; gap: var(--hk-space-sm); margin-bottom: var(--hk-space-md); }
+.hk-review-view .hk-srs-card { flex: none; min-height: 160px; padding: var(--hk-space-xl) var(--hk-space-md); margin-bottom: var(--hk-space-lg); width: 100%; min-width: 0; }
+.hk-review-view .hk-srs-card__word { font-size: 48px; white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
+.hk-review-view .hk-srs-card__answer { margin-top: 0; gap: var(--hk-space-md); }
+.hk-review-view .hk-srs-card__meaning { margin-bottom: 0; }
+.hk-review-view .hk-srs-actions { min-height: 0; width: 100%; }
+.hk-review-view .hk-srs-grades { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--hk-space-sm); }
+.hk-review-view .hk-srs-btn--grade { min-width: 0; padding: var(--hk-space-md) var(--hk-space-xs); border-radius: var(--hk-radius-md); }
+.hk-review-view .hk-srs-grade__label { font-size: var(--hk-text-sm); }
+.hk-review-view .hk-srs-btn--reveal { min-height: 48px; width: 100%; }

@@ -1,0 +1,138 @@
+/* ── Settings View ───────────────────────────────────────────────── */
+
+.hk-settings-header {
+  margin-bottom: 24px;
+}
+
+.hk-settings-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--hk-text-primary);
+  margin-bottom: 4px;
+  letter-spacing: -0.02em;
+}
+
+.hk-settings-subtitle {
+  font-size: 13px;
+  color: var(--hk-text-secondary);
+}
+
+.hk-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.hk-settings-card {
+  background: var(--hk-bg-secondary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-lg);
+  overflow: visible;
+  position: relative;
+  box-shadow: var(--hk-shadow-sm);
+  transition: border-color var(--hk-transition-fast);
+}
+
+.hk-settings-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.hk-settings-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--hk-border);
+  border-top-left-radius: var(--hk-radius-lg);
+  border-top-right-radius: var(--hk-radius-lg);
+}
+
+.hk-settings-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(168, 85, 247, 0.12);
+  color: var(--hk-accent-purple);
+  flex-shrink: 0;
+}
+
+.hk-settings-card__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--hk-text-primary);
+  margin: 0;
+}
+
+.hk-settings-card__body {
+  padding: 4px 0;
+}
+
+.hk-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  gap: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background var(--hk-transition-fast);
+}
+
+.hk-settings-row:last-child {
+  border-bottom: none;
+}
+
+.hk-settings-row:hover {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.hk-settings-row__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.hk-settings-row__label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--hk-text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.hk-settings-row__desc {
+  font-size: 12px;
+  color: var(--hk-text-muted);
+}
+
+.hk-settings-row__control {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.hk-settings-input--text,
+select.hk-settings-input {
+  padding: 8px 12px;
+  background: var(--hk-bg-tertiary);
+  border: 1px solid var(--hk-border);
+  border-radius: var(--hk-radius-md);
+  color: var(--hk-text-primary);
+  font-size: 13px;
+  font-family: var(--hk-font-sans);
+  min-width: 220px;
+  outline: none;
+  transition: all var(--hk-transition-fast);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.hk-settings-input--text:focus,
+select.hk-settings-input:focus {
+  border-color: var(--hk-border-focus);
+  box-shadow: var(--hk-shadow-glow), inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+

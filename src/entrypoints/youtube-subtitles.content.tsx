@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
-import cssText from "~/style.css?inline";
-import { youtubeSubtitleCss } from "~/lib/utils/youtube-subtitle-styles";
-import YouTubeSubtitlesOverlay from "~/contents/youtube-subtitles";
+import cssText from "~/styles/global.css?inline";
+import { youtubeSubtitleCss } from "~/features/subtitles/shared/overlay-styles";
+import YouTubeSubtitlesOverlay from "~/features/subtitles/youtube/youtube-subtitles";
 
 export default defineContentScript({
   matches: ["https://www.youtube.com/*", "https://m.youtube.com/*"],

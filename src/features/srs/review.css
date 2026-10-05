@@ -1,0 +1,407 @@
+/* ── SRS Review View ───────────────────────────────────────────── */
+
+.hk-srs-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.hk-srs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.hk-srs-badge {
+  font-size: 12px;
+  color: var(--hk-text-secondary);
+  font-weight: 500;
+}
+
+.hk-srs-badge__count {
+  color: var(--hk-accent-primary);
+  font-weight: 700;
+}
+
+.hk-srs-stats-micro {
+  font-size: 11px;
+  color: var(--hk-text-muted);
+}
+
+.hk-srs-card {
+  background: var(--hk-bg-secondary);
+  border: 1px solid var(--hk-border);
+  border-radius: 12px;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 12px;
+  box-shadow: var(--hk-shadow-sm);
+}
+
+.hk-srs-card__word {
+  font-family: var(--hk-font-jp);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--hk-text-primary);
+  line-height: 1.4;
+  word-break: keep-all;
+  white-space: nowrap;
+}
+
+.hk-srs-card__word ruby rt {
+  font-size: 0.48em;
+  color: #f472b6;
+  font-weight: 600;
+}
+
+.hk-srs-card__answer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.hk-srs-card__badges {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.hk-srs-card__badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hk-srs-card__badge--jlpt {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.hk-srs-card__badge--vi {
+  color: var(--hk-accent-primary);
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.hk-srs-card__reading {
+  font-family: var(--hk-font-jp);
+  font-size: 14px;
+  color: #f472b6;
+  margin-bottom: 6px;
+}
+
+.hk-srs-card__meaning {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--hk-text-primary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.hk-srs-context-divider {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--hk-border);
+  margin: 10px 0;
+}
+
+.hk-srs-card__sentence-group {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 8px 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hk-srs-card__sentence {
+  font-family: var(--hk-font-jp);
+  font-size: 13px;
+  color: var(--hk-text-primary);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.hk-srs-card__sentence-meaning {
+  font-size: 12px;
+  color: var(--hk-text-secondary);
+  line-height: 1.4;
+}
+
+/* ── Audio-First SRS Mode ──────────────────────────────────────── */
+
+.hk-audio-first-mask {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px 0 10px;
+}
+
+.hk-audio-first-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 38px;
+}
+
+.hk-wave-bar {
+  display: inline-block;
+  width: 4px;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #c084fc, #7c3aed);
+  animation: hk-soundwave-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.hk-wave-bar.bar-1 { height: 16px; animation-delay: 0.1s; }
+.hk-wave-bar.bar-2 { height: 28px; animation-delay: 0.25s; }
+.hk-wave-bar.bar-3 { height: 38px; animation-delay: 0.4s; }
+.hk-wave-bar.bar-4 { height: 24px; animation-delay: 0.2s; }
+.hk-wave-bar.bar-5 { height: 14px; animation-delay: 0.05s; }
+
+@keyframes hk-soundwave-pulse {
+  0% {
+    transform: scaleY(0.35);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* ── Cloze Deletion SRS Mode ──────────────────────────────────── */
+
+.hk-cloze-mask {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 8px 8px;
+}
+
+.hk-cloze-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #38bdf8;
+  letter-spacing: 0.2px;
+}
+
+.hk-cloze-sentence-display {
+  font-family: var(--hk-font-jp);
+  font-size: 20px;
+  line-height: 1.6;
+  font-weight: 600;
+  color: var(--hk-text-primary);
+  text-align: center;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.hk-cloze-blank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 12px;
+  margin: 0 6px;
+  border-radius: 8px;
+  border: 1.5px dashed #38bdf8;
+  background: rgba(56, 189, 248, 0.14);
+  color: #38bdf8;
+  font-weight: 700;
+  letter-spacing: 2px;
+  animation: hk-cloze-glow-pulse 2.2s ease-in-out infinite alternate;
+  vertical-align: middle;
+}
+
+@keyframes hk-cloze-glow-pulse {
+  0% {
+    border-color: rgba(56, 189, 248, 0.5);
+    background: rgba(56, 189, 248, 0.1);
+    box-shadow: 0 0 4px rgba(56, 189, 248, 0.2);
+  }
+  100% {
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.22);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+  }
+}
+
+.hk-cloze-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--hk-text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  max-width: 90%;
+  text-align: center;
+}
+
+.hk-cloze-hint__badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.hk-cloze-hint__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: italic;
+}
+
+.hk-cloze-revealed-banner {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.hk-cloze-revealed-sentence {
+  font-family: var(--hk-font-jp);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--hk-text-primary);
+}
+
+.hk-cloze-revealed {
+  display: inline-block;
+  padding: 1px 8px;
+  margin: 0 3px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.22);
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  color: #ffffff;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+  vertical-align: baseline;
+}
+
+.hk-srs-badge--fsrs {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.hk-srs-actions {
+  margin-top: auto;
+  padding-top: 6px;
+  width: 100%;
+}
+
+.hk-srs-btn--reveal {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.hk-srs-grades {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+
+.hk-srs-btn--grade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.hk-srs-grade--1 {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.hk-srs-grade--1:hover {
+  background: rgba(239, 68, 68, 0.28);
+  border-color: #ef4444;
+}
+
+.hk-srs-grade--3 {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+.hk-srs-grade--3:hover {
+  background: rgba(245, 158, 11, 0.28);
+  border-color: #f59e0b;
+}
+
+.hk-srs-grade--4 {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+.hk-srs-grade--4:hover {
+  background: rgba(34, 197, 94, 0.28);
+  border-color: #22c55e;
+}
+
+.hk-srs-grade--5 {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.3);
+}
+.hk-srs-grade--5:hover {
+  background: rgba(168, 85, 247, 0.28);
+  border-color: #a855f7;
+}
+
+.hk-srs-grade__label {
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+

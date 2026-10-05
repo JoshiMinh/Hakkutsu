@@ -15,8 +15,8 @@ function loadServices(openDB) {
     });
     return exports;
   };
-  const analytics = load('src/lib/services/analytics-service.ts');
-  const srs = load('src/lib/services/local-srs.ts', { './analytics-service': analytics });
+  const analytics = load('src/features/analytics/analytics-service.ts');
+  const srs = load('src/features/srs/local-srs.ts', { '~/features/analytics/analytics-service': analytics });
   return [
     () => analytics.analyticsService.getDailyActivity('2026-10-04'),
     () => srs.localSrs.getAllSrsCards(),

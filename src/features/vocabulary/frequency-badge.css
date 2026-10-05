@@ -1,0 +1,9 @@
+.hk-badge--freq {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: none;
+}
+

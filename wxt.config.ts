@@ -12,10 +12,6 @@ export default defineConfig({
   publicDir: "../public",
   outDirTemplate: "{{browser}}-mv{{manifestVersion}}{{modeSuffix}}",
   alias: {
-    "~components": path.resolve(__dirname, "src/components"),
-    "~lib": path.resolve(__dirname, "src/lib"),
-    "~contents": path.resolve(__dirname, "src/contents"),
-    "~style.css": path.resolve(__dirname, "src/style.css"),
     "~": path.resolve(__dirname, "src"),
   },
   vite: () => ({

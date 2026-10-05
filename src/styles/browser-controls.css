@@ -1,0 +1,37 @@
+/* ── Sleek Modern Dark Scrollbars ── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(192, 132, 252, 0.5);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+/* ── Dark Mode Select & Options Styling ── */
+select,
+select option {
+  background-color: #18181b !important;
+  color: #f4f4f5 !important;
+}
+
+select option:checked,
+select option:hover {
+  background-color: #27272a !important;
+  color: #ffffff !important;
+}
+

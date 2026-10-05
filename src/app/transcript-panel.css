@@ -1,0 +1,25 @@
+/* Browser sidebar owns its width and sits outside the webpage/player. */
+body.hk-transcript-panel-page {
+  margin: 0;
+  min-width: 0;
+  background: var(--hk-bg-primary, #0d0d11);
+  color: var(--hk-text-primary, #f4f4f5);
+}
+.hk-transcript-panel-page #root { height: 100dvh; overflow: hidden; }
+.hk-transcript-workspace { display: flex; flex-direction: column; height: 100%; min-width: 0; overflow: hidden; }
+.hk-transcript-panel-page .hk-script-drawer--native {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100% !important;
+  height: auto;
+  border: 0;
+  background: var(--hk-bg-primary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  animation: none;
+}
+.hk-transcript-panel-empty { flex: 1; padding: 24px; font: 14px/1.6 system-ui; }
+.hk-transcript-panel-empty h1 { font-size: 18px; }
+
