@@ -4,8 +4,14 @@
     "web-extension-auditor": {
       "source": "JoshiMinh/agent-skills",
       "sourceType": "github",
-      "skillPath": "skills/web-extension-auditor/SKILL.md",
-      "computedHash": "fd753aaea98ade83177296f5e72731f8512c18b571e5ed72c6fc7ead4956fc21"
+      "skillPath": "web-extension-auditor/SKILL.md",
+      "computedHash": "e5d426fe6d3523a53eaa72802bcc0ed78f4b8f62fc09134dac036733122beb21"
+    },
+    "codebase-doctor": {
+      "source": "JoshiMinh/agent-skills",
+      "sourceType": "github",
+      "skillPath": "codebase-doctor/SKILL.md",
+      "computedHash": "d6722ab0ff66bc3d7dfd1d188de2a107ec23c4299c65750fdba732f637f40ee0"
     }
   }
 }

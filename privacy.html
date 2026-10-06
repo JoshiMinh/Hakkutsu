@@ -1,69 +1,284 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="How Hakkutsu stores your data, uses browser permissions, and connects to other software.">
+  <meta name="theme-color" content="#09090b">
   <title>Privacy Policy — Hakkutsu (発掘)</title>
-  <link rel="icon" type="image/png" href="public/assets/icon.png" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    body { background-color: #09090b; color: #f4f4f5; font-family: 'Plus Jakarta Sans', sans-serif; }
-  </style>
+  <link rel="icon" type="image/png" href="public/assets/icon.png">
+  <link rel="stylesheet" href="site.css">
 </head>
-<body class="antialiased py-16 px-6 max-w-3xl mx-auto">
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
 
-  <div class="flex items-center gap-3 mb-10 pb-6 border-b border-zinc-800">
-    <img src="public/assets/icon.png" alt="Hakkutsu Logo" class="w-10 h-10 rounded-lg shadow" />
-    <div>
-      <h1 class="text-2xl font-bold text-white">Privacy Policy for Hakkutsu (発掘)</h1>
-      <p class="text-xs text-zinc-400">Effective Date: September 2026</p>
+  <!-- Navigation -->
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="index.html" aria-label="Hakkutsu Home">
+        <img class="brand-icon" src="public/assets/icon.png" alt="Hakkutsu Logo" width="32" height="32">
+        <span>Hakkutsu</span>
+        <span class="brand-kanji" lang="ja">発掘</span>
+        <span class="brand-version">v2.6.0</span>
+      </a>
+
+      <div class="nav-actions">
+        <a class="btn" href="index.html">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
+          <span>Home</span>
+        </a>
+        <a class="btn" href="https://github.com/JoshiMinh/Hakkutsu" target="_blank" rel="noopener noreferrer">
+          <svg class="github-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 .297C5.37.297 0 5.67 0 12.297c0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.043-1.61-4.043-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.729.083-.729 1.205.084 1.838 1.237 1.838 1.237 1.07 1.835 2.809 1.305 3.495.998.108-.776.418-1.305.762-1.605-2.665-.3-5.466-1.334-5.466-5.93 0-1.31.469-2.381 1.236-3.221-.124-.303-.536-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.655 1.652.243 2.873.12 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.803 5.625-5.475 5.922.43.372.823 1.102.823 2.222 0 1.606-.015 2.898-.015 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          <span>GitHub</span>
+        </a>
+      </div>
     </div>
-  </div>
+  </header>
 
-  <div class="space-y-8 text-zinc-300 text-sm leading-relaxed">
-    <section>
-      <h2 class="text-lg font-semibold text-white mb-2">1. Overview</h2>
-      <p>Hakkutsu ("we", "our", or "the extension") is a local-first Japanese language immersion extension for Chrome and Firefox. We are committed to absolute user privacy. Hakkutsu operates 100% locally on your computer with zero external data collection, remote servers, or tracking.</p>
+  <!-- Main Content -->
+  <main class="wrap" id="main">
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="badge-pill">
+
+        <span>Hakkutsu / Privacy policy</span>
+      </div>
+      <h1>Privacy policy</h1>
+      <p>
+        Your saved words and review history are stored in your browser. Hakkutsu has no user accounts or analytics tracking. Below is a guide to storage, permissions, and connections.
+      </p>
+      <div class="meta-row">
+        <span>Effective Date: October 2026</span>
+        <span>•</span>
+        <span>Version: Hakkutsu v2.6.0</span>
+        <span>•</span>
+        <span>Manifest: MV3 / MV2</span>
+        <span>•</span>
+        <span>License: MIT</span>
+      </div>
+    </div>
+
+    <!-- Quick Section Anchors -->
+    <div class="privacy-layout">
+    <nav class="quick-anchors" aria-label="Privacy sections">
+      <a class="anchor-pill" href="#philosophy">01 Overview</a>
+      <a class="anchor-pill" href="#storage">02 Stored data</a>
+      <a class="anchor-pill" href="#network">03 Connections</a>
+      <a class="anchor-pill" href="#permissions">04 Permissions</a>
+      <a class="anchor-pill" href="#integrations">05 Integrations</a>
+      <a class="anchor-pill" href="#portability">06 Export & deletion</a>
+      <a class="anchor-pill" href="#verification">07 Verify it yourself</a>
+    </nav>
+
+    <div class="policy-content">
+    <!-- Summary Highlights Grid -->
+    <div class="summary-grid">
+      <div class="summary-card highlight">
+        <div class="summary-metric">No analytics</div>
+        <h3>No activity tracking</h3>
+        <p>No Google Analytics, Sentry, Mixpanel, or telemetry pings. We collect zero user events.</p>
+      </div>
+
+      <div class="summary-card">
+        <div class="summary-metric">No accounts</div>
+        <h3>No registration required</h3>
+        <p>No registration, no email capture, no passwords, and no cloud synchronization tokens.</p>
+      </div>
+
+      <div class="summary-card">
+        <div class="summary-metric">Browser storage</div>
+        <h3>Saved on your device</h3>
+        <p>Mined vocabulary, FSRS parameters (D, S, R), and offline JMDict live in your browser sandbox.</p>
+      </div>
+
+      <div class="summary-card">
+        <div class="summary-metric">Local Anki</div>
+        <h3>Export to your desktop</h3>
+        <p>AnkiConnect requests communicate strictly with your local desktop Anki software upon user export.</p>
+      </div>
+    </div>
+
+    <!-- Policy Sections -->
+    <section class="policy-section" id="philosophy">
+      <h2><span class="sec-num">01</span> What Hakkutsu does</h2>
+      <p>
+        Hakkutsu is an open-source Japanese language immersion toolkit created to assist language learners with reading Japanese webpages, following subtitle-annotated streaming videos, recognizing raw manga speech bubbles, and reviewing flashcards.
+      </p>
+      <p>
+        All computational processing is performed locally on your personal computer. Hakkutsu does not require an account, collects zero Personally Identifiable Information (PII), and operates without any remote cloud backend infrastructure.
+      </p>
     </section>
 
-    <section>
-      <h2 class="text-lg font-semibold text-white mb-2">2. Zero Data Collection &amp; Tracking</h2>
-      <p>Hakkutsu does <strong>NOT</strong> collect, track, log, store, transmit, or sell any personal data, usage metrics, IP addresses, browsing history, or user identifiers. We operate no tracking or analytics servers.</p>
+    <section class="policy-section" id="storage">
+      <h2><span class="sec-num">02</span> What is stored</h2>
+      <p>All data generated or utilized during your immersion sessions is stored strictly within your browser's local sandbox:</p>
+      <ul class="policy-list">
+        <li>
+          <strong>Vocabulary & SRS Database (<span class="code-badge">hakkutsu-srs</span> in IndexedDB)</strong>
+          Stores mined cards, context sentences, timestamps, audio clips, screenshots, and FSRS-4.5/5 scheduling parameters: Difficulty D, Stability S, Retrievability R, repetition history, and lapse counts. This database is never synced to external servers.
+        </li>
+        <li>
+          <strong>Offline Dictionary Database (<span class="code-badge">HakkutsuDictDB</span> in IndexedDB)</strong>
+          Stores local JMDict bilingual definitions, pitch accent patterns, and kanji stroke order paths to power instant offline word lookups without network delay.
+        </li>
+        <li>
+          <strong>User Preferences (<span class="code-badge">chrome.storage.local</span> / <span class="code-badge">sync</span>)</strong>
+          Stores user-configured hotkeys, target retention rate preferences, selective furigana JLPT filters, theme modes, and UI language selections in standard browser storage.
+        </li>
+      </ul>
+
+      <div class="callout">
+        <strong>Offline Tokenization & Parsing:</strong> Japanese text segmentation uses Kuromoji and modern WebAssembly entirely offline on your CPU. Highlighted sentences and read texts never leave your browser memory.
+      </div>
     </section>
 
-    <section>
-      <h2 class="text-lg font-semibold text-white mb-2">3. 100% Local Storage &amp; Processing</h2>
-      <ul class="list-disc list-inside space-y-2 text-zinc-400">
-        <li><strong>Offline Dictionary:</strong> Japanese word lookups, readings, and pitch accents are processed completely offline inside your browser using IndexedDB and local WASM tokenizers.</li>
-        <li><strong>Local Storage:</strong> Your configuration settings, saved vocabulary, SRS review intervals, and preferences are stored exclusively on your device via <code>chrome.storage.local</code>.</li>
+    <section class="policy-section" id="network">
+      <h2><span class="sec-num">03</span> When connections happen</h2>
+      <p>Hakkutsu does not transmit any user telemetry, reading statistics, or vocabulary cards to external servers. The only network interactions that may occur are:</p>
+      <ul class="policy-list">
+        <li>
+          <strong>Local AnkiConnect Bridge:</strong> When you click "Export to Anki", Hakkutsu sends an HTTP POST request to <span class="code-badge">http://127.0.0.1:8765</span> on your local machine. This communication is strictly between your browser and your local Anki desktop software.
+        </li>
+        <li>
+          <strong>Audio Pronunciation:</strong> Japanese speech audio utilizes the built-in browser Web Speech API (offline) or user-configured endpoints. No audio recordings are ever collected or uploaded.
+        </li>
       </ul>
     </section>
 
-    <section>
-      <h2 class="text-lg font-semibold text-white mb-2">4. Local Anki Integration</h2>
-      <p>If you enable Anki flashcard export, Hakkutsu connects strictly to your local Anki desktop application running on your computer (<code>http://localhost:8765</code>). No card data, vocabulary, or sentence context is ever sent to remote servers or third parties.</p>
+    <section class="policy-section" id="permissions">
+      <h2><span class="sec-num">04</span> Browser permissions</h2>
+      <p>Hakkutsu requests only the minimal browser permissions necessary to provide in-page immersion tools:</p>
+      <div class="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th>Permission</th>
+              <th>Technical Scope & Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="code-badge">storage</span></td>
+              <td>Stores user configuration, review preferences, and offline dictionary cache locally.</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">tabs</span></td>
+              <td>Reads the active video tab URL and page title to attach source attribution to mined flashcards.</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">activeTab</span></td>
+              <td>Allows inspecting selected Japanese text when opening the toolbar quick-lookup popup.</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">scripting</span></td>
+              <td>Injects lightweight HTML5 video detection helpers to synchronize subtitle tracks on YouTube and Netflix.</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">offscreen</span></td>
+              <td>Runs Tesseract OCR in an isolated background document to detect manga speech bubbles without freezing the UI.</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">https://*/*</span></td>
+              <td>Enables inline dictionary lookups, selective furigana, and subtitle overlays across Japanese web content.</td>
+            </tr>
+            <tr>
+              <td><span class="code-badge">http://127.0.0.1:8765/*</span></td>
+              <td>Connects to local AnkiConnect desktop bridge on loopback port 8765 for 1-click card export.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
-    <section>
-      <h2 class="text-lg font-semibold text-white mb-2">5. Single Purpose &amp; Policy Compliance</h2>
-      <p>Hakkutsu complies strictly with Chrome Web Store and Mozilla Developer Program Policies:</p>
-      <ul class="list-disc list-inside space-y-1 text-zinc-400">
-        <li>User data is never sold or transferred to third parties.</li>
-        <li>User data is never used for advertising, marketing, or creditworthiness evaluation.</li>
-        <li>Data access is strictly limited to supporting the extension's single purpose of Japanese language learning.</li>
+    <section class="policy-section" id="integrations">
+      <h2><span class="sec-num">05</span> Other software</h2>
+      <p>
+        Hakkutsu integrates with third-party software strictly through user-directed, local mechanisms:
+      </p>
+      <ul class="policy-list">
+        <li>
+          <strong>Anki Desktop Software:</strong> All Anki card generation uses the local AnkiConnect add-on over loopback. You remain in complete control of your Anki decks, tags, and media collections.
+        </li>
+        <li>
+          <strong>Web Speech API:</strong> Pronunciation playback leverages the operating system's native text-to-speech synthesizer where available. No third-party TTS audio service receives user text.
+        </li>
       </ul>
     </section>
 
-    <section>
-      <h2 class="text-lg font-semibold text-white mb-2">6. Contact &amp; Support</h2>
-      <p>If you have any questions about this Privacy Policy, please visit <a href="https://ko-fi.com/joshiminh" target="_blank" class="text-purple-400 underline">ko-fi.com/joshiminh</a> or contact the author.</p>
+    <section class="policy-section" id="portability">
+      <h2><span class="sec-num">06</span> Export, backups & deletion</h2>
+      <p>
+        Because all data is stored on your device, you retain total ownership:
+      </p>
+      <ul class="policy-list">
+        <li>
+          <strong>Full JSON Backup:</strong> Export your entire vocabulary collection, review intervals, stability factors, and difficulty metrics into a portable JSON file under <em>Dashboard → Backup</em>.
+        </li>
+        <li>
+          <strong>Standard CSV Export:</strong> Export mined vocabulary to standard CSV format for importing into spreadsheets or external flashcard programs.
+        </li>
+        <li>
+          <strong>Permanent Deletion:</strong> Uninstalling the extension or clearing your browser's site storage instantly and permanently purges all local IndexedDB stores and preferences.
+        </li>
+      </ul>
     </section>
-  </div>
 
-  <div class="mt-12 pt-6 border-t border-zinc-800 text-center">
-    <a href="index.html" class="text-sm text-purple-400 hover:underline">← Back to Hakkutsu Home Page</a>
-  </div>
+    <section class="policy-section" id="verification">
+      <h2><span class="sec-num">07</span> Verify it yourself</h2>
+      <p>
+        We believe privacy should be verifiable, not merely promised. Any user or security researcher can audit Hakkutsu's network activity in real time:
+      </p>
+
+      <div class="verify-box">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          How to verify network isolation with DevTools:
+        </h3>
+        <div class="verify-steps">
+          <div class="verify-step">
+            <span class="step-index">1</span>
+            <span>Open your browser's Developer Tools (<kbd>F12</kbd> or <kbd>Ctrl+Shift+I</kbd> / <kbd>Cmd+Option+I</kbd>).</span>
+          </div>
+          <div class="verify-step">
+            <span class="step-index">2</span>
+            <span>Select the <strong>Network</strong> tab and click the <strong>Fetch/XHR</strong> filter.</span>
+          </div>
+          <div class="verify-step">
+            <span class="step-index">3</span>
+            <span>Use Hakkutsu to look up vocabulary, watch video with dual subtitles, run manga OCR, or review flashcards.</span>
+          </div>
+          <div class="verify-step">
+            <span class="step-index">4</span>
+            <span>Confirm that <strong>zero outbound requests</strong> are sent to remote servers (only local loopback requests to <span class="code-badge">127.0.0.1:8765</span> occur if you export to Anki).</span>
+          </div>
+          <div class="verify-step">
+            <span class="step-index">5</span>
+            <span>Open <strong>Application → Storage → IndexedDB</strong> to verify that all flashcards are stored locally under <span class="code-badge">hakkutsu-srs</span>.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <div class="footer-brand">
+        <span class="brand-kanji" lang="ja">発掘</span>
+        <span>Hakkutsu · Open-source Japanese immersion toolkit under MIT License.</span>
+      </div>
+      <div class="footer-links">
+        <a href="index.html">Home</a>
+        <a href="https://github.com/JoshiMinh/Hakkutsu" target="_blank" rel="noopener noreferrer"><svg class="github-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 .297C5.37.297 0 5.67 0 12.297c0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.043-1.61-4.043-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.729.083-.729 1.205.084 1.838 1.237 1.838 1.237 1.07 1.835 2.809 1.305 3.495.998.108-.776.418-1.305.762-1.605-2.665-.3-5.466-1.334-5.466-5.93 0-1.31.469-2.381 1.236-3.221-.124-.303-.536-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.655 1.652.243 2.873.12 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.803 5.625-5.475 5.922.43.372.823 1.102.823 2.222 0 1.606-.015 2.898-.015 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg><span>GitHub</span></a>
+        <a href="https://ko-fi.com/joshiminh" target="_blank" rel="noopener noreferrer">Ko-fi</a>
+        <a href="https://github.com/JoshiMinh/Hakkutsu/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+      </div>
+    </div>
+  </footer>
 
 </body>
 </html>

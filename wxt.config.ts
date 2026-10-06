@@ -55,7 +55,7 @@ export default defineConfig({
   manifest: {
     name: "Hakkutsu — Japanese Immersion",
     description: "Local-first open-source Japanese immersion extension with offline dictionary, Kuromoji parsing, SRS, and dual subtitles.",
-    version: "2.5.2",
+    version: "2.6.0",
     icons: {
       "16": "icon-16.png",
       "32": "icon-32.png",

@@ -1,0 +1,10 @@
+/* Reuse the extension design system; only website-specific roles live here. */
+@import url("src/styles/tokens-reset.css");
+
+:root {
+  color-scheme: dark;
+  --site-button-ink: #ffffff;
+  --site-accent-hover: #9333ea;
+  --site-space-section: calc(var(--hk-space-2xl) * 3);
+  --site-space-major: calc(var(--hk-space-2xl) * 2);
+}
