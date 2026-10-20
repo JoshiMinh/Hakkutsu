@@ -1,3 +1,4 @@
+import { retainSubtitleCue } from "~/features/subtitles/shared/cue-state";
 import { useTranscriptPanelToggle } from "~/features/subtitles/shared/transcript-panel";
 /**
  * Netflix Subtitles — Content Script Overlay
@@ -433,7 +434,7 @@ export default function NetflixSubtitlesOverlay() {
 
       if (subtitleData?.segments?.length) {
         const primary = findSmartCue(subtitleData.segments, adjustedTime);
-        setCurrentSegment(primary);
+        setCurrentSegment(previous => retainSubtitleCue(previous, primary));
       }
 
       if (secondaryData?.segments?.length) {
@@ -500,7 +501,10 @@ export default function NetflixSubtitlesOverlay() {
 
     checkDomSubtitles();
     const target = document.querySelector(".watch-video") || document.querySelector(".VideoContainer") || document.body;
-    const observer = new MutationObserver(checkDomSubtitles);
+    let frame = 0;
+    const observer = new MutationObserver(() => {
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; checkDomSubtitles(); });
+    });
 
     observer.observe(target, {
       childList: true,
@@ -508,7 +512,7 @@ export default function NetflixSubtitlesOverlay() {
       characterData: true,
     });
 
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
   }, [isEnabled, subtitleData]);
 
   // ── Floating Netflix Button Component ─────────────────────────────────────

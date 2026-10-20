@@ -11,6 +11,8 @@ import { handleSubtitleMessage } from "~/features/subtitles/shared/messages";
 import { handleAudioMessage } from "~/shared/browser/audio-messages";
 import { handleDictionaryImage } from "~/features/dictionary/image-messages";
 import { handleOcrImage } from "~/features/ocr/image-messages";
+import { handleFuriganaMessage } from "~/features/analytics/furigana-messages";
+import { handleDensityMessage } from "~/features/analytics/density-messages";
 
 export function registerBackground() {
   const closeTranscriptPanel = installTranscriptPanelRouter();
@@ -72,6 +74,12 @@ export async function handleMessage(
   sender?: chrome.runtime.MessageSender,
 ): Promise<ExtensionMessage> {
   switch (message.type) {
+    case "GET_DENSITY_VOCABULARY":
+    case "GET_DENSITY_KNOWLEDGE":
+      return handleDensityMessage(message);
+    case "GET_FURIGANA_READINGS":
+    case "GET_LEARNED_VOCABULARY":
+      return handleFuriganaMessage(message);
     case "ANALYZE_TEXT":
     case "ANALYZE_JAVI":
     case "ANALYZE_PHRASE":

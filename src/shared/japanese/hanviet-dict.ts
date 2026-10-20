@@ -2,7 +2,10 @@
  * Sino-Vietnamese (Hán-Việt) Dictionary Mapping for Japanese Kanji
  */
 
+import unihanReadings from "./data/hanviet-unihan.json";
+
 const HANVIET_MAP: Record<string, string> = {
+  ...unihanReadings,
   // Kanji to Sino-Vietnamese sound mapping
   "日": "NHẬT", "本": "BẢN", "語": "NGÔN", "学": "HỌC", "生": "SINH",
   "校": "HIỆU", "先": "TIÊN", "私": "TƯ", "人": "NHÂN", "方": "PHƯƠNG",
@@ -41,7 +44,7 @@ const HANVIET_MAP: Record<string, string> = {
   "味": "VỊ", "理": "LÝ", "解": "GIẢI", "情": "TÌNH", "報": "BÁO",
   "真": "CHÂN", "相": "TƯƠNG", "視": "THỊ", "聴": "THÍNH", "言": "NGÔN",
   "葉": "DIỆP", "訳": "DỊCH", "文": "VĂN", "章": "CHƯƠNG", "句": "CÚ",
-  "字": "TỰ", "漢": "HÁN", "CA": "CA", "音": "ÂM",
+  "字": "TỰ", "漢": "HÁN", "歌": "CA", "音": "ÂM",
   "画": "HỌA", "映": "ÁNH", "育": "DỤC",
   "動": "ĐỘNG", "質": "CHẤT", "問": "VẤN", "答": "ĐÁP",
   "題": "ĐỀ", "宿": "TÚC", "試": "THÍ", "験": "NGHIỆM",
@@ -60,6 +63,11 @@ const HANVIET_MAP: Record<string, string> = {
   "活": "HOẠT", "改": "CẢI", "革": "CÁCH", "変": "BIẾN",
   "化": "HÓA", "進": "TIẾN", "歩": "BỘ", "展": "TRIỂN",
   "発": "PHÁT", "掘": "QUẬT", "創": "SÁNG", "造": "TẠO", "建": "KIẾN",
+  // 棄 is absent from Unihan 17 kVietnamese. Verified against the
+  // Hán-Việt dictionary: https://hanviet.congdongviet.net/?k=26820&word=
+  "棄": "KHÍ",
+  // Japanese variant of 卻: https://hvdic.thivien.net/nom/kh%C6%B0%E1%BB%9Bc
+  "却": "KHƯỚC",
   "設": "THIẾT", "破": "PHÁ", "壊": "HOẠI", "守": "THỦ", "攻": "CÔNG",
   "勝": "THẮNG", "負": "PHỤ", "戦": "CHIẾN", "争": "TRANH", "警": "CẢNH",
   "察": "SÁT", "犯": "PHẠM", "罪": "TỘI", "捕": "BỔ", "逮": "ĐÃI",
@@ -73,7 +81,7 @@ const HANVIET_MAP: Record<string, string> = {
   "敗": "BẠI", "得": "ĐẮC", "失": "THẤT", "増": "TĂNG", "減": "GIẢM",
   "加": "GIA", "除": "TRỪ", "乗": "THỪA", "降": "HÀNG", "着": "TRƯỚC",
   "脱": "THOÁT", "送": "TỐNG", "受": "THỤ", "取": "THỦ", "渡": "ĐỘ",
-  "使": "SỬ", "用": "DỤNG", "害": "HẠI", "助": "TRỢ", "想": "TƯởNG",
+  "使": "SỬ", "用": "DỤNG", "害": "HẠI", "助": "TRỢ", "想": "TƯỞNG",
   "谷": "CỐC", "離": "LY", "未": "VỊ", "婚": "HÔN",
   "率": "SUẤT", "昇": "THĂNG", "推": "THÔI", "協": "HIỆP",
   "団": "ĐOÀN", "独": "ĐỘC", "決": "QUYẾT", "求": "CẦU",
@@ -86,11 +94,29 @@ const HANVIET_MAP: Record<string, string> = {
  */
 export function getHanViet(text: string): string {
   if (!text) return "";
-  const chars = [...text];
-  const hanViets = chars
-    .map(c => HANVIET_MAP[c])
-    .filter(Boolean);
+  const readings: string[] = [];
+  for (const char of text.normalize("NFKC")) {
+    if (char === "々") {
+      if (readings.length) readings.push(readings[readings.length - 1]);
+    } else if (/\p{Script=Han}/u.test(char)) {
+      // A partial compound (便利 → LỢI) is misleading. Require coverage of
+      // every kanji; kana, whitespace and punctuation do not need a reading.
+      const reading = HANVIET_MAP[char];
+      if (!reading) return "";
+      readings.push(reading);
+    }
+  }
+  return readings.join(" ");
+}
 
-  if (hanViets.length === 0) return "";
-  return hanViets.join(" ");
+/** Repair missing/partial saved or provider values without rewriting the collection. */
+export function resolveHanViet(word: string, supplied?: string, surface = ""): string {
+  const source = /\p{Script=Han}/u.test(word || "") ? word : surface;
+  const kanjiCount = [...source.normalize("NFKC")].filter(char => /\p{Script=Han}|々/u.test(char)).length;
+  if (!kanjiCount) return "";
+  const normalized = typeof supplied === "string" ? supplied.trim().normalize("NFC").replace(/\s+/gu, " ").toUpperCase() : "";
+  // Keep complete supplied readings (including deliberate polyphonic choices),
+  // but never let an old one-syllable value mask a two-kanji fallback.
+  if (normalized && normalized.split(" ").length === kanjiCount && /^[\p{Script=Latin}\p{M} ]+$/u.test(normalized)) return normalized;
+  return getHanViet(source);
 }

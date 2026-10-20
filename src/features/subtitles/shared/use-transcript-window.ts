@@ -14,8 +14,9 @@ export function useTranscriptWindow(
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
   const offsets = useMemo(() => transcriptOffsets(rows.map((row) => measured.current.get(row.index) ?? row.estimate)), [rows, revision]);
-  const latest = useRef({ rows, offsets });
-  latest.current = { rows, offsets };
+  const positions = useMemo(() => new Map(rows.map((row, position) => [row.index, position])), [rows]);
+  const latest = useRef({ rows, offsets, positions });
+  latest.current = { rows, offsets, positions };
   const visible = transcriptWindow(offsets, viewport.top, viewport.height);
 
   useLayoutEffect(() => {
@@ -27,7 +28,7 @@ export function useTranscriptWindow(
 
   useLayoutEffect(() => {
     const list = listRef.current;
-    if (!list) return;
+    if (!enabled || !list) return;
     let frame = 0;
     const update = () => {
       frame = 0;
@@ -50,7 +51,7 @@ export function useTranscriptWindow(
 
   useLayoutEffect(() => {
     const list = listRef.current;
-    if (!list) return;
+    if (!enabled || !list) return;
     let frame = 0;
     const update = () => {
       frame = 0;
@@ -78,9 +79,9 @@ export function useTranscriptWindow(
 
   const scrollToRow = useCallback((index: number, smooth = true) => {
     const list = listRef.current;
-    const { rows: currentRows, offsets: currentOffsets } = latest.current;
-    const position = currentRows.findIndex((row) => row.index === index);
-    if (!list || position < 0) return;
+    const { offsets: currentOffsets } = latest.current;
+    const position = latest.current.positions.get(index);
+    if (!list || position === undefined) return;
     const top = Math.max(0, currentOffsets[position] - list.clientHeight / 2 + (currentOffsets[position + 1] - currentOffsets[position]) / 2);
     const nearby = Math.abs(top - list.scrollTop) < list.clientHeight && measured.current.has(index);
     list.scrollTo({ top, behavior: smooth && nearby ? "smooth" : "auto" });

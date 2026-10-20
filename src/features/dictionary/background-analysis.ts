@@ -6,7 +6,7 @@ import type {
 } from "~/features/dictionary/types";
 import { tokenize } from "~/features/dictionary/local-tokenizer";
 import { searchDictionary } from "~/features/dictionary/local-lookup";
-import { getHanViet } from "~/shared/japanese/hanviet-dict";
+import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import {
   containsJapanese,
   katakanaToHiragana,
@@ -49,7 +49,7 @@ export async function fetchDictionaryFallback(
         jlpt_level: info.jlpt || null,
         frequency_rank: null,
         vietnamese_sound: isVietnamese
-          ? info.hanviet || getHanViet(text)
+          ? resolveHanViet(text, info.hanviet)
           : undefined,
         definitions: info.meaning
           ? [
@@ -72,6 +72,18 @@ export async function analyzeLocal(
   includeDefinitions = true,
 ): Promise<AnalyzeResponse> {
   const cleanText = text.trim();
+  // Share repeated words within one cue, including lookups still in flight.
+  const entries = new Map<string, ReturnType<typeof searchDictionary>>();
+  const lookups = new Map<string, ReturnType<typeof lookupWord>>();
+  const search = (word: string) => {
+    if (!entries.has(word)) entries.set(word, searchDictionary(word));
+    return entries.get(word)!;
+  };
+  const lookup = (word: string, language: string) => {
+    const key = `${language}:${word}`;
+    if (!lookups.has(key)) lookups.set(key, lookupWord(word, language));
+    return lookups.get(key)!;
+  };
   const settings = await getSettings();
   const targetLang = settings.targetLanguage || "vi";
   const isVietnamese = targetLang === "vi";
@@ -79,17 +91,18 @@ export async function analyzeLocal(
   // 1. Direct whole-word dictionary match check (e.g. "お知らせ", "お弁当", "お土産")
   if (
     containsJapanese(cleanText) &&
+    (includeDefinitions || hasKanji(cleanText)) &&
     cleanText.length <= 16 &&
     !/[\s\u3000、。！？!?…]/u.test(cleanText)
   ) {
-    const fullTextDictEntries = await searchDictionary(cleanText);
+    const fullTextDictEntries = await search(cleanText);
     let fullTextDictInfo: LookupResult | null = null;
     try {
       if (
         includeDefinitions ||
-        !fullTextDictEntries[0]?.readingElements?.length
+        (hasKanji(cleanText) && !fullTextDictEntries[0]?.readingElements?.length)
       )
-        fullTextDictInfo = await lookupWord(cleanText, targetLang);
+        fullTextDictInfo = await lookup(cleanText, targetLang);
     } catch {}
 
     const hasExactHeadword = Boolean(
@@ -154,7 +167,7 @@ export async function analyzeLocal(
         jlpt_level: jlptLevel,
         frequency_rank: null,
         vietnamese_sound: isVietnamese
-          ? fullTextDictInfo?.hanviet || getHanViet(cleanText)
+          ? resolveHanViet(cleanText, fullTextDictInfo?.hanviet)
           : undefined,
         definitions,
       };
@@ -183,14 +196,15 @@ export async function analyzeLocal(
     if (
       next &&
       (current.surface_form === "お" || current.surface_form === "ご") &&
-      containsJapanese(next.surface_form)
+      containsJapanese(next.surface_form) &&
+      (includeDefinitions || hasKanji(next.surface_form))
     ) {
       const combinedSurface = current.surface_form + next.surface_form;
-      const combinedEntries = await searchDictionary(combinedSurface);
+      const combinedEntries = await search(combinedSurface);
       let combinedLookup: LookupResult | null = null;
       try {
-        if (includeDefinitions || combinedEntries.length === 0)
-          combinedLookup = await lookupWord(combinedSurface, targetLang);
+        if (includeDefinitions || (hasKanji(combinedSurface) && combinedEntries.length === 0))
+          combinedLookup = await lookup(combinedSurface, targetLang);
       } catch {}
 
       if (
@@ -232,7 +246,7 @@ export async function analyzeLocal(
         };
       }
 
-      const dictEntries = await searchDictionary(surface);
+      const dictEntries = includeDefinitions || hasKanji(surface) ? await search(surface) : [];
       const firstEntry = dictEntries[0];
       const kanjiForm =
         t.base_form || firstEntry?.kanjiElements?.[0] || surface;
@@ -246,7 +260,7 @@ export async function analyzeLocal(
 
       // If no reading found on surface and base_form differs (e.g. inflected verb/adj):
       if (!reading && t.base_form && t.base_form !== surface) {
-        const baseEntries = await searchDictionary(t.base_form);
+        const baseEntries = await search(t.base_form);
         const baseFirst = baseEntries[0];
         if (baseFirst?.readingElements?.[0]) {
           const derived = deriveInflectedReading(
@@ -268,8 +282,8 @@ export async function analyzeLocal(
             ? t.base_form
             : surface;
         const dictInfo =
-          includeDefinitions || !reading
-            ? await lookupWord(queryWord, targetLang)
+          includeDefinitions || (!reading && hasKanji(surface))
+            ? await lookup(queryWord, targetLang)
             : null;
         if (dictInfo) {
           if (dictInfo.reading && !reading) {
@@ -307,7 +321,7 @@ export async function analyzeLocal(
         const deinflected = deinflectWord(surface);
         if (deinflected !== surface) {
           try {
-            const deinflectedInfo = await lookupWord(deinflected, targetLang);
+            const deinflectedInfo = await lookup(deinflected, targetLang);
             if (deinflectedInfo?.reading) {
               const derived = deriveInflectedReading(
                 surface,
@@ -377,7 +391,7 @@ export async function analyzeLocal(
         is_japanese: true,
         jlpt_level: jlptLevel,
         frequency_rank: null,
-        vietnamese_sound: isVietnamese ? getHanViet(surface) : undefined,
+        vietnamese_sound: isVietnamese ? resolveHanViet(kanjiForm, undefined, surface) : undefined,
         definitions,
       };
     }),

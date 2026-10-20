@@ -1,3 +1,4 @@
+import { retainSubtitleCue } from "~/features/subtitles/shared/cue-state";
 import { useTranscriptPanelToggle } from "~/features/subtitles/shared/transcript-panel";
 import { loadYouTubeCaptionTrack } from "~/features/subtitles/youtube/youtube-caption-loader";
 /**
@@ -130,6 +131,11 @@ export default function YouTubeSubtitlesOverlay() {
 
   const [videoTitle, setVideoTitle] = useState<string>("");
   const [availableTracks, setAvailableTracks] = useState<SubtitleTrackOption[]>([]);
+  const primaryCaptionRequest = useRef<AbortController>();
+  const secondaryCaptionRequest = useRef<AbortController>();
+  useEffect(() => () => {
+    primaryCaptionRequest.current?.abort(); secondaryCaptionRequest.current?.abort();
+  }, []);
   const [currentTrackId, setCurrentTrackId] = useState<string>("");
   const [secondaryTrackId, setSecondaryTrackId] = useState<string>("__auto_translate__");
 
@@ -303,6 +309,8 @@ export default function YouTubeSubtitlesOverlay() {
   const handleSelectPrimaryTrack = useCallback(
     async (track: SubtitleTrackOption) => {
       const loadId = ++primaryLoadIdRef.current;
+      primaryCaptionRequest.current?.abort();
+      const controller = new AbortController(); primaryCaptionRequest.current = controller;
       primarySelectionRef.current = { id: track.id, url: track.url, status: "loading" };
       setCurrentTrackId(track.id);
       setSubtitleData(null);
@@ -316,7 +324,7 @@ export default function YouTubeSubtitlesOverlay() {
       }
       try {
         setLoading(true);
-        const segments = await loadTrackContent(track);
+        const segments = await loadTrackContent(track, controller.signal);
         if (loadId !== primaryLoadIdRef.current) return;
         primarySelectionRef.current!.status = "loaded";
         setSubtitleData({
@@ -347,6 +355,8 @@ export default function YouTubeSubtitlesOverlay() {
   const handleSelectSecondaryTrack = useCallback(
     async (track: SubtitleTrackOption | null) => {
       const loadId = ++secondaryLoadIdRef.current;
+      secondaryCaptionRequest.current?.abort();
+      const controller = new AbortController(); secondaryCaptionRequest.current = controller;
       secondarySelectionRef.current = { id: track?.id || "", url: track?.url, status: "loaded" };
       if (!track) {
         setSecondaryTrackId("");
@@ -369,7 +379,7 @@ export default function YouTubeSubtitlesOverlay() {
         return;
       }
       try {
-        const segments = await loadTrackContent(track);
+        const segments = await loadTrackContent(track, controller.signal);
         if (loadId !== secondaryLoadIdRef.current) return;
         secondarySelectionRef.current!.status = "loaded";
         setSecondaryData({
@@ -397,6 +407,7 @@ export default function YouTubeSubtitlesOverlay() {
 
       const videoChanged = detail.videoId !== currentVideoIdRef.current;
       if (videoChanged) {
+        primaryCaptionRequest.current?.abort(); secondaryCaptionRequest.current?.abort();
         ++primaryLoadIdRef.current;
         ++secondaryLoadIdRef.current;
         currentVideoIdRef.current = detail.videoId;
@@ -552,11 +563,11 @@ export default function YouTubeSubtitlesOverlay() {
       if (subtitleData && subtitleData.segments.length > 0) {
         const primary = findSmartCue(subtitleData.segments, adjustedTime);
         if (primary) {
-          setCurrentSegment(primary);
+          setCurrentSegment(previous => retainSubtitleCue(previous, primary));
         } else {
           const screen = readCurrentScreenCaption();
           if (screen) {
-            setCurrentSegment(screen);
+            setCurrentSegment(previous => retainSubtitleCue(previous, screen));
           } else {
             setCurrentSegment(null);
           }
@@ -571,7 +582,7 @@ export default function YouTubeSubtitlesOverlay() {
       } else {
         const live = readCurrentScreenCaption();
         if (live) {
-          setCurrentSegment(live);
+          setCurrentSegment(previous => retainSubtitleCue(previous, live));
         } else {
           setCurrentSegment(null);
         }

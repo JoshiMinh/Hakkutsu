@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { requestTranscriptReadings } from "./transcript-readings";
 import { FolderOpen } from "lucide-react";
 import { useTranscriptSource, useTranscriptPanelToggle } from "~/features/subtitles/shared/transcript-panel";
 import type { SrsCard } from "~/features/srs/local-srs";
@@ -16,8 +17,8 @@ import { subscribeToVideoTime } from "~/features/subtitles/shared/video-runtime"
 // ── In-Memory Bounded Caches ─────────────────────────────────────────────────
 
 const MAX_CACHE_SIZE = 100;
-const tokenCache = new Map<string, TokenAnalysis[]>();
 const translationCache = new Map<string, string>();
+const pendingTranslations = new Map<string, Promise<string>>();
 
 function setBoundedCache<K, V>(cache: Map<K, V>, key: K, value: V, maxSize = MAX_CACHE_SIZE): void {
   if (cache.size >= maxSize) {
@@ -25,6 +26,20 @@ function setBoundedCache<K, V>(cache: Map<K, V>, key: K, value: V, maxSize = MAX
     if (firstKey !== undefined) cache.delete(firstKey);
   }
   cache.set(key, value);
+}
+
+function requestSubtitleTranslation(text: string, targetLang: string): Promise<string> {
+  const key = `${targetLang}:${text}`;
+  if (translationCache.has(key)) return Promise.resolve(translationCache.get(key)!);
+  if (pendingTranslations.has(key)) return pendingTranslations.get(key)!;
+  const request = chrome.runtime.sendMessage({ type: "TRANSLATE_TEXT", payload: { text, targetLang } }).then(response => {
+    if (response?.type !== "TRANSLATE_RESULT" || !response.payload?.translation) return "";
+    const translation = deduplicateCueText(String(response.payload.translation));
+    setBoundedCache(translationCache, key, translation);
+    return translation;
+  }).finally(() => pendingTranslations.delete(key));
+  pendingTranslations.set(key, request);
+  return request;
 }
 
 let cachedSegmenter: any = null;
@@ -132,8 +147,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   const { settings, updateSettings } = useSettingsStore();
   const { t, isVietnamese } = useTranslation();
 
-  const [analyzedTokens, setAnalyzedTokens] = useState<TokenAnalysis[] | null>(null);
-  const analyzedTextRef = useRef("");
+  const [analyzed, setAnalyzed] = useState<{ text: string; tokens: TokenAnalysis[] } | null>(null);
   const [translatedText, setTranslatedText] = useState<string>("");
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [offsetToast, setOffsetToast] = useState<string | null>(null);
@@ -216,55 +230,20 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   const toastTimerRef = useRef<number | null>(null);
   const autoPauseLockedCueRef = useRef<SubtitleSegment | null>(null);
 
-  // ── 1. Tokenize Current Subtitle Cue ───────────────────────────────────────
-
+  // Render source-preserving tokens immediately; enrichment never gates a cue.
+  const primaryText = useMemo(() => cleanSubtitleText(currentSegment?.text || ""), [currentSegment?.text]);
+  const immediateTokens = useMemo(() => isEnabled && primaryText ? createImmediateTokens(primaryText) : null, [primaryText, isEnabled]);
   useEffect(() => {
-    if (!currentSegment?.text || !isEnabled) {
-      setAnalyzedTokens(null);
-      return;
-    }
-
-    const text = cleanSubtitleText(currentSegment.text);
-    if (!text) {
-      setAnalyzedTokens(null);
-      return;
-    }
-
-    if (tokenCache.has(text)) {
-      analyzedTextRef.current = text;
-      setAnalyzedTokens(tokenCache.get(text)!);
-      return;
-    }
-
-    // Immediately provide instant tokens on frame 0 so hover lookup works right away
-    const immediateTokens = createImmediateTokens(text);
-    analyzedTextRef.current = text;
-    if (immediateTokens.length > 0) {
-      setAnalyzedTokens(immediateTokens);
-    }
-
-    let isMounted = true;
-    chrome.runtime
-      .sendMessage({
-        type: "ANALYZE_TEXT",
-        payload: { text, include_definitions: false },
-      })
-      .then((res) => {
-        if (!isMounted) return;
-        if (res?.type === "ANALYZE_RESULT" && res.payload?.tokens) {
-          const tokens = (res.payload.tokens as TokenAnalysis[]).filter((token) => typeof token.surface === "string" && token.surface.length > 0);
-          // Keep the original cue if analysis fails to cover its visible text.
-          if (cleanSubtitleText(tokens.map((token) => token.surface).join("")) !== text) return;
-          setBoundedCache(tokenCache, text, tokens);
-          setAnalyzedTokens(tokens);
+    if (!isEnabled || !primaryText || settings.showFurigana === false) return;
+    const controller = new AbortController();
+    void requestTranscriptReadings(primaryText, settings.targetLanguage || "vi", { signal: controller.signal, priority: 1 })
+      .then(tokens => {
+        if (!controller.signal.aborted && cleanSubtitleText(tokens.map(token => token.surface).join("")) === primaryText) {
+          setAnalyzed({ text: primaryText, tokens });
         }
-      })
-      .catch((err) => console.warn("[Hakkutsu Subtitles] Tokenize error:", err));
-
-    return () => {
-      isMounted = false;
-    };
-  }, [currentSegment?.text, isEnabled]);
+      }).catch(() => {});
+    return () => controller.abort();
+  }, [primaryText, isEnabled, settings.targetLanguage, settings.showFurigana]);
 
   // ── 2. Handle Secondary Subtitle / Auto-Translation ─────────────────────────
 
@@ -304,18 +283,11 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     }
 
     let isMounted = true;
-    chrome.runtime
-      .sendMessage({
-        type: "TRANSLATE_TEXT",
-        payload: { text, targetLang },
-      })
-      .then((res) => {
+    setTranslatedText("");
+    requestSubtitleTranslation(text, targetLang)
+      .then((translation) => {
         if (!isMounted) return;
-        if (res?.type === "TRANSLATE_RESULT" && res.payload?.translation) {
-          const trans = deduplicateCueText(String(res.payload.translation));
-          setBoundedCache(translationCache, cacheKey, trans);
-          setTranslatedText(trans);
-        }
+        setTranslatedText(translation);
       })
       .catch(() => {});
 
@@ -487,6 +459,10 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
   const lookupDismissTimerRef = useRef<number | null>(null);
   const pausedByHoverRef = useRef<boolean>(false);
+  useEffect(() => () => {
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
+    if (lookupDismissTimerRef.current !== null) window.clearTimeout(lookupDismissTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const handleClosed = () => {
@@ -767,9 +743,8 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   if (!isEnabled && !drawerOpen) return null;
 
   const fontSize = settings.subtitlesFontSize || 26;
-  const primaryText = cleanSubtitleText(currentSegment?.text || "");
   const secondaryText = cleanSubtitleText(secondarySegment?.text || translatedText);
-  const visibleTokens = analyzedTextRef.current === primaryText ? analyzedTokens : null;
+  const visibleTokens = analyzed?.text === primaryText ? analyzed.tokens : immediateTokens;
 
   return (
     <>

@@ -39,7 +39,7 @@ interface PopupErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<
+export class ErrorBoundary extends Component<
   PopupErrorBoundaryProps,
   PopupErrorBoundaryState
 > {

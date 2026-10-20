@@ -1,6 +1,7 @@
 /* Ordered composition for extension pages and injected shadow roots.
  * Preserve this order: later sections intentionally override earlier primitives. */
 @import "tokens-reset.css";
+@import "../features/analytics/immersion-density-badge.css";
 @import "../app/page-shell.css";
 @import "../features/srs/review.css";
 @import "../features/dictionary/lookup-details.css";

@@ -1,3 +1,4 @@
+import { retainSubtitleCue } from "~/features/subtitles/shared/cue-state";
 import { useTranscriptPanelToggle } from "~/features/subtitles/shared/transcript-panel";
 /**
  * Generic Video Player — Content Script Overlay
@@ -837,14 +838,15 @@ export default function GenericSubtitlesOverlay() {
 
     const syncCues = () => {
       const adjustedTime = video.currentTime - offset;
+      const liveCues = !subtitleData?.segments?.length || !secondaryData?.segments?.length
+        ? getLiveTextTrackCue(video) : { primary: null, secondary: null };
 
       if (subtitleData?.segments?.length) {
         setCurrentSegment(findSmartCue(subtitleData.segments, adjustedTime));
       } else {
-        const liveCues = getLiveTextTrackCue(video);
         if (liveCues.primary) {
           hasActiveTextTrackRef.current = true;
-          setCurrentSegment(liveCues.primary);
+          setCurrentSegment(previous => retainSubtitleCue(previous, liveCues.primary));
         } else if (hasActiveTextTrackRef.current) {
           setCurrentSegment(null);
         } else {
@@ -869,9 +871,8 @@ export default function GenericSubtitlesOverlay() {
       if (secondaryData?.segments?.length) {
         setSecondarySegment(findSmartCue(secondaryData.segments, adjustedTime));
       } else {
-        const liveCues = getLiveTextTrackCue(video);
         if (liveCues.secondary) {
-          setSecondarySegment(liveCues.secondary);
+          setSecondarySegment(previous => retainSubtitleCue(previous, liveCues.secondary));
         } else {
           setSecondarySegment(null);
         }

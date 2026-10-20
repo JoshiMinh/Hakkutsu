@@ -4,6 +4,7 @@ import type { ExtensionMessage } from "~/shared/browser/messages";
 import type { AnalyzeRequest } from "~/features/dictionary/types";
 import { analyzeLocal, fetchDictionaryFallback } from "./background-analysis";
 import { translateWithGoogle } from "./background-translation";
+import { analyzeSubtitleReadings } from "~/features/subtitles/shared/subtitle-analysis";
 
 export async function handleDictionaryMessage(
   message: ExtensionMessage,
@@ -16,10 +17,11 @@ export async function handleDictionaryMessage(
       const request = message.payload as AnalyzeRequest;
       if (request.include_definitions === false) {
         try {
-          const localResult = await analyzeLocal(request.text, false);
+          const localResult = await analyzeSubtitleReadings(request.text);
           return { type: "ANALYZE_RESULT", payload: localResult };
-        } catch {
-          // fall through to apiClient
+        } catch (error) {
+          // Automatic readings must not fall into a slow full LLM analysis.
+          return { type: "ERROR", payload: { error: error instanceof Error ? error.message : "Subtitle readings unavailable" } };
         }
       }
 

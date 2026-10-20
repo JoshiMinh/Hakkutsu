@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { localSrs } from "~/features/srs/local-srs";
+import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import type { SrsCard } from "~/features/srs/local-srs";
 import {
   Search,
@@ -152,8 +153,7 @@ export function WordList({
       (c.reading && c.reading.toLowerCase().includes(term)) ||
       (c.meaning && c.meaning.toLowerCase().includes(term)) ||
       (showHanViet &&
-        c.vietnamese_sound &&
-        c.vietnamese_sound.toLowerCase().includes(term)) ||
+        resolveHanViet(c.word, c.vietnamese_sound).toLowerCase().includes(term)) ||
       (c.tags &&
         c.tags.some((tag) =>
           tag.toLowerCase().includes(term.replace(/^#/, "")),

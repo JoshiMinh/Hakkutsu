@@ -1,7 +1,7 @@
 import type { SrsCard } from "~/features/srs/local-srs";
 import { Trash2, Edit2 } from "lucide-react";
 import { JlptBadge, FrequencyBadge } from "~/shared/ui/badges";
-import { getHanViet } from "~/shared/japanese/hanviet-dict";
+import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
 import { useTranslation } from "~/shared/locales";
 
@@ -316,7 +316,7 @@ export function VocabularyTable({
                       textOverflow: "ellipsis",
                     }}
                   >
-                    {card.vietnamese_sound || getHanViet(card.word) || "—"}
+                    {resolveHanViet(card.word, card.vietnamese_sound) || "—"}
                   </div>
                 </td>
               )}

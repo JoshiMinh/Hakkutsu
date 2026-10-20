@@ -163,7 +163,7 @@ interface TranscriptCueProps {
   isPlaying: boolean;
   isCopied: boolean;
   searchQuery: string;
-  settings: { showFurigana?: boolean; showJlptColors?: boolean; subtitlesSecondaryEnabled?: boolean };
+  settings: { showFurigana?: boolean; showJlptColors?: boolean; subtitlesSecondaryEnabled?: boolean; targetLanguage?: string };
   savedWords: Set<string>;
   srsCardsMap: Map<string, SrsCard>;
   handleSeek: (cue: SubtitleSegment) => void;
@@ -180,17 +180,17 @@ const TranscriptCue = React.memo(function TranscriptCue({
   handleSeek, handlePlayTts, handleMineToSrs, handleCopyCue,
   handleTokenClick, handleTokenMouseEnter, handleTokenMouseLeave,
 }: TranscriptCueProps) {
-  const { t, lang } = useTranslation();
+  const { t } = useTranslation();
   const cleanText = deduplicateCueText(cue.text);
   const [analyzed, setAnalyzed] = useState<{ text: string; tokens: TokenAnalysis[] } | null>(null);
   useEffect(() => {
-    let stopped = false;
+    const controller = new AbortController();
     if (settings.showFurigana === false || !/[\u4e00-\u9faf]/.test(cleanText)) return;
-    void requestTranscriptReadings(cleanText, lang).then((tokens) => {
-      if (!stopped) setAnalyzed({ text: cleanText, tokens });
+    void requestTranscriptReadings(cleanText, settings.targetLanguage || "vi", { signal: controller.signal }).then((tokens) => {
+      if (!controller.signal.aborted) setAnalyzed({ text: cleanText, tokens });
     }).catch(() => {});
-    return () => { stopped = true; };
-  }, [cleanText, lang, settings.showFurigana]);
+    return () => controller.abort();
+  }, [cleanText, settings.targetLanguage, settings.showFurigana]);
   const tokens = analyzed?.text === cleanText ? analyzed.tokens : tokenizeTextFast(cleanText);
   return (
     <div
@@ -430,16 +430,25 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
   }, [secondarySegments, segments]);
 
   // Find active cue index
+  const cueIndices = useMemo(() => new Map(segments.map((cue, index) => [cue, index])), [segments]);
   const activeCueIndex = useMemo(() => {
     if (!currentSegment || segments.length === 0) return -1;
-    const exact = segments.findIndex(
-      (s) => Math.abs(s.start - currentSegment.start) < 0.1 && s.text === currentSegment.text
-    );
-    if (exact >= 0) return exact;
+    const identity = cueIndices.get(currentSegment);
+    if (identity !== undefined) return identity;
+    // Sidebar messages clone cues; search only the matching timestamp range.
+    let low = 0, high = segments.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (segments[middle].start < currentSegment.start - 0.1) low = middle + 1;
+      else high = middle;
+    }
+    for (let index = low; index < segments.length && segments[index].start < currentSegment.start + 0.1; index++) {
+      if (segments[index].text === currentSegment.text) return index;
+    }
     return segments.findIndex((s) =>
       currentSegment.start >= s.start - 0.25 && currentSegment.start < s.start + s.duration + 0.25
     );
-  }, [currentSegment, segments]);
+  }, [currentSegment, segments, cueIndices]);
 
   // ── Video Script Analytics Summary ─────────────────────────────────────────
 

@@ -29,26 +29,22 @@ export interface OverallAnalyticsSummary {
 
 export interface PageDensityAnalysis {
   url: string;
+  scope: "article" | "page" | "selection";
+  totalTextChars: number;
   totalJapaneseChars: number;
+  scriptDensity: number;
   totalKanji: number;
   uniqueKanji: number;
-  jlptDistribution: {
-    N5: number;
-    N4: number;
-    N3: number;
-    N2: number;
-    N1: number;
-    unranked: number;
-  };
-  percentages: {
-    N5: number;
-    N4: number;
-    N3: number;
-    N2: number;
-    N1: number;
-    unranked: number;
-  };
-  dominantLevel: string;
-  unlearnedCount: number;
-  immersionScore: number;
+  vocabularyStatus: "available" | "unavailable";
+  totalWords: number;
+  uniqueWords: number;
+  coverage: number;
+  jlptDistribution: LevelCounts;
+  percentages: LevelCounts;
+  dominantLevel: JlptLevel | null;
+  familiarity: { status: "available" | "unavailable"; mature: number; learning: number; notSaved: number };
 }
+
+export type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
+export type LevelCounts = Record<JlptLevel | "unranked", number>;
+export interface DensityWord { lemma: string; level: JlptLevel | null; count: number }

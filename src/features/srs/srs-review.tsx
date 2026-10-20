@@ -7,6 +7,7 @@ import { useTranslation } from "~/shared/locales";
 import { ttsService } from "~/shared/browser/tts-service";
 import { distributeFurigana, generateClozeSentence } from "~/shared/japanese/japanese";
 import { useSettingsStore } from "~/features/settings/settings-store";
+import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 
 function RenderFurigana({ text, reading, className }: { text: string; reading?: string; className?: string }) {
   if (!text) return null;
@@ -121,6 +122,7 @@ export function SrsReview({ userId = "user_1", compact = false }: { userId?: str
 
   const currentCard = cards[0];
   const isCurrentCardLeech = currentCard ? (currentCard.is_leech || (currentCard.lapse_count || 0) >= 4) : false;
+  const currentHanViet = currentCard ? resolveHanViet(currentCard.word, currentCard.vietnamese_sound) : "";
 
   // Auto-play audio on card load in Audio-First mode or on reveal in normal mode
   useEffect(() => {
@@ -442,11 +444,11 @@ export function SrsReview({ userId = "user_1", compact = false }: { userId?: str
                 </div>
 
                 {/* Badges Row */}
-                {(currentCard.jlpt || (showHanViet && currentCard.vietnamese_sound) || currentCard.source_domain || currentCard.retrievability !== undefined || currentCard.stability !== undefined) && (
+                {(currentCard.jlpt || (showHanViet && currentHanViet) || currentCard.source_domain || currentCard.retrievability !== undefined || currentCard.stability !== undefined) && (
                   <div className="hk-srs-card__badges">
                     {currentCard.jlpt && <span className="hk-srs-card__badge hk-srs-card__badge--jlpt">{currentCard.jlpt}</span>}
-                    {showHanViet && currentCard.vietnamese_sound && (
-                      <span className="hk-srs-card__badge hk-srs-card__badge--vi">{currentCard.vietnamese_sound}</span>
+                    {showHanViet && currentHanViet && (
+                      <span className="hk-srs-card__badge hk-srs-card__badge--vi">{currentHanViet}</span>
                     )}
                     {currentCard.source_domain && (
                       <span className="hk-srs-card__badge" style={{ background: "rgba(255,255,255,0.06)", color: "var(--hk-text-muted)" }}>

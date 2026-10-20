@@ -3,6 +3,7 @@ import { Languages, RefreshCw, Trash2, Volume2 } from "lucide-react";
 import { apiClient } from "~/features/dictionary/api-client";
 import { ttsService } from "~/shared/browser/tts-service";
 import { useTranslation } from "~/shared/locales";
+import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import type { PhraseAnalyzeResponse } from "~/features/dictionary/types";
 
 export function LoadingSpinner({ text = "Analyzing..." }: { text?: string }) {
@@ -19,7 +20,7 @@ export function LoadingSpinner({ text = "Analyzing..." }: { text?: string }) {
 }
 
 export function TranslateQuickView() {
-  const { t, lang, isVietnamese } = useTranslation();
+  const { t, lang, showHanViet } = useTranslation();
   const [inputText, setInputText] = useState("");
   const [result, setResult] = useState<PhraseAnalyzeResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -345,7 +346,7 @@ export function TranslateQuickView() {
                       >
                         {token.dictionary_form || token.surface}
                       </strong>
-                      {isVietnamese && token.vietnamese_sound && (
+                      {showHanViet && resolveHanViet(token.dictionary_form, token.vietnamese_sound, token.surface) && (
                         <span
                           style={{
                             fontSize: "11px",
@@ -353,7 +354,7 @@ export function TranslateQuickView() {
                             marginRight: "4px",
                           }}
                         >
-                          [{token.vietnamese_sound}]
+                          [{resolveHanViet(token.dictionary_form, token.vietnamese_sound, token.surface)}]
                         </span>
                       )}
                       <span style={{ color: "var(--hk-text-muted)" }}>—</span>

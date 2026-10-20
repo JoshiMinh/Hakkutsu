@@ -1,140 +1,114 @@
-function isUsableVideo(video: HTMLVideoElement): boolean {
-  const rect = video.getBoundingClientRect();
-  return (
-    video.isConnected &&
-    (video.currentSrc.length > 0 ||
-      (typeof video.src === "string" && video.src.length > 0) ||
-      video.querySelector("source[src]") !== null ||
-      video.readyState > HTMLMediaElement.HAVE_NOTHING ||
-      rect.width > 0 ||
-      rect.height > 0)
-  );
-}
-
 function videoScore(video: HTMLVideoElement): number {
   const rect = video.getBoundingClientRect();
-  const visibleArea = Math.max(0, rect.width) * Math.max(0, rect.height);
-  const playingBonus = !video.paused && !video.ended ? 1_000_000_000 : 0;
-  const readyBonus = video.readyState >= HTMLMediaElement.HAVE_METADATA ? 100_000_000 : 0;
-  return playingBonus + readyBonus + visibleArea;
+  const area = Math.max(0, rect.width) * Math.max(0, rect.height);
+  const usable = video.isConnected && (video.currentSrc || video.src || video.querySelector("source[src]") || video.readyState > 0 || area > 0);
+  if (!usable) return -1;
+  return (!video.paused && !video.ended ? 1_000_000_000 : 0)
+    + (video.readyState >= 1 ? 100_000_000 : 0) + area;
 }
 
-/** Pick the active/visible player instead of whichever video happens to be first in the DOM. */
+/** Measure each candidate once; caption/UI mutations do not trigger player scans. */
 export function findPrimaryVideo(root: ParentNode = document): HTMLVideoElement | null {
-  const videos = Array.from(root.querySelectorAll<HTMLVideoElement>("video")).filter(isUsableVideo);
-  if (videos.length === 0) return null;
-  return videos.reduce((best, video) => (videoScore(video) > videoScore(best) ? video : best));
+  let best: HTMLVideoElement | null = null, bestScore = -1;
+  for (const video of root.querySelectorAll<HTMLVideoElement>("video")) {
+    const score = videoScore(video);
+    if (score > bestScore) { best = video; bestScore = score; }
+  }
+  return best;
 }
 
-/**
- * Observe SPA player replacement without a permanent polling timer. Media events
- * also re-evaluate the preferred player when a page keeps multiple videos mounted.
- */
-export function observePrimaryVideo(
-  onChange: (video: HTMLVideoElement | null) => void,
-  root: ParentNode = document
-): () => void {
+export function observePrimaryVideo(onChange: (video: HTMLVideoElement | null) => void, root: ParentNode = document): () => void {
   let current: HTMLVideoElement | null | undefined;
-  let scheduled = false;
-
+  let scheduled = false, stopped = false;
   const scan = () => {
     scheduled = false;
+    if (stopped) return;
     const next = findPrimaryVideo(root);
-    if (next !== current) {
-      current = next;
-      onChange(next);
-    }
+    if (next !== current) { current = next; onChange(next); }
   };
   const scheduleScan = () => {
-    if (scheduled) return;
-    scheduled = true;
-    queueMicrotask(scan);
+    if (!scheduled && !stopped) { scheduled = true; queueMicrotask(scan); }
   };
-
-  const observer = new MutationObserver(scheduleScan);
-  observer.observe(root === document ? document.documentElement : root, {
-    childList: true,
-    subtree: true,
+  const hasMedia = (node: Node) => node.nodeType === Node.ELEMENT_NODE &&
+    ((node as Element).matches("video, source") || !!(node as Element).querySelector("video"));
+  const observer = new MutationObserver(records => {
+    if ((current && !current.isConnected) || records.some(record => record.type === "attributes"
+      ? (record.target as Element).matches("video, source")
+      : [...record.addedNodes, ...record.removedNodes].some(hasMedia))) scheduleScan();
   });
-  document.addEventListener("play", scheduleScan, true);
-  document.addEventListener("loadedmetadata", scheduleScan, true);
+  observer.observe(root === document ? document.documentElement : root, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });
+  const events = ["play", "pause", "ended", "loadedmetadata"];
+  const mediaEvent = (event: Event) => {
+    if (event.target instanceof HTMLVideoElement && (root === document || (root as Node).contains(event.target))) scheduleScan();
+  };
+  for (const event of events) document.addEventListener(event, mediaEvent, true);
   scan();
-
   return () => {
-    observer.disconnect();
-    document.removeEventListener("play", scheduleScan, true);
-    document.removeEventListener("loadedmetadata", scheduleScan, true);
+    stopped = true; observer.disconnect();
+    for (const event of events) document.removeEventListener(event, mediaEvent, true);
   };
 }
 
-/**
- * Drive subtitle updates from decoded video frames. The timeout fallback is used
- * only by browsers/players without requestVideoFrameCallback.
- */
+interface VideoClock {
+  listeners: Set<() => void>;
+  dispose: () => void;
+}
+const videoClocks = new WeakMap<HTMLVideoElement, VideoClock>();
+
+/** A single frame callback and event listener set shared by every video consumer. */
+function createVideoClock(video: HTMLVideoElement): VideoClock {
+  const listeners = new Set<() => void>();
+  let frame: number | null = null, timer: number | null = null;
+  let stopped = false, lastTime = NaN;
+  const notify = (force = false) => {
+    const time = video.currentTime;
+    if (!force && time === lastTime) return;
+    lastTime = time;
+    for (const listener of [...listeners]) {
+      if (!listeners.has(listener)) continue;
+      try { listener(); } catch (error) { queueMicrotask(() => { throw error; }); }
+    }
+  };
+  const cancel = () => {
+    if (frame !== null) video.cancelVideoFrameCallback(frame);
+    if (timer !== null) window.clearTimeout(timer);
+    frame = null; timer = null;
+  };
+  const schedule = () => {
+    if (stopped || frame !== null || timer !== null || video.paused || video.ended) return;
+    if (typeof video.requestVideoFrameCallback === "function") {
+      frame = video.requestVideoFrameCallback(() => { frame = null; notify(); schedule(); });
+    } else timer = window.setTimeout(() => { timer = null; notify(); schedule(); }, 125);
+  };
+  const play = () => { notify(true); schedule(); };
+  const stop = () => { cancel(); notify(true); };
+  const tick = () => notify();
+  const force = () => notify(true);
+  const bindings: Array<[string, () => void]> = [["play", play], ["playing", play], ["pause", stop], ["ended", stop],
+    ["timeupdate", tick], ["seeked", force], ["ratechange", force], ["loadedmetadata", force]];
+  for (const [event, listener] of bindings) video.addEventListener(event, listener);
+  schedule();
+  return { listeners, dispose() {
+    stopped = true; cancel();
+    for (const [event, listener] of bindings) video.removeEventListener(event, listener);
+    videoClocks.delete(video);
+  } };
+}
+
 export function subscribeToVideoTime(video: HTMLVideoElement, onTime: () => void): () => void {
-  const frameVideo = video;
-  let frameHandle: number | null = null;
-  let fallbackTimer: number | null = null;
-  let stopped = false;
-
-  const cancelScheduledTick = () => {
-    if (frameHandle !== null) {
-      frameVideo.cancelVideoFrameCallback(frameHandle);
-    }
-    frameHandle = null;
-    if (fallbackTimer !== null) window.clearTimeout(fallbackTimer);
-    fallbackTimer = null;
-  };
-
-  const scheduleTick = () => {
-    cancelScheduledTick();
-    if (stopped || video.paused || video.ended) return;
-    if (typeof frameVideo.requestVideoFrameCallback === "function") {
-      frameHandle = frameVideo.requestVideoFrameCallback(() => {
-        frameHandle = null;
-        onTime();
-        scheduleTick();
-      });
-    } else {
-      fallbackTimer = window.setTimeout(() => {
-        fallbackTimer = null;
-        onTime();
-        scheduleTick();
-      }, 125);
-    }
-  };
-
-  const handlePlay = () => {
-    onTime();
-    scheduleTick();
-  };
-  const handleStop = () => {
-    onTime();
-    cancelScheduledTick();
-  };
-
-  onTime();
-  video.addEventListener("play", handlePlay);
-  video.addEventListener("playing", handlePlay);
-  video.addEventListener("pause", handleStop);
-  video.addEventListener("ended", handleStop);
-  video.addEventListener("seeked", onTime);
-  video.addEventListener("timeupdate", onTime);
-  video.addEventListener("ratechange", onTime);
-  video.addEventListener("loadedmetadata", onTime);
-  if (!video.paused) scheduleTick();
-
+  let clock = videoClocks.get(video);
+  if (!clock) { clock = createVideoClock(video); videoClocks.set(video, clock); }
+  // Each subscription owns its wrapper, even if callers reuse a function.
+  const listener = () => onTime();
+  clock.listeners.add(listener);
+  listener();
+  const current = clock;
+  let subscribed = true;
   return () => {
-    stopped = true;
-    cancelScheduledTick();
-    video.removeEventListener("play", handlePlay);
-    video.removeEventListener("playing", handlePlay);
-    video.removeEventListener("pause", handleStop);
-    video.removeEventListener("ended", handleStop);
-    video.removeEventListener("seeked", onTime);
-    video.removeEventListener("timeupdate", onTime);
-    video.removeEventListener("ratechange", onTime);
-    video.removeEventListener("loadedmetadata", onTime);
+    if (!subscribed) return;
+    subscribed = false;
+    current.listeners.delete(listener);
+    if (current.listeners.size === 0) current.dispose();
   };
 }
 

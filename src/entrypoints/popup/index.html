@@ -8,7 +8,7 @@
       html, body {
         width: 440px;
         height: auto;
-        min-height: 0;
+        min-height: 240px;
         max-height: 600px;
         margin: 0;
         padding: 0;
@@ -16,10 +16,11 @@
         color: #f4f4f5;
         overflow: hidden;
       }
+      #root:has(.hk-popup-startup) { padding: 24px; font: 14px/1.5 system-ui, sans-serif; }
     </style>
   </head>
   <body class="hk-extension-page hk-popup-body">
-    <div id="root"></div>
+    <div id="root"><p class="hk-popup-startup" role="status">Loading Hakkutsu…</p></div>
     <script type="module" src="./main.tsx"></script>
   </body>
 </html>

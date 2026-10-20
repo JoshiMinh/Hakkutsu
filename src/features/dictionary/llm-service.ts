@@ -4,7 +4,7 @@ import type { WebTranslateResponse } from "~/features/dictionary/types";
 import { googleTranslateService } from "./google-translate";
 import { lookupWord, type LookupResult } from "./dictionary-lookup";
 import { katakanaToHiragana, containsJapanese, hasKanji, romajiToHiragana, segmentJapaneseTokens, deriveInflectedReading, getPeopleCounterReading } from "~/shared/japanese/japanese";
-import { getHanViet } from "~/shared/japanese/hanviet-dict";
+import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
 import { tokenize } from "./local-tokenizer";
 import { getSettings } from "~/features/settings/settings-storage";
@@ -54,7 +54,7 @@ class LlmService {
                 meaning: directDict.meaning,
                 dictionary_form: cleanText,
                 jlpt: directDict.jlpt || predictJlpt(cleanText),
-                vietnamese_sound: targetLang === "vi" && hasKanji(cleanText) ? (directDict.hanviet || getHanViet(cleanText)) : undefined,
+                vietnamese_sound: targetLang === "vi" && hasKanji(cleanText) ? resolveHanViet(cleanText, directDict.hanviet) : undefined,
                 is_japanese: true,
               },
             ],
@@ -124,7 +124,7 @@ class LlmService {
               meaning: dict.meaning || "",
               dictionary_form: baseForm,
               jlpt: dict.jlpt || predictJlpt(baseForm),
-              vietnamese_sound: targetLang === "vi" && hasKanji(baseForm) ? (dict.hanviet || getHanViet(baseForm || surface)) : undefined,
+              vietnamese_sound: targetLang === "vi" ? resolveHanViet(baseForm, dict.hanviet, surface) : undefined,
               is_japanese: isJp || Boolean(dict.meaning),
             };
           })
@@ -156,7 +156,7 @@ class LlmService {
           meaning: dictLookup.meaning || translation,
           dictionary_form: text,
           jlpt: dictLookup.jlpt,
-          vietnamese_sound: targetLang === "vi" ? dictLookup.hanviet : undefined,
+          vietnamese_sound: targetLang === "vi" ? resolveHanViet(text, dictLookup.hanviet) : undefined,
         },
       ],
     };

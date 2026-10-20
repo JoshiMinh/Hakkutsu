@@ -1,5 +1,13 @@
 /** Message types for communication between content scripts and background */
 export type MessageType =
+  | "GET_DENSITY_VOCABULARY"
+  | "DENSITY_VOCABULARY_RESULT"
+  | "GET_DENSITY_KNOWLEDGE"
+  | "DENSITY_KNOWLEDGE_RESULT"
+  | "GET_FURIGANA_READINGS"
+  | "FURIGANA_READINGS_RESULT"
+  | "GET_LEARNED_VOCABULARY"
+  | "LEARNED_VOCABULARY_RESULT"
   | "ANALYZE_TEXT"
   | "ANALYZE_RESULT"
   | "ANALYZE_JAVI"

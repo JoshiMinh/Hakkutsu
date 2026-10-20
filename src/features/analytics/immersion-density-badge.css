@@ -1,0 +1,72 @@
+/* Hallmark · component: page difficulty · theme: Hakkutsu
+ * States: default, hover, focus, active, disabled, loading, error, success.
+ * Pre-emit critique: P5 H4 E4 S5 R5 V4.
+ */
+.hk-difficulty {
+  --hk-panel-surface: #141416;
+  --hk-panel-border: #303034;
+  --hk-panel-muted: #a1a1aa;
+  --hk-panel-track: #29292e;
+  --hk-panel-other: #787880;
+  --hk-panel-error: #fca5a5;
+  --hk-panel-shadow: 0 12px 36px rgb(0 0 0 / 24%);
+  position: fixed; bottom: 16px; left: 16px; z-index: 2147483640;
+  pointer-events: auto; color: var(--hk-text-primary); font: 12px/1.5 var(--hk-font-sans);
+}
+.hk-difficulty [data-level] { --level: var(--hk-panel-other); }
+.hk-difficulty [data-level="N5"] { --level: var(--hk-jlpt-n5); }
+.hk-difficulty [data-level="N4"] { --level: var(--hk-jlpt-n4); }
+.hk-difficulty [data-level="N3"] { --level: var(--hk-jlpt-n3); }
+.hk-difficulty [data-level="N2"] { --level: var(--hk-jlpt-n2); }
+.hk-difficulty [data-level="N1"] { --level: var(--hk-jlpt-n1); }
+.hk-difficulty button, .hk-difficulty select { font-family: inherit; }
+.hk-difficulty button { cursor: pointer; }
+.hk-difficulty button:disabled { cursor: not-allowed; opacity: .5; }
+.hk-difficulty :is(button, select):focus-visible, .hk-difficulty .is-focus { outline: 2px solid var(--hk-accent-primary); outline-offset: 3px; }
+.hk-difficulty button:active, .hk-difficulty button.is-active { transform: translateY(1px); }
+.hk-difficulty__panel { position: absolute; bottom: calc(100% + 10px); left: 0; width: min(344px, calc(100vw - 32px)); max-height: calc(100dvh - 90px); overflow: auto; border: 1px solid var(--hk-panel-border); border-radius: var(--hk-radius-lg); background: var(--hk-panel-surface); box-shadow: var(--hk-panel-shadow); color-scheme: dark; }
+.hk-difficulty__header { display: grid; grid-template-columns: 32px minmax(0, 1fr) 44px; align-items: center; gap: 10px; padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--hk-border); }
+.hk-difficulty__icon { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--hk-border); border-radius: var(--hk-radius-sm); color: var(--hk-accent-primary); background: var(--hk-bg-tertiary); }
+.hk-difficulty h2 { margin: 0; color: var(--hk-text-primary); font-size: 14px; font-weight: 650; line-height: 1.5; letter-spacing: -.01em; }
+.hk-difficulty__header p, .hk-difficulty__dominant p, .hk-difficulty__control-row p { margin: 2px 0 0; font-size: 11px; line-height: 1.5; color: var(--hk-panel-muted); }
+.hk-difficulty__close { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: var(--hk-radius-sm); background: transparent; color: var(--hk-panel-muted); }
+.hk-difficulty__content { padding: 16px; }
+.hk-difficulty__dominant { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.hk-difficulty__level { display: grid; place-items: center; flex-shrink: 0; min-width: 44px; height: 44px; padding: 0 6px; border: 1px solid var(--hk-border); border-radius: var(--hk-radius-md); color: var(--level); background: var(--hk-bg-tertiary); font-size: 19px; font-weight: 700; }
+.hk-difficulty__eyebrow { font-size: 12px; font-weight: 550; }
+.hk-difficulty__dominant > strong { margin-left: auto; font-size: 25px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hk-difficulty__dominant small { margin-left: 2px; color: var(--hk-panel-muted); font-size: 13px; font-weight: 400; }
+.hk-difficulty__distribution { display: flex; gap: 2px; height: 6px; overflow: hidden; border-radius: 3px; background: var(--hk-panel-track); }
+.hk-difficulty__distribution span { min-width: 0; background: var(--level); }
+.hk-difficulty__legend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; margin-top: 14px; }
+.hk-difficulty__legend > div { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--hk-panel-muted); font-size: 11px; }
+.hk-difficulty__legend i { width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: var(--level); }
+.hk-difficulty__legend strong { margin-left: auto; color: var(--hk-text-primary); font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.hk-difficulty__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--hk-border); }
+.hk-difficulty__stats > div:nth-child(even) { padding-left: 16px; border-left: 1px solid var(--hk-border); }
+.hk-difficulty__stats small { color: var(--hk-panel-muted); font-size: 12px; font-weight: 400; }
+.hk-difficulty__summary { margin: 12px 0 0; color: var(--hk-panel-muted); font-size: 11px; overflow-wrap: anywhere; }
+.hk-difficulty__trigger strong { white-space: normal; text-align: left; }
+.hk-difficulty__stats dt { color: var(--hk-panel-muted); font-size: 11px; }
+.hk-difficulty__stats dd { margin: 2px 0 0; font-size: 20px; font-weight: 600; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.hk-difficulty__furigana { padding: 16px; border-top: 1px solid var(--hk-border); }
+.hk-difficulty__control-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.hk-difficulty h3 { margin: 0; color: var(--hk-text-primary); font-size: 13px; line-height: 1.5; font-weight: 600; }
+.hk-difficulty__toggle { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; min-width: 68px; min-height: 44px; padding: 8px 10px; border: 1px solid var(--hk-panel-border); border-radius: var(--hk-radius-sm); background: var(--hk-bg-tertiary); color: var(--hk-panel-muted); font-size: 12px; white-space: nowrap; }
+.hk-difficulty__toggle[aria-pressed="true"] { color: var(--hk-text-primary); border-color: var(--hk-accent-primary); }
+.hk-difficulty__furigana > label { display: block; margin-bottom: 6px; color: var(--hk-panel-muted); font-size: 11px; }
+.hk-difficulty__select { position: relative; }
+.hk-difficulty__select select { display: block; appearance: none; width: 100%; min-height: 44px; padding: 10px 34px 10px 12px; border: 1px solid var(--hk-panel-border); border-radius: var(--hk-radius-sm); background: var(--hk-bg-tertiary); color: var(--hk-text-primary); font-size: 12px; cursor: pointer; }
+.hk-difficulty__select > svg { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--hk-panel-muted); pointer-events: none; }
+.hk-difficulty__message { margin: 10px 0 0; color: var(--hk-panel-muted); font-size: 12px; overflow-wrap: anywhere; }
+.hk-difficulty__furigana[data-state="error"] .hk-difficulty__message { color: var(--hk-panel-error); }
+.hk-difficulty__footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; padding: 0 10px 0 16px; border-top: 1px solid var(--hk-border); color: var(--hk-panel-muted); font-size: 10px; }
+.hk-difficulty__footer button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px; border: 0; border-radius: var(--hk-radius-sm); background: transparent; color: var(--hk-text-primary); font-size: 11px; white-space: nowrap; }
+.hk-difficulty__trigger { display: flex; align-items: center; gap: 10px; min-height: 44px; max-width: calc(100vw - 32px); padding: 8px 12px; border: 1px solid var(--hk-panel-border); border-radius: var(--hk-radius-md); background: var(--hk-panel-surface); color: var(--hk-panel-muted); box-shadow: var(--hk-panel-shadow); font-size: 12px; }
+.hk-difficulty__brand { color: var(--hk-accent-primary); }
+.hk-difficulty__trigger strong { color: var(--level); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.hk-difficulty__trigger strong span { color: var(--hk-text-primary); font-weight: 500; }
+.hk-difficulty__trigger-count { padding-left: 10px; border-left: 1px solid var(--hk-panel-border); font-size: 11px; white-space: nowrap; }
+@media (hover: hover) { .hk-difficulty :is(button, select):not(:disabled):hover, .hk-difficulty .is-hover { background: var(--hk-bg-hover); } }
+@media (max-width: 350px) { .hk-difficulty__dominant p { display: none; } .hk-difficulty__legend { column-gap: 10px; } }
+@media (prefers-reduced-motion: reduce) { .hk-difficulty .hk-spin { animation: none; } }

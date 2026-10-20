@@ -1,0 +1,28 @@
+/* Hallmark · component: dictionary settings · genre: modern-minimal · theme: existing Hakkutsu
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * Pre-emit critique: Philosophy 5, Hierarchy 4, Execution 4, Specificity 5, Restraint 5, Variety 4
+ */
+.hk-dictionary-settings { --hk-dictionary-error: #fca5a5; --hk-dictionary-success: #86efac; }
+.hk-dictionary-settings .hk-settings-row__info { min-width: 0; }
+.hk-dictionary-settings .hk-settings-row__label { cursor: default; }
+.hk-dictionary-settings .hk-settings-row__desc { color: var(--hk-text-secondary); line-height: 1.6; }
+.hk-dictionary-settings__local { display: inline-flex; align-items: center; gap: var(--hk-space-xs); margin-left: auto; color: var(--hk-text-secondary); font-size: var(--hk-text-xs); white-space: nowrap; }
+.hk-dictionary-settings__badge { flex-shrink: 0; padding: var(--hk-space-xs) var(--hk-space-sm); border: 1px solid var(--hk-border); border-radius: var(--hk-radius-sm); color: var(--hk-text-secondary); background: var(--hk-bg-tertiary); font-size: var(--hk-text-xs); white-space: nowrap; }
+.hk-dictionary-settings__import { min-height: 44px; flex-shrink: 0; white-space: nowrap; }
+.hk-dictionary-settings__import:focus-visible, .hk-dictionary-settings__import.is-focus { outline: 2px solid var(--hk-accent-primary); outline-offset: 3px; }
+.hk-dictionary-settings__import:active, .hk-dictionary-settings__import.is-active { background: var(--hk-bg-hover); transform: translateY(1px); }
+.hk-dictionary-settings__import:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.hk-dictionary-settings[data-state="loading"] .hk-dictionary-settings__import { color: var(--hk-text-secondary); }
+.hk-dictionary-settings[data-state="error"] .hk-dictionary-settings__import { border-color: var(--hk-dictionary-error); }
+.hk-dictionary-settings[data-state="error"] .hk-dictionary-settings__feedback { color: var(--hk-dictionary-error); }
+.hk-dictionary-settings[data-state="success"] .hk-dictionary-settings__feedback { color: var(--hk-dictionary-success); }
+.hk-dictionary-settings__feedback { min-height: 44px; padding: var(--hk-space-sm) 18px var(--hk-space-md); color: var(--hk-text-secondary); font-size: var(--hk-text-sm); line-height: 1.6; }
+.hk-dictionary-settings__feedback p { display: flex; align-items: flex-start; gap: var(--hk-space-sm); overflow-wrap: anywhere; }
+.hk-dictionary-settings__feedback svg { flex-shrink: 0; margin-top: 3px; }
+.hk-dictionary-settings__feedback span { min-width: 0; overflow-wrap: anywhere; }
+@media (hover: hover) { .hk-dictionary-settings__import:not(:disabled):hover, .hk-dictionary-settings__import.is-hover { background: var(--hk-bg-hover); } }
+@media (max-width: 540px) {
+  .hk-dictionary-settings__row { flex-wrap: wrap; align-items: flex-start; }
+  .hk-dictionary-settings__row .hk-settings-row__info { flex-basis: 100%; }
+  .hk-dictionary-settings__local { display: none; }
+}

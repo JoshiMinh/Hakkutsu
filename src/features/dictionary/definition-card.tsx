@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import type { TokenAnalysis } from "~/features/dictionary/types";
 import type { AnkiExportData } from "~/features/anki/types";
 import { formatPosLabel } from "~/features/dictionary/pos-labels";
-import { getHanViet } from "~/shared/japanese/hanviet-dict";
+import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import { hasKanji, distributeFurigana } from "~/shared/japanese/japanese";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
 import { JlptBadge, FrequencyBadge } from "~/shared/ui/badges";
@@ -93,9 +93,9 @@ export function DefinitionCard({
   const readingStr = token.dictionary_reading || (typeof token.reading === "string" ? token.reading : (token.reading?.hiragana || ""));
   const rubySegments = distributeFurigana(token.dictionary_form || token.surface, readingStr);
 
-  // Strictly only show Han-Viet when enabled and target language is Vietnamese and word has Kanji
+  // The visibility setting applies consistently across lookup, vocabulary and review.
   const hanViet = showHanViet && wordHasKanji
-    ? (token.vietnamese_sound || getHanViet(token.dictionary_form || token.surface))
+    ? resolveHanViet(token.dictionary_form, token.vietnamese_sound, token.surface)
     : null;
   // Check if word is already in SRS library
   useEffect(() => {

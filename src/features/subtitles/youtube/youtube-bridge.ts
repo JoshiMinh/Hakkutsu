@@ -283,11 +283,17 @@ export function initYouTubePageBridge(): void {
       void publishCurrentTracks();
     });
 
+    const captionRequests = new Map<string, AbortController>();
+    document.addEventListener("hakkutsu:cancel-youtube-caption-content", (event: Event) => {
+      const requestId = (event as CustomEvent).detail?.requestId;
+      captionRequests.get(requestId)?.abort();
+    });
     document.addEventListener("hakkutsu:request-youtube-caption-content", async (event: Event) => {
       const detail = (event as CustomEvent).detail;
       if (typeof detail?.requestId !== "string" || typeof detail?.url !== "string") return;
       const videoId = inferVideoId();
       const controller = new AbortController();
+      captionRequests.set(detail.requestId, controller);
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         const url = new URL(detail.url, window.location.href);
@@ -305,6 +311,7 @@ export function initYouTubePageBridge(): void {
           detail: { requestId: detail.requestId, error: error instanceof Error ? error.message : String(error) },
         }));
       } finally {
+        captionRequests.delete(detail.requestId);
         if (timer !== undefined) clearTimeout(timer);
       }
     });

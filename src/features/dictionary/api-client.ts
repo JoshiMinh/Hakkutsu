@@ -11,7 +11,7 @@ import type { SubtitleRequest, SubtitleResponse } from "~/features/subtitles/sha
 import { llmService } from "./llm-service";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
 import { containsJapanese } from "~/shared/japanese/japanese";
-import { getHanViet } from "~/shared/japanese/hanviet-dict";
+import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import { useSettingsStore } from "~/features/settings/settings-store";
 
 function mapRawTokenToAnalysis(t: any): TokenAnalysis {
@@ -47,7 +47,7 @@ function mapRawTokenToAnalysis(t: any): TokenAnalysis {
     jlpt_level: t.jlpt_level || t.jlpt || predictJlpt(dictionary_form || surface),
     frequency_rank: typeof t.frequency_rank === "number" ? t.frequency_rank : null,
     definitions,
-    vietnamese_sound: t.vietnamese_sound || getHanViet(dictionary_form || surface) || ""
+    vietnamese_sound: resolveHanViet(dictionary_form, t.vietnamese_sound, surface)
   };
 }
 

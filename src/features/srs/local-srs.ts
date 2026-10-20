@@ -1,6 +1,6 @@
 import { openDB } from "idb";
 import type { DBSchema, IDBPDatabase } from "idb";
-import { getHanViet } from "~/shared/japanese/hanviet-dict";
+import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import { lookupWord } from "~/features/dictionary/dictionary-lookup";
 import { googleTranslateService } from "~/features/dictionary/google-translate";
 import { getSettings } from "~/features/settings/settings-storage";
@@ -170,6 +170,7 @@ class LocalSrsService {
         ...existingCard,
         meaning: (meaning && meaning !== "—") ? meaning : existingCard.meaning,
         reading: reading || existingCard.reading,
+        vietnamese_sound: isHanVietEnabled ? resolveHanViet(word, data.vietnamese_sound || existingCard.vietnamese_sound) : existingCard.vietnamese_sound,
         sentence: sentence || existingCard.sentence,
         image_url: data.image_url || existingCard.image_url,
         frequency_rank: frequency_rank ?? existingCard.frequency_rank,
@@ -238,7 +239,7 @@ class LocalSrsService {
       word_furigana,
       meaning: meaning || "—",
       jlpt,
-      vietnamese_sound: isHanVietEnabled ? (data.vietnamese_sound || getHanViet(word)) : undefined,
+      vietnamese_sound: isHanVietEnabled ? resolveHanViet(word, data.vietnamese_sound) : undefined,
       sentence,
       sentence_furigana,
       sentence_meaning,

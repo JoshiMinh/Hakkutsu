@@ -7,6 +7,7 @@ import { SubtitleSettings } from "./subtitle-settings";
 import { OcrSettings } from "./ocr-settings";
 import { AnkiSettings } from "./anki-settings";
 import { SupportSection } from "./support-section";
+import { DictionarySettings } from "./dictionary-settings";
 
 export function SettingsView({
   settings,
@@ -44,6 +45,7 @@ export function SettingsView({
       <form className="hk-settings-form" onSubmit={(e) => e.preventDefault()}>
         {/* Language Selection Card */}
         <LanguageSettings settings={settings} onUpdate={onUpdate} />
+        <DictionarySettings language={currentLang} />
 
         {/* General: everyday reading and review preferences */}
         <StudySettings settings={settings} onUpdate={onUpdate} />

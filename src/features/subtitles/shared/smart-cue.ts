@@ -196,15 +196,8 @@ export function findSmartCueIndex(
 
   if (upperBound < 0) return -1;
 
-  for (let i = upperBound; i >= 0; i--) {
-    const cue = segments[i];
-    if (currentTime - cue.start > 60) {
-      break;
-    }
-    if (currentTime <= smartCueEnd(segments, i)) {
-      return i;
-    }
-  }
-
-  return -1;
+  // smartCueEnd clips each cue before the next start. Earlier cues therefore
+  // cannot still be active after the latest-started cue; scanning back through
+  // a long silent gap is both unnecessary and expensive at video-frame rates.
+  return currentTime <= smartCueEnd(segments, upperBound) ? upperBound : -1;
 }

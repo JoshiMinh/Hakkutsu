@@ -17,6 +17,7 @@ import type { OverallAnalyticsSummary } from "./types";
 import { useSettingsStore } from "~/features/settings/settings-store";
 import { useTranslation } from "~/shared/locales";
 import { JlptBadge } from "~/shared/ui/badges";
+import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import { ActivityHeatmap } from "./activity-heatmap";
 import { DashboardForecast, DashboardBreakdown } from "./dashboard-insights";
 
@@ -218,9 +219,9 @@ export function StatsOverview({
                         {card.jlpt && <JlptBadge level={card.jlpt} />}
                       </div>
                       <p>
-                        {showHanViet && card.vietnamese_sound && (
+                        {showHanViet && resolveHanViet(card.word, card.vietnamese_sound) && (
                           <span className="hk-dashboard-word__hanviet">
-                            {card.vietnamese_sound} ·{" "}
+                            {resolveHanViet(card.word, card.vietnamese_sound)} ·{" "}
                           </span>
                         )}
                         {card.meaning || "—"}
