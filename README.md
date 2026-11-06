@@ -72,6 +72,10 @@ Version **2.6.2** adds complete Hán-Việt fallbacks for lookup, vocabulary, re
 
 Import a local dictionary in **Settings → Offline dictionary**, then open the page difficulty badge and enable selective furigana. Automatic page annotation uses only local readings; unknown words remain unchanged. Existing website ruby is preserved. Disable furigana to restore the original text.
 
+Subtitle furigana uses the installed dictionary plus a small bundled vocabulary, without online definition or LLM requests. Import a dictionary for broader coverage; unknown readings stay blank. Subtitle and transcript lookups preserve the selected token's reading and keep conjugated readings separate from dictionary-form readings. Dictionary hovers use dictionary lookup; explicit phrase analysis still provides AI translation and breakdown.
+
+Video subtitles preload both complete tracks when available. YouTube prefers a native target-language track, then a full translated track; Netflix downloads the selected source and target tracks concurrently. Readings and fallback translations prepare the current line and next minute first, then the rest of the film in the background. Both languages appear together at the source cue boundary; uncached automatic translations briefly show a preparation status. Translation failures show the original line with a notice. Seeking reprioritizes preparation, and disabling subtitles stops queued background work. Prepared results stay cached for the current track and language.
+
 The importer accepts a nonempty JSON array in this format (raw JMdict XML needs conversion first):
 
 ```json

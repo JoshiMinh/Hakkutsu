@@ -268,6 +268,8 @@ export const fr = {
   settings_leech_threshold_desc: "Nombre de révisions échouées avant de marquer une carte comme sangsue pour un entraînement ciblé",
 
   // Subtitle Overlay & Modal
+  sub_overlay_preparing_pair: "Préparation des sous-titres bilingues…",
+  sub_overlay_translation_failed: "Traduction indisponible. Affichage des sous-titres originaux.",
   sub_overlay_loading: "Chargement des sous-titres japonais...",
   sub_overlay_error_prefix: "Impossible de charger les sous-titres : ",
   sub_overlay_no_ja: "Aucun sous-titre japonais trouvé pour cette vidéo. Cliquez sur 'Sélectionner des Sous-titres' pour choisir une autre piste ou chercher sur Jimaku.",

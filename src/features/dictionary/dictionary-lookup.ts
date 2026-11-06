@@ -122,6 +122,14 @@ const COMMON_VI_DICT: Record<string, LookupResult> = {
   "の": { meaning: "của (trợ từ sở hữu)", jlpt: "N5", reading: "の" },
 };
 
+/** Bundled readings remain available without requesting online definitions. */
+export function getCommonWord(word: string, language = "en"): LookupResult | undefined {
+  const key = word.trim().normalize("NFKC");
+  const result = (language === "vi" ? COMMON_VI_DICT : COMMON_EN_DICT)[key];
+  if (!result) return undefined;
+  return { ...result, hanviet: getHanViet(key) || undefined };
+}
+
 export interface ExampleSentence {
   id: string;
   japanese: string;
@@ -610,7 +618,7 @@ export async function fetchExampleSentences(
  * Universal dictionary lookup routed by target language.
  * Seamlessly handles any future language by translating dictionary definitions.
  */
-export async function lookupWord(word: string, targetLang: string = "vi"): Promise<LookupResult> {
+async function lookupWordUncached(word: string, targetLang: string = "vi"): Promise<LookupResult> {
   if (!word || word.trim() === "") return { meaning: "" };
   const lang = targetLang || "vi";
 
@@ -668,6 +676,19 @@ export async function lookupWord(word: string, targetLang: string = "vi"): Promi
   } catch {
     return { meaning: "" };
   }
+}
+
+const pendingLookups = new Map<string, Promise<LookupResult>>();
+
+/** Share online work across overlapping subtitle and lookup requests. */
+export function lookupWord(word: string, targetLang = "vi"): Promise<LookupResult> {
+  const text = word.trim();
+  const key = JSON.stringify([targetLang || "vi", text]);
+  const pending = pendingLookups.get(key);
+  if (pending) return pending;
+  const request = lookupWordUncached(text, targetLang).finally(() => pendingLookups.delete(key));
+  pendingLookups.set(key, request);
+  return request;
 }
 
 export interface WordVariant {

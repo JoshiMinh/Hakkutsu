@@ -7,6 +7,7 @@ import { analyzePageDensity } from "../src/features/analytics/page-analyzer";
 import { learnedVocabulary } from "../src/features/analytics/page-text";
 import { distributeFurigana } from "../src/shared/japanese/japanese";
 import type { DictEntry } from "../src/features/dictionary/local-lookup";
+import type { TokenAnalysis } from "../src/features/dictionary/types";
 import { getDB } from "../src/features/dictionary/local-lookup";
 import { importDictionary } from "../src/features/dictionary/dictionary-sync";
 import { getHanViet } from "../src/shared/japanese/hanviet-dict";
@@ -76,9 +77,9 @@ const tests: Array<[string, () => Promise<void> | void]> = [
     const saved = useSettingsStore.getState().settings;
     useSettingsStore.setState({settings:{...saved,targetLanguage:"vi",showHanViet:true}});
     const mount = document.createElement("div"); document.body.append(mount); const root = createRoot(mount);
-    const render = (word: string, supplied?: string) => root.render(createElement(DefinitionCard, {
+    const render = (word: string, supplied?: string, overrides: Partial<TokenAnalysis> = {}) => root.render(createElement(DefinitionCard, {
       // Disable unrelated network enrichment; this regression targets the actual header.
-      token:{surface:word,dictionary_form:word,reading:{hiragana:"",romaji:""},pos:"Word",pos_detail:[],is_japanese:false,jlpt_level:null,frequency_rank:null,definitions:[],vietnamese_sound:supplied},
+      token:{surface:word,dictionary_form:word,reading:{hiragana:"",romaji:""},pos:"Word",pos_detail:[],is_japanese:false,jlpt_level:null,frequency_rank:null,definitions:[],vietnamese_sound:supplied,...overrides},
       originalText:word,sentenceReading:"",ankiConnected:false,hideBottomAction:true,
     }));
     try {
@@ -89,6 +90,10 @@ const tests: Array<[string, () => Promise<void> | void]> = [
       equal(getHanViet("学校"),"HỌC HIỆU");
       useSettingsStore.setState({settings:{...saved,showHanViet:false}});
       await until(() => !mount.textContent!.includes("PHÁ KHÍ"));
+      render("食べた", undefined, {dictionary_form:"食べる", dictionary_reading:"たべる", reading:{hiragana:"たべた",romaji:""}});
+      await until(() => mount.querySelector(".hk-definition__reading")?.textContent === "たべる");
+      render("食べた", undefined, {dictionary_form:"食べる", reading:{hiragana:"たべた",romaji:""}});
+      await until(() => !mount.querySelector(".hk-definition__reading"));
     } finally { root.unmount(); mount.remove(); useSettingsStore.setState({settings:saved}); }
   }],
   ["Enable adds readings; disable restores exact text", async () => {
@@ -290,7 +295,9 @@ const tests: Array<[string, () => Promise<void> | void]> = [
 document.querySelector<HTMLButtonElement>("#run")!.onclick = async () => {
   const button = document.querySelector<HTMLButtonElement>("#run")!; button.disabled = true;
   document.querySelector("#results")!.replaceChildren(); let passed = 0;
-  for (const [name, run] of tests) {
+  const filter = new URLSearchParams(location.search).get("test");
+  const selected = filter ? tests.filter(([name]) => name.includes(filter)) : tests;
+  for (const [name, run] of selected) {
     document.querySelector("#summary")!.textContent = `Running: ${name}`;
     const row = document.createElement("li");
     try { await run(); passed++; row.textContent = `PASS: ${name}`; row.className = "pass"; }
@@ -298,7 +305,7 @@ document.querySelector<HTMLButtonElement>("#run")!.onclick = async () => {
     finally { removeSelectiveFurigana(fixture); }
     document.querySelector("#results")!.append(row);
   }
-  document.querySelector("#summary")!.textContent = `${passed}/${tests.length} passed`;
+  document.querySelector("#summary")!.textContent = `${passed}/${selected.length} passed`;
   fixture.innerHTML = "<p>学校で小説を読む。</p>"; await injectSelectiveFurigana("all", fixture);
   button.disabled = false;
 };

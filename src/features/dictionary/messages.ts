@@ -25,6 +25,14 @@ export async function handleDictionaryMessage(
         }
       }
 
+      if (request.analysis_mode === "dictionary") {
+        try {
+          return { type: "ANALYZE_RESULT", payload: await analyzeLocal(request.text) };
+        } catch (error) {
+          return { type: "ERROR", payload: { error: error instanceof Error ? error.message : "Dictionary lookup unavailable" } };
+        }
+      }
+
       try {
         const result = await apiClient.analyzePhrase(request);
         return { type: "ANALYZE_RESULT", payload: result };

@@ -1,408 +1,128 @@
 import { getSettings } from "~/features/settings/settings-storage";
-import type {
-  AnalyzeResponse,
-  TokenAnalysis,
-  DictionaryEntry,
-} from "~/features/dictionary/types";
-import { tokenize } from "~/features/dictionary/local-tokenizer";
-import { searchDictionary } from "~/features/dictionary/local-lookup";
+import type { AnalyzeResponse, TokenAnalysis, DictionaryEntry } from "./types";
+import { tokenize } from "./local-tokenizer";
+import { searchDictionary, type DictEntry } from "~/features/dictionary/local-lookup";
+import { refineJapaneseTokens } from "./japanese-token-refinement";
 import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import {
-  containsJapanese,
-  katakanaToHiragana,
-  hasKanji,
-  sanitizeReading,
-  deriveInflectedReading,
-  deinflectWord,
-  getPeopleCounterReading,
+  containsJapanese, katakanaToHiragana, hasKanji, deriveInflectedReading,
+  resolveSurfaceReading, getPeopleCounterReading,
 } from "~/shared/japanese/japanese";
-import {
-  lookupWord,
-  type LookupResult,
-} from "~/features/dictionary/dictionary-lookup";
+import { getCommonWord, lookupWord, type LookupResult } from "~/features/dictionary/dictionary-lookup";
 import { googleTranslateService } from "~/features/dictionary/google-translate";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
 
-export async function fetchDictionaryFallback(
-  text: string,
-): Promise<AnalyzeResponse> {
-  const settings = await getSettings();
-  const targetLang = settings.targetLanguage || "vi";
-  const info = await lookupWord(text, targetLang);
-  const isVietnamese = targetLang === "vi";
-  const cleanReading = sanitizeReading(info.reading || "", text);
+function dictionaryDefinitions(entries: DictEntry[]): DictionaryEntry[] {
+  return entries.flatMap(entry => entry.senses.map(sense => ({
+    dictionary: "JMdict", glosses: sense.glosses, pos: sense.partOfSpeech || ["Word"], field: null, misc: [],
+  })));
+}
 
+function providerDefinitions(info: LookupResult | undefined): DictionaryEntry[] {
+  return info?.meaning ? [{ dictionary: info.source || "Dict", glosses: [info.meaning], pos: ["Word"], field: null, misc: [] }] : [];
+}
+
+export async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
+  const { targetLanguage = "vi" } = await getSettings();
+  const info = await lookupWord(text, targetLanguage);
+  const reading = resolveSurfaceReading(text, info.reading);
   return {
-    text,
-    sentence_reading: cleanReading || text,
-    token_count: 1,
-    difficulty_score: null,
-    difficulty_label: null,
-    tokens: [
-      {
-        surface: text,
-        dictionary_form: text,
-        pos: "Word",
-        pos_detail: [],
-        reading: { hiragana: cleanReading, romaji: "" },
-        is_japanese: true,
-        jlpt_level: info.jlpt || null,
-        frequency_rank: null,
-        vietnamese_sound: isVietnamese
-          ? resolveHanViet(text, info.hanviet)
-          : undefined,
-        definitions: info.meaning
-          ? [
-              {
-                dictionary: info.source || "Dict",
-                glosses: [info.meaning],
-                pos: ["Word"],
-                field: null,
-                misc: [],
-              },
-            ]
-          : [],
-      },
-    ],
+    text, sentence_reading: reading || text, token_count: 1, difficulty_score: null, difficulty_label: null,
+    tokens: [{
+      surface: text, dictionary_form: text, dictionary_reading: reading,
+      pos: "Word", pos_detail: [], reading: { hiragana: reading, romaji: "" }, is_japanese: containsJapanese(text),
+      jlpt_level: info.jlpt || null, frequency_rank: null,
+      vietnamese_sound: targetLanguage === "vi" ? resolveHanViet(text, info.hanviet) : undefined,
+      definitions: providerDefinitions(info),
+    }],
   };
 }
 
-export async function analyzeLocal(
-  text: string,
-  includeDefinitions = true,
-): Promise<AnalyzeResponse> {
-  const cleanText = text.trim();
-  // Share repeated words within one cue, including lookups still in flight.
-  const entries = new Map<string, ReturnType<typeof searchDictionary>>();
-  const lookups = new Map<string, ReturnType<typeof lookupWord>>();
-  const search = (word: string) => {
-    if (!entries.has(word)) entries.set(word, searchDictionary(word));
+export async function analyzeLocal(text: string, includeDefinitions = true): Promise<AnalyzeResponse> {
+  const { targetLanguage } = await getSettings();
+  const language = targetLanguage || "vi";
+  const entries = new Map<string, Promise<DictEntry[]>>();
+  const lookups = new Map<string, Promise<LookupResult>>();
+  const search = (word: string): Promise<DictEntry[]> => {
+    if (!entries.has(word)) entries.set(word, searchDictionary(word).then(found => {
+      if (found.length) return found;
+      const common = getCommonWord(word);
+      return common?.reading ? [{ id: `bundled:${word}`, kanjiElements: [word], readingElements: [common.reading],
+        senses: [{ glosses: [common.meaning], partOfSpeech: ["Word"] }], jlpt: common.jlpt }] : [];
+    }));
     return entries.get(word)!;
   };
-  const lookup = (word: string, language: string) => {
-    const key = `${language}:${word}`;
-    if (!lookups.has(key)) lookups.set(key, lookupWord(word, language));
-    return lookups.get(key)!;
+  const lookup = (word: string) => {
+    if (!lookups.has(word)) lookups.set(word, lookupWord(word, language));
+    return lookups.get(word)!;
   };
-  const settings = await getSettings();
-  const targetLang = settings.targetLanguage || "vi";
-  const isVietnamese = targetLang === "vi";
 
-  // 1. Direct whole-word dictionary match check (e.g. "お知らせ", "お弁当", "お土産")
-  if (
-    containsJapanese(cleanText) &&
-    (includeDefinitions || hasKanji(cleanText)) &&
-    cleanText.length <= 16 &&
-    !/[\s\u3000、。！？!?…]/u.test(cleanText)
-  ) {
-    const fullTextDictEntries = await search(cleanText);
-    let fullTextDictInfo: LookupResult | null = null;
-    try {
-      if (
-        includeDefinitions ||
-        (hasKanji(cleanText) && !fullTextDictEntries[0]?.readingElements?.length)
-      )
-        fullTextDictInfo = await lookup(cleanText, targetLang);
-    } catch {}
+  // Keep source whitespace intact; dictionary refinement never crosses it.
+  const cleanText = text.trim();
+  const wholeEntries = containsJapanese(cleanText) && (includeDefinitions || hasKanji(cleanText)) &&
+    text === cleanText && cleanText.length <= 16 && !/[\s、。！？!?…]/u.test(cleanText)
+    ? await search(cleanText) : [];
+  const wholeEntry = wholeEntries.find(entry => entry.kanjiElements.includes(cleanText) || entry.readingElements.includes(cleanText));
+  const rawTokens = wholeEntry
+    ? [{ surface_form: text, base_form: text, pos: "Word", reading: undefined, dictionary_reading: undefined }]
+    : await tokenize(text);
+  const tokens = await refineJapaneseTokens(rawTokens, search);
 
-    const hasExactHeadword = Boolean(
-      fullTextDictEntries &&
-        fullTextDictEntries.some(
-          (e) =>
-            e.kanjiElements?.includes(cleanText) ||
-            e.readingElements?.includes(cleanText),
-        ),
-    );
+  const analyses = await Promise.all(tokens.map(async (token): Promise<TokenAnalysis> => {
+    const surface = token.surface_form;
+    const japanese = containsJapanese(surface);
+    const result: TokenAnalysis = {
+      surface, dictionary_form: surface, pos: token.pos, pos_detail: [], reading: { hiragana: "", romaji: "" },
+      is_japanese: japanese, jlpt_level: null, frequency_rank: null, definitions: [],
+    };
+    if (!japanese) return result;
 
-    if (hasExactHeadword) {
-      const firstEntry = fullTextDictEntries.find(
-        (e) =>
-          e.kanjiElements?.includes(cleanText) ||
-          e.readingElements?.includes(cleanText),
-      )!;
-      const kanjiForm = firstEntry?.kanjiElements?.[0] || cleanText;
-      const rawReading =
-        getPeopleCounterReading(cleanText) ||
-        firstEntry?.readingElements?.[0] ||
-        fullTextDictInfo?.reading ||
-        "";
-      const reading = sanitizeReading(rawReading, cleanText);
-      const jlptLevel =
-        firstEntry?.jlpt || fullTextDictInfo?.jlpt || predictJlpt(cleanText);
-
-      let definitions: DictionaryEntry[] = [];
-      if (includeDefinitions && fullTextDictInfo?.meaning) {
-        definitions.push({
-          dictionary: fullTextDictInfo.source || "Dict",
-          glosses: [fullTextDictInfo.meaning],
-          pos: ["Word"],
-          field: null,
-          misc: [],
-        });
-      }
-
-      if (
-        includeDefinitions &&
-        definitions.length === 0 &&
-        fullTextDictEntries.length > 0
-      ) {
-        definitions = fullTextDictEntries.flatMap((d) =>
-          d.senses.map((s) => ({
-            dictionary: "JMdict",
-            glosses: s.glosses,
-            pos: s.partOfSpeech || ["Word"],
-            field: null,
-            misc: [],
-          })),
-        );
-      }
-
-      const singleToken: TokenAnalysis = {
-        surface: cleanText,
-        dictionary_form: kanjiForm,
-        pos: "Word",
-        pos_detail: [],
-        reading: { hiragana: reading, romaji: "" },
-        is_japanese: true,
-        jlpt_level: jlptLevel,
-        frequency_rank: null,
-        vietnamese_sound: isVietnamese
-          ? resolveHanViet(cleanText, fullTextDictInfo?.hanviet)
-          : undefined,
-        definitions,
-      };
-
-      return {
-        text: cleanText,
-        sentence_reading: reading || cleanText,
-        tokens: [singleToken],
-        token_count: 1,
-        difficulty_score: null,
-        difficulty_label: null,
-      };
+    const lemma = token.base_form || surface;
+    const matches = includeDefinitions || hasKanji(surface) ? await search(lemma) : [];
+    const exactEntries = matches.filter(entry => entry.kanjiElements.includes(lemma) || entry.readingElements.includes(lemma));
+    const entry = exactEntries[0];
+    const dictionaryForm = hasKanji(lemma) ? lemma : entry?.kanjiElements[0] || lemma;
+    let dictionaryReading = resolveSurfaceReading(lemma, token.dictionary_reading);
+    for (const candidate of entry?.readingElements || []) {
+      if (dictionaryReading) break;
+      dictionaryReading = resolveSurfaceReading(lemma, candidate);
     }
-  }
+    let reading = getPeopleCounterReading(surface) || resolveSurfaceReading(surface, token.reading) ||
+      resolveSurfaceReading(surface, deriveInflectedReading(surface, lemma, dictionaryReading));
+    let info: LookupResult | undefined;
+    let definitions = includeDefinitions ? dictionaryDefinitions(exactEntries) : [];
 
-  // 2. Tokenize text using local tokenizer
-  const rawTokens = await tokenize(cleanText);
-
-  // Combine honorific prefixes (お, ご) or compound tokens if combined form exists in dictionary
-  const tokens: typeof rawTokens = [];
-  let idx = 0;
-  while (idx < rawTokens.length) {
-    const current = rawTokens[idx];
-    const next = rawTokens[idx + 1];
-
-    if (
-      next &&
-      (current.surface_form === "お" || current.surface_form === "ご") &&
-      containsJapanese(next.surface_form) &&
-      (includeDefinitions || hasKanji(next.surface_form))
-    ) {
-      const combinedSurface = current.surface_form + next.surface_form;
-      const combinedEntries = await search(combinedSurface);
-      let combinedLookup: LookupResult | null = null;
-      try {
-        if (includeDefinitions || (hasKanji(combinedSurface) && combinedEntries.length === 0))
-          combinedLookup = await lookup(combinedSurface, targetLang);
-      } catch {}
-
-      if (
-        (combinedEntries && combinedEntries.length > 0) ||
-        (combinedLookup &&
-          combinedLookup.meaning &&
-          combinedLookup.meaning.trim())
-      ) {
-        tokens.push({
-          surface_form: combinedSurface,
-          pos: "Word",
-          reading: combinedLookup?.reading,
-          base_form: combinedSurface,
-        });
-        idx += 2;
-        continue;
+    // Automatic subtitle readings use installed/bundled dictionaries only.
+    // Definitions may use online dictionaries, without invoking phrase/LLM analysis.
+    if (includeDefinitions) {
+      info = getCommonWord(lemma, language);
+      if (!info && (language !== "en" || definitions.length === 0)) {
+        try { info = await lookup(lemma); } catch { /* Retain local readings and definitions. */ }
       }
-    }
-
-    tokens.push(current);
-    idx++;
-  }
-
-  const tokenAnalyses: TokenAnalysis[] = await Promise.all(
-    tokens.map(async (t) => {
-      const surface = t.surface_form;
-      const is_jp = containsJapanese(surface);
-      if (!is_jp) {
-        return {
-          surface,
-          dictionary_form: surface,
-          pos: t.pos,
-          pos_detail: [],
-          reading: { hiragana: "", romaji: "" },
-          is_japanese: false,
-          jlpt_level: null,
-          frequency_rank: null,
-          definitions: [],
-        };
-      }
-
-      const dictEntries = includeDefinitions || hasKanji(surface) ? await search(surface) : [];
-      const firstEntry = dictEntries[0];
-      const kanjiForm =
-        t.base_form || firstEntry?.kanjiElements?.[0] || surface;
-      const kuromojiReading = (t as any).reading
-        ? katakanaToHiragana((t as any).reading)
-        : "";
-      const rawReading =
-        kuromojiReading || firstEntry?.readingElements?.[0] || "";
-      let reading = sanitizeReading(rawReading, surface);
-      let jlptLevel = firstEntry?.jlpt || predictJlpt(surface);
-
-      // If no reading found on surface and base_form differs (e.g. inflected verb/adj):
-      if (!reading && t.base_form && t.base_form !== surface) {
-        const baseEntries = await search(t.base_form);
-        const baseFirst = baseEntries[0];
-        if (baseFirst?.readingElements?.[0]) {
-          const derived = deriveInflectedReading(
-            surface,
-            t.base_form,
-            baseFirst.readingElements[0],
-          );
-          reading = sanitizeReading(derived, surface);
-          if (!jlptLevel && baseFirst.jlpt) jlptLevel = baseFirst.jlpt;
-        }
-      }
-
-      let definitions: DictionaryEntry[] = [];
-
-      // Query target-language dictionary lookup
-      try {
-        const queryWord =
-          !reading && t.base_form && t.base_form !== surface
-            ? t.base_form
-            : surface;
-        const dictInfo =
-          includeDefinitions || (!reading && hasKanji(surface))
-            ? await lookup(queryWord, targetLang)
-            : null;
-        if (dictInfo) {
-          if (dictInfo.reading && !reading) {
-            const raw =
-              queryWord !== surface
-                ? deriveInflectedReading(surface, queryWord, dictInfo.reading)
-                : dictInfo.reading;
-            reading = sanitizeReading(raw, surface);
-          }
-          if (dictInfo.jlpt && !jlptLevel) {
-            jlptLevel = dictInfo.jlpt;
-          }
-          if (includeDefinitions && dictInfo.meaning) {
-            definitions = [
-              {
-                dictionary: dictInfo.source || "Dict",
-                glosses: [dictInfo.meaning],
-                pos: [t.pos || "Word"],
-                field: null,
-                misc: [],
-              },
-            ];
-          }
-        }
-      } catch (e) {
-        console.warn(
-          "[Hakkutsu] Token target dictionary lookup error:",
-          surface,
-          e,
-        );
-      }
-
-      // If still no reading and has kanji, try deinflecting:
-      if (!reading && hasKanji(surface)) {
-        const deinflected = deinflectWord(surface);
-        if (deinflected !== surface) {
+      if (!dictionaryReading) dictionaryReading = resolveSurfaceReading(lemma, info?.reading);
+      if (!reading) reading = resolveSurfaceReading(surface, deriveInflectedReading(surface, lemma, dictionaryReading));
+      const translated = providerDefinitions(info);
+      if (translated.length) definitions = translated;
+      else if (language !== "en" && definitions.length) {
+        definitions = await Promise.all(definitions.map(async definition => {
           try {
-            const deinflectedInfo = await lookup(deinflected, targetLang);
-            if (deinflectedInfo?.reading) {
-              const derived = deriveInflectedReading(
-                surface,
-                deinflected,
-                deinflectedInfo.reading,
-              );
-              reading = sanitizeReading(derived, surface);
-              if (!jlptLevel && deinflectedInfo.jlpt)
-                jlptLevel = deinflectedInfo.jlpt;
-            }
-          } catch {}
-        }
+            const glosses = await Promise.all(definition.glosses.map(gloss => googleTranslateService.translate(gloss, language, "en")));
+            return { ...definition, glosses: glosses.map((gloss, index) => gloss || definition.glosses[index]) };
+          } catch { return definition; }
+        }));
       }
+    }
 
-      // Pure kana fallback:
-      if (!reading && !hasKanji(surface)) {
-        reading = katakanaToHiragana(surface);
-      }
-
-      // If no target language definition was found from adapter, use IndexedDB JMdict entries
-      if (
-        includeDefinitions &&
-        definitions.length === 0 &&
-        dictEntries.length > 0
-      ) {
-        definitions = dictEntries.flatMap((d) =>
-          d.senses.map((s) => ({
-            dictionary: "JMdict",
-            glosses: s.glosses,
-            pos: s.partOfSpeech || ["Word"],
-            field: null,
-            misc: [],
-          })),
-        );
-
-        // If target language is not English, translate local JMdict glosses to target language
-        if (targetLang !== "en") {
-          definitions = await Promise.all(
-            definitions.map(async (def) => {
-              try {
-                const translatedGlosses = await Promise.all(
-                  def.glosses.map((g) =>
-                    googleTranslateService.translate(g, targetLang, "en"),
-                  ),
-                );
-                return {
-                  ...def,
-                  dictionary: `JMdict (${targetLang.toUpperCase()})`,
-                  glosses: translatedGlosses.map(
-                    (tg, idx) => tg || def.glosses[idx],
-                  ),
-                };
-              } catch {
-                return def;
-              }
-            }),
-          );
-        }
-      }
-
-      return {
-        surface,
-        dictionary_form: kanjiForm,
-        pos: t.pos,
-        pos_detail: [],
-        reading: { hiragana: reading, romaji: "" },
-        is_japanese: true,
-        jlpt_level: jlptLevel,
-        frequency_rank: null,
-        vietnamese_sound: isVietnamese ? resolveHanViet(kanjiForm, undefined, surface) : undefined,
-        definitions,
-      };
-    }),
-  );
-
+    if (!reading && !hasKanji(surface)) reading = katakanaToHiragana(surface.normalize("NFKC"));
+    return {
+      ...result, dictionary_form: dictionaryForm, dictionary_reading: dictionaryReading || undefined,
+      reading: { hiragana: reading, romaji: "" }, definitions,
+      jlpt_level: entry?.jlpt || info?.jlpt || predictJlpt(dictionaryForm),
+      vietnamese_sound: language === "vi" ? resolveHanViet(dictionaryForm, info?.hanviet, surface) : undefined,
+    };
+  }));
   return {
-    text,
-    sentence_reading: text,
-    tokens: tokenAnalyses,
-    token_count: tokens.length,
-    difficulty_score: null,
-    difficulty_label: null,
+    text, sentence_reading: analyses.map(token => token.reading.hiragana || token.surface).join(""),
+    tokens: analyses, token_count: analyses.length, difficulty_score: null, difficulty_label: null,
   };
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
-import { requestTranscriptReadings } from "./transcript-readings";
+import { useSubtitlePreparation } from "./use-subtitle-preparation";
 import { FolderOpen } from "lucide-react";
 import { useTranscriptSource, useTranscriptPanelToggle } from "~/features/subtitles/shared/transcript-panel";
 import type { SrsCard } from "~/features/srs/local-srs";
@@ -10,37 +10,9 @@ import { useTranslation } from "~/shared/locales";
 import type { SubtitleTrackOption } from "~/features/subtitles/shared/select-subtitles-modal";
 import { cleanSubtitleText, readSubtitleFile, parsedToSubtitleFetchResult } from "~/features/subtitles/shared/subtitle-parsers";
 import { deduplicateCueText } from "~/shared/japanese/text-normalization";
-import { distributeFurigana, containsJapanese, sanitizeReading, mergeOkuriganaTokens } from "~/shared/japanese/japanese";
+import { distributeFurigana, containsJapanese, hasKanji, sanitizeReading, mergeOkuriganaTokens } from "~/shared/japanese/japanese";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
 import { subscribeToVideoTime } from "~/features/subtitles/shared/video-runtime";
-
-// ── In-Memory Bounded Caches ─────────────────────────────────────────────────
-
-const MAX_CACHE_SIZE = 100;
-const translationCache = new Map<string, string>();
-const pendingTranslations = new Map<string, Promise<string>>();
-
-function setBoundedCache<K, V>(cache: Map<K, V>, key: K, value: V, maxSize = MAX_CACHE_SIZE): void {
-  if (cache.size >= maxSize) {
-    const firstKey = cache.keys().next().value;
-    if (firstKey !== undefined) cache.delete(firstKey);
-  }
-  cache.set(key, value);
-}
-
-function requestSubtitleTranslation(text: string, targetLang: string): Promise<string> {
-  const key = `${targetLang}:${text}`;
-  if (translationCache.has(key)) return Promise.resolve(translationCache.get(key)!);
-  if (pendingTranslations.has(key)) return pendingTranslations.get(key)!;
-  const request = chrome.runtime.sendMessage({ type: "TRANSLATE_TEXT", payload: { text, targetLang } }).then(response => {
-    if (response?.type !== "TRANSLATE_RESULT" || !response.payload?.translation) return "";
-    const translation = deduplicateCueText(String(response.payload.translation));
-    setBoundedCache(translationCache, key, translation);
-    return translation;
-  }).finally(() => pendingTranslations.delete(key));
-  pendingTranslations.set(key, request);
-  return request;
-}
 
 let cachedSegmenter: any = null;
 function getJapaneseSegmenter() {
@@ -132,7 +104,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   videoRef,
   currentUrl,
   videoTitle = "",
-  availableTracks = [],
   secondaryTrackId,
   offset = 0,
   isDrawerOpen,
@@ -147,8 +118,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   const { settings, updateSettings } = useSettingsStore();
   const { t, isVietnamese } = useTranslation();
 
-  const [analyzed, setAnalyzed] = useState<{ text: string; tokens: TokenAnalysis[] } | null>(null);
-  const [translatedText, setTranslatedText] = useState<string>("");
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [offsetToast, setOffsetToast] = useState<string | null>(null);
   const [internalDrawerOpen, setInternalDrawerOpen] = useTranscriptPanelToggle();
@@ -233,76 +202,12 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   // Render source-preserving tokens immediately; enrichment never gates a cue.
   const primaryText = useMemo(() => cleanSubtitleText(currentSegment?.text || ""), [currentSegment?.text]);
   const immediateTokens = useMemo(() => isEnabled && primaryText ? createImmediateTokens(primaryText) : null, [primaryText, isEnabled]);
-  useEffect(() => {
-    if (!isEnabled || !primaryText || settings.showFurigana === false) return;
-    const controller = new AbortController();
-    void requestTranscriptReadings(primaryText, settings.targetLanguage || "vi", { signal: controller.signal, priority: 1 })
-      .then(tokens => {
-        if (!controller.signal.aborted && cleanSubtitleText(tokens.map(token => token.surface).join("")) === primaryText) {
-          setAnalyzed({ text: primaryText, tokens });
-        }
-      }).catch(() => {});
-    return () => controller.abort();
-  }, [primaryText, isEnabled, settings.targetLanguage, settings.showFurigana]);
-
-  // ── 2. Handle Secondary Subtitle / Auto-Translation ─────────────────────────
-
-  useEffect(() => {
-    if (!currentSegment?.text || !isEnabled || settings.subtitlesSecondaryEnabled === false) {
-      setTranslatedText("");
-      return;
-    }
-
-    // If disabled or empty secondary selection, clear
-    if (!secondaryTrackId) {
-      setTranslatedText("");
-      return;
-    }
-
-    // If a native secondary segment is provided, use it directly
-    if (secondarySegment?.text) {
-      setTranslatedText(deduplicateCueText(secondarySegment.text));
-      return;
-    }
-
-    // Determine target translation language
-    let targetLang: string = settings.targetLanguage || "vi";
-    if (secondaryTrackId !== "__auto_translate__" && availableTracks.length > 0) {
-      const match = availableTracks.find((t) => t.id === secondaryTrackId);
-      if (match?.languageCode) {
-        targetLang = match.languageCode.startsWith("vi") ? "vi" : match.languageCode.startsWith("en") ? "en" : match.languageCode;
-      }
-    }
-
-    const text = currentSegment.text.trim();
-    const cacheKey = `${targetLang}:${text}`;
-
-    if (translationCache.has(cacheKey)) {
-      setTranslatedText(deduplicateCueText(translationCache.get(cacheKey)!));
-      return;
-    }
-
-    let isMounted = true;
-    setTranslatedText("");
-    requestSubtitleTranslation(text, targetLang)
-      .then((translation) => {
-        if (!isMounted) return;
-        setTranslatedText(translation);
-      })
-      .catch(() => {});
-
-    return () => {
-      isMounted = false;
-    };
-  }, [
-    currentSegment?.text,
-    secondarySegment?.text,
-    secondaryTrackId,
-    availableTracks,
-    isEnabled,
-    settings.subtitlesSecondaryEnabled,
-    settings.targetLanguage,
-  ]);
+  const prepared = useSubtitlePreparation({
+    enabled: isEnabled, track: subtitleData, secondary: secondaryData,
+    cue: currentSegment, secondaryCue: secondarySegment, secondaryTrackId,
+    language: settings.targetLanguage || "vi", readings: settings.showFurigana !== false,
+    bilingual: settings.subtitlesSecondaryEnabled !== false, videoRef, offset,
+  });
 
   // ── 3. Auto-Pause Handling (Event-Driven) ───────────────────────────────────
 
@@ -504,6 +409,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       new CustomEvent("hakkutsu:analyze", {
         detail: {
           text: token.surface,
+          token,
           x,
           y,
           placement: "player-overlay",
@@ -545,6 +451,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
       new CustomEvent("hakkutsu:analyze", {
         detail: {
           text: token.surface,
+          token,
           x,
           y,
           placement: "player-overlay",
@@ -743,14 +650,18 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   if (!isEnabled && !drawerOpen) return null;
 
   const fontSize = settings.subtitlesFontSize || 26;
-  const secondaryText = cleanSubtitleText(secondarySegment?.text || translatedText);
-  const visibleTokens = analyzed?.text === primaryText ? analyzed.tokens : immediateTokens;
+  const secondaryText = prepared.secondaryText;
+  const visibleTokens = prepared.tokens || immediateTokens;
+  const showCue = Boolean(primaryText && !prepared.waitingForPair);
+  const status = error || (loading ? t("sub_overlay_loading") : "") ||
+    (prepared.waitingForPair ? t("sub_overlay_preparing_pair") : "") ||
+    (prepared.translationFailed ? t("sub_overlay_translation_failed") : "");
 
   return (
     <>
       {isEnabled && (
         <>
-          {(loading || error) && (
+          {status && (
             <div
               role={error ? "alert" : "status"}
               aria-live="polite"
@@ -770,7 +681,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
                 pointerEvents: "none",
               }}
             >
-              {error || "Loading subtitles…"}
+              {status}
             </div>
           )}
 
@@ -827,14 +738,14 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
           )}
 
           {/* Main Subtitle Container */}
-          <div className={`hk-sub__container ${!primaryText ? "hk-sub__container--hidden" : ""}`} ref={containerRef}>
-            {primaryText && (
+          <div className={`hk-sub__container ${!showCue ? "hk-sub__container--hidden" : ""}`} ref={containerRef}>
+            {showCue && (
               <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", pointerEvents: "auto" }}>
                 {/* Primary Subtitle Bar */}
                 <div className="hk-sub__bar" style={{ fontSize: `${fontSize}px` }}>
                   {visibleTokens && visibleTokens.length > 0 ? (
                     visibleTokens.map((token, idx) => {
-                      const isKanji = /[\u4e00-\u9faf]/.test(token.surface);
+                      const isKanji = hasKanji(token.surface);
                       const cleanReading = sanitizeReading(token.reading?.hiragana || "", token.surface);
                       const showRuby =
                         settings.showFurigana !== false &&

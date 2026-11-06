@@ -10,7 +10,7 @@ import type { AnalyzeRequest, AnalyzeResponse, PhraseAnalyzeResponse, HealthResp
 import type { SubtitleRequest, SubtitleResponse } from "~/features/subtitles/shared/types";
 import { llmService } from "./llm-service";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
-import { containsJapanese } from "~/shared/japanese/japanese";
+import { containsJapanese, resolveSurfaceReading, deriveInflectedReading } from "~/shared/japanese/japanese";
 import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import { useSettingsStore } from "~/features/settings/settings-store";
 
@@ -35,12 +35,18 @@ function mapRawTokenToAnalysis(t: any): TokenAnalysis {
   } else if (!reading || typeof reading !== "object") {
     reading = { hiragana: "", romaji: "" };
   }
+  const rawReading = typeof reading.hiragana === "string" ? reading.hiragana : "";
+  const dictionaryReading = resolveSurfaceReading(dictionary_form,
+    typeof t.dictionary_reading === "string" ? t.dictionary_reading : rawReading);
+  const surfaceReading = resolveSurfaceReading(surface, rawReading) ||
+    resolveSurfaceReading(surface, deriveInflectedReading(surface, dictionary_form, dictionaryReading));
+  reading = { hiragana: surfaceReading, romaji: surfaceReading ? reading.romaji || "" : "" };
 
   return {
     surface,
     dictionary_form,
     reading,
-    dictionary_reading: typeof t.dictionary_reading === "string" ? t.dictionary_reading : undefined,
+    dictionary_reading: dictionaryReading || undefined,
     pos: t.pos || "word",
     pos_detail: Array.isArray(t.pos_detail) ? t.pos_detail : [],
     is_japanese: typeof t.is_japanese === "boolean" ? t.is_japanese : containsJapanese(surface),

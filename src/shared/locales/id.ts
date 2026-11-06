@@ -268,6 +268,8 @@ export const id = {
   settings_leech_threshold_desc: "Jumlah kegagalan ulasan sebelum kartu ditandai sebagai leech untuk pelatihan ulang terarah",
 
   // Subtitle Overlay & Modal
+  sub_overlay_preparing_pair: "Menyiapkan subtitel dwibahasa…",
+  sub_overlay_translation_failed: "Terjemahan tidak tersedia. Menampilkan subtitel asli.",
   sub_overlay_loading: "Memuat subtitle bahasa Jepang...",
   sub_overlay_error_prefix: "Tidak dapat memuat subtitle: ",
   sub_overlay_no_ja: "Tidak ada subtitle bahasa Jepang yang ditemukan untuk video ini. Klik 'Pilih Subtitle' untuk memilih trek lain atau cari di Jimaku.",

@@ -268,6 +268,8 @@ export const zh = {
   settings_leech_threshold_desc: "卡片复习失败达到此次数后自动标记为顽固卡片以便专项强化",
 
   // Subtitle Overlay & Modal
+  sub_overlay_preparing_pair: "正在准备双语字幕…",
+  sub_overlay_translation_failed: "翻译不可用，正在显示原文字幕。",
   sub_overlay_loading: "正在加载日文字幕...",
   sub_overlay_error_prefix: "无法加载字幕：",
   sub_overlay_no_ja: "此视频没有日文字幕。点击“选择字幕”挑选其他轨道或在 Jimaku 搜索。",

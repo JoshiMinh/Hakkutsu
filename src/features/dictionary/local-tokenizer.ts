@@ -22,6 +22,9 @@ import { deinflectWord, mergeOkuriganaTokens } from "~/shared/japanese/japanese"
 import { refineJapaneseTokens } from "./japanese-token-refinement";
 import { getDB, searchDictionary } from "./local-lookup";
 
+const segmenter = typeof Intl !== "undefined" && "Segmenter" in Intl
+  ? new (Intl as any).Segmenter("ja-JP", { granularity: "word" }) : null;
+
 export { deinflectWord, mergeOkuriganaTokens };
 
 /**
@@ -30,10 +33,9 @@ export { deinflectWord, mergeOkuriganaTokens };
 export async function tokenize(text: string, options: { dictionaryAware?: boolean } = {}): Promise<Token[]> {
   if (!text || !text.trim()) return [];
 
-  const cleanText = text.trim();
+  const cleanText = text;
 
-  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
-    const segmenter = new (Intl as any).Segmenter("ja-JP", { granularity: "word" });
+  if (segmenter) {
     const segments = Array.from(segmenter.segment(cleanText)) as Array<{
       segment: string;
       index: number;

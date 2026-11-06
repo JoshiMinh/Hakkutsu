@@ -7,7 +7,7 @@ import unihanReadings from "./data/hanviet-unihan.json";
 const HANVIET_MAP: Record<string, string> = {
   ...unihanReadings,
   // Kanji to Sino-Vietnamese sound mapping
-  "日": "NHẬT", "本": "BẢN", "語": "NGÔN", "学": "HỌC", "生": "SINH",
+  "日": "NHẬT", "本": "BẢN", "語": "NGỮ", "学": "HỌC", "生": "SINH",
   "校": "HIỆU", "先": "TIÊN", "私": "TƯ", "人": "NHÂN", "方": "PHƯƠNG",
   "名": "DANH", "前": "TIỀN", "中": "TRUNG", "国": "QUỐC", "英": "ANH",
   "何": "HÀ", "大": "ĐẠI", "小": "TIỂU", "高": "CAO", "安": "AN",
@@ -95,16 +95,18 @@ const HANVIET_MAP: Record<string, string> = {
 export function getHanViet(text: string): string {
   if (!text) return "";
   const readings: string[] = [];
+  let previous = "";
   for (const char of text.normalize("NFKC")) {
     if (char === "々") {
-      if (readings.length) readings.push(readings[readings.length - 1]);
+      if (previous) readings.push(previous);
     } else if (/\p{Script=Han}/u.test(char)) {
       // A partial compound (便利 → LỢI) is misleading. Require coverage of
       // every kanji; kana, whitespace and punctuation do not need a reading.
       const reading = HANVIET_MAP[char];
       if (!reading) return "";
       readings.push(reading);
-    }
+      previous = reading;
+    } else if (!/[\uFE00-\uFE0F\u{E0100}-\u{E01EF}]/u.test(char)) previous = "";
   }
   return readings.join(" ");
 }

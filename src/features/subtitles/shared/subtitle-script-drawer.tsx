@@ -24,9 +24,10 @@ import type { SrsCard } from "~/features/srs/local-srs";
 import { useSettingsStore } from "~/features/settings/settings-store";
 import { useTranslation } from "~/shared/locales";
 import { deduplicateCueText } from "~/shared/japanese/text-normalization";
-import { distributeFurigana, containsJapanese, sanitizeReading, isKanji, mergeOkuriganaTokens } from "~/shared/japanese/japanese";
+import { distributeFurigana, containsJapanese, sanitizeReading, hasKanji, mergeOkuriganaTokens } from "~/shared/japanese/japanese";
 import { useTranscriptWindow } from "~/features/subtitles/shared/use-transcript-window";
 import { requestTranscriptReadings } from "~/features/subtitles/shared/transcript-readings";
+import { pairSubtitleTracks } from "~/features/subtitles/shared/subtitle-pairs";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
 
 // ── Helpers & Cache ──────────────────────────────────────────────────────────
@@ -131,7 +132,7 @@ export interface SubtitleScriptDrawerProps {
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
-  onLookup?: (text: string, transient: boolean) => void;
+  onLookup?: (text: string, transient: boolean, token?: TokenAnalysis) => void;
   onDismissLookup?: (force: boolean) => void;
 }
 
@@ -258,7 +259,7 @@ const TranscriptCue = React.memo(function TranscriptCue({
       {/* Primary Japanese Dialogue with Tokenization & Highlighting */}
       <div className="hk-script-cue__primary">
         {tokens.map((token, tIdx) => {
-          const isKanjiWord = isKanji(token.surface) || /[\u4e00-\u9faf]/.test(token.surface);
+          const isKanjiWord = hasKanji(token.surface);
           const cleanReading = sanitizeReading(token.reading?.hiragana || "", token.surface);
           const showRuby =
             settings.showFurigana !== false &&
@@ -410,21 +411,13 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
     setPlayingTtsIdx(null);
   }, [subtitleData]);
 
-  // Map secondary segments by approximate start time for fast lookup
+  // Use the same cue boundaries and complete translations as the player overlay.
   const secondaryMap = useMemo(() => {
     const map = new Map<number, string>();
-    if (secondarySegments.length === 0) return map;
-    const sorted = [...secondarySegments].sort((a, b) => a.start - b.start);
-    let secondaryIndex = 0;
+    const pairs = pairSubtitleTracks(segments, secondarySegments);
     segments.forEach((cue, index) => {
-      while (secondaryIndex + 1 < sorted.length &&
-        Math.abs(sorted[secondaryIndex + 1].start - cue.start) < Math.abs(sorted[secondaryIndex].start - cue.start)) {
-        secondaryIndex++;
-      }
-      const nearest = sorted[secondaryIndex];
-      if (Math.abs(nearest.start - cue.start) <= Math.max(1.5, cue.duration)) {
-        map.set(index, deduplicateCueText(nearest.text));
-      }
+      const text = pairs.get(cue);
+      if (text) map.set(index, text);
     });
     return map;
   }, [secondarySegments, segments]);
@@ -731,12 +724,13 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
 
   const handleTokenClick = useCallback((e: React.MouseEvent, token: TokenAnalysis) => {
     e.stopPropagation();
-    if (onLookup) { onLookup(token.surface, false); return; }
+    if (onLookup) { onLookup(token.surface, false, token); return; }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     window.dispatchEvent(
       new CustomEvent("hakkutsu:analyze", {
         detail: {
           text: token.surface,
+          token,
           x: rect.left + rect.width / 2,
           y: rect.top,
           placement: "drawer",
@@ -750,12 +744,13 @@ export const SubtitleScriptDrawer: React.FC<SubtitleScriptDrawerProps> = ({
 
   const handleTokenMouseEnter = useCallback((e: React.MouseEvent, token: TokenAnalysis) => {
     if (!token?.surface?.trim() || !token.is_japanese) return;
-    if (onLookup) { onLookup(token.surface, true); return; }
+    if (onLookup) { onLookup(token.surface, true, token); return; }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     window.dispatchEvent(
       new CustomEvent("hakkutsu:analyze", {
         detail: {
           text: token.surface,
+          token,
           x: rect.left + rect.width / 2,
           y: rect.top,
           placement: "drawer",

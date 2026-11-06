@@ -268,6 +268,8 @@ export const es = {
   settings_leech_threshold_desc: "Número de repasos fallidos antes de marcar una tarjeta como leech para reentrenamiento",
 
   // Subtitle Overlay & Modal
+  sub_overlay_preparing_pair: "Preparando subtítulos bilingües…",
+  sub_overlay_translation_failed: "Traducción no disponible. Se muestran los subtítulos originales.",
   sub_overlay_loading: "Cargando subtítulos en japonés...",
   sub_overlay_error_prefix: "No se pudieron cargar los subtítulos: ",
   sub_overlay_no_ja: "No se encontraron subtítulos en japonés para este vídeo. Haz clic en 'Seleccionar Subtítulos' para elegir otra pista o buscar en Jimaku.",

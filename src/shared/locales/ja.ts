@@ -268,6 +268,8 @@ export const ja = {
   settings_leech_threshold_desc: "苦手カードとしてマークされるまでの復習失敗回数",
 
   // Subtitle Overlay & Modal
+  sub_overlay_preparing_pair: "二言語字幕を準備中…",
+  sub_overlay_translation_failed: "翻訳を取得できません。元の字幕を表示します。",
   sub_overlay_loading: "日本語字幕を読み込み中...",
   sub_overlay_error_prefix: "字幕を読み込めませんでした: ",
   sub_overlay_no_ja: "この動画には日本語字幕がありません。「字幕を選択」で別のトラックを選ぶかJimakuで検索してください。",

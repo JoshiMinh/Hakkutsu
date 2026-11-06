@@ -31,3 +31,17 @@ The browser fixture committed initial subtitle text in approximately **13ms**, w
 These are deterministic local tests, not live YouTube/Netflix service or DRM playback tests. Already-running extension messages cannot be recalled; cancelled consumers stop waiting and queued work is removed. Background caption fetches already started retain their existing bounded timeout.
 
 Run the browser fixtures with `node node_modules/vite/bin/vite.js --config tests/vite.config.ts`. Raw local evidence is saved under ignored `test-results/subtitle-*.json` and `test-results/subtitle-browser.*`.
+
+## Track preparation and synchronized bilingual subtitles — 2026-11-06
+
+YouTube now selects a native target-language track when available, otherwise it requests the complete translated caption track. Netflix starts the source and target downloads concurrently, including bridge requests for lazy track URLs. Failed secondary downloads fall back to automatic translation. Track switches, retries and navigation abort obsolete downloads and guard against stale replies.
+
+The shared preparation service prioritizes the current cue and the next 60 seconds, then processes the remaining track. Separate reading and translation lanes each keep one background request active, leaving capacity for foreground playback. Queues retain the existing two-request concurrency and 64-job waiting limits. Seeking cancels obsolete queued subscribers and reprioritizes the new position; disabling subtitles or changing tracks releases workers and timers. Temporary queue pressure retries later instead of permanently skipping a cue.
+
+Prepared results belong to the track and language, so replay remains cached even beyond the shared 200-entry request cache. Old preparation objects are not retained in React result state after switching tracks. Definitions are still fetched only on lookup.
+
+Native translations overlap the source cue interval and share its display boundary, including target lines that start slightly later or split one source cue into multiple lines. The overlay and transcript use the same pairing function. Real gaps in the target track remain empty. Automatic translations are keyed by source text, track preparation identity and language; both lines render together once ready. An uncached pair shows a preparation notice, and a failed translation restores the original line with a notice instead of showing an unrelated previous translation.
+
+Validation: **55 Node tests passed**, including nine preparation/queue/pairing scenarios; **8/8 browser scenarios passed** in the actual React components. Browser checks cover native pair commits, transcript pairing, lookahead translation, language changes, late replies after seeking, failure fallback, concurrent Netflix downloads, and complete YouTube translated-track downloads, plus the existing timing and virtualization checks. TypeScript and all eight locale key sets passed. Chrome MV3 and Firefox MV2 production builds passed.
+
+These tests use deterministic caption responses and disposable extension APIs. They do not claim live YouTube/Netflix or DRM playback verification, or guarantee an instant first pair when a translation service is slow. Already-running extension messages complete independently of cancelled consumers; pending translation requests release their queue slots after a ten-second client timeout.

@@ -125,16 +125,17 @@ test("background shares duplicate subtitle analysis across contexts and isolates
   language="en";const english=analyzeSubtitleReadings("学校");await flush();assert.equal(calls,2);release();await english;
 });
 
-test("readings-only kana analysis makes no remote dictionary requests and deduplicates kanji lookups", async () => {
+test("readings-only analysis makes no remote requests and deduplicates local lookups", async () => {
   let remote=0,local=0;
   const {analyzeLocal}=loader({
     "~/features/settings/settings-storage":{getSettings:async()=>({targetLanguage:"vi"})},
     "~/features/dictionary/local-lookup":{searchDictionary:async()=>{local++;return [];}},
-    "~/features/dictionary/dictionary-lookup":{lookupWord:async()=>{remote++;return {reading:"がっこう",meaning:"school"};}},
+    "~/features/dictionary/dictionary-lookup":{getCommonWord:load("src/features/dictionary/dictionary-lookup.ts").getCommonWord,lookupWord:async()=>{remote++;return {reading:"がっこう",meaning:"school"};}},
     "~/features/dictionary/google-translate":{googleTranslateService:{}},
   })("src/features/dictionary/background-analysis.ts");
   const kana=await analyzeLocal("かな カナ",false);assert.equal(remote,0);assert.equal(local,0);assert.equal(kana.tokens.map(t=>t.surface).join(""),"かな カナ");
-  await analyzeLocal("学校 学校 学校",false);assert.equal(remote,1);assert.equal(local,1);
+  const result=await analyzeLocal("学校 学校 学校",false);assert.equal(remote,0);assert.equal(local,1);
+  assert.equal(result.tokens[0].reading.hiragana,"がっこう");
 });
 
 test("automatic reading failures do not start full LLM analysis; explicit analysis still works", async () => {

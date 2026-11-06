@@ -268,6 +268,8 @@ export const ko = {
   settings_leech_threshold_desc: "취약 카드로 지정되기 전까지의 복습 실패 횟수",
 
   // Subtitle Overlay & Modal
+  sub_overlay_preparing_pair: "이중 언어 자막 준비 중…",
+  sub_overlay_translation_failed: "번역을 불러올 수 없어 원문 자막을 표시합니다.",
   sub_overlay_loading: "일본어 자막 불러오는 중...",
   sub_overlay_error_prefix: "자막을 불러올 수 없습니다: ",
   sub_overlay_no_ja: "이 동영상에는 일본어 자막이 없습니다. '자막 선택'을 클릭하여 다른 트랙을 선택하거나 Jimaku에서 검색하세요.",

@@ -4,7 +4,7 @@ import type { TokenAnalysis } from "~/features/dictionary/types";
 import type { AnkiExportData } from "~/features/anki/types";
 import { formatPosLabel } from "~/features/dictionary/pos-labels";
 import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
-import { hasKanji, distributeFurigana } from "~/shared/japanese/japanese";
+import { hasKanji, distributeFurigana, resolveSurfaceReading } from "~/shared/japanese/japanese";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
 import { JlptBadge, FrequencyBadge } from "~/shared/ui/badges";
 import { Volume2, BookmarkPlus, Copy, Check, Sparkles, BookOpen, MessageSquareText, Loader2, Image as ImageIcon, AlertCircle } from "lucide-react";
@@ -90,7 +90,8 @@ export function DefinitionCard({
 
   const wordQuery = token.dictionary_form || token.surface;
   const wordHasKanji = hasKanji(token.dictionary_form) || hasKanji(token.surface);
-  const readingStr = token.dictionary_reading || (typeof token.reading === "string" ? token.reading : (token.reading?.hiragana || ""));
+  const readingStr = resolveSurfaceReading(wordQuery,
+    token.dictionary_reading || (typeof token.reading === "string" ? token.reading : token.reading?.hiragana));
   const rubySegments = distributeFurigana(token.dictionary_form || token.surface, readingStr);
 
   // The visibility setting applies consistently across lookup, vocabulary and review.

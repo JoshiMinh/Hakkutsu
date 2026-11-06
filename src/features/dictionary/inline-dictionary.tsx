@@ -9,7 +9,7 @@ import {
   BookmarkPlus,
   AlertCircle,
 } from "lucide-react";
-import { containsJapanese } from "~/shared/japanese/japanese";
+import { containsJapanese, resolveSurfaceReading } from "~/shared/japanese/japanese";
 import type { AnalyzeResponse, PhraseAnalyzeResponse, TokenAnalysis } from "~/features/dictionary/types";
 import type { AnkiExportData } from "~/features/anki/types";
 import { DefinitionCard } from "~/features/dictionary/definition-card";
@@ -18,7 +18,7 @@ import { GrammarExplanations } from "~/features/dictionary/grammar-explanations"
 import { MangaOcrImages } from "~/features/ocr/manga-ocr-images";
 import { useSettingsStore } from "~/features/settings/settings-store";
 import { useTranslation } from "~/shared/locales";
-import { requestLookupAnalysis } from "~/features/dictionary/lookup-analysis";
+import { requestLookupAnalysis, applyLookupContext } from "~/features/dictionary/lookup-analysis";
 
 // Content scripts render inside arbitrary websites, so root-relative URLs point
 // at the host page. Resolve the packaged asset against the extension origin.
@@ -419,7 +419,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         const detail = e.detail;
         const open = () => {
           hoverTimerRef.current = null;
-          const lookupKey = JSON.stringify([detail.text, detail.mode || "dictionary", detail.selectedIndex, settingsRef.current.targetLanguage, Boolean(detail.fromTranscript), detail.ocrRegionId]);
+          const lookupKey = JSON.stringify([detail.text, detail.mode || "dictionary", detail.selectedIndex, settingsRef.current.targetLanguage, Boolean(detail.fromTranscript), detail.ocrRegionId, detail.token?.reading?.hiragana, detail.token?.dictionary_form]);
           if (activeLookupRef.current === lookupKey && positionRef.current) {
             if (!detail.transient) setTransientMode(false);
             return;
@@ -467,7 +467,8 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
             isOcr || mode === "dictionary" || Boolean(e.detail.transient),
             selectedIndex,
             mode === "quick" || mode === "dictionary",
-            isOcr ? "ocr" : undefined
+            isOcr ? "ocr" : undefined,
+            detail.token
           );
           window.dispatchEvent(new CustomEvent("hakkutsu:analysis-opened"));
         };
@@ -541,6 +542,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         if (typeof text !== "string" || !text.trim() || text.length > 1000) return;
         window.dispatchEvent(new CustomEvent("hakkutsu:analyze", { detail: {
           text, mode: "dictionary", transient: Boolean(message.payload.transient), fromTranscript: true,
+          token: message.payload.token,
           pauseVideo: false, x: window.innerWidth - Math.min(420, window.innerWidth - 32) / 2 - 16,
           y: Math.max(16, (window.innerHeight - 440) / 2),
         } }));
@@ -579,7 +581,8 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
     includeDefinitions = true,
     preferredTokenIndex: number | null = null,
     useJaviAnalysis = false,
-    source?: "ocr"
+    source?: "ocr",
+    contextToken?: TokenAnalysis
   ) => {
     const expectedText = text.trim();
     const requestId = ++analysisRequestRef.current;
@@ -604,7 +607,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         response?.type === "ANALYZE_RESULT" ||
         response?.type === "ANALYZE_PHRASE_RESULT"
       ) {
-        const analyzeResponse = response.payload as AnalyzeResponse | PhraseAnalyzeResponse;
+        const analyzeResponse = applyLookupContext(response.payload as AnalyzeResponse | PhraseAnalyzeResponse, contextToken);
         if (requestId !== analysisRequestRef.current) return;
         if (analyzeResponse.text.trim() !== expectedText) {
           throw new Error(
@@ -683,7 +686,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         console.error("Remove card failed", e);
       }
     } else {
-      const wordReading = selectedTokenData.dictionary_reading || selectedTokenData.reading.hiragana;
+      const wordReading = resolveSurfaceReading(word, selectedTokenData.dictionary_reading || selectedTokenData.reading.hiragana);
       const meanings = selectedTokenData.definitions
         .flatMap((d) => d.glosses)
         .join("; ");

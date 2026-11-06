@@ -37,7 +37,7 @@ export interface DictEntry {
   jlpt?: string
 }
 
-export async function searchDictionary(query: string): Promise<DictEntry[]> {
+async function searchDictionaryUncached(query: string): Promise<DictEntry[]> {
   try {
     const db = await getDB()
     const results: DictEntry[] = []
@@ -54,8 +54,7 @@ export async function searchDictionary(query: string): Promise<DictEntry[]> {
     const kanjiIndex = store.index("kanji")
     const readingIndex = store.index("reading")
 
-    const byKanji = await kanjiIndex.getAll(query)
-    const byReading = await readingIndex.getAll(query)
+    const [byKanji, byReading] = await Promise.all([kanjiIndex.getAll(query), readingIndex.getAll(query)])
     await completion
 
     // Deduplicate results
@@ -72,4 +71,15 @@ export async function searchDictionary(query: string): Promise<DictEntry[]> {
     console.error("[Hakkutsu] Dictionary search failed:", error)
     return []
   }
+}
+
+const pendingSearches = new Map<string, Promise<DictEntry[]>>()
+
+/** Share concurrent reads without retaining stale results after dictionary imports. */
+export function searchDictionary(query: string): Promise<DictEntry[]> {
+  const pending = pendingSearches.get(query)
+  if (pending) return pending
+  const request = searchDictionaryUncached(query).finally(() => pendingSearches.delete(query))
+  pendingSearches.set(query, request)
+  return request
 }

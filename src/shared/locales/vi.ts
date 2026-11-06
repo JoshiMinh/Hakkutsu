@@ -268,6 +268,8 @@ export const vi = {
   settings_leech_threshold_desc: "Số lần quên/thất bại trong SRS trước khi thẻ được đánh dấu Leech để ôn luyện lại",
 
   // Subtitle Overlay & Modal
+  sub_overlay_preparing_pair: "Đang chuẩn bị phụ đề song ngữ…",
+  sub_overlay_translation_failed: "Không thể dịch. Đang hiển thị phụ đề gốc.",
   sub_overlay_loading: "Đang tải phụ đề tiếng Nhật...",
   sub_overlay_error_prefix: "Không thể tải phụ đề: ",
   sub_overlay_no_ja: "Video này không có phụ đề tiếng Nhật. Bấm 'Chọn phụ đề' để chọn track khác hoặc tìm trên Jimaku.",

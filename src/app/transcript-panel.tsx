@@ -4,6 +4,7 @@ import { SubtitleScriptDrawer } from "~/features/subtitles/shared/subtitle-scrip
 import type { TranscriptSnapshot } from "~/features/subtitles/shared/transcript-panel";
 import { mergeTranscriptSnapshot } from "~/features/subtitles/shared/transcript-state";
 import type { SrsCard } from "~/features/srs/local-srs";
+import type { TokenAnalysis } from "~/features/dictionary/types";
 import "~/styles/global.css";
 
 function closePanel() {
@@ -79,7 +80,7 @@ export default function TranscriptPanel() {
   const cardMap = useMemo(() => new Map(cards.flatMap((card) => [card.word, card.reading].filter(Boolean).map((word) => [word!, card] as const))), [cards]);
   const seek = useCallback((time: number) => portRef.current?.postMessage({ type: "SEEK_TRANSCRIPT", payload: { time } }), []);
   const retry = useCallback(() => portRef.current?.postMessage({ type: "RETRY_TRANSCRIPT" }), []);
-  const lookup = useCallback((text: string, transient: boolean) => portRef.current?.postMessage({ type: "LOOKUP_TRANSCRIPT", payload: { text, transient } }), []);
+  const lookup = useCallback((text: string, transient: boolean, token?: TokenAnalysis) => portRef.current?.postMessage({ type: "LOOKUP_TRANSCRIPT", payload: { text, transient, token } }), []);
   const dismissLookup = useCallback((force: boolean) => portRef.current?.postMessage({ type: "CANCEL_TRANSCRIPT_LOOKUP", payload: { force } }), []);
   useEffect(() => { dismissLookup(true); window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed")); }, [snapshot?.sourceUrl, dismissLookup]);
   return <div className="hk-transcript-workspace">

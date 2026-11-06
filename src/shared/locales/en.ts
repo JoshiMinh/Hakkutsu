@@ -268,6 +268,8 @@ export const en = {
   settings_leech_threshold_desc: "Number of failed reviews before a card is marked as a leech for targeted retraining",
 
   // Subtitle Overlay & Modal
+  sub_overlay_preparing_pair: "Preparing bilingual subtitles…",
+  sub_overlay_translation_failed: "Translation unavailable. Showing original subtitles.",
   sub_overlay_loading: "Loading Japanese subtitles...",
   sub_overlay_error_prefix: "Could not load subtitles: ",
   sub_overlay_no_ja: "No Japanese subtitles found for this video. Click 'Select Subtitles' to pick another track or search Jimaku.",
