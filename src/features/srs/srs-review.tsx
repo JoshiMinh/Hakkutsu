@@ -1,8 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { FieldPreview } from "~/features/anki/field-preview";
+import { AnkiReview } from "~/features/anki/anki-review";
+import { useEffect, useState, useCallback } from "react";
 import { localSrs } from "~/features/srs/local-srs";
 import type { SrsCard, SrsStats } from "~/features/srs/local-srs";
 import type { SmartDeckFilter, SmartDeckFilterOptions } from "~/features/srs/types";
-import { Brain, PartyPopper, Volume2, RotateCcw, Filter, AlertTriangle, Flame, Layers, Sparkles, Check, CheckCircle2, Headphones, Activity, BookOpen, HelpCircle } from "lucide-react";
+import { Brain, PartyPopper, Volume2, RotateCcw, Filter, AlertTriangle, Flame, Sparkles, Headphones } from "lucide-react";
 import { useTranslation } from "~/shared/locales";
 import { ttsService } from "~/shared/browser/tts-service";
 import { distributeFurigana, generateClozeSentence } from "~/shared/japanese/japanese";
@@ -11,6 +13,7 @@ import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 
 function RenderFurigana({ text, reading, className }: { text: string; reading?: string; className?: string }) {
   if (!text) return null;
+  if (/<(?:ruby|b)[\s>]/i.test(text)) return <FieldPreview value={text} />;
   const segments = distributeFurigana(text, reading);
   if (!segments || segments.length === 0) return <span className={className}>{text}</span>;
   return (
@@ -29,7 +32,7 @@ function RenderFurigana({ text, reading, className }: { text: string; reading?: 
   );
 }
 
-export function SrsReview({ userId = "user_1", compact = false }: { userId?: string; compact?: boolean }) {
+function LocalSrsReview({ compact = false }: { userId?: string; compact?: boolean }) {
   const { t, isVietnamese, showHanViet } = useTranslation();
   const settings = useSettingsStore((s) => s.settings);
   const [cards, setCards] = useState<SrsCard[]>([]);
@@ -68,7 +71,7 @@ export function SrsReview({ userId = "user_1", compact = false }: { userId?: str
 
       const [filteredCards, currentStats, availableFilters] = await Promise.all([
         localSrs.getFilteredCards(filters),
-        localSrs.getSrsStats(),
+        localSrs.getSrsStats(false),
         localSrs.getAvailableSmartDeckFilters(),
       ]);
 
@@ -553,4 +556,16 @@ export function SrsReview({ userId = "user_1", compact = false }: { userId?: str
   );
 }
 
+export function SrsReview(props: { userId?: string; compact?: boolean }) {
+  const { t } = useTranslation();
+  const settings = useSettingsStore(state => state.settings);
+  const [source, setSource] = useState<"local" | "anki">("local");
+  return <>
+    <div className="hk-anki-toolbar hk-anki-review-source" role="group" aria-label={t("anki_review_source")}>
+      <button type="button" className="hk-btn hk-btn--secondary" aria-pressed={source === "local"} onClick={() => setSource("local")}>{t("anki_local_review")}</button>
+      <button type="button" className="hk-btn hk-btn--secondary" disabled={settings.ankiEnabled === false} aria-pressed={source === "anki"} onClick={() => setSource("anki")}>{t("anki_review")}</button>
+    </div>
+    {source === "anki" ? <AnkiReview settings={settings} /> : <LocalSrsReview {...props} />}
+  </>;
+}
 export default SrsReview;

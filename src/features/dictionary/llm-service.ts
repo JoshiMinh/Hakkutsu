@@ -1,5 +1,3 @@
-import { useSettingsStore } from "~/features/settings/settings-store";
-import type { ExtensionSettings } from "~/features/settings/types";
 import type { WebTranslateResponse } from "~/features/dictionary/types";
 import { googleTranslateService } from "./google-translate";
 import { lookupWord, type LookupResult } from "./dictionary-lookup";
@@ -7,7 +5,6 @@ import { katakanaToHiragana, containsJapanese, hasKanji, romajiToHiragana, segme
 import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
 import { tokenize } from "./local-tokenizer";
-import { getSettings } from "~/features/settings/settings-storage";
 
 export class LlmServiceError extends Error {
   constructor(message: string) {
@@ -18,21 +15,10 @@ export class LlmServiceError extends Error {
 
 /**
  * High-performance text analysis and translation service using 
- * local Kuromoji tokenizer, offline JMDict, and Google Translate.
+ * native Japanese tokenizer, offline JMDict, and Google Translate.
  */
 class LlmService {
-  private async getSettings(providedSettings?: ExtensionSettings): Promise<ExtensionSettings> {
-    if (providedSettings) return providedSettings;
-    if (typeof chrome !== "undefined" && chrome.storage?.sync) {
-      try {
-        return await getSettings();
-      } catch {}
-    }
-    const state = useSettingsStore.getState();
-    return state.settings;
-  }
-
-  async analyzeText(text: string, isPhrase: boolean = false, targetLang: string = "vi", dictionaryAware = false): Promise<any> {
+  async analyzeText(text: string, _isPhrase: boolean = false, targetLang: string = "vi", dictionaryAware = false): Promise<any> {
     const cleanText = text.trim();
     // 1. Start Google Translate for sentence translation in parallel
     const translationPromise = googleTranslateService.translate(cleanText, targetLang, "ja");
@@ -63,7 +49,7 @@ class LlmService {
       } catch {}
     }
     
-    // 3. Local Kuromoji Tokenizer + Dictionary Lookup
+    // 3. Local Japanese Tokenizer + Dictionary Lookup
     try {
       let tokenList: Array<{ surface: string; base_form: string; reading?: string; dictionary_reading?: string; pos?: string }> = [];
 
@@ -79,7 +65,7 @@ class LlmService {
           }));
         }
       } catch {
-        // Kuromoji offline / segmenter fallback
+        // Native segmentation fallback
       }
 
       if (tokenList.length === 0) {
@@ -164,8 +150,8 @@ class LlmService {
 
   async translateWebpage(
     texts: string[],
-    pageUrl: string,
-    pageTitle: string,
+    _pageUrl: string,
+    _pageTitle: string,
     targetLang: string = "vi"
   ): Promise<WebTranslateResponse> {
     const translations = await googleTranslateService.translateBatch(texts, targetLang, "ja");

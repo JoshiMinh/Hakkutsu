@@ -2,9 +2,7 @@ import { memo, useEffect, useState, useRef } from "react";
 import {
   X,
   Loader2,
-  Sparkles,
   Languages,
-  Zap,
   Check,
   BookmarkPlus,
   AlertCircle,
@@ -138,7 +136,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
   const [ocrCroppedImage, setOcrCroppedImage] = useState<string | null>(null);
   const [ocrRegionId, setOcrRegionId] = useState<string | null>(null);
   const { settings, isHydrated } = useSettingsStore();
-  const { t, isVietnamese, lang } = useTranslation();
+  const { t, isVietnamese } = useTranslation();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const analysisRequestRef = useRef(0);

@@ -7,6 +7,9 @@ import { getSettings } from "~/features/settings/settings-storage";
 import { analyticsService } from "~/features/analytics/analytics-service";
 import { fsrsEngine, type FsrsRating, type FsrsState } from "~/features/srs/fsrs-engine";
 import type { SmartDeckFilter, SmartDeckFilterOptions } from "~/features/srs/types";
+import type { AnkiLink } from "~/features/anki/sync-types";
+import { ankiStorage } from "~/features/anki/sync-storage";
+import { escapeHtml, furiganaHtml, japaneseFieldNames, plainText } from "~/features/anki/japanese-schema";
 
 export interface SrsCard {
   id: string;
@@ -24,6 +27,11 @@ export interface SrsCard {
   vietnamese_sound?: string;
   sentence_furigana?: string;
   sentence_meaning?: string;
+  word_audio?: string;
+  sentence_audio?: string;
+  notes?: string;
+  picture?: string;
+  anki?: AnkiLink;
 
   // Additional metadata
   frequency_rank?: number | null;
@@ -91,7 +99,7 @@ interface SrsDBSchema extends DBSchema {
 export function validateSrsCards(value: unknown): asserts value is SrsCard[] {
   if (!Array.isArray(value)) throw new Error("Backup cards must be an array.");
   const strings = ["id", "reading", "meaning", "sentence", "source_url", "source_title", "source_domain", "image_url",
-    "word_furigana", "jlpt", "vietnamese_sound", "sentence_furigana", "sentence_meaning"];
+    "word_furigana", "jlpt", "vietnamese_sound", "sentence_furigana", "sentence_meaning", "word_audio", "sentence_audio", "notes", "picture"];
   const numbers = ["lapse_count", "stability", "difficulty", "state", "last_review", "retrievability", "elapsed_days",
     "scheduled_days", "due_date", "interval", "repetition", "efactor", "created_at", "updated_at"];
   value.forEach((card, index) => {
@@ -105,6 +113,19 @@ export function validateSrsCards(value: unknown): asserts value is SrsCard[] {
       (!Number.isFinite(card.frequency_rank) || card.frequency_rank < 0)) invalid("frequency rank");
     if (card.tags !== undefined && (!Array.isArray(card.tags) || card.tags.some((tag: unknown) => typeof tag !== "string"))) invalid("tags");
     if (card.is_leech !== undefined && typeof card.is_leech !== "boolean") invalid("leech status");
+    if (card.anki !== undefined) {
+      const link = card.anki;
+      if (!link || typeof link.profile !== "string" || typeof link.deck !== "string" || typeof link.model !== "string" ||
+        !Number.isSafeInteger(link.noteId) || link.noteId <= 0 || !Number.isSafeInteger(link.deckId) || link.deckId <= 0 ||
+        typeof link.verified !== "boolean" || !Array.isArray(link.tags) || link.tags.some((tag: unknown) => typeof tag !== "string") ||
+        !link.baseline || !link.localBaseline || Object.values(link.baseline).some(v => typeof v !== "string") ||
+        Object.values(link.localBaseline).some(v => typeof v !== "string") ||
+        japaneseFieldNames.some(field => typeof link.baseline[field] !== "string" || typeof link.localBaseline[field] !== "string")) invalid("Anki link");
+      if (link.previousLocalProgress) {
+        const allowed = new Set(["due_date", "interval", "repetition", "efactor", "lapse_count", "stability", "difficulty", "state", "last_review", "retrievability", "elapsed_days", "scheduled_days"]);
+        if (typeof link.previousLocalProgress !== "object" || Object.entries(link.previousLocalProgress).some(([key, value]) => !allowed.has(key) || typeof value !== "number" || !Number.isFinite(value) || value < 0)) invalid("archived review progress");
+      }
+    }
   });
 }
 
@@ -164,7 +185,7 @@ class LocalSrsService {
 
     // Duplicate prevention: if card already exists, update card fields (e.g., image_url, tags) and return
     const allCards = await db.getAll("cards");
-    const existingCard = allCards.find((c) => c.word.trim().toLowerCase() === word.toLowerCase());
+    const existingCard = allCards.find((c) => !c.anki && c.word.trim().toLowerCase() === word.toLowerCase());
     if (existingCard) {
       const updatedCard: SrsCard = {
         ...existingCard,
@@ -193,7 +214,7 @@ class LocalSrsService {
     const hasKanji = /[\u4e00-\u9faf]/.test(word);
     if (!word_furigana) {
       if (hasKanji && reading && reading !== word) {
-        word_furigana = `${word}[${reading}]`;
+        word_furigana = furiganaHtml(word, reading);
       } else {
         word_furigana = word;
       }
@@ -201,9 +222,9 @@ class LocalSrsService {
 
     // Handle example sentence context
     if (!sentence || sentence === word) {
-      sentence = `${word}の意味を覚えます。`;
-      sentence_furigana = `${word_furigana || word}のいみをおぼえます。`;
-      sentence_meaning = await googleTranslateService.translate(sentence, targetLang, "ja");
+      sentence = `<b>${escapeHtml(word)}</b>の意味を覚えます。`;
+      sentence_furigana = `<b>${word_furigana || escapeHtml(word)}</b>の<ruby>意味<rt>いみ</rt></ruby>を<ruby>覚<rt>おぼ</rt></ruby>えます。`;
+      sentence_meaning = await googleTranslateService.translate(plainText(sentence), targetLang, "ja");
     } else {
       if (!sentence_meaning) {
         sentence_meaning = await googleTranslateService.translate(sentence, targetLang, "ja");
@@ -310,7 +331,7 @@ class LocalSrsService {
     const clean = word.trim().toLowerCase();
     const card = allCards.find((c) => c.word.trim().toLowerCase() === clean);
     if (card) {
-      await db.delete("cards", card.id);
+      await this.deleteSrsCard(card.id);
       return true;
     }
     return false;
@@ -328,7 +349,7 @@ class LocalSrsService {
     const results: SrsCard[] = [];
     
     while (cursor && results.length < limit) {
-      results.push(cursor.value);
+      if (!cursor.value.anki) results.push(cursor.value);
       cursor = await cursor.continue();
     }
     
@@ -344,12 +365,22 @@ class LocalSrsService {
     return cards.reverse();
   }
 
+  async getSrsCard(id: string): Promise<SrsCard | undefined> { return (await this.dbPromise).get("cards", id); }
+
+  async putAnkiCards(cards: SrsCard[]): Promise<void> {
+    validateSrsCards(cards);
+    const tx = (await this.dbPromise).transaction("cards", "readwrite");
+    for (const card of cards) await tx.store.put(card);
+    await tx.done;
+  }
+
   /** Smart Decks Filter Query */
   async getFilteredCards(filters: SmartDeckFilter = {}): Promise<SrsCard[]> {
     const allCards = await this.getAllSrsCards();
     const now = Date.now();
 
     return allCards.filter((card) => {
+      if (card.anki) return false; // Linked cards are reviewed only through Anki's scheduler.
       // Due only check
       if (filters.dueOnly && card.due_date > now) {
         return false;
@@ -394,7 +425,7 @@ class LocalSrsService {
 
   /** Aggregate available smart deck filter options with counts and due counts */
   async getAvailableSmartDeckFilters(): Promise<SmartDeckFilterOptions> {
-    const cards = await this.getAllSrsCards();
+    const cards = (await this.getAllSrsCards()).filter(card => !card.anki);
     const now = Date.now();
 
     const jlptMap = new Map<string, { count: number; dueCount: number }>();
@@ -491,12 +522,13 @@ class LocalSrsService {
     void completion.catch(() => {});
     try {
       const existingCards = await store.getAll();
-      const existingByWord = new Map(existingCards.map(card => [card.word.trim().toLocaleLowerCase(), card]));
+      const identity = (card: SrsCard) => card.anki ? `anki:${card.anki.profile}:${card.anki.noteId}` : `word:${card.word.trim().toLocaleLowerCase()}`;
+      const existingByWord = new Map(existingCards.map(card => [identity(card), card]));
       const usedIds = new Set(existingCards.map(card => card.id));
       const restoredIds = new Set<string>();
       for (const candidate of cards) {
         const now = Date.now();
-        const key = candidate.word.trim().toLocaleLowerCase();
+        const key = identity(candidate);
         const existing = existingByWord.get(key);
         const candidateFields = Object.fromEntries(Object.entries(candidate).filter(([, value]) => value !== undefined));
         const existingIsNewer = existing && (existing.updated_at || 0) > (candidate.updated_at || 0);
@@ -517,6 +549,7 @@ class LocalSrsService {
           lapse_count: merged.lapse_count ?? 0,
           is_leech: merged.is_leech ?? false,
         };
+        if (card.anki) card.anki = { ...card.anki, verified: false };
         await store.put(card);
         usedIds.add(id);
         existingByWord.set(key, card);
@@ -540,6 +573,7 @@ class LocalSrsService {
     if (!card) {
       throw new Error(`SRS Card not found: ${cardId}`);
     }
+    if (card.anki) throw new Error("Linked Anki cards must be reviewed through Anki.");
 
     const settings = await getSettings().catch(() => ({
       srsAlgorithm: "fsrs" as const,
@@ -657,6 +691,8 @@ class LocalSrsService {
 
   async deleteSrsCard(id: string): Promise<void> {
     const db = await this.dbPromise;
+    const existing = await db.get("cards", id);
+    if (existing?.anki) await ankiStorage.hide(existing.anki.profile, existing.anki.noteId);
     const tx = db.transaction("cards", "readwrite");
     await tx.objectStore("cards").delete(id);
     await tx.done;
@@ -664,13 +700,20 @@ class LocalSrsService {
 
   async deleteAllSrsCards(): Promise<void> {
     const db = await this.dbPromise;
+    for (const card of await db.getAll("cards")) if (card.anki) await ankiStorage.hide(card.anki.profile, card.anki.noteId);
     const tx = db.transaction("cards", "readwrite");
     await tx.objectStore("cards").clear();
     await tx.done;
   }
 
-  async getSrsStats(): Promise<SrsStats> {
-    const cards = await this.getAllSrsCards();
+  /** Identity-preserving import; skips dictionary enrichment and generated content. */
+  async putAnkiCard(card: SrsCard): Promise<void> {
+    validateSrsCards([card]);
+    await (await this.dbPromise).put("cards", card);
+  }
+
+  async getSrsStats(includeLinked = true): Promise<SrsStats> {
+    const cards = (await this.getAllSrsCards()).filter(card => includeLinked || !card.anki);
     const now = Date.now();
     const oneDayMs = 24 * 60 * 60 * 1000;
     const startOfToday = new Date().setHours(0, 0, 0, 0);
@@ -715,7 +758,7 @@ class LocalSrsService {
       }
 
       // Reviews completed today
-      if (card.updated_at >= startOfToday && card.updated_at !== card.created_at) {
+      if (!card.anki && card.updated_at >= startOfToday && card.updated_at !== card.created_at) {
         cardsReviewedToday += 1;
       }
 

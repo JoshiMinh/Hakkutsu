@@ -1,7 +1,9 @@
+import { ankiVI } from "./anki-locales";
 /**
  * Vietnamese UI Locale Strings for Hakkutsu
  */
 export const vi = {
+  ...ankiVI,
   // Navigation & Tabs
   nav_dashboard: "Tổng quan",
   nav_review: "Ôn tập SRS",

@@ -9,7 +9,6 @@ import { useSettingsStore } from "~/features/settings/settings-store";
 import { useTranslation } from "~/shared/locales";
 import type { SubtitleTrackOption } from "~/features/subtitles/shared/select-subtitles-modal";
 import { cleanSubtitleText, readSubtitleFile, parsedToSubtitleFetchResult } from "~/features/subtitles/shared/subtitle-parsers";
-import { deduplicateCueText } from "~/shared/japanese/text-normalization";
 import { distributeFurigana, containsJapanese, hasKanji, sanitizeReading, mergeOkuriganaTokens } from "~/shared/japanese/japanese";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
 import { subscribeToVideoTime } from "~/features/subtitles/shared/video-runtime";
@@ -116,14 +115,13 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
   onRetrySubtitles,
 }) => {
   const { settings, updateSettings } = useSettingsStore();
-  const { t, isVietnamese } = useTranslation();
+  const { t } = useTranslation();
 
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [offsetToast, setOffsetToast] = useState<string | null>(null);
   const [internalDrawerOpen, setInternalDrawerOpen] = useTranscriptPanelToggle();
 
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
-  const [srsCardsMap, setSrsCardsMap] = useState<Map<string, SrsCard>>(new Map());
 
   const drawerOpen = isDrawerOpen !== undefined ? isDrawerOpen : internalDrawerOpen;
   useTranscriptSource({ subtitleData, secondaryData, currentSegment, offset, videoTitle, sourceUrl: currentUrl, loading, error, canRetry: Boolean(onRetrySubtitles) }, (time) => {
@@ -144,7 +142,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     const loadSavedWords = async () => {
       try {
         const wordSet = new Set<string>();
-        const cardMap = new Map<string, SrsCard>();
 
         if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
           const srsRes: any = await chrome.runtime.sendMessage({ type: "GET_ALL_SRS_CARDS" }).catch(() => null);
@@ -152,11 +149,9 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
             (srsRes.payload.cards as SrsCard[]).forEach((card) => {
               if (card.word) {
                 wordSet.add(card.word);
-                cardMap.set(card.word, card);
               }
               if (card.reading) {
                 wordSet.add(card.reading);
-                cardMap.set(card.reading, card);
               }
             });
           }
@@ -172,7 +167,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         }
 
         setSavedWords(wordSet);
-        setSrsCardsMap(cardMap);
       } catch {}
     };
 
@@ -385,7 +379,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     return () => window.removeEventListener("hakkutsu:analysis-closed", handleClosed);
   }, [videoRef]);
 
-  const handleTokenClick = (e: React.MouseEvent, token: TokenAnalysis, index: number) => {
+  const handleTokenClick = (e: React.MouseEvent, token: TokenAnalysis, _index: number) => {
     e.stopPropagation();
     if (lookupDismissTimerRef.current) {
       window.clearTimeout(lookupDismissTimerRef.current);
@@ -420,7 +414,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     );
   };
 
-  const handleTokenMouseEnter = (e: React.MouseEvent, token: TokenAnalysis, index: number) => {
+  const handleTokenMouseEnter = (e: React.MouseEvent, token: TokenAnalysis, _index: number) => {
     if (!token?.surface || !token.surface.trim()) return;
     // Don't trigger lookup on punctuation or non-word symbols
     if (!token.is_japanese && /^[\s.,!?。！？、…:;\-–—/\\()[\]{}""''「」『』【】（）]+$/.test(token.surface)) {

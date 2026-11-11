@@ -1,7 +1,9 @@
+import { ankiZH } from "./anki-locales";
 /**
  * Chinese (zh) UI Locale Strings for Hakkutsu
  */
 export const zh = {
+  ...ankiZH,
   // Navigation & Tabs
   nav_dashboard: "仪表盘",
   nav_review: "SRS 复习",

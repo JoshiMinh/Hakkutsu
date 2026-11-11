@@ -25,15 +25,6 @@ export interface AnkiConnectResponse {
   error: string | null;
 }
 
-export interface AnkiDeck {
-  name: string;
-}
-
-export interface AnkiModel {
-  name: string;
-  fields: string[];
-}
-
 export interface AnkiExportData {
   word: string;
   reading: string;
@@ -51,4 +42,6 @@ export interface AnkiExportData {
   sourceUrl?: string;
   audio?: string;
   sentenceAudio?: string;
+  notes?: string;
+  picture?: string;
 }

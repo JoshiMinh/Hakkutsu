@@ -1,7 +1,9 @@
+import { ankiKO } from "./anki-locales";
 /**
  * Korean (ko) UI Locale Strings for Hakkutsu
  */
 export const ko = {
+  ...ankiKO,
   // Navigation & Tabs
   nav_dashboard: "대시보드",
   nav_review: "SRS 복습",

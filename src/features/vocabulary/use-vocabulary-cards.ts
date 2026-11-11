@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { localSrs } from "~/features/srs/local-srs";
 import type { SrsCard } from "~/features/srs/local-srs";
+import { furiganaHtml } from "~/features/anki/japanese-schema";
 import { lookupWord } from "~/features/dictionary/dictionary-lookup";
 import type { useTranslation } from "~/shared/locales";
 
@@ -24,6 +25,7 @@ export function useVocabularyCards(
       const updatedData = [...data];
       await Promise.all(
         updatedData.map(async (c, idx) => {
+          if (c.anki) return;
           let updated = false;
           const patch: Partial<SrsCard> = {};
 
@@ -49,7 +51,7 @@ export function useVocabularyCards(
           }
 
           if (!c.word_furigana && c.reading) {
-            patch.word_furigana = `${c.word}[${c.reading}]`;
+            patch.word_furigana = furiganaHtml(c.word, c.reading);
             updated = true;
           }
 

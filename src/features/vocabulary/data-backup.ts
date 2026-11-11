@@ -1,17 +1,21 @@
 import type { SrsCard } from "~/features/srs/local-srs";
 import { localSrs, validateSrsCards } from "~/features/srs/local-srs";
+import { ankiStorage, validateAnkiBackup } from "~/features/anki/sync-storage";
+import type { AnkiBackup, RemoteNote } from "~/features/anki/sync-types";
 
 const BACKUP_KIND = "hakkutsu-vocabulary-backup";
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 const LEGACY_VOCABULARY_KEY = "hakkutsu_vocabulary";
 
 export interface HakkutsuBackup {
   kind: typeof BACKUP_KIND;
-  formatVersion: typeof BACKUP_VERSION;
+  formatVersion: 1 | 2;
   extensionVersion: string;
   exportedAt: string;
   cards: SrsCard[];
   legacyVocabulary: unknown[];
+  anki?: AnkiBackup;
+  ankiBeforeSync?: RemoteNote[];
 }
 
 export interface RestoreResult {
@@ -28,9 +32,10 @@ function extensionVersion(): string {
 }
 
 export async function createVocabularyBackup(): Promise<HakkutsuBackup> {
-  const [cards, stored] = await Promise.all([
+  const [cards, stored, anki] = await Promise.all([
     localSrs.getAllSrsCards(),
     chrome.storage.local.get(LEGACY_VOCABULARY_KEY),
+    ankiStorage.backup(),
   ]);
   return {
     kind: BACKUP_KIND,
@@ -38,13 +43,14 @@ export async function createVocabularyBackup(): Promise<HakkutsuBackup> {
     extensionVersion: extensionVersion(),
     exportedAt: new Date().toISOString(),
     cards,
+    anki,
     legacyVocabulary: Array.isArray(stored[LEGACY_VOCABULARY_KEY])
       ? stored[LEGACY_VOCABULARY_KEY]
       : [],
   };
 }
 
-export function downloadVocabularyBackup(backup: HakkutsuBackup): void {
+export function downloadVocabularyBackup(backup: HakkutsuBackup, filename?: string): void {
   const date = backup.exportedAt.slice(0, 10);
   const blob = new Blob([JSON.stringify(backup, null, 2)], {
     type: "application/json;charset=utf-8",
@@ -52,11 +58,19 @@ export function downloadVocabularyBackup(backup: HakkutsuBackup): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `hakkutsu-backup-${date}.json`;
+  link.download = filename || `hakkutsu-backup-${date}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function downloadRecoverySnapshot(): Promise<void> {
+  const recovery = await ankiStorage.state<{ cards: SrsCard[]; remoteNotes: RemoteNote[]; anki: AnkiBackup; savedAt: number }>("recovery:before-sync");
+  if (!recovery) throw new Error("No recovery snapshot exists yet. A snapshot is created before applying sync.");
+  downloadVocabularyBackup({ kind: BACKUP_KIND, formatVersion: BACKUP_VERSION, extensionVersion: extensionVersion(),
+    exportedAt: new Date(recovery.savedAt).toISOString(), cards: recovery.cards, legacyVocabulary: [],
+    anki: recovery.anki, ankiBeforeSync: recovery.remoteNotes }, "hakkutsu-before-anki-sync.json");
 }
 
 function isBackup(value: unknown): value is HakkutsuBackup {
@@ -64,7 +78,7 @@ function isBackup(value: unknown): value is HakkutsuBackup {
   const backup = value as Partial<HakkutsuBackup>;
   return (
     backup.kind === BACKUP_KIND &&
-    backup.formatVersion === BACKUP_VERSION &&
+    (backup.formatVersion === 1 || backup.formatVersion === BACKUP_VERSION) &&
     Array.isArray(backup.cards) &&
     Array.isArray(backup.legacyVocabulary)
   );
@@ -82,6 +96,7 @@ export async function restoreVocabularyBackup(file: File): Promise<RestoreResult
   }
 
   validateSrsCards(parsed.cards);
+  if (parsed.anki !== undefined) validateAnkiBackup(parsed.anki);
   for (const [index, entry] of parsed.legacyVocabulary.entries()) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new Error(`Backup vocabulary entry ${index + 1} is invalid.`);
     const item = entry as { id?: unknown; word?: unknown };
@@ -122,6 +137,7 @@ export async function restoreVocabularyBackup(file: File): Promise<RestoreResult
     usedIds.add(id);
   }
   const cards = await localSrs.restoreSrsCards(parsed.cards);
+  if (parsed.anki) await ankiStorage.restore(parsed.anki);
   try {
     await chrome.storage.local.set({ [LEGACY_VOCABULARY_KEY]: Array.from(merged.values()).map(item => ({
       reading: "", meaning: "", context: "", sourceUrl: "", jlptLevel: null, addedAt: Date.now(), ...item,

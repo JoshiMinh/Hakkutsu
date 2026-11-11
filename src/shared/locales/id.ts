@@ -1,7 +1,9 @@
+import { ankiID } from "./anki-locales";
 /**
  * Indonesian UI Locale Strings for Hakkutsu (Bahasa Indonesia)
  */
 export const id = {
+  ...ankiID,
   // Navigation & Tabs
   nav_dashboard: "Dasbor",
   nav_review: "Ulasan SRS",

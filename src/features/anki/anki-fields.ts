@@ -13,6 +13,7 @@ export function inferAnkiFieldMapping(field: string): string {
   if (/source|url|link/.test(lower)) return "sourceUrl";
   if (/jlpt|level/.test(lower)) return "jlptLevel";
   if (/pos|part of speech/.test(lower)) return "pos";
+  if (/^notes?$/.test(lower)) return "notes";
   if (lower === "front") return "frontHtml";
   if (lower === "back") return "backHtml";
   if (/word|kanji|vocab/.test(lower)) return "word";

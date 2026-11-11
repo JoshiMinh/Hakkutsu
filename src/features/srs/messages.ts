@@ -3,7 +3,7 @@ import type { ExtensionMessage } from "~/shared/browser/messages";
 
 export async function handleSrsMessage(
   message: ExtensionMessage,
-  sender?: chrome.runtime.MessageSender,
+  _sender?: chrome.runtime.MessageSender,
 ): Promise<ExtensionMessage> {
   switch (message.type) {
     case "ADD_SRS_CARD": {

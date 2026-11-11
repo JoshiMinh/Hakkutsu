@@ -1,7 +1,9 @@
+import { ankiES } from "./anki-locales";
 /**
  * Spanish UI Locale Strings for Hakkutsu (Español)
  */
 export const es = {
+  ...ankiES,
   // Navigation & Tabs
   nav_dashboard: "Panel de Control",
   nav_review: "Repaso SRS",

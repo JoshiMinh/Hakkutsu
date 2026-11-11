@@ -1,3 +1,4 @@
+import { JAPANESE_PRESET } from "~/features/anki/japanese-schema";
 import { RefreshCw } from "lucide-react";
 import { t } from "~/shared/locales";
 import type { SettingsSectionProps } from "./section-props";
@@ -18,6 +19,7 @@ export function AnkiSettings({ settings, onUpdate }: SettingsSectionProps) {
     inferDefaultMapping,
   } = useAnkiSettings(settings, onUpdate);
   const FIELD_OPTIONS = [
+    { value: "notes", label: "Notes" },
     { value: "none", label: "-- None (Leave Empty) --" },
     { value: "word", label: "Word (Kanji / Base)" },
     { value: "reading", label: "Word Reading (Hiragana / Kana)" },
@@ -151,7 +153,18 @@ export function AnkiSettings({ settings, onUpdate }: SettingsSectionProps) {
           </div>
         </div>
 
-        {/* Note Type Field Mappings */}
+        <div className="hk-anki-preset">
+        <label htmlFor="anki-preset">{t("anki_preset", currentLang)}</label>
+        <select id="anki-preset" value={settings.ankiPreset || "custom"} onChange={event => {
+          const preset = event.target.value as "custom" | "japanese";
+          onUpdate({ ankiPreset: preset, ...(preset === "japanese" ? { ankiFieldMap: { ...JAPANESE_PRESET } } : {}) });
+        }}>
+          <option value="custom">{t("anki_custom", currentLang)}</option>
+          <option value="japanese">{t("anki_japanese_preset", currentLang)}</option>
+        </select>
+        <p>{t("anki_preset_help", currentLang)}</p>
+      </div>
+      {/* Note Type Field Mappings */}
         {fields.length > 0 && (
           <div style={{ paddingTop: "16px" }}>
             <div
@@ -251,7 +264,7 @@ export function AnkiSettings({ settings, onUpdate }: SettingsSectionProps) {
                             ...(settings.ankiFieldMap || {}),
                             [field]: val,
                           };
-                          onUpdate({ ankiFieldMap: updatedMap });
+                          onUpdate({ ankiFieldMap: updatedMap, ankiPreset: "custom" });
                         }}
                         options={FIELD_OPTIONS}
                         width="260px"

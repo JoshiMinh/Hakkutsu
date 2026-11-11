@@ -8,7 +8,7 @@ import { analyzeSubtitleReadings } from "~/features/subtitles/shared/subtitle-an
 
 export async function handleDictionaryMessage(
   message: ExtensionMessage,
-  sender?: chrome.runtime.MessageSender,
+  _sender?: chrome.runtime.MessageSender,
 ): Promise<ExtensionMessage> {
   switch (message.type) {
     case "ANALYZE_TEXT":

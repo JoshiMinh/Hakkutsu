@@ -3,7 +3,7 @@ import type { ExtensionMessage } from "~/shared/browser/messages";
 
 export async function handleAnalyticsMessage(
   message: ExtensionMessage,
-  sender?: chrome.runtime.MessageSender,
+  _sender?: chrome.runtime.MessageSender,
 ): Promise<ExtensionMessage> {
   switch (message.type) {
     case "TRACK_CHARACTERS_READ": {

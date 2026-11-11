@@ -2,7 +2,7 @@ import type { ExtensionMessage } from "~/shared/browser/messages";
 
 export async function handleAudioMessage(
   message: ExtensionMessage,
-  sender?: chrome.runtime.MessageSender,
+  _sender?: chrome.runtime.MessageSender,
 ): Promise<ExtensionMessage> {
   switch (message.type) {
     case "FETCH_TTS_AUDIO": {

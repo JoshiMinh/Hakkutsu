@@ -1,3 +1,4 @@
+import { plainText } from "~/features/anki/japanese-schema";
 import type { SrsCard } from "~/features/srs/local-srs";
 import { Trash2, Edit2 } from "lucide-react";
 import { JlptBadge, FrequencyBadge } from "~/shared/ui/badges";
@@ -13,7 +14,6 @@ interface VocabularyTableProps {
   handleToggleSelect: (id: string) => void;
   setEditingCard: (card: SrsCard) => void;
   handleDelete: (id: string) => Promise<void>;
-  handleResetLeech: (id: string) => Promise<void>;
   showHanViet: boolean;
 }
 
@@ -25,7 +25,6 @@ export function VocabularyTable({
   handleToggleSelect,
   setEditingCard,
   handleDelete,
-  handleResetLeech,
   showHanViet,
 }: VocabularyTableProps) {
   const { t } = useTranslation();
@@ -96,7 +95,7 @@ export function VocabularyTable({
               minWidth: "90px",
             }}
           >
-            {t("vocab_th_furigana")}
+            {t("vocab_th_reading")}
           </th>
           <th
             style={{
@@ -295,7 +294,7 @@ export function VocabularyTable({
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {card.meaning || "—"}
+                  {plainText(card.meaning || "") || "—"}
                 </div>
               </td>
 
@@ -337,7 +336,7 @@ export function VocabularyTable({
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {card.sentence || "—"}
+                  {plainText(card.sentence || "") || "—"}
                 </div>
               </td>
 
@@ -369,7 +368,7 @@ export function VocabularyTable({
 
               {/* 8. Proficiency / SRS Status */}
               <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                {card.repetition === 0 ? (
+                {card.anki ? <span>{card.anki.missing ? t("anki_kind_missing") : "Anki"}</span> : card.repetition === 0 ? (
                   <span
                     style={{
                       fontSize: "10px",

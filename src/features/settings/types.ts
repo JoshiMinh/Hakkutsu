@@ -15,6 +15,7 @@ export interface ExtensionSettings {
   ankiModel: string;
   ankiImageField: string;
   ankiFieldMap: Record<string, string>;
+  ankiPreset?: "custom" | "japanese";
   includeImages: boolean;
   autoDetect: boolean;
   showFurigana: boolean;

@@ -123,6 +123,7 @@ export function useVocabularyExports({
 
       for (const card of targetCards) {
         try {
+          if (card.anki) throw new Error("Use Sync with Anki to update linked vocabulary.");
           await ankiClient.exportVocabulary(
             {
               word: card.word,
@@ -137,6 +138,10 @@ export function useVocabularyExports({
               jlptLevel: card.jlpt || "",
               pos: "Word",
               imageUrl: card.image_url,
+              audio: card.word_audio,
+              sentenceAudio: card.sentence_audio,
+              notes: card.notes,
+              picture: card.picture,
             },
             settings.ankiDeck,
             settings.ankiModel,

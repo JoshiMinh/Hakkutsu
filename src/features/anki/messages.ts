@@ -5,7 +5,7 @@ import type { AnkiExportData } from "~/features/anki/types";
 
 export async function handleAnkiMessage(
   message: ExtensionMessage,
-  sender?: chrome.runtime.MessageSender,
+  _sender?: chrome.runtime.MessageSender,
 ): Promise<ExtensionMessage> {
   switch (message.type) {
     case "EXPORT_ANKI": {

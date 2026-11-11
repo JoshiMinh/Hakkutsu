@@ -1,7 +1,9 @@
+import { ankiJA } from "./anki-locales";
 /**
  * Japanese (ja) UI Locale Strings for Hakkutsu
  */
 export const ja = {
+  ...ankiJA,
   // Navigation & Tabs
   nav_dashboard: "ダッシュボード",
   nav_review: "SRS 復習",

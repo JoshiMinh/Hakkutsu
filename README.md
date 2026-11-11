@@ -22,11 +22,13 @@ Hakkutsu is a browser extension for Japanese immersion. It brings inline diction
 
 **Spaced repetition** — FSRS-4.5/5 scheduling with Audio-First and Cloze Deletion review modes. Smart deck filters by JLPT level, source, due status, and leech flags.
 
-**AnkiConnect** — export cards to a local Anki deck with configurable field mappings.
+**AnkiConnect** — export with configurable mappings, or use the Japanese preset for manual two-way vocabulary sync with field-level conflict previews. Review linked text and audio cards with Anki controlling their independent schedules.
 
 **Portable data** — CSV export or full JSON backup/restore with SRS state preserved.
 
 **8-language UI** — English, Vietnamese, Japanese, Chinese, Korean, Spanish, French, Indonesian.
+
+For Japanese Anki integration, select your existing deck and note type in **Settings → AnkiConnect**, choose **Japanese · 13 fields**, then open **Vocabulary → Sync with Anki**. Review and apply the preview. **Review → Anki review** requires Anki to remain open; unlinked words retain local review. Deletes stay local and AnkiWeb sync is never started automatically. See [Anki integration validation](tests/ANKI-INTEGRATION.md).
 
 ---
 

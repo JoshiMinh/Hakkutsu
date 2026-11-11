@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import { useTranslation } from "~/shared/locales";
 import { useSettingsStore } from "~/features/settings/settings-store";
+import { AnkiSyncPanel } from "~/features/anki/sync-panel";
+import { ankiStorage } from "~/features/anki/sync-storage";
+import { plainText } from "~/features/anki/japanese-schema";
 import { EditCardModal } from "./edit-card-modal";
 import { VocabularyTable } from "./vocabulary-table";
 import { useVocabularyCards } from "./use-vocabulary-cards";
@@ -32,7 +35,7 @@ export function WordList({
 }) {
   const { t, isVietnamese, showHanViet, lang } = useTranslation();
   const { settings } = useSettingsStore();
-  const { cards, setCards, loading, error, loadCards } = useVocabularyCards(
+  const { cards, setCards, loadCards } = useVocabularyCards(
     userId,
     lang,
   );
@@ -127,6 +130,8 @@ export function WordList({
 
   const saveEdit = async (updated: SrsCard) => {
     try {
+      const previous = cards.find(card => card.id === updated.id);
+      if (previous?.anki && !updated.anki) await ankiStorage.hide(previous.anki.profile, previous.anki.noteId);
       const saved = await localSrs.updateSrsCard(updated.id, updated);
       setCards(cards.map((c) => (c.id === saved.id ? saved : c)));
       setEditingCard(null);
@@ -136,22 +141,13 @@ export function WordList({
     }
   };
 
-  const handleResetLeech = async (id: string) => {
-    try {
-      const updated = await localSrs.resetLeechStatus(id);
-      setCards(cards.map((c) => (c.id === id ? updated : c)));
-    } catch (err) {
-      console.error("Failed to reset leech status:", err);
-    }
-  };
-
   const filteredCards = cards.filter((c) => {
     const term = searchTerm.trim().toLowerCase();
     const matchesSearch =
       !term ||
       c.word.toLowerCase().includes(term) ||
       (c.reading && c.reading.toLowerCase().includes(term)) ||
-      (c.meaning && c.meaning.toLowerCase().includes(term)) ||
+      (c.meaning && plainText(c.meaning).toLowerCase().includes(term)) ||
       (showHanViet &&
         resolveHanViet(c.word, c.vietnamese_sound).toLowerCase().includes(term)) ||
       (c.tags &&
@@ -182,7 +178,7 @@ export function WordList({
 
   const displayedCards = sortedCards.slice(0, displayLimit);
 
-  const dueCount = cards.filter((c) => c.due_date <= Date.now()).length;
+  const dueCount = cards.filter((c) => !c.anki && c.due_date <= Date.now()).length;
   const newCount = cards.filter((c) => c.repetition === 0).length;
   const learningCount = cards.filter(
     (c) => c.repetition > 0 && c.interval < 21,
@@ -245,6 +241,7 @@ export function WordList({
 
         {/* Global Action Buttons */}
         <div className="hk-vocab-actions">
+          <AnkiSyncPanel settings={settings} onChanged={loadCards} />
           <input
             ref={backupInputRef}
             type="file"
@@ -674,7 +671,6 @@ export function WordList({
               handleToggleSelect={handleToggleSelect}
               setEditingCard={setEditingCard}
               handleDelete={handleDelete}
-              handleResetLeech={handleResetLeech}
               showHanViet={showHanViet}
             />
           </div>

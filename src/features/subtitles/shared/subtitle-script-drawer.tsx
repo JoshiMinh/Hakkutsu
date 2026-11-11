@@ -9,14 +9,10 @@ import {
   Copy,
   Check,
   Star,
-  Sparkles,
   BarChart2,
-  Eye,
-  EyeOff,
   Maximize2,
   Minimize2,
   ArrowDownCircle,
-  HelpCircle,
 } from "lucide-react";
 import type { SubtitleSegment, SubtitleFetchResult } from "~/features/subtitles/shared/types";
 import type { TokenAnalysis } from "~/features/dictionary/types";

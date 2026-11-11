@@ -10,29 +10,14 @@ import type { AnkiConnectRequest, AnkiConnectResponse, AnkiNote, AnkiExportData 
 
 import { getSettings } from "~/features/settings/settings-storage";
 import { inferAnkiFieldMapping } from "./anki-fields";
-import { distributeFurigana } from "~/shared/japanese/japanese";
+import { escapeHtml, furiganaHtml, richText, normalizeJlpt } from "./japanese-schema";
+import type { RemoteCard, RemoteNote } from "./sync-types";
 
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+export class AnkiConnectError extends Error {
+  constructor(message: string, public definiteFailure = false) { super(message); }
 }
 
-function furiganaHtml(value: string, reading?: string): string {
-  if (/<ruby[\s>]/i.test(value)) return value;
-  const render = (text: string, kana?: string) => distributeFurigana(text, kana).map(segment =>
-    segment.ruby ? `<ruby>${escapeHtml(segment.text)}<rt>${escapeHtml(segment.ruby)}</rt></ruby>` : escapeHtml(segment.text)).join("");
-  if (reading) return render(value, reading);
-  // Saved SRS cards use Word[reading]; popup exports may already contain ruby HTML.
-  const pattern = /([\u3041-\u30fa\u3400-\u9fff々ー]+)\[([\u3041-\u30faー]+)\]/gu;
-  let result = "", offset = 0;
-  for (const match of value.matchAll(pattern)) {
-    result += escapeHtml(value.slice(offset, match.index)) + render(match[1], match[2]);
-    offset = match.index! + match[0].length;
-  }
-  return result + escapeHtml(value.slice(offset));
-}
-
-class AnkiConnectClient {
+export class AnkiConnectClient {
   private url: string;
 
   constructor(url: string = ANKI_CONNECT_URL) {
@@ -82,7 +67,7 @@ class AnkiConnectClient {
         !("error" in data) || (data.error !== null && typeof data.error !== "string")) {
         throw new Error("Invalid response from AnkiConnect: expected result and error fields.");
       }
-      if (data.error) throw new Error(`AnkiConnect error: ${data.error}`);
+      if (data.error) throw new AnkiConnectError(`AnkiConnect error: ${data.error}`, true);
       return data.result;
     } finally {
       clearTimeout(timeout);
@@ -121,6 +106,82 @@ class AnkiConnectClient {
     return this.stringList("modelFieldNames", { modelName });
   }
 
+  async getProfile(): Promise<string> {
+    const profile = await this.invoke("getActiveProfile");
+    if (typeof profile !== "string" || !profile) throw new Error("Anki did not identify the active profile.");
+    return profile;
+  }
+
+  async getDeckIds(): Promise<Record<string, number>> {
+    const result = await this.invoke("deckNamesAndIds");
+    if (!result || typeof result !== "object" || Array.isArray(result) ||
+      Object.values(result).some(id => !Number.isSafeInteger(id) || Number(id) <= 0)) throw new Error("Invalid Anki deck identities.");
+    return result as Record<string, number>;
+  }
+
+  async findNotes(query: string): Promise<number[]> { return this.ids("findNotes", { query }); }
+  async findCards(query: string): Promise<number[]> { return this.ids("findCards", { query }); }
+  private async ids(action: string, params: Record<string, unknown>): Promise<number[]> {
+    const ids = await this.invoke(action, params);
+    if (!Array.isArray(ids) || ids.some(id => !Number.isSafeInteger(id) || id <= 0)) throw new Error(`Invalid ${action} response.`);
+    return ids;
+  }
+
+  async notesInfo(notes: number[]): Promise<RemoteNote[]> {
+    if (!notes.length) return [];
+    const result = await this.invoke("notesInfo", { notes });
+    if (!Array.isArray(result)) throw new Error("Invalid Anki note data.");
+    const notesFound = result.filter(note => note !== null && !(note && typeof note === "object" && Object.keys(note).length === 0));
+    if (notesFound.some(note => !note || !Number.isSafeInteger(note.noteId) ||
+      typeof note.modelName !== "string" || !note.fields || !Array.isArray(note.tags) || !Array.isArray(note.cards) ||
+      Object.values(note.fields).some(field => !field || typeof (field as { value?: unknown }).value !== "string"))) {
+      throw new Error("Invalid Anki note data.");
+    }
+    return notesFound;
+  }
+
+  async cardsInfo(cards: number[]): Promise<RemoteCard[]> {
+    if (!cards.length) return [];
+    const result = await this.invoke("cardsInfo", { cards });
+    if (!Array.isArray(result) || result.some(card => !card || !Number.isSafeInteger(card.cardId) ||
+      !Number.isSafeInteger(card.note) || !Number.isInteger(card.queue) || !Number.isInteger(card.type))) throw new Error("Invalid Anki card data.");
+    const models = [...new Set(result.map(card => card.modelName as string))];
+    const templates = new Map(await Promise.all(models.map(async model => {
+      const values = await this.invoke("modelTemplates", { modelName: model });
+      if (!values || typeof values !== "object" || Array.isArray(values)) throw new Error("Invalid Anki card templates.");
+      return [model, Object.keys(values)] as const;
+    })));
+    return result.map(card => ({ ...card, template: card.template || templates.get(card.modelName)?.[card.ord] || "" }));
+  }
+
+  async updateFields(id: number, fields: Record<string, string>): Promise<void> {
+    await this.invoke("updateNoteFields", { note: { id, fields } });
+  }
+  async addTags(notes: number[], tags: string[]): Promise<void> {
+    if (tags.length) await this.invoke("addTags", { notes, tags: tags.join(" ") });
+  }
+  async reviews(cardId: number): Promise<Array<{ id: number; ease: number; [key: string]: unknown }>> {
+    const result = await this.invoke("getReviewsOfCards", { cards: [cardId] }) as Record<string, unknown>;
+    const reviews = result?.[String(cardId)];
+    if (!Array.isArray(reviews) || reviews.some(review => !Number.isSafeInteger(review.id))) throw new Error("Invalid Anki review history.");
+    return reviews;
+  }
+  async answer(cardId: number, ease: number): Promise<void> {
+    if (![1, 2, 3, 4].includes(ease)) throw new Error("Invalid review rating.");
+    const result = await this.invoke("answerCards", { answers: [{ cardId, ease }] });
+    if (!Array.isArray(result) || result.length !== 1 || result[0] !== true) throw new Error("Anki did not confirm this review.");
+  }
+  async retrieveMedia(filename: string): Promise<string | false> {
+    const result = await this.invoke("retrieveMediaFile", { filename });
+    if (result !== false && typeof result !== "string") throw new Error("Invalid Anki media response.");
+    return result;
+  }
+  async storeMedia(filename: string, data: string): Promise<string> {
+    const result = await this.invoke("storeMediaFile", { filename, data });
+    if (typeof result !== "string" || !result) throw new Error("Anki did not confirm the media upload.");
+    return result;
+  }
+
   /** Create a new deck if it doesn't exist */
   async createDeck(deckName: string): Promise<number> {
     const id = await this.invoke("createDeck", { deck: deckName });
@@ -132,7 +193,7 @@ class AnkiConnectClient {
   async addNote(note: AnkiNote): Promise<number> {
     const result = await this.invoke("addNote", { note });
     if (result === null || result === undefined) {
-      throw new Error(`Anki rejected adding card "${note.fields.Word || note.fields.Front || ''}". It may already exist as a duplicate in deck "${note.deckName}".`);
+      throw new AnkiConnectError(`Anki rejected adding card "${note.fields.Word || note.fields.Front || ''}". It may already exist as a duplicate in deck "${note.deckName}".`, true);
     }
     if (typeof result !== "number" || !Number.isSafeInteger(result) || result <= 0) throw new Error("AnkiConnect did not return a valid note ID.");
     return result;
@@ -152,6 +213,7 @@ class AnkiConnectClient {
     const targetModel = (modelName && modelName.trim()) || "Basic";
 
     const modelFields = await this.getModelFields(targetModel);
+    const exportSettings = await getSettings();
     if (modelFields.length === 0) throw new Error(`Anki note type "${targetModel}" has no fields.`);
 
     const imgHtml = data.imageUrl
@@ -183,13 +245,14 @@ class AnkiConnectClient {
           !data.wordFurigana || data.wordFurigana === data.word ? data.reading : undefined);
         case "meaning": return escapeHtml(data.meaning);
         case "vietnameseSound": return escapeHtml(data.vietnameseSound || "");
-        case "sentence": return escapeHtml(data.sentence || "");
+        case "sentence": return richText(data.sentence || "");
         case "sentenceFurigana": return furiganaHtml(data.sentenceFurigana || data.sentence || "");
         case "sentenceReading": return escapeHtml(data.sentenceReading || "");
         case "sentenceMeaning": return escapeHtml(data.sentenceMeaning || "");
-        case "jlptLevel": return escapeHtml(data.jlptLevel || "");
+        case "jlptLevel": return escapeHtml((exportSettings.ankiPreset === "japanese" ? normalizeJlpt(data.jlptLevel).slice(1) : data.jlptLevel) || "");
+        case "notes": return richText(data.notes || "");
         case "pos": return escapeHtml(data.pos || "");
-        case "imageUrl": return data.imageUrl ? `<img src="${escapeHtml(data.imageUrl)}" />` : "";
+        case "imageUrl": return data.picture || (data.imageUrl ? `<img src="${escapeHtml(data.imageUrl)}" />` : "");
         case "screenshot": return data.screenshot ? `<img src="${escapeHtml(data.screenshot)}" />` : "";
         case "sourceUrl": return data.sourceUrl ? `<a href="${escapeHtml(data.sourceUrl)}" target="_blank">Video Context</a>` : "";
         case "audio": return data.audio || "";

@@ -1,7 +1,9 @@
+import { ankiFR } from "./anki-locales";
 /**
  * French UI Locale Strings for Hakkutsu (Français)
  */
 export const fr = {
+  ...ankiFR,
   // Navigation & Tabs
   nav_dashboard: "Tableau de Bord",
   nav_review: "Révision SRS",

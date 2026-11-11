@@ -2,12 +2,11 @@ import { PosBadge } from "./pos-badge";
 import { useState, useEffect, useRef } from "react";
 import type { TokenAnalysis } from "~/features/dictionary/types";
 import type { AnkiExportData } from "~/features/anki/types";
-import { formatPosLabel } from "~/features/dictionary/pos-labels";
 import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
 import { hasKanji, distributeFurigana, resolveSurfaceReading } from "~/shared/japanese/japanese";
 import { predictJlpt } from "~/shared/japanese/jlpt-classifier";
 import { JlptBadge, FrequencyBadge } from "~/shared/ui/badges";
-import { Volume2, BookmarkPlus, Copy, Check, Sparkles, BookOpen, MessageSquareText, Loader2, Image as ImageIcon, AlertCircle } from "lucide-react";
+import { Volume2, BookmarkPlus, Copy, Check, Sparkles, BookOpen, MessageSquareText, Loader2, Image as ImageIcon } from "lucide-react";
 import { useTranslation } from "~/shared/locales";
 import { ttsService } from "~/shared/browser/tts-service";
 import { fetchExampleSentences, fetchWordVariants } from "~/features/dictionary/dictionary-lookup";
@@ -59,10 +58,6 @@ function highlightJapaneseSentence(sentence: string, targetWords: string[]): Rea
 
 export function DefinitionCard({
   token,
-  onExport,
-  ankiConnected,
-  originalText,
-  sentenceReading,
   onSrsAdd,
   hideBottomAction = false,
 }: {
@@ -77,7 +72,6 @@ export function DefinitionCard({
   const { t, isVietnamese, showHanViet, lang } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [srsAdded, setSrsAdded] = useState(false);
-  const [srsError, setSrsError] = useState<string | null>(null);
   const [examples, setExamples] = useState<ExampleSentence[]>([]);
   const [loadingExamples, setLoadingExamples] = useState(false);
   const [variants, setVariants] = useState<WordVariant[]>([]);
@@ -530,23 +524,16 @@ export function DefinitionCard({
       {!hideBottomAction && (
         <div className="hk-definition__actions" style={{ marginTop: "14px" }}>
           <button
-            className={`hk-btn ${srsError ? "hk-btn--danger" : srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
+            className={`hk-btn ${srsAdded ? "hk-btn--success" : "hk-btn--primary"}`}
             onClick={handleAddToLibrary}
-            title={srsError || (srsAdded ? t("def_btn_added_library") : t("def_btn_add_library"))}
+            title={srsAdded ? t("def_btn_added_library") : t("def_btn_add_library")}
             style={{
               width: "100%",
               justifyContent: "center",
               padding: "8px 16px",
-              backgroundColor: srsError ? "#ef4444" : undefined,
-              borderColor: srsError ? "#ef4444" : undefined,
-              color: srsError ? "#ffffff" : undefined
             }}
           >
-            {srsError ? (
-              <>
-                <AlertCircle size={14} /> {srsError}
-              </>
-            ) : srsAdded ? (
+            {srsAdded ? (
               <>
                 <Check size={14} /> {t("def_btn_added_library")}
               </>

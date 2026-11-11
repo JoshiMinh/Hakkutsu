@@ -3,7 +3,7 @@ import type { ExtensionMessage } from "~/shared/browser/messages";
 
 export async function handleSettingsMessage(
   message: ExtensionMessage,
-  sender?: chrome.runtime.MessageSender,
+  _sender?: chrome.runtime.MessageSender,
 ): Promise<ExtensionMessage> {
   switch (message.type) {
     case "GET_SETTINGS": {

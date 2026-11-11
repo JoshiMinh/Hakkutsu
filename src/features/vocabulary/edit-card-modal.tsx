@@ -1,3 +1,5 @@
+import { escapeHtml, furiganaHtml } from "~/features/anki/japanese-schema";
+import { AnkiCardFields } from "~/features/anki/card-fields";
 import { useState } from "react";
 import type { SrsCard } from "~/features/srs/local-srs";
 import { X, Sparkles, Layers, Check, Image as ImageIcon } from "lucide-react";
@@ -19,14 +21,15 @@ export function EditCardModal({
     ...card,
     word_furigana:
       card.word_furigana ||
-      (card.reading ? `${card.word}[${card.reading}]` : card.word),
+      furiganaHtml(card.word, card.reading),
   });
   const [tagsInput, setTagsInput] = useState<string>(
     (card.tags || []).join(", "),
   );
 
   const handleChange = (field: keyof SrsCard, val: any) => {
-    setDraft((prev) => ({ ...prev, [field]: val }));
+    setDraft((prev) => ({ ...prev, [field]: val,
+      ...(field === "image_url" ? { picture: val ? `<img src="${escapeHtml(val)}">` : "" } : {}) }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -151,7 +154,7 @@ export function EditCardModal({
                 label={t("vocab_label_word_furigana")}
                 value={draft.word_furigana}
                 onChange={(v) => handleChange("word_furigana", v)}
-                placeholder="e.g. 週間[しゅうかん]"
+                placeholder="<ruby>週間<rt>しゅうかん</rt></ruby>"
                 isJp
               />
               {showHanViet && (
@@ -332,6 +335,8 @@ export function EditCardModal({
                 placeholder="Sentence meaning in target language..."
               />
             </div>
+            <AnkiCardFields card={draft} onChange={handleChange} onUnlink={() => setDraft(current => ({ ...current,
+              ...(current.anki?.previousLocalProgress || { due_date: Date.now(), interval: 0, repetition: 0, efactor: 2.5, state: 0 }), anki: undefined }))} />
           </form>
         </div>
 

@@ -120,7 +120,7 @@ export function splitOcrFragment(fragment: OcrFragment): OcrFragment[] {
         const along = fragment.orientation === "vertical" ? unit.bbox.y1 - unit.bbox.y0 : unit.bbox.x1 - unit.bbox.x0;
         return count > 0 && along < across * count * .4;
       })() || units.slice(i + 1).some(other => overlapFraction(unit.bbox, other.bbox) > .2))) continue;
-    return units.map((unit, i) => ({ ...fragment, ...unit, confidence: unit.confidence ?? fragment.confidence,
+    return units.map((unit) => ({ ...fragment, ...unit, confidence: unit.confidence ?? fragment.confidence,
       lineId: fragment.lineId, evidence: fragment.evidence && { ...fragment.evidence, words: [unit], glyphs: [],
         rawBounds: fragment.evidence.rawBounds }, paragraphId: fragment.paragraphId }));
   }

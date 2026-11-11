@@ -1,7 +1,9 @@
+import { ankiEN } from "./anki-locales";
 /**
  * English UI Locale Strings for Hakkutsu
  */
 export const en = {
+  ...ankiEN,
   // Navigation & Tabs
   nav_dashboard: "Dashboard",
   nav_review: "SRS Review",
