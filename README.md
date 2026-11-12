@@ -30,6 +30,8 @@ Hakkutsu is a browser extension for Japanese immersion. It brings inline diction
 
 For Japanese Anki integration, select your existing deck and note type in **Settings → AnkiConnect**, choose **Japanese · 13 fields**, then open **Vocabulary → Sync with Anki**. Review and apply the preview. **Review → Anki review** requires Anki to remain open; unlinked words retain local review. Deletes stay local and AnkiWeb sync is never started automatically. See [Anki integration validation](tests/ANKI-INTEGRATION.md).
 
+Use **Stop** to cancel a preview or finish the current sync note safely, then refresh the preview to continue. Sentence highlighting is saved locally and offered in the next manual sync preview. Word and sentence speaker buttons play existing recordings, using cached media when available.
+
 ---
 
 ![SRS review interface](screenshots/srs.png)

@@ -31,7 +31,11 @@ try {
   const cdp = (method, params = {}) => new Promise((resolve, reject) => {
     const id = ++nextId; pending.set(id, { resolve, reject }); socket.send(JSON.stringify({ id, method, params }));
   });
-  const evaluate = async expression => (await cdp("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true })).result.value;
+  const evaluate = async expression => {
+    const result = await cdp("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
+    return result.result.value;
+  };
   await cdp("Runtime.enable"); await cdp("Page.enable");
   await cdp("Page.navigate", { url: "http://127.0.0.1:4173/tests/anki.html" });
   let status;
@@ -44,8 +48,9 @@ try {
   if (exceptions.length) throw new Error(exceptions.join("\n"));
   if (status?.result !== "passed") throw new Error("Browser integration checks did not pass");
   await mkdir("test-results", { recursive: true });
+  await evaluate("document.querySelector('h1').hidden=true;document.querySelector('#results').hidden=true;document.documentElement.style.scrollBehavior='auto';document.body.style.scrollBehavior='auto';scrollTo({top:0,behavior:'instant'})");
   const responsive = [];
-  for (const width of [320, 768, 1024, 1440]) {
+  for (const width of [320, 375, 414, 768, 1440]) {
     await cdp("Emulation.setDeviceMetricsOverride", { width, height: 1000, deviceScaleFactor: 1, mobile: false });
     await evaluate("document.querySelector('dialog').showModal()");
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -57,10 +62,30 @@ try {
       throw new Error(`Sync preview overflows at ${width}px`);
     }
     await evaluate("document.querySelector('dialog').close()");
+    const pageFits = await evaluate("document.documentElement.scrollWidth <= innerWidth + 1");
+    if (!pageFits) {
+      console.log(await evaluate("Array.from(document.querySelectorAll('body *')).filter(e=>e.getBoundingClientRect().right>innerWidth+1&&!e.closest('table,dialog')&&getComputedStyle(e).position!=='absolute').map(e=>({tag:e.tagName,class:e.className,width:e.clientWidth,right:e.getBoundingClientRect().right})).slice(0,25)"));
+      throw new Error(`Integrated vocabulary/settings/review page overflows at ${width}px`);
+    }
+    const pageScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
+    await writeFile(`test-results/anki-page-${width}.png`, Buffer.from(pageScreenshot.data, "base64"));
     responsive.push({ width, fits });
+    for (const state of ["question", "answer", "pending", "error", "empty"]) {
+      try { await evaluate(`window.ankiFixture.reviewState('${state}')`); }
+      catch (error) { console.log(await evaluate("document.querySelector('.hk-anki-review').innerText")); throw new Error(`${state} at ${width}px: ${error.message}`); }
+      await evaluate("document.querySelector('.hk-anki-review').scrollIntoView({block:'start',behavior:'instant'})");
+      const stateFits = await evaluate("document.documentElement.scrollWidth <= innerWidth + 1");
+      if (!stateFits) throw new Error(`${state} review state overflows at ${width}px`);
+      const stateImage = await cdp("Page.captureScreenshot", { format: "png" });
+      await writeFile(`test-results/anki-review-${state}-${width}.png`, Buffer.from(stateImage.data, "base64"));
+    }
+    await evaluate("document.querySelector('.hk-anki-settings').scrollIntoView({block:'start',behavior:'instant'})");
+    const settingsImage = await cdp("Page.captureScreenshot", { format: "png" });
+    await writeFile(`test-results/anki-settings-${width}.png`, Buffer.from(settingsImage.data, "base64"));
+    await evaluate("scrollTo({top:0,behavior:'instant'})");
   }
   await writeFile("test-results/anki-browser.json", JSON.stringify({ ...status, responsive, exceptions }, null, 2));
-  console.log("PASS responsive sync preview at 320, 768, 1024, 1440px");
+  console.log("PASS integrated vocabulary/settings/review and sync preview at 320, 375, 414, 768, 1440px");
   await cdp("Browser.close");
 } finally {
   socket?.close(); processHandle.kill();

@@ -58,7 +58,7 @@
   flex-wrap: nowrap;
 }
 
-.hk-vocab-actions .hk-btn {
+.hk-vocab-actions > .hk-btn {
   min-height: 32px;
   padding: 6px 10px;
   gap: 6px;
@@ -66,15 +66,15 @@
   font-size: 12px;
 }
 
-.hk-vocab-actions .hk-btn + .hk-btn {
+.hk-vocab-actions > .hk-btn + .hk-btn {
   margin-left: -1px;
 }
 
-.hk-vocab-actions .hk-btn:first-of-type {
+.hk-vocab-actions > .hk-btn:first-of-type {
   border-radius: 6px 0 0 6px;
 }
 
-.hk-vocab-actions .hk-btn:last-child {
+.hk-vocab-actions > .hk-btn:last-child {
   border-radius: 0 6px 6px 0;
 }
 

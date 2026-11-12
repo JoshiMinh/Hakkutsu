@@ -1,3 +1,7 @@
+import { AudioButton } from "~/features/anki/audio-button";
+import { vocabularyAudio } from "~/features/anki/audio-player";
+import { FieldPreview } from "~/features/anki/field-preview";
+import { useEffect } from "react";
 import { plainText } from "~/features/anki/japanese-schema";
 import type { SrsCard } from "~/features/srs/local-srs";
 import { Trash2, Edit2 } from "lucide-react";
@@ -28,6 +32,8 @@ export function VocabularyTable({
   showHanViet,
 }: VocabularyTableProps) {
   const { t } = useTranslation();
+  const pageKey = displayedCards.map(card => card.id).join("|");
+  useEffect(() => () => vocabularyAudio.stop(), [pageKey]);
   return (
     <table
       className="hk-table hk-vocab-table"
@@ -36,17 +42,17 @@ export function VocabularyTable({
       <colgroup>
         <col style={{ width: 36 }} />
         <col style={{ width: 52 }} />
-        <col style={{ width: 110 }} />
+        <col style={{ width: 148 }} />
         <col style={{ width: 120 }} />
         <col style={{ width: 220 }} />
         {showHanViet ? <col style={{ width: 120 }} /> : null}
         <col style={{ width: 260 }} />
         <col style={{ width: 60 }} />
-        <col style={{ width: 104 }} />
+        <col style={{ width: 86 }} />
         <col style={{ width: 104 }} />
         <col style={{ width: 96 }} />
         <col style={{ width: 96 }} />
-        <col style={{ width: 120 }} />
+        <col style={{ width: 100 }} />
         <col style={{ width: 68 }} />
       </colgroup>
       <thead>
@@ -75,7 +81,7 @@ export function VocabularyTable({
               width: "48px",
             }}
           >
-            Image
+            {t("anki_field_picture")}
           </th>
           <th
             style={{
@@ -248,7 +254,7 @@ export function VocabularyTable({
                 className="hk-vocab-cell--clip"
                 style={{ padding: "10px 12px" }}
               >
-                <div
+                <div className="hk-vocab-with-audio"
                   style={{
                     fontFamily: "var(--hk-font-jp)",
                     fontSize: "15px",
@@ -257,7 +263,8 @@ export function VocabularyTable({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {card.word}
+                  <span className="hk-vocab-inline-text">{card.word}</span>
+                  <AudioButton field={card.word_audio || ""} profile={card.anki?.profile || card.media_profile} playbackKey={`${card.id}:word`} label={`${t("anki_field_word_audio")}: ${card.word}`} />
                 </div>
               </td>
 
@@ -326,7 +333,7 @@ export function VocabularyTable({
                 style={{ padding: "10px 12px" }}
                 title={card.sentence}
               >
-                <div
+                <div className="hk-vocab-with-audio"
                   style={{
                     fontSize: "12.5px",
                     color: "var(--hk-text-muted)",
@@ -336,7 +343,8 @@ export function VocabularyTable({
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {plainText(card.sentence || "") || "—"}
+                  <span className="hk-vocab-inline-text"><FieldPreview value={card.sentence || "—"} /></span>
+                  <AudioButton field={card.sentence_audio || ""} profile={card.anki?.profile || card.media_profile} playbackKey={`${card.id}:sentence`} label={`${t("anki_field_sentence_audio")}: ${card.word}`} />
                 </div>
               </td>
 
@@ -488,8 +496,8 @@ export function VocabularyTable({
                 <div style={{ display: "inline-flex", gap: "4px" }}>
                   <button
                     className="hk-btn hk-btn--ghost hk-btn--icon"
-                    onClick={() => setEditingCard(card)}
-                    title="Edit"
+                    onClick={() => { vocabularyAudio.stop(); setEditingCard(card); }}
+                    title={t("anki_edit")}
                     style={{ padding: "5px" }}
                   >
                     <Edit2 size={13} />
@@ -498,7 +506,7 @@ export function VocabularyTable({
                     className="hk-btn hk-btn--ghost hk-btn--icon"
                     style={{ color: "#f87171", padding: "5px" }}
                     onClick={() => handleDelete(card.id)}
-                    title="Delete"
+                    title={t("anki_delete")}
                   >
                     <Trash2 size={13} />
                   </button>

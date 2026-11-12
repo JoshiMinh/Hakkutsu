@@ -1,3 +1,5 @@
+import { AudioButton } from "./audio-button";
+import { soundNames } from "./audio-player";
 import { useEffect, useMemo, useState } from "react";
 import { mediaNames, loadMedia } from "./media";
 import { useTranslation } from "~/shared/locales";
@@ -16,11 +18,12 @@ export function sanitizeAnkiHtml(value: string): string {
   return template.innerHTML;
 }
 
-export function FieldPreview({ value, profile, autoPlay = false }: { value: string; profile?: string; autoPlay?: boolean }) {
+export function FieldPreview({ value, profile, autoPlay = false, playbackKey }: { value: string; profile?: string; autoPlay?: boolean; playbackKey?: string }) {
   const html = useMemo(() => sanitizeAnkiHtml(value), [value]);
   return <div className="hk-anki-field">
     <span dangerouslySetInnerHTML={{ __html: html }} />
-    {profile && mediaNames(value).map(filename => <AnkiMedia key={`${profile}:${filename}`} profile={profile} filename={filename} autoPlay={autoPlay} />)}
+    {soundNames(value).length > 0 && <AudioButton field={value} profile={profile} autoPlay={autoPlay} playbackKey={playbackKey} showLabel />}
+    {profile && mediaNames(value).filter(filename => !soundNames(value).includes(filename)).map(filename => <AnkiMedia key={`${profile}:${filename}`} profile={profile} filename={filename} />)}
   </div>;
 }
 

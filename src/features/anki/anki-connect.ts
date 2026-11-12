@@ -12,6 +12,7 @@ import { getSettings } from "~/features/settings/settings-storage";
 import { inferAnkiFieldMapping } from "./anki-fields";
 import { escapeHtml, furiganaHtml, richText, normalizeJlpt } from "./japanese-schema";
 import type { RemoteCard, RemoteNote } from "./sync-types";
+import { checkStopped } from "./operations";
 
 export class AnkiConnectError extends Error {
   constructor(message: string, public definiteFailure = false) { super(message); }
@@ -24,8 +25,8 @@ export class AnkiConnectClient {
     this.url = url;
   }
 
-  private async stringList(action: string, params?: Record<string, unknown>): Promise<string[]> {
-    const values = await this.invoke(action, params);
+  private async stringList(action: string, params?: Record<string, unknown>, signal?: AbortSignal): Promise<string[]> {
+    const values = await this.invoke(action, params, signal);
     if (!Array.isArray(values) || values.some(value => typeof value !== "string" || !value.trim())) {
       throw new Error(`Invalid ${action} response from AnkiConnect.`);
     }
@@ -35,8 +36,10 @@ export class AnkiConnectClient {
   /** Send a request to AnkiConnect */
   private async invoke(
     action: string,
-    params?: Record<string, unknown>
+    params?: Record<string, unknown>,
+    signal?: AbortSignal,
   ): Promise<unknown> {
+    checkStopped(signal);
     if ((await getSettings()).ankiEnabled === false) {
       throw new Error("AnkiConnect is disabled in settings.");
     }
@@ -47,12 +50,16 @@ export class AnkiConnectClient {
     };
 
     const controller = new AbortController();
+    const stop = () => controller.abort();
+    signal?.addEventListener("abort", stop, { once: true });
+    if (signal?.aborted) stop();
     const timeout = setTimeout(() => controller.abort(), 10000);
     try {
       let response: Response;
       try {
         response = await fetch(this.url, { method: "POST", body: JSON.stringify(request), signal: controller.signal });
       } catch {
+        checkStopped(signal);
         if (controller.signal.aborted) throw new Error("AnkiConnect timed out. Check that Anki is open, then retry.");
         throw new Error(`AnkiConnect connection failed: Cannot reach Anki at ${this.url}. Please make sure Anki app is open with the AnkiConnect add-on enabled.`);
       }
@@ -60,6 +67,7 @@ export class AnkiConnectClient {
       let data: AnkiConnectResponse;
       try { data = await response.json(); }
       catch {
+        checkStopped(signal);
         if (controller.signal.aborted) throw new Error("AnkiConnect timed out. Check that Anki is open, then retry.");
         throw new Error("Invalid JSON response from AnkiConnect.");
       }
@@ -71,6 +79,7 @@ export class AnkiConnectClient {
       return data.result;
     } finally {
       clearTimeout(timeout);
+      signal?.removeEventListener("abort", stop);
     }
   }
 
@@ -102,34 +111,34 @@ export class AnkiConnectClient {
   }
 
   /** Get field names for a model */
-  async getModelFields(modelName: string): Promise<string[]> {
-    return this.stringList("modelFieldNames", { modelName });
+  async getModelFields(modelName: string, signal?: AbortSignal): Promise<string[]> {
+    return this.stringList("modelFieldNames", { modelName }, signal);
   }
 
-  async getProfile(): Promise<string> {
-    const profile = await this.invoke("getActiveProfile");
+  async getProfile(signal?: AbortSignal): Promise<string> {
+    const profile = await this.invoke("getActiveProfile", undefined, signal);
     if (typeof profile !== "string" || !profile) throw new Error("Anki did not identify the active profile.");
     return profile;
   }
 
-  async getDeckIds(): Promise<Record<string, number>> {
-    const result = await this.invoke("deckNamesAndIds");
+  async getDeckIds(signal?: AbortSignal): Promise<Record<string, number>> {
+    const result = await this.invoke("deckNamesAndIds", undefined, signal);
     if (!result || typeof result !== "object" || Array.isArray(result) ||
       Object.values(result).some(id => !Number.isSafeInteger(id) || Number(id) <= 0)) throw new Error("Invalid Anki deck identities.");
     return result as Record<string, number>;
   }
 
-  async findNotes(query: string): Promise<number[]> { return this.ids("findNotes", { query }); }
-  async findCards(query: string): Promise<number[]> { return this.ids("findCards", { query }); }
-  private async ids(action: string, params: Record<string, unknown>): Promise<number[]> {
-    const ids = await this.invoke(action, params);
+  async findNotes(query: string, signal?: AbortSignal): Promise<number[]> { return this.ids("findNotes", { query }, signal); }
+  async findCards(query: string, signal?: AbortSignal): Promise<number[]> { return this.ids("findCards", { query }, signal); }
+  private async ids(action: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<number[]> {
+    const ids = await this.invoke(action, params, signal);
     if (!Array.isArray(ids) || ids.some(id => !Number.isSafeInteger(id) || id <= 0)) throw new Error(`Invalid ${action} response.`);
     return ids;
   }
 
-  async notesInfo(notes: number[]): Promise<RemoteNote[]> {
+  async notesInfo(notes: number[], signal?: AbortSignal): Promise<RemoteNote[]> {
     if (!notes.length) return [];
-    const result = await this.invoke("notesInfo", { notes });
+    const result = await this.invoke("notesInfo", { notes }, signal);
     if (!Array.isArray(result)) throw new Error("Invalid Anki note data.");
     const notesFound = result.filter(note => note !== null && !(note && typeof note === "object" && Object.keys(note).length === 0));
     if (notesFound.some(note => !note || !Number.isSafeInteger(note.noteId) ||
@@ -140,14 +149,14 @@ export class AnkiConnectClient {
     return notesFound;
   }
 
-  async cardsInfo(cards: number[]): Promise<RemoteCard[]> {
+  async cardsInfo(cards: number[], signal?: AbortSignal): Promise<RemoteCard[]> {
     if (!cards.length) return [];
-    const result = await this.invoke("cardsInfo", { cards });
+    const result = await this.invoke("cardsInfo", { cards }, signal);
     if (!Array.isArray(result) || result.some(card => !card || !Number.isSafeInteger(card.cardId) ||
       !Number.isSafeInteger(card.note) || !Number.isInteger(card.queue) || !Number.isInteger(card.type))) throw new Error("Invalid Anki card data.");
     const models = [...new Set(result.map(card => card.modelName as string))];
     const templates = new Map(await Promise.all(models.map(async model => {
-      const values = await this.invoke("modelTemplates", { modelName: model });
+      const values = await this.invoke("modelTemplates", { modelName: model }, signal);
       if (!values || typeof values !== "object" || Array.isArray(values)) throw new Error("Invalid Anki card templates.");
       return [model, Object.keys(values)] as const;
     })));

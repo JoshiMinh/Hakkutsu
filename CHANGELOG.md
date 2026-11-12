@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.7.1 — 2026-11-12
+
+- Match Anki sync, review, and field settings to the existing theme, with localized feedback, accessible selectors, compact 50-row previews, and fixed dialog controls.
+- Correct filtered-deck searches and support stopping preview or sync safely after the current note. Report completed, failed, and untouched entries separately and resume through a fresh preview.
+- Save learned-word bold formatting locally for sentence fields, preserving ruby and original Anki baselines. Existing saved entries are repaired locally; Anki changes remain visible in the next manual sync preview.
+- Add independent word and sentence recording buttons to vocabulary cells, sequential playback, cached/profile-scoped media, and cleanup when switching rows or leaving the view. No speech generation is used.
+- Keep progress-refresh failures separate from note failure counts, scope sync preview media to its original profile, and defer hidden detail media until expanded.
+- Add limit regression checks covering exhausted dictionary lookup budgets, long sentence/ruby fields, incomplete responses, and imports spanning multiple pages and read batches.
+
 ## 2.7.0 — 2026-11-11
 
 - Add a reusable Japanese preset covering all 13 vocabulary fields, numeric JLPT export, ruby furigana, and preserved sentence highlighting.

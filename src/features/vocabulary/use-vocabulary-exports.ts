@@ -16,7 +16,6 @@ interface VocabularyExportOptions {
   selectedIds: Set<string>;
   settings: ExtensionSettings;
   showHanViet: boolean;
-  isVietnamese: boolean;
   t: ReturnType<typeof useTranslation>["t"];
   loadCards: () => Promise<void>;
 }
@@ -26,12 +25,13 @@ export function useVocabularyExports({
   selectedIds,
   settings,
   showHanViet,
-  isVietnamese,
   t,
   loadCards,
 }: VocabularyExportOptions) {
   const [ankiExporting, setAnkiExporting] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [operationError, setOperationError] = useState<unknown>();
+  const [operationMessage, setOperationMessage] = useState("");
   const backupInputRef = useRef<HTMLInputElement>(null);
 
   const handleExportCSV = (specificCards?: SrsCard[]) => {
@@ -61,15 +61,12 @@ export function useVocabularyExports({
   const handleBackup = async () => {
     try {
       setBackupBusy(true);
+      setOperationError(undefined); setOperationMessage("");
       const backup = await createVocabularyBackup();
       downloadVocabularyBackup(backup);
     } catch (err) {
       console.error("Vocabulary backup failed:", err);
-      alert(
-        isVietnamese
-          ? "Không thể tạo bản sao lưu."
-          : "Could not create the backup.",
-      );
+      setOperationError(err);
     } finally {
       setBackupBusy(false);
     }
@@ -81,18 +78,13 @@ export function useVocabularyExports({
 
     try {
       setBackupBusy(true);
+      setOperationError(undefined); setOperationMessage("");
       const result = await restoreVocabularyBackup(file);
       await loadCards();
-      alert(
-        isVietnamese
-          ? `Đã khôi phục ${result.cards} thẻ. Dữ liệu hiện có được giữ lại.`
-          : `Restored ${result.cards} cards. Existing data was kept.`,
-      );
+      setOperationMessage(`${t("anki_restored")}: ${result.cards}`);
     } catch (err) {
       console.error("Vocabulary restore failed:", err);
-      alert(
-        err instanceof Error ? err.message : "Could not restore this backup.",
-      );
+      setOperationError(err);
     } finally {
       event.target.value = "";
       setBackupBusy(false);
@@ -109,12 +101,10 @@ export function useVocabularyExports({
 
     try {
       setAnkiExporting(true);
+      setOperationError(undefined); setOperationMessage("");
       const connected = await ankiClient.isConnected();
       if (!connected) {
-        alert(
-          t("vocab_anki_not_connected") ||
-            "AnkiConnect is not connected. Please ensure Anki app is running with AnkiConnect enabled.",
-        );
+        setOperationError(new Error("AnkiConnect not connected"));
         return;
       }
 
@@ -154,30 +144,11 @@ export function useVocabularyExports({
         }
       }
 
-      if (errors.length > 0) {
-        if (count > 0) {
-          alert(
-            isVietnamese
-              ? `Đã xuất ${count}/${targetCards.length} từ sang Anki.\n\nMột số từ bị lỗi:\n${errors.slice(0, 5).join("\n")}${errors.length > 5 ? `\nvà ${errors.length - 5} lỗi khác...` : ""}`
-              : `Exported ${count}/${targetCards.length} cards to Anki.\n\nFailed items:\n${errors.slice(0, 5).join("\n")}${errors.length > 5 ? `\nand ${errors.length - 5} more errors...` : ""}`,
-          );
-        } else {
-          alert(
-            isVietnamese
-              ? `Xuất sang Anki thất bại:\n${errors.slice(0, 5).join("\n")}`
-              : `Failed to export to Anki:\n${errors.slice(0, 5).join("\n")}`,
-          );
-        }
-      } else {
-        alert(
-          isVietnamese
-            ? `Đã xuất ${count} từ sang Anki thành công!`
-            : `Exported ${count} cards to Anki successfully!`,
-        );
-      }
+      setOperationMessage(`${t("anki_completed")}: ${count} · ${t("anki_failed")}: ${errors.length}`);
+      if (errors.length) setOperationError(new Error(errors.join("\n")));
     } catch (e: any) {
       console.error("Anki export error:", e);
-      alert(e.message || "Failed to export to Anki");
+      setOperationError(e);
     } finally {
       setAnkiExporting(false);
     }
@@ -187,6 +158,8 @@ export function useVocabularyExports({
     ankiExporting,
     backupBusy,
     backupInputRef,
+    operationError,
+    operationMessage,
     handleExportCSV,
     handleBackup,
     handleRestore,

@@ -8,6 +8,127 @@ const { AnkiConnectError } = pure("src/features/anki/anki-connect.ts");
 const target = { profile: "Test", deck: "Japanese::Vocabulary", deckId: 12, model: "Japanese" };
 const settings = { ankiEnabled: true, ankiPreset: "japanese", ankiDeck: target.deck, ankiModel: target.model };
 const clone = value => structuredClone(value);
+
+test("multi-batch imports keep all notes and long fields beyond preview page and read-batch limits", async () => {
+  const f = fixture(), longNotes = "保存する長い注記。".repeat(6000) + "END";
+  for (let id = 101; id <= 350; id++) f.notes.set(id, note(id, { Notes: id === 350 ? longNotes : "" }));
+  const progress = [];
+  const plan = await f.service.previewSync(settings, { onProgress: value => progress.push(value) });
+  assert.equal(plan.rows.length, 251);
+  assert.equal(progress.at(-1).completed, 251);
+  const result = await f.service.applySync(plan);
+  assert.deepEqual(result, { completed: 251, failures: [], stopped: false, notAttempted: 0 });
+  assert.equal(f.locals().length, 251);
+  const last = f.locals().find(card => card.anki.noteId === 350);
+  assert.equal(last.notes, longNotes); assert.equal(last.anki.baseline.Notes, longNotes);
+  assert.equal((await f.service.previewSync(settings)).rows.filter(row => row.kind !== "unchanged").length, 0);
+  assert.equal(f.writes.length, 0);
+});
+
+test("an incomplete batch response is rejected before any import is saved", async () => {
+  const f = fixture(), read = f.api.notesInfo;
+  f.api.notesInfo = async ids => (await read(ids)).slice(1);
+  await assert.rejects(f.service.previewSync(settings), /changed during the read/);
+  assert.equal(f.locals().length, 0); assert.equal(f.writes.length, 0);
+});
+
+test("progress refresh failure does not count a successfully imported note as failed", async () => {
+  const f = fixture();
+  f.api.cardsInfo = async () => { throw new Error("AnkiConnect timed out"); };
+  const result = await f.service.applySync(await f.service.previewSync(settings));
+  assert.equal(result.completed, 1); assert.equal(result.failures.length, 0);
+  assert.equal(result.notAttempted, 0); assert.match(result.progressError, /timed out/);
+  assert.equal(f.locals().length, 1);
+});
+
+test("Anki searches reject unsupported syntax and exclude filtered, suspended and buried cards", async () => {
+  const f = fixture([local()]);
+  await assert.rejects(f.api.findCards("-is:filtered"), /Invalid search/);
+  f.cards.set(1002, { ...remoteCard(1002), odid: 12 });
+  f.cards.set(1003, { ...remoteCard(1003), queue: -1 });
+  f.cards.set(1004, { ...remoteCard(1004), queue: -2 });
+  const queries = [], find = f.api.findCards;
+  f.api.findCards = async query => { queries.push(query); return find(query); };
+  await f.service.applySync(await f.service.previewSync(settings));
+  assert.deepEqual((await f.reviews.loadAnkiReview(settings)).map(card => card.cardId), [1000, 1001]);
+  assert.ok(queries.length >= 3 && queries.every(query => query.includes("-deck:filtered") && query.includes("-is:suspended -is:buried")));
+});
+
+test("preview aborts before another batch and never changes saved cards", async () => {
+  const f = fixture(), controller = new AbortController();
+  for (let id = 101; id <= 310; id++) f.notes.set(id, note(id));
+  let batches = 0;
+  const read = f.api.notesInfo;
+  f.api.notesInfo = async ids => { batches++; const values = await read(ids); controller.abort(); return values; };
+  await assert.rejects(f.service.previewSync(settings, { signal: controller.signal }), { name: "AbortError" });
+  assert.equal(batches, 1); assert.equal(f.locals().length, 0); assert.equal(f.writes.length, 0);
+});
+
+test("stop finishes the current note and journal, skips progress refresh, releases the lock and resumes without duplicates", async () => {
+  const f = fixture(), controller = new AbortController();
+  f.notes.set(101, note(101)); f.notes.set(102, note(102));
+  let scheduleReads = 0;
+  f.api.cardsInfo = async () => { scheduleReads++; return []; };
+  const plan = await f.service.previewSync(settings);
+  const result = await f.service.applySync(plan, undefined, { signal: controller.signal, onProgress(progress) {
+    if (progress.status === "running") controller.abort();
+  } });
+  assert.deepEqual(result, { completed: 1, failures: [], stopped: true, notAttempted: 2 });
+  assert.equal(scheduleReads, 0); assert.equal(f.locals().length, 1);
+  assert.equal([...f.state.values()].filter(value => value?.status === "confirmed").length, 1);
+  const resumed = await f.service.applySync(await f.service.previewSync(settings));
+  assert.equal(resumed.completed, 2); assert.equal(f.locals().length, 3);
+  assert.equal(new Set(f.locals().map(card => card.anki.noteId)).size, 3);
+  assert.equal(f.writes.length, 0);
+});
+
+test("connection-wide failures stop once while individual note failures allow partial imports", async () => {
+  for (const systemic of [false, true]) {
+    const f = fixture(); f.notes.set(101, note(101)); f.notes.set(102, note(102));
+    const plan = await f.service.previewSync(settings), read = f.api.notesInfo;
+    f.api.notesInfo = async ids => {
+      if (ids.length === 1 && ids[0] === 100) throw new Error(systemic ? "AnkiConnect connection failed" : "Anki content changed");
+      return read(ids);
+    };
+    const result = await f.service.applySync(plan);
+    assert.equal(result.failures.length, 1); assert.equal(result.completed, systemic ? 0 : 2);
+    assert.equal(result.notAttempted, systemic ? 2 : 0);
+    f.api.notesInfo = read;
+    assert.equal((await f.service.applySync(await f.service.previewSync(settings))).failures.length, 0);
+  }
+});
+
+test("a stop during an Anki field write finishes read-back and confirms the write journal", async () => {
+  const changed = local(); changed.meaning = "new meaning";
+  const f = fixture([changed]), controller = new AbortController();
+  f.notes.set(101, note(101));
+  const write = f.api.updateFields;
+  f.api.updateFields = async (...args) => { await write(...args); controller.abort(); };
+  const result = await f.service.applySync(await f.service.previewSync(settings), undefined, { signal: controller.signal });
+  assert.deepEqual(result, { completed: 1, failures: [], stopped: true, notAttempted: 1 });
+  assert.equal(f.locals()[0].anki.baseline["Word Meaning"], "new meaning");
+  assert.equal([...f.state.values()].filter(value => value?.status === "pending").length, 0);
+  assert.equal((await f.service.applySync(await f.service.previewSync(settings))).completed, 1);
+  assert.equal(f.writes.filter(value => value.action === "update").length, 1);
+});
+
+test("stopping during progress refresh preserves completed content and releases the lock", async () => {
+  const f = fixture(), controller = new AbortController();
+  const result = await f.service.applySync(await f.service.previewSync(settings), undefined, { signal: controller.signal,
+    onProgress(progress) { if (progress.phase === "refresh") controller.abort(); } });
+  assert.deepEqual(result, { completed: 1, failures: [], stopped: true, notAttempted: 0 });
+  assert.equal(f.locals().length, 1);
+  assert.equal((await f.service.applySync(await f.service.previewSync(settings))).failures.length, 0);
+});
+
+test("imported highlighting remains a local difference against the original Anki baseline", async () => {
+  const f = fixture(); f.notes.set(100, note(100, { Sentence: "私はアンです。", "Sentence Furigana": "<ruby>私<rt>わたし</rt></ruby>はアンです。" }));
+  await f.service.applySync(await f.service.previewSync(settings));
+  const saved = f.locals()[0];
+  assert.equal(saved.sentence, "<b>私</b>はアンです。");
+  assert.equal(saved.anki.baseline.Sentence, "私はアンです。"); assert.equal(f.writes.length, 0);
+  assert.equal((await f.service.previewSync(settings)).rows[0].kind, "update");
+});
 function note(id = 100, overrides = {}) {
   const values = Object.fromEntries(schema.japaneseFieldNames.map(field => [field, ""]));
   Object.assign(values, { Word: "私", "Word Reading": "わたし", "Word Furigana": "<ruby>私<rt>わたし</rt></ruby>",
@@ -37,12 +158,14 @@ function fixture(initial = []) {
     getProfile: async () => profile, getDeckIds: async () => ({ [target.deck]: 12 }),
     getModelFields: async () => schema.japaneseFieldNames,
     findNotes: async query => {
+      if (/\bis:filtered\b/.test(query)) throw new Error("Invalid search: is:filtered");
       if (query.startsWith("tag:")) return [...notes.values()].filter(n => n.tags.includes(query.slice(4))).map(n => n.noteId);
       const nid = query.match(/nid:(\d+)/); return [...notes.keys()].filter(id => !nid || id === +nid[1]);
     },
     findCards: async query => {
+      if (/\bis:filtered\b/.test(query)) throw new Error("Invalid search: is:filtered");
       const cid = query.match(/cid:(\d+)/), nid = query.match(/nid:(\d+)/);
-      return [...cards.values()].filter(c => c.queue >= 0 && (!cid || c.cardId === +cid[1]) && (!nid || c.note === +nid[1]) &&
+      return [...cards.values()].filter(c => c.queue >= 0 && (!query.includes("-deck:filtered") || !c.odid) && (!cid || c.cardId === +cid[1]) && (!nid || c.note === +nid[1]) &&
         (!query.includes("is:new") || c.type === 0)).map(c => c.cardId);
     },
     notesInfo: async ids => ids.flatMap(id => notes.has(id) ? [clone(notes.get(id))] : []),

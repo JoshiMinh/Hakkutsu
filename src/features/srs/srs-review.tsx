@@ -561,9 +561,9 @@ export function SrsReview(props: { userId?: string; compact?: boolean }) {
   const settings = useSettingsStore(state => state.settings);
   const [source, setSource] = useState<"local" | "anki">("local");
   return <>
-    <div className="hk-anki-toolbar hk-anki-review-source" role="group" aria-label={t("anki_review_source")}>
-      <button type="button" className="hk-btn hk-btn--secondary" aria-pressed={source === "local"} onClick={() => setSource("local")}>{t("anki_local_review")}</button>
-      <button type="button" className="hk-btn hk-btn--secondary" disabled={settings.ankiEnabled === false} aria-pressed={source === "anki"} onClick={() => setSource("anki")}>{t("anki_review")}</button>
+    <div className="hk-anki-review-source" role="group" aria-label={t("anki_review_source")}>
+      <button type="button" className={`hk-anki-source-option ${source === "local" ? "is-active" : ""}`} aria-pressed={source === "local"} onClick={() => setSource("local")}>{t("anki_local_review")}</button>
+      <button type="button" className={`hk-anki-source-option ${source === "anki" ? "is-active" : ""}`} disabled={settings.ankiEnabled === false} aria-pressed={source === "anki"} onClick={() => setSource("anki")}>{t("anki_review")}</button>
     </div>
     {source === "anki" ? <AnkiReview settings={settings} /> : <LocalSrsReview {...props} />}
   </>;

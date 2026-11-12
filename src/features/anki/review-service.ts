@@ -1,3 +1,4 @@
+import { ANKI_ELIGIBLE } from "./operations";
 import { ankiClient } from "./anki-connect";
 import { ankiStorage, withAnkiLock } from "./sync-storage";
 import { localSrs } from "~/features/srs/local-srs";
@@ -16,7 +17,7 @@ export async function loadAnkiReview(settings: ExtensionSettings): Promise<Cache
   const all = await localSrs.getAllSrsCards();
   const linked = all.filter(card => card.anki?.profile === profile && card.anki.verified && !card.anki.missing &&
     card.anki.deck === settings.ankiDeck && card.anki.model === settings.ankiModel);
-  const query = `${scopeQuery(settings.ankiDeck, settings.ankiModel)} -is:suspended -is:buried -is:filtered`;
+  const query = `${scopeQuery(settings.ankiDeck, settings.ankiModel)} ${ANKI_ELIGIBLE}`;
   const [due, fresh] = await Promise.all([ankiClient.findCards(`${query} is:due`), ankiClient.findCards(`${query} is:new`)]);
   const byNote = new Map(linked.map(card => [card.anki!.noteId, card]));
   const ids = [...new Set([...due, ...fresh])];
@@ -64,7 +65,7 @@ export async function submitAnkiReview(card: CachedAnkiCard, ease: number, noteF
     const local = (await localSrs.getAllSrsCards()).find(value => value.id === card.localId);
     if (!local?.anki?.verified || local.anki.missing || local.anki.noteId !== card.note) throw new Error("This card is no longer linked. Sync vocabulary first.");
     const [current] = await ankiClient.cardsInfo([card.cardId]);
-    const eligible = await ankiClient.findCards(`cid:${card.cardId} -is:suspended -is:buried -is:filtered`);
+    const eligible = await ankiClient.findCards(`cid:${card.cardId} ${ANKI_ELIGIBLE}`);
     const [displayedNote] = await ankiClient.notesInfo([card.note]);
     if (!current || current.note !== card.note || current.queue < 0 || current.odid || !eligible.includes(card.cardId) ||
       cardRevision(current) !== cardRevision(card) || (noteFingerprint && JSON.stringify(displayedNote?.fields) !== noteFingerprint)) {

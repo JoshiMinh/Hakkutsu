@@ -17,6 +17,7 @@ import {
 import { useTranslation } from "~/shared/locales";
 import { useSettingsStore } from "~/features/settings/settings-store";
 import { AnkiSyncPanel } from "~/features/anki/sync-panel";
+import { AnkiFeedback } from "~/features/anki/feedback";
 import { ankiStorage } from "~/features/anki/sync-storage";
 import { plainText } from "~/features/anki/japanese-schema";
 import { EditCardModal } from "./edit-card-modal";
@@ -56,6 +57,8 @@ export function WordList({
     ankiExporting,
     backupBusy,
     backupInputRef,
+    operationError,
+    operationMessage,
     handleExportCSV,
     handleBackup,
     handleRestore,
@@ -65,7 +68,6 @@ export function WordList({
     selectedIds,
     settings,
     showHanViet,
-    isVietnamese,
     t,
     loadCards,
   });
@@ -247,15 +249,15 @@ export function WordList({
             type="file"
             accept=".json,application/json"
             onChange={handleRestore}
-            aria-label="Choose a Hakkutsu backup to restore"
+            aria-label={t("anki_restore")}
             style={{ display: "none" }}
           />
           <button
             className="hk-btn hk-btn--secondary"
             onClick={() => backupInputRef.current?.click()}
             disabled={backupBusy}
-            title="Restore a full vocabulary backup"
-            aria-label="Restore a full vocabulary backup"
+            title={t("anki_restore")}
+            aria-label={t("anki_restore")}
           >
             <Upload size={14} />
           </button>
@@ -263,8 +265,8 @@ export function WordList({
             className="hk-btn hk-btn--secondary"
             onClick={handleBackup}
             disabled={backupBusy || cards.length === 0}
-            title="Back up vocabulary and review progress"
-            aria-label="Back up vocabulary and review progress"
+            title={t("anki_backup")}
+            aria-label={t("anki_backup")}
           >
             <Download size={14} />
           </button>
@@ -325,6 +327,8 @@ export function WordList({
       </div>
 
       {/* ── Second Row: Search on Left + Filter & Sort on Right ─────────── */}
+      {!!operationError && <AnkiFeedback error={operationError} />}
+      {operationMessage && <AnkiFeedback success={!operationError} message={operationMessage} />}
       <div
         style={{
           display: "flex",

@@ -1,3 +1,4 @@
+import { highlightSentenceFields } from "~/shared/japanese/sentence-highlight";
 import { escapeHtml, furiganaHtml } from "~/features/anki/japanese-schema";
 import { AnkiCardFields } from "~/features/anki/card-fields";
 import { useState } from "react";
@@ -32,7 +33,7 @@ export function EditCardModal({
       ...(field === "image_url" ? { picture: val ? `<img src="${escapeHtml(val)}">` : "" } : {}) }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanTags = tagsInput
       .split(",")
@@ -41,6 +42,7 @@ export function EditCardModal({
 
     onSave({
       ...draft,
+      ...await highlightSentenceFields(draft),
       tags: cleanTags,
     });
   };
@@ -336,7 +338,8 @@ export function EditCardModal({
               />
             </div>
             <AnkiCardFields card={draft} onChange={handleChange} onUnlink={() => setDraft(current => ({ ...current,
-              ...(current.anki?.previousLocalProgress || { due_date: Date.now(), interval: 0, repetition: 0, efactor: 2.5, state: 0 }), anki: undefined }))} />
+              ...(current.anki?.previousLocalProgress || { due_date: Date.now(), interval: 0, repetition: 0, efactor: 2.5, state: 0 }),
+              media_profile: current.anki?.profile || current.media_profile, anki: undefined }))} />
           </form>
         </div>
 

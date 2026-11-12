@@ -23,8 +23,11 @@ export function useVocabularyCards(
       const data = await localSrs.getAllSrsCards();
 
       const updatedData = [...data];
-      await Promise.all(
-        updatedData.map(async (c, idx) => {
+      for (let offset = 0; offset < updatedData.length; offset += 50) await Promise.all(
+        updatedData.slice(offset, offset + 50).map(async (c, index) => {
+          const idx = offset + index;
+          c = await localSrs.repairSentenceFields(c);
+          updatedData[idx] = c;
           if (c.anki) return;
           let updated = false;
           const patch: Partial<SrsCard> = {};
@@ -57,7 +60,7 @@ export function useVocabularyCards(
 
           if (updated) {
             updatedData[idx] = { ...c, ...patch };
-            localSrs.updateSrsCard(c.id, patch).catch(() => {});
+            await localSrs.updateSrsCard(c.id, patch);
           }
         }),
       );

@@ -1,295 +1,62 @@
 import { JAPANESE_PRESET } from "~/features/anki/japanese-schema";
+import { ANKI_MAPPING_LABELS, ankiFieldLabel } from "~/features/anki/field-labels";
 import { RefreshCw } from "lucide-react";
-import { t } from "~/shared/locales";
+import { t, type TranslationKey } from "~/shared/locales";
 import type { SettingsSectionProps } from "./section-props";
 import { CustomSelect, FeatureSwitch } from "./controls";
 import { useAnkiSettings } from "./use-anki-settings";
-const ankiSvg = "/assets/logo/anki.png";
 
 export function AnkiSettings({ settings, onUpdate }: SettingsSectionProps) {
-  const currentLang = settings.targetLanguage || "vi";
-  const {
-    decks,
-    models,
-    fields,
-    ankiConnected,
-    loadingAnki,
-    fetchAnkiData,
-    handleModelChange,
-    inferDefaultMapping,
-  } = useAnkiSettings(settings, onUpdate);
-  const FIELD_OPTIONS = [
-    { value: "notes", label: "Notes" },
-    { value: "none", label: "-- None (Leave Empty) --" },
-    { value: "word", label: "Word (Kanji / Base)" },
-    { value: "reading", label: "Word Reading (Hiragana / Kana)" },
-    { value: "wordFurigana", label: "Word Furigana (HTML Ruby)" },
-    { value: "meaning", label: "Word Meaning (Definition)" },
-    { value: "vietnameseSound", label: "Sino-Vietnamese Sound (Hán-Việt)" },
-    { value: "sentence", label: "Example Sentence (Japanese)" },
-    { value: "sentenceFurigana", label: "Sentence Furigana (HTML Ruby)" },
-    { value: "sentenceReading", label: "Sentence Reading (Hiragana)" },
-    { value: "sentenceMeaning", label: "Sentence Meaning / Translation" },
-    { value: "jlptLevel", label: "JLPT Level (N5-N1)" },
-    { value: "pos", label: "Part of Speech" },
-    { value: "imageUrl", label: "Illustration Image" },
-    { value: "screenshot", label: "Video Screenshot" },
-    { value: "sourceUrl", label: "Video Context Link" },
-    { value: "audio", label: "Word Audio" },
-    { value: "sentenceAudio", label: "Sentence Audio" },
-    { value: "frontHtml", label: "Formatted Front Card (Default HTML)" },
-    { value: "backHtml", label: "Formatted Back Card (Default HTML)" },
-  ];
-  return (
-    <section className="hk-settings-card">
-      <header className="hk-settings-card__header hk-anki-header">
-        <div className="hk-anki-header__title">
-          <div
-            className="hk-settings-card__icon"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <img src={ankiSvg} alt="Anki" style={{ width: 17, height: 17 }} />
-          </div>
-          <h3 className="hk-settings-card__title">
-            {t("settings_anki_section", currentLang)}
-          </h3>
-          <button
-            type="button"
-            onClick={() => fetchAnkiData()}
-            disabled={loadingAnki || settings.ankiEnabled === false}
-            className="hk-anki-refresh"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "5px 10px",
-              fontSize: "12px",
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid var(--hk-border)",
-              borderRadius: "6px",
-              color: "#e4e4e7",
-              cursor: loadingAnki ? "not-allowed" : "pointer",
-            }}
-          >
-            <RefreshCw size={13} className={loadingAnki ? "hk-spin" : ""} />
-            {loadingAnki ? "Refreshing..." : "Refresh Anki"}
-          </button>
-        </div>
-
-        <FeatureSwitch
-          label={t("settings_anki_section", currentLang)}
-          checked={settings.ankiEnabled !== false}
-          onChange={(enabled) => onUpdate({ ankiEnabled: enabled })}
-        />
-      </header>
-
-      <fieldset
-        className="hk-settings-card__body hk-feature-body"
-        disabled={settings.ankiEnabled === false}
-      >
-        <div className="hk-settings-row">
-          <div className="hk-settings-row__info">
-            <label htmlFor="ankiModel" className="hk-settings-row__label">
-              {t("settings_anki_model", currentLang)}
-            </label>
-            <div id="ankiModel-desc" className="hk-settings-row__desc">
-              Select Anki Note Type model from AnkiConnect
-            </div>
-          </div>
-          <div className="hk-settings-row__control">
-            {models.length > 0 ? (
-              <CustomSelect
-                value={settings.ankiModel || ""}
-                onChange={(val) => handleModelChange(val)}
-                options={models.map((m) => ({ value: m, label: m }))}
-                width="260px"
-              />
-            ) : (
-              <input
-                id="ankiModel"
-                aria-describedby="ankiModel-desc"
-                className="hk-settings-input hk-settings-input--text"
-                type="text"
-                value={settings.ankiModel || ""}
-                onChange={(e) => handleModelChange(e.target.value)}
-                placeholder="e.g. Basic"
-              />
-            )}
-          </div>
-        </div>
-
-        <div className="hk-settings-row">
-          <div className="hk-settings-row__info">
-            <label htmlFor="ankiDeck" className="hk-settings-row__label">
-              {t("settings_anki_deck", currentLang)}
-            </label>
-            <div id="ankiDeck-desc" className="hk-settings-row__desc">
-              {t("settings_anki_deck_desc", currentLang)}
-            </div>
-          </div>
-          <div className="hk-settings-row__control">
-            {decks.length > 0 ? (
-              <CustomSelect
-                value={settings.ankiDeck || ""}
-                onChange={(val) => onUpdate({ ankiDeck: val })}
-                options={decks.map((d) => ({ value: d, label: d }))}
-                width="260px"
-              />
-            ) : (
-              <input
-                id="ankiDeck"
-                aria-describedby="ankiDeck-desc"
-                className="hk-settings-input hk-settings-input--text"
-                type="text"
-                value={settings.ankiDeck || ""}
-                onChange={(e) => onUpdate({ ankiDeck: e.target.value })}
-                placeholder="e.g. Hakkutsu"
-              />
-            )}
-          </div>
-        </div>
-
-        <div className="hk-anki-preset">
-        <label htmlFor="anki-preset">{t("anki_preset", currentLang)}</label>
-        <select id="anki-preset" value={settings.ankiPreset || "custom"} onChange={event => {
-          const preset = event.target.value as "custom" | "japanese";
-          onUpdate({ ankiPreset: preset, ...(preset === "japanese" ? { ankiFieldMap: { ...JAPANESE_PRESET } } : {}) });
-        }}>
-          <option value="custom">{t("anki_custom", currentLang)}</option>
-          <option value="japanese">{t("anki_japanese_preset", currentLang)}</option>
-        </select>
-        <p>{t("anki_preset_help", currentLang)}</p>
+  const tr = (key: TranslationKey) => t(key, settings.targetLanguage);
+  const { decks, models, fields, ankiConnected, loadingAnki, fetchAnkiData, handleModelChange, inferDefaultMapping } = useAnkiSettings(settings, onUpdate);
+  const disabled = settings.ankiEnabled === false;
+  const choices = Object.entries(ANKI_MAPPING_LABELS).map(([value, key]) => ({ value, label: tr(key) }));
+  return <section className="hk-settings-card hk-anki-settings">
+    <header className="hk-settings-card__header hk-anki-header">
+      <div className="hk-anki-header__title">
+        <div className="hk-settings-card__icon"><img src="/assets/logo/anki.png" alt="" width={18} height={18} /></div>
+        <h3 className="hk-settings-card__title">{tr("settings_anki_section")}</h3>
+        <button type="button" onClick={() => void fetchAnkiData()} disabled={loadingAnki || disabled} className="hk-btn hk-btn--secondary hk-btn--sm">
+          <RefreshCw size={13} className={loadingAnki ? "hk-spin" : undefined} aria-hidden="true" />{tr(loadingAnki ? "anki_working" : "anki_refresh")}
+        </button>
       </div>
-      {/* Note Type Field Mappings */}
-        {fields.length > 0 && (
-          <div style={{ paddingTop: "16px" }}>
-            <div
-              style={{
-                padding: "0 18px 12px 18px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: "10px",
-              }}
-            >
-              <div>
-                <h4
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    color: "#c084fc",
-                    margin: "0 0 4px 0",
-                  }}
-                >
-                  Note Field Mappings ({settings.ankiModel})
-                </h4>
-                <p
-                  style={{
-                    fontSize: "12px",
-                    color: "var(--hk-text-muted)",
-                    margin: 0,
-                  }}
-                >
-                  Map each field of your Anki note type to the corresponding
-                  Hakkutsu data option
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const newMap: Record<string, string> = {};
-                  for (const f of fields) {
-                    newMap[f] = inferDefaultMapping(f);
-                  }
-                  onUpdate({ ankiFieldMap: newMap });
-                }}
-                style={{
-                  padding: "5px 12px",
-                  borderRadius: "6px",
-                  background: "rgba(192, 132, 252, 0.12)",
-                  border: "1px solid rgba(192, 132, 252, 0.3)",
-                  color: "#c084fc",
-                  fontSize: "11.5px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-                title="Auto-assign default mapping options to all fields based on field names"
-              >
-                Auto-Assign Mappings
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              {fields.map((field, idx) => {
-                const currentMapping =
-                  (settings.ankiFieldMap && settings.ankiFieldMap[field]) ||
-                  inferDefaultMapping(field);
-
-                return (
-                  <div
-                    key={field}
-                    className="hk-settings-row"
-                    style={{
-                      padding: "12px 18px",
-                      borderBottom:
-                        idx === fields.length - 1
-                          ? "none"
-                          : "1px solid rgba(255, 255, 255, 0.06)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div className="hk-settings-row__info">
-                      <label
-                        className="hk-settings-row__label"
-                        style={{ fontSize: "13.5px", fontWeight: 600 }}
-                      >
-                        {field}
-                      </label>
-                    </div>
-
-                    <div className="hk-settings-row__control">
-                      <CustomSelect
-                        value={currentMapping}
-                        onChange={(val) => {
-                          const updatedMap = {
-                            ...(settings.ankiFieldMap || {}),
-                            [field]: val,
-                          };
-                          onUpdate({ ankiFieldMap: updatedMap, ankiPreset: "custom" });
-                        }}
-                        options={FIELD_OPTIONS}
-                        width="260px"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {!ankiConnected && (
-          <div
-            style={{
-              margin: "12px 18px 0 18px",
-              fontSize: "12px",
-              color: "#f59e0b",
-            }}
-          >
-            ⚠️ AnkiConnect not detected. Ensure Anki app is running with
-            AnkiConnect add-on enabled, then click "Refresh Anki".
-          </div>
-        )}
-      </fieldset>
-    </section>
-  );
+      <FeatureSwitch label={tr("settings_anki_section")} checked={!disabled} onChange={enabled => onUpdate({ ankiEnabled: enabled })} />
+    </header>
+    <fieldset className="hk-settings-card__body hk-feature-body" disabled={disabled}>
+      <div className="hk-settings-row">
+        <div className="hk-settings-row__info"><label htmlFor="ankiModel" className="hk-settings-row__label">{tr("settings_anki_model")}</label>
+          <div id="ankiModel-desc" className="hk-settings-row__desc">{tr("settings_anki_model_desc")}</div></div>
+        <div className="hk-settings-row__control">{models.length ? <CustomSelect id="ankiModel" ariaLabel={tr("settings_anki_model")} describedBy="ankiModel-desc"
+          value={settings.ankiModel} options={models.map(model => ({ value: model, label: model }))} onChange={value => void handleModelChange(value)} disabled={disabled} />
+          : <input id="ankiModel" aria-describedby="ankiModel-desc" className="hk-settings-input hk-settings-input--text" value={settings.ankiModel}
+            onChange={event => void handleModelChange(event.target.value)} />}</div>
+      </div>
+      <div className="hk-settings-row">
+        <div className="hk-settings-row__info"><label htmlFor="ankiDeck" className="hk-settings-row__label">{tr("settings_anki_deck")}</label>
+          <div id="ankiDeck-desc" className="hk-settings-row__desc">{tr("settings_anki_deck_desc")}</div></div>
+        <div className="hk-settings-row__control">{decks.length ? <CustomSelect id="ankiDeck" ariaLabel={tr("settings_anki_deck")} describedBy="ankiDeck-desc"
+          value={settings.ankiDeck} options={decks.map(deck => ({ value: deck, label: deck }))} onChange={value => onUpdate({ ankiDeck: value })} disabled={disabled} />
+          : <input id="ankiDeck" aria-describedby="ankiDeck-desc" className="hk-settings-input hk-settings-input--text" value={settings.ankiDeck} onChange={event => onUpdate({ ankiDeck: event.target.value })} />}</div>
+      </div>
+      <div className="hk-settings-row">
+        <div className="hk-settings-row__info"><label htmlFor="anki-preset" className="hk-settings-row__label">{tr("anki_preset")}</label>
+          <div id="anki-preset-desc" className="hk-settings-row__desc">{tr("anki_preset_help")}</div></div>
+        <div className="hk-settings-row__control"><CustomSelect id="anki-preset" ariaLabel={tr("anki_preset")} describedBy="anki-preset-desc" value={settings.ankiPreset || "custom"}
+          options={[{ value: "custom", label: tr("anki_custom") }, { value: "japanese", label: tr("anki_japanese_preset") }]} disabled={disabled}
+          onChange={value => onUpdate({ ankiPreset: value as "custom" | "japanese", ...(value === "japanese" ? { ankiFieldMap: { ...JAPANESE_PRESET } } : {}) })} /></div>
+      </div>
+      {fields.length > 0 && <>
+        <div className="hk-anki-mapping-header"><div><h4>{tr("anki_mappings")}</h4><p>{tr("anki_mappings_help")}</p></div>
+          <button type="button" className="hk-btn hk-btn--secondary hk-btn--sm" onClick={() => onUpdate({ ankiFieldMap: Object.fromEntries(fields.map(field => [field, inferDefaultMapping(field)])) })}>{tr("anki_auto_map")}</button></div>
+        {fields.map((field, index) => <div key={field} className="hk-settings-row">
+          <div className="hk-settings-row__info"><label htmlFor={`anki-field-${index}`} className="hk-settings-row__label">{ankiFieldLabel(field, tr)}</label><span className="hk-settings-row__desc">{field}</span></div>
+          <div className="hk-settings-row__control"><CustomSelect id={`anki-field-${index}`} ariaLabel={ankiFieldLabel(field, tr)}
+            value={settings.ankiFieldMap?.[field] ?? inferDefaultMapping(field)} options={choices} disabled={disabled}
+            onChange={value => onUpdate({ ankiFieldMap: { ...settings.ankiFieldMap, [field]: value }, ankiPreset: "custom" })} /></div>
+        </div>)}
+      </>}
+      <p className="hk-anki-connection" role="status"><span className={`hk-anki-dot ${ankiConnected ? "is-connected" : ""}`} />
+        {tr(ankiConnected ? "settings_anki_status_running" : "settings_anki_status_disconnected")}</p>
+    </fieldset>
+  </section>;
 }

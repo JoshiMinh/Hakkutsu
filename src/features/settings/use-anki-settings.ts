@@ -71,6 +71,7 @@ export function useAnkiSettings(
       setFields([]);
       setLoadingAnki(false);
     }
+    return () => { ++modelRequest.current; ++refreshRequest.current; };
   }, [settings.ankiEnabled, fetchAnkiData]);
 
   const inferDefaultMapping = inferAnkiFieldMapping;

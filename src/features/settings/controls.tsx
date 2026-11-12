@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from "~/shared/locales";
 const usFlag = "/assets/language/en.png";
@@ -182,217 +182,61 @@ export interface CustomSelectOption {
   group?: string;
 }
 
-export function CustomSelect({
-  value,
-  onChange,
-  options,
-  placeholder = "Select...",
-  width = "260px",
-}: {
+export function CustomSelect({ value, onChange, options, placeholder = "Select...", width = "260px", id, ariaLabel, describedBy, disabled = false }: {
   value: string;
-  onChange: (val: string) => void;
+  onChange: (value: string) => void;
   options: CustomSelectOption[];
   placeholder?: string;
   width?: string;
+  id?: string;
+  ariaLabel?: string;
+  describedBy?: string;
+  disabled?: boolean;
 }) {
+  const uid = useId();
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
+  const [active, setActive] = useState(0);
+  const container = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const selected = options.findIndex(option => option.value === value);
+  const close = () => { setIsOpen(false); trigger.current?.focus(); };
+  const choose = (index: number) => { if (options[index]) onChange(options[index].value); close(); };
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    const outside = (event: MouseEvent) => { if (!container.current?.contains(event.target as Node)) setIsOpen(false); };
+    document.addEventListener("mousedown", outside);
+    return () => document.removeEventListener("mousedown", outside);
   }, []);
-
-  const selectedOption = options.find((opt) => opt.value === value);
-  const groups = Array.from(
-    new Set(options.map((o) => o.group).filter(Boolean)),
-  ) as string[];
-
-  return (
-    <div
-      ref={containerRef}
-      style={{ position: "relative", width, flexShrink: 0 }}
-    >
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          width: "100%",
-          backgroundColor: "#18181c",
-          border: "1.5px solid rgba(255, 255, 255, 0.14)",
-          borderRadius: "10px",
-          padding: "8px 12px",
-          color: selectedOption ? "#ffffff" : "#a1a1aa",
-          fontSize: "13px",
-          fontWeight: 600,
-          cursor: "pointer",
-          outline: "none",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-          transition: "all 0.2s ease",
-          textAlign: "left",
-        }}
-      >
-        <span
-          style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            marginRight: "8px",
-          }}
-        >
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        <ChevronDown
-          size={14}
-          style={{
-            color: "#a1a1aa",
-            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.2s ease",
-            flexShrink: 0,
-          }}
-        />
-      </button>
-
-      {isOpen && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            right: 0,
-            zIndex: 1000,
-            width: "100%",
-            minWidth: "260px",
-            maxHeight: "320px",
-            overflowY: "auto",
-            backgroundColor: "#18181c",
-            border: "1px solid rgba(255, 255, 255, 0.16)",
-            borderRadius: "12px",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
-            padding: "6px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "2px",
-            backdropFilter: "blur(14px)",
-          }}
-        >
-          {groups.length > 0
-            ? groups.map((groupName) => {
-                const groupOptions = options.filter(
-                  (o) => o.group === groupName,
-                );
-                return (
-                  <div key={groupName} style={{ marginBottom: "6px" }}>
-                    <div
-                      style={{
-                        fontSize: "10.5px",
-                        fontWeight: 800,
-                        textTransform: "uppercase",
-                        color: "#c084fc",
-                        letterSpacing: "0.6px",
-                        padding: "6px 8px 3px",
-                        borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
-                      }}
-                    >
-                      {groupName}
-                    </div>
-                    {groupOptions.map((opt) => (
-                      <OptionButton
-                        key={opt.value}
-                        opt={opt}
-                        isSelected={opt.value === value}
-                        onClick={() => {
-                          onChange(opt.value);
-                          setIsOpen(false);
-                        }}
-                      />
-                    ))}
-                  </div>
-                );
-              })
-            : options.map((opt) => (
-                <OptionButton
-                  key={opt.value}
-                  opt={opt}
-                  isSelected={opt.value === value}
-                  onClick={() => {
-                    onChange(opt.value);
-                    setIsOpen(false);
-                  }}
-                />
-              ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function OptionButton({
-  opt,
-  isSelected,
-  onClick,
-}: {
-  opt: CustomSelectOption;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        width: "100%",
-        padding: "7px 10px",
-        borderRadius: "8px",
-        border: "none",
-        backgroundColor: isSelected
-          ? "rgba(192, 132, 252, 0.14)"
-          : "transparent",
-        color: isSelected ? "#c084fc" : "#e4e4e7",
-        fontSize: "12.5px",
-        fontWeight: isSelected ? 700 : 500,
-        cursor: "pointer",
-        textAlign: "left",
-        transition: "background-color 0.15s ease",
-      }}
-      onMouseEnter={(e) => {
-        if (!isSelected)
-          e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
-      }}
-      onMouseLeave={(e) => {
-        if (!isSelected) e.currentTarget.style.backgroundColor = "transparent";
-      }}
-    >
-      <span
-        style={{
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {opt.label}
-      </span>
-      {isSelected && (
-        <Check
-          size={14}
-          style={{ color: "#c084fc", marginLeft: "8px", flexShrink: 0 }}
-        />
-      )}
+  useEffect(() => { if (isOpen) container.current?.querySelector<HTMLElement>(`[data-option-index="${active}"]`)?.scrollIntoView({ block: "nearest" }); }, [active, isOpen]);
+  useEffect(() => { if (disabled) setIsOpen(false); }, [disabled]);
+  return <div ref={container} className="hk-custom-select" style={{ width }}>
+    <button ref={trigger} id={id} type="button" className="hk-custom-select__trigger" role="combobox" aria-label={ariaLabel || placeholder}
+      aria-describedby={describedBy} aria-controls={`${uid}-list`} aria-expanded={isOpen} aria-haspopup="listbox" disabled={disabled}
+      aria-activedescendant={isOpen ? `${uid}-${active}` : undefined}
+      onClick={() => { setActive(Math.max(0, selected)); setIsOpen(open => !open); }}
+      onKeyDown={event => {
+        if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+          event.preventDefault();
+          if (!isOpen) { setActive(Math.max(0, selected)); setIsOpen(true); return; }
+          if (event.key === "Home") setActive(0);
+          else if (event.key === "End") setActive(Math.max(0, options.length - 1));
+          else setActive(index => (index + (event.key === "ArrowDown" ? 1 : -1) + options.length) % Math.max(1, options.length));
+        } else if (isOpen && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); choose(active); }
+        else if (event.key === "Escape" && isOpen) { event.preventDefault(); event.stopPropagation(); close(); }
+        else if (event.key === "Tab") setIsOpen(false);
+      }}>
+      <span>{selected >= 0 ? options[selected].label : placeholder}</span><ChevronDown size={14} aria-hidden="true" />
     </button>
-  );
+    {isOpen && <div className="hk-custom-select__menu" role="listbox" id={`${uid}-list`} aria-label={ariaLabel || placeholder}>
+      {options.map((option, index) => <div key={option.value} role="presentation">
+        {option.group && option.group !== options[index - 1]?.group && <div className="hk-custom-select__group">{option.group}</div>}
+        <button id={`${uid}-${index}`} type="button" tabIndex={-1} role="option" aria-selected={option.value === value} data-option-index={index}
+          className={`hk-custom-select__option ${active === index ? "is-active" : ""}`} onMouseEnter={() => setActive(index)}
+          onMouseDown={event => event.preventDefault()} onClick={() => choose(index)}>
+          <span>{option.label}</span>{option.value === value && <Check size={14} aria-hidden="true" />}
+        </button>
+      </div>)}
+    </div>}
+  </div>;
 }
 
 export function FeatureSwitch({

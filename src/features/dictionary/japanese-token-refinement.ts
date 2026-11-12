@@ -30,7 +30,7 @@ function lemmaCandidates(surface: string): string[] {
   return [...new Set(forms)];
 }
 
-export async function refineJapaneseTokens(tokens: Token[], lookup: (text: string) => Promise<DictEntry[]>): Promise<Token[]> {
+export async function refineJapaneseTokens(tokens: Token[], lookup: (text: string) => Promise<DictEntry[]>, allowKana = false): Promise<Token[]> {
   const cache = new Map<string, Promise<DictEntry[]>>();
   const search = (text: string) => {
     if (!cache.has(text)) {
@@ -42,7 +42,7 @@ export async function refineJapaneseTokens(tokens: Token[], lookup: (text: strin
   const refined: Token[] = [];
   for (let start = 0; start < tokens.length; start++) {
     let matched = false;
-    if (hasKanji(tokens[start].surface_form)) {
+    if (hasKanji(tokens[start].surface_form) || allowKana) {
       let end = start;
       let surface = "";
       while (end < Math.min(tokens.length, start + 6) &&

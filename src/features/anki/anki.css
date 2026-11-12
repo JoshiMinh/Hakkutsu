@@ -1,18 +1,148 @@
-.hk-anki-dialog { width: min(52rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); margin: auto; overflow: auto; padding: var(--hk-space-lg); border: 1px solid var(--hk-border); border-radius: var(--hk-radius-lg); background: var(--hk-bg-primary); color: var(--hk-text-primary); }
-.hk-anki-dialog::backdrop { background: rgb(0 0 0 / 65%); }
-.hk-anki-dialog .hk-btn, .hk-anki-review .hk-btn { max-width: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
-.hk-anki-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hk-space-sm); margin-block: var(--hk-space-md); }
-.hk-anki-toolbar h2 { flex: 1; margin: 0; font-size: var(--hk-text-lg); }
-.hk-anki-change { border: 1px solid var(--hk-border); border-radius: var(--hk-radius-md); padding: var(--hk-space-md); margin-block: var(--hk-space-sm); overflow-wrap: anywhere; }
-.hk-anki-change fieldset { min-width: 0; margin-block: var(--hk-space-sm); border: 1px solid var(--hk-border); }
-.hk-anki-change label { display: flex; gap: var(--hk-space-sm); align-items: center; }
-.hk-anki-stack { display: flex; flex-direction: column; gap: var(--hk-space-xs); margin-block: var(--hk-space-md); align-items: stretch !important; }
-.hk-anki-stack textarea, .hk-anki-stack select, .hk-anki-preset select { width: 100%; box-sizing: border-box; border: 1px solid var(--hk-border); background: var(--hk-bg-secondary); color: var(--hk-text-primary); padding: var(--hk-space-sm); border-radius: var(--hk-radius-sm); }
-.hk-anki-stack textarea { min-height: 4.5rem; resize: vertical; }
-.hk-anki-field { overflow-wrap: anywhere; white-space: pre-wrap; margin-block: var(--hk-space-sm); }
-.hk-anki-field img, .hk-anki-field audio { display: block; max-width: 100%; max-height: 16rem; margin-block: var(--hk-space-sm); }
-.hk-anki-study-card { border: 1px solid var(--hk-border); border-radius: var(--hk-radius-lg); padding: var(--hk-space-lg); background: var(--hk-bg-secondary); }
-.hk-anki-preset, .hk-anki-review, .hk-anki-card-fields { padding: var(--hk-space-md); }
-.hk-anki-review-source [aria-pressed="true"] { border-color: var(--hk-accent-primary); }
-.hk-anki-dialog :is(button,input,select,textarea,summary):focus-visible, .hk-anki-review :is(button,audio):focus-visible { outline: 2px solid var(--hk-accent-primary); outline-offset: 2px; }
-@media (max-width: 380px) { .hk-anki-dialog { padding: var(--hk-space-sm); } .hk-anki-toolbar > .hk-btn { flex: 1; } }
+/* Hallmark · component: Anki workflows · theme: existing Hakkutsu tokens
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * pre-emit critique: P5 H5 E4 S5 R5 V4 */
+.hk-anki-dialog { box-sizing: border-box; width: min(55rem, calc(100vw - 2rem)); height: min(50rem, calc(100dvh - 2rem)); max-height: calc(100dvh - 2rem); margin: auto; padding: 0; overflow: visible; border: 1px solid var(--hk-border); border-radius: var(--hk-radius-lg); background: var(--hk-bg-secondary); color: var(--hk-text-primary); font-family: var(--hk-font-sans); font-size: var(--hk-text-sm); box-shadow: var(--hk-shadow-lg); }
+.hk-anki-dialog[open] { display: flex; flex-direction: column; }
+.hk-anki-dialog::backdrop { background: color-mix(in srgb, var(--hk-bg-primary) 80%, transparent); backdrop-filter: blur(6px); }
+.hk-anki-dialog__header { display: flex; align-items: center; justify-content: space-between; gap: var(--hk-space-md); padding: var(--hk-space-lg) var(--hk-space-xl); border-bottom: 1px solid var(--hk-border); flex-shrink: 0; }
+.hk-anki-dialog__header > div { min-width: 0; }
+.hk-anki-dialog__header h2 { display: flex; align-items: center; gap: var(--hk-space-sm); margin: 0 0 var(--hk-space-xs); font-size: var(--hk-text-lg); font-weight: 700; }
+.hk-anki-dialog__header h2 img { width: 20px; height: 20px; }
+.hk-anki-dialog__header p { margin: 0; color: var(--hk-text-secondary); overflow-wrap: anywhere; }
+.hk-anki-dialog__controls { padding: var(--hk-space-md) var(--hk-space-xl); border-bottom: 1px solid var(--hk-border); flex-shrink: 0; }
+.hk-anki-muted { margin: 0; color: var(--hk-text-secondary); line-height: 1.6; }
+.hk-anki-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--hk-space-sm); margin-top: var(--hk-space-md); }
+.hk-anki-count { margin-left: auto; color: var(--hk-text-secondary); }
+.hk-anki-count b { color: var(--hk-text-primary); }
+.hk-anki-dialog__body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--hk-space-lg) var(--hk-space-xl); }
+.hk-anki-dialog__footer { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--hk-space-md); flex-shrink: 0; border-top: 1px solid var(--hk-border); padding: var(--hk-space-md) var(--hk-space-xl); }
+.hk-anki-progress { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hk-space-xs) var(--hk-space-sm); margin-top: var(--hk-space-md); color: var(--hk-text-secondary); }
+.hk-anki-progress > span { flex: 1; }
+.hk-anki-progress > b { color: var(--hk-text-primary); font-variant-numeric: tabular-nums; }
+.hk-anki-progress progress { width: 100%; height: 5px; border: 0; border-radius: var(--hk-radius-full); accent-color: var(--hk-accent-primary); background: var(--hk-bg-tertiary); }
+.hk-anki-progress progress::-webkit-progress-bar { background: var(--hk-bg-tertiary); border-radius: var(--hk-radius-full); }
+.hk-anki-progress progress::-webkit-progress-value { background: var(--hk-accent-primary); border-radius: var(--hk-radius-full); }
+.hk-anki-progress progress::-moz-progress-bar { background: var(--hk-accent-primary); border-radius: var(--hk-radius-full); }
+.hk-anki-selection { display: flex; flex-wrap: wrap; align-items: center; gap: var(--hk-space-sm); margin-bottom: var(--hk-space-md); color: var(--hk-text-secondary); }
+.hk-anki-selection label { display: flex; align-items: center; gap: var(--hk-space-sm); }
+.hk-anki-dialog input[type=checkbox], .hk-anki-dialog input[type=radio] { accent-color: var(--hk-accent-primary); flex-shrink: 0; }
+.hk-anki-rows { border: 1px solid var(--hk-border); border-radius: var(--hk-radius-md); }
+.hk-anki-row { padding: var(--hk-space-md); border-bottom: 1px solid var(--hk-border); min-width: 0; }
+.hk-anki-row:last-child { border-bottom: 0; }
+.hk-anki-row.is-running { background: color-mix(in srgb, var(--hk-accent-primary) 8%, var(--hk-bg-secondary)); }
+.hk-anki-row__summary { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(80px, 1.5fr) auto auto; gap: var(--hk-space-md); align-items: center; }
+.hk-anki-row__word { display: flex; align-items: center; gap: var(--hk-space-sm); min-width: 0; cursor: pointer; }
+.hk-anki-row__word > span { display: flex; flex-direction: column; min-width: 0; }
+.hk-anki-row__word strong { font-family: var(--hk-font-jp); font-size: var(--hk-text-base); overflow-wrap: anywhere; }
+.hk-anki-row__word small { color: var(--hk-accent-sakura); font-family: var(--hk-font-jp); overflow-wrap: anywhere; }
+.hk-anki-row__meaning { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--hk-text-secondary); }
+.hk-anki-status { display: inline-flex; align-items: center; padding: 2px var(--hk-space-sm); border-radius: var(--hk-radius-sm); border: 1px solid var(--hk-border); color: var(--hk-text-secondary); font-size: var(--hk-text-xs); white-space: nowrap; }
+.hk-anki-status--import, .hk-anki-status--link { color: var(--hk-accent-teal); }
+.hk-anki-status--update, .hk-anki-status--export { color: var(--hk-text-accent); }
+.hk-anki-status--ambiguous, .hk-anki-status--missing { color: var(--hk-accent-crimson); }
+.hk-anki-row__state { color: var(--hk-text-secondary); font-size: var(--hk-text-xs); }
+.hk-anki-row__details { margin: var(--hk-space-sm) 0 0 var(--hk-space-xl); color: var(--hk-text-secondary); }
+.hk-anki-row__details summary, .hk-anki-feedback summary { cursor: pointer; font-size: var(--hk-text-xs); }
+.hk-anki-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--hk-space-md); margin-top: var(--hk-space-md); }
+.hk-anki-field-grid dt { color: var(--hk-text-secondary); font-size: var(--hk-text-xs); }
+.hk-anki-field-grid dd { margin: 0; color: var(--hk-text-primary); }
+.hk-anki-field { overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.6; margin-block: var(--hk-space-sm); }
+.hk-anki-field img { display: block; max-width: 100%; max-height: 12rem; object-fit: contain; border-radius: var(--hk-radius-md); }
+.hk-anki-row__matching { margin: var(--hk-space-sm) 0 var(--hk-space-sm) var(--hk-space-xl); }
+.hk-anki-conflict { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--hk-space-sm); margin-block: var(--hk-space-md); padding: var(--hk-space-sm); border: 1px solid var(--hk-border); border-radius: var(--hk-radius-md); }
+.hk-anki-conflict legend { color: var(--hk-text-secondary); padding-inline: var(--hk-space-xs); }
+.hk-anki-conflict label { padding: var(--hk-space-sm); min-width: 0; border: 1px solid var(--hk-border); border-radius: var(--hk-radius-sm); }
+.hk-anki-conflict label > span { display: flex; align-items: center; gap: var(--hk-space-sm); font-weight: 600; }
+.hk-anki-conflict label.is-selected { border-color: var(--hk-accent-primary); background: color-mix(in srgb, var(--hk-accent-primary) 8%, transparent); }
+.hk-anki-pagination { display: flex; align-items: center; gap: var(--hk-space-sm); margin-right: auto; color: var(--hk-text-secondary); font-variant-numeric: tabular-nums; }
+.hk-anki-feedback { display: flex; align-items: flex-start; gap: var(--hk-space-sm); padding: var(--hk-space-md); margin-block: var(--hk-space-sm); background: var(--hk-bg-tertiary); color: var(--hk-text-secondary); border: 1px solid var(--hk-border); border-radius: var(--hk-radius-md); }
+.hk-anki-feedback > svg { flex-shrink: 0; margin-top: 2px; }
+.hk-anki-feedback > div { min-width: 0; }
+.hk-anki-feedback p { margin: 0; line-height: 1.6; }
+.hk-anki-feedback details { margin-top: var(--hk-space-sm); }
+.hk-anki-feedback pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; max-height: 10rem; overflow-y: auto; }
+.hk-anki-feedback.is-error { border-color: color-mix(in srgb, var(--hk-accent-crimson) 40%, var(--hk-border)); }
+.hk-anki-feedback.is-error > svg { color: var(--hk-accent-crimson); }
+.hk-anki-feedback.is-success > svg { color: var(--hk-accent-teal); }
+.hk-anki-totals { display: flex; flex-wrap: wrap; gap: var(--hk-space-xl); padding: var(--hk-space-lg); border-bottom: 1px solid var(--hk-border); }
+.hk-anki-totals dt { font-size: var(--hk-text-xs); color: var(--hk-text-secondary); }
+.hk-anki-totals dd { margin: var(--hk-space-xs) 0 0; font-size: var(--hk-text-xl); font-weight: 700; }
+.hk-anki-pending { padding: var(--hk-space-md); margin-block: var(--hk-space-sm); border: 1px solid var(--hk-border); border-radius: var(--hk-radius-md); color: var(--hk-text-secondary); }
+.hk-custom-select { position: relative; max-width: 100%; min-width: 0; flex-shrink: 1; font-family: var(--hk-font-sans); }
+.hk-custom-select__trigger { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: var(--hk-space-sm); padding: var(--hk-space-sm) var(--hk-space-md); border: 1px solid var(--hk-border); border-radius: var(--hk-radius-md); background: var(--hk-bg-tertiary); color: var(--hk-text-primary); font: inherit; font-size: var(--hk-text-sm); font-weight: 600; cursor: pointer; text-align: left; min-height: 36px; }
+.hk-custom-select__trigger > span, .hk-custom-select__option > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hk-custom-select__trigger > svg, .hk-custom-select__option > svg { flex-shrink: 0; }
+.hk-custom-select__trigger:hover { border-color: var(--hk-border-focus); }
+.hk-custom-select__trigger[aria-expanded=true] > svg { transform: rotate(180deg); }
+.hk-custom-select__trigger:disabled { opacity: .5; cursor: not-allowed; }
+.hk-custom-select__menu { position: absolute; top: calc(100% + var(--hk-space-xs)); left: 0; width: 100%; max-height: 16rem; overflow-y: auto; z-index: 1000; padding: var(--hk-space-xs); box-sizing: border-box; border: 1px solid var(--hk-border-focus); border-radius: var(--hk-radius-md); background: var(--hk-bg-tertiary); box-shadow: var(--hk-shadow-lg); }
+.hk-custom-select__option { display: flex; align-items: center; justify-content: space-between; gap: var(--hk-space-sm); width: 100%; padding: var(--hk-space-sm); text-align: left; border: 0; border-radius: var(--hk-radius-sm); color: var(--hk-text-primary); background: transparent; cursor: pointer; font: inherit; font-size: var(--hk-text-sm); }
+.hk-custom-select__option.is-active { background: var(--hk-bg-hover); }
+.hk-custom-select__option[aria-selected=true] { color: var(--hk-text-accent); background: color-mix(in srgb, var(--hk-accent-primary) 12%, transparent); }
+.hk-custom-select__group { color: var(--hk-text-secondary); font-size: var(--hk-text-xs); padding: var(--hk-space-sm); }
+.hk-anki-mapping-header { display: flex; flex-wrap: wrap; gap: var(--hk-space-md); justify-content: space-between; align-items: center; padding: var(--hk-space-lg); border-block: 1px solid var(--hk-border); }
+.hk-anki-mapping-header h4 { font-size: var(--hk-text-sm); margin: 0 0 var(--hk-space-xs); }
+.hk-anki-mapping-header p { font-size: var(--hk-text-xs); color: var(--hk-text-secondary); margin: 0; }
+.hk-anki-connection { display: flex; align-items: center; gap: var(--hk-space-sm); padding: var(--hk-space-md) var(--hk-space-lg); color: var(--hk-text-secondary); font-size: var(--hk-text-xs); }
+.hk-anki-dot { width: 6px; height: 6px; border-radius: var(--hk-radius-full); background: var(--hk-text-muted); }
+.hk-anki-dot.is-connected { background: var(--hk-accent-teal); }
+.hk-anki-review { max-width: 720px; margin: auto; padding: var(--hk-space-lg); }
+.hk-anki-review__header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: var(--hk-space-md); margin-bottom: var(--hk-space-xl); }
+.hk-anki-review__header > div { flex: 1; min-width: min(100%, 16rem); }
+.hk-anki-review__header h2 { display: flex; align-items: center; gap: var(--hk-space-sm); margin-bottom: var(--hk-space-sm); font-size: var(--hk-text-lg); }
+.hk-anki-review__header h2 svg { color: var(--hk-text-accent); }
+.hk-anki-review__header p { color: var(--hk-text-secondary); font-size: var(--hk-text-sm); line-height: 1.7; margin: 0; }
+.hk-anki-study-card { border: 1px solid var(--hk-border); border-radius: var(--hk-radius-lg); padding: var(--hk-space-xl); background: var(--hk-bg-secondary); min-height: 12rem; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+.hk-anki-word { font-family: var(--hk-font-jp); font-size: 30px; font-weight: 700; }
+.hk-anki-review .hk-srs-badge { display: inline-flex; align-items: center; gap: var(--hk-space-xs); }
+.hk-anki-review__actions { flex-direction: column; align-items: stretch; }
+.hk-anki-review__actions .hk-srs-grades { width: 100%; }
+.hk-anki-review__actions .hk-srs-grades small { display: block; opacity: .65; margin-top: var(--hk-space-xs); }
+.hk-anki-review-source { display: inline-flex; gap: var(--hk-space-xs); padding: var(--hk-space-xs); margin-bottom: var(--hk-space-lg); background: var(--hk-bg-secondary); border: 1px solid var(--hk-border); border-radius: var(--hk-radius-md); }
+.hk-anki-source-option { border: 1px solid transparent; border-radius: var(--hk-radius-sm); padding: var(--hk-space-sm) var(--hk-space-md); background: transparent; color: var(--hk-text-secondary); font: inherit; font-size: var(--hk-text-sm); cursor: pointer; }
+.hk-anki-source-option.is-active { color: var(--hk-text-primary); border-color: var(--hk-border); background: var(--hk-bg-tertiary); }
+.hk-anki-source-option:disabled { opacity: .5; cursor: not-allowed; }
+.hk-anki-audio-control { display: inline-flex; flex-shrink: 0; }
+.hk-anki-audio { width: 26px; height: 26px; flex-shrink: 0; }
+.hk-anki-audio.hk-btn--sm { width: auto; }
+.hk-anki-audio.is-playing { color: var(--hk-text-accent); background: color-mix(in srgb, var(--hk-accent-primary) 12%, transparent); }
+.hk-anki-audio:disabled { opacity: .3; }
+.hk-vocab-with-audio { display: flex; align-items: center; gap: var(--hk-space-xs); min-width: 0; }
+.hk-vocab-inline-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hk-vocab-inline-text .hk-anki-field { margin: 0; display: inline; white-space: nowrap; }
+.hk-vocab-table :is(th,td):nth-child(1) { position: sticky; left: 0; z-index: 2; background: var(--hk-bg-primary); }
+.hk-vocab-table :is(th,td):nth-child(2) { position: sticky; left: 36px; z-index: 2; background: var(--hk-bg-primary); }
+.hk-vocab-table :is(th,td):nth-child(3) { position: sticky; left: 88px; z-index: 2; background: var(--hk-bg-primary); }
+.hk-vocab-table th:nth-child(-n+3) { z-index: 3; background: var(--hk-bg-secondary); }
+.hk-anki-card-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--hk-space-md); margin-top: var(--hk-space-lg); padding-top: var(--hk-space-lg); border-top: 1px solid var(--hk-border); }
+.hk-anki-card-fields > :is(h3,details,button,.hk-anki-feedback) { grid-column: 1 / -1; }
+.hk-anki-card-fields h3 { margin: 0; color: var(--hk-text-secondary); font-size: var(--hk-text-sm); }
+.hk-anki-stack { display: flex; flex-direction: column; gap: var(--hk-space-xs); min-width: 0; }
+.hk-anki-stack > label { font-size: var(--hk-text-xs); color: var(--hk-text-secondary); }
+.hk-anki-stack textarea { width: 100%; min-height: 3.5rem; box-sizing: border-box; resize: vertical; border: 1px solid var(--hk-border); border-radius: var(--hk-radius-md); background: var(--hk-bg-primary); color: var(--hk-text-primary); padding: var(--hk-space-sm); font: inherit; font-size: var(--hk-text-sm); }
+.hk-anki-upload { position: relative; align-self: flex-start; overflow: hidden; }
+.hk-anki-upload input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+.hk-anki-upload:focus-within { outline: 2px solid var(--hk-accent-primary); outline-offset: 2px; }
+.hk-anki-upload:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+.hk-anki-settings .hk-settings-row__info { min-width: 0; }
+.hk-anki-settings .hk-settings-row__control { min-width: 0; }
+.hk-custom-select { max-width: 100%; }
+.hk-anki-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+:is(.hk-anki-dialog,.hk-anki-review,.hk-custom-select,.hk-anki-card-fields,.hk-anki-review-source) :is(button,input,textarea,select,summary):focus-visible { outline: 2px solid var(--hk-accent-primary); outline-offset: 2px; }
+@media (max-width: 600px) {
+  .hk-anki-settings .hk-settings-row { flex-direction: column; align-items: stretch; gap: var(--hk-space-sm); }
+  .hk-anki-settings .hk-settings-row__control, .hk-anki-settings .hk-custom-select { width: 100% !important; }
+  .hk-anki-settings .hk-settings-input { min-width: 0; width: 100%; }
+  .hk-anki-dialog { width: calc(100vw - 1rem); height: calc(100dvh - 1rem); max-height: calc(100dvh - 1rem); }
+  .hk-anki-dialog__header, .hk-anki-dialog__controls, .hk-anki-dialog__body, .hk-anki-dialog__footer { padding-inline: var(--hk-space-md); }
+  .hk-anki-row__summary { grid-template-columns: minmax(0,1fr) auto; gap: var(--hk-space-xs) var(--hk-space-sm); }
+  .hk-anki-row__meaning { grid-row: 2; margin-left: var(--hk-space-xl); }
+  .hk-anki-row__state { grid-column: 2; grid-row: 2; }
+  .hk-anki-conflict, .hk-anki-field-grid, .hk-anki-card-fields { grid-template-columns: minmax(0,1fr); }
+  .hk-anki-count { margin-left: 0; width: 100%; }
+  .hk-anki-selection { gap: var(--hk-space-xs); }
+  .hk-anki-selection > label { width: 100%; }
+  .hk-vocab-actions { flex-wrap: wrap; gap: var(--hk-space-xs); max-width: 100%; }
+  .hk-vocab-actions > .hk-btn + .hk-btn { margin-left: 0; }
+  .hk-vocab-actions > .hk-btn:is(:first-of-type,:last-child), .hk-vocab-actions > .hk-btn { border-radius: var(--hk-radius-sm); }
+}

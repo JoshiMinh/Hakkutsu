@@ -1,3 +1,4 @@
+import { highlightSentenceFields } from "~/shared/japanese/sentence-highlight";
 import { openDB } from "idb";
 import type { DBSchema, IDBPDatabase } from "idb";
 import { resolveHanViet } from "~/shared/japanese/hanviet-dict";
@@ -29,6 +30,7 @@ export interface SrsCard {
   sentence_meaning?: string;
   word_audio?: string;
   sentence_audio?: string;
+  media_profile?: string;
   notes?: string;
   picture?: string;
   anki?: AnkiLink;
@@ -99,7 +101,7 @@ interface SrsDBSchema extends DBSchema {
 export function validateSrsCards(value: unknown): asserts value is SrsCard[] {
   if (!Array.isArray(value)) throw new Error("Backup cards must be an array.");
   const strings = ["id", "reading", "meaning", "sentence", "source_url", "source_title", "source_domain", "image_url",
-    "word_furigana", "jlpt", "vietnamese_sound", "sentence_furigana", "sentence_meaning", "word_audio", "sentence_audio", "notes", "picture"];
+    "word_furigana", "jlpt", "vietnamese_sound", "sentence_furigana", "sentence_meaning", "word_audio", "sentence_audio", "media_profile", "notes", "picture"];
   const numbers = ["lapse_count", "stability", "difficulty", "state", "last_review", "retrievability", "elapsed_days",
     "scheduled_days", "due_date", "interval", "repetition", "efactor", "created_at", "updated_at"];
   value.forEach((card, index) => {
@@ -198,6 +200,7 @@ class LocalSrsService {
         tags: data.tags ? Array.from(new Set([...(existingCard.tags || []), ...data.tags])) : existingCard.tags,
         updated_at: now,
       };
+      Object.assign(updatedCard, await highlightSentenceFields(updatedCard));
       await db.put("cards", updatedCard);
       return updatedCard;
     }
@@ -284,6 +287,7 @@ class LocalSrsService {
       updated_at: now,
     };
     
+    Object.assign(card, await highlightSentenceFields(card));
     await db.put("cards", card);
     analyticsService.recordCardMined().catch(() => {});
     return card;
@@ -666,6 +670,21 @@ class LocalSrsService {
     analyticsService.recordReview(quality).catch(() => {});
 
     return card;
+  }
+
+  /** Repair only the snapshot that was inspected; an editor or another tab may have changed it. */
+  async repairSentenceFields(snapshot: SrsCard): Promise<SrsCard> {
+    const highlighted = await highlightSentenceFields(snapshot);
+    if (highlighted.sentence === snapshot.sentence && highlighted.sentence_furigana === snapshot.sentence_furigana) return snapshot;
+    const tx = (await this.dbPromise).transaction("cards", "readwrite");
+    const current = await tx.store.get(snapshot.id);
+    if (!current) { await tx.done; return snapshot; }
+    if (current.word !== snapshot.word || current.sentence !== snapshot.sentence || current.sentence_furigana !== snapshot.sentence_furigana) {
+      await tx.done; return current;
+    }
+    const repaired = { ...current, ...highlighted, updated_at: Date.now() };
+    await tx.store.put(repaired); await tx.done;
+    return repaired;
   }
 
   async updateSrsCard(id: string, updates: Partial<SrsCard>): Promise<SrsCard> {
