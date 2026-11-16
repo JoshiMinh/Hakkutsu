@@ -46,6 +46,10 @@ export const fr = {
   dict_label_translation: "TRADUCTION EN FRANÇAIS",
   dict_empty_transient: "Survolez un mot dans les sous-titres pour l'inspecter.",
   dict_empty_select: "Sélectionnez un mot japonais dans la phrase pour l'inspecter.",
+  dict_error_result_mismatch: "L’analyse a renvoyé une autre phrase. Réessayez.",
+  dict_error_invalid_response: "L’analyse a renvoyé une réponse invalide. Réessayez.",
+  dict_error_save: "Impossible d’enregistrer le mot. Réessayez.",
+  dict_error_remove: "Impossible de supprimer le mot. Réessayez.",
   dict_grammar_title: "Structures Grammaticales",
   dict_grammar_empty: "Aucune structure grammaticale majeure détectée dans cette phrase.",
 

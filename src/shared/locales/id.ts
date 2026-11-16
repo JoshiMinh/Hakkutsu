@@ -46,6 +46,10 @@ export const id = {
   dict_label_translation: "TERJEMAHAN BAHASA INDONESIA",
   dict_empty_transient: "Arahkan kursor ke kata di subtitle untuk memeriksa.",
   dict_empty_select: "Pilih kata bahasa Jepang dari kalimat untuk memeriksa.",
+  dict_error_result_mismatch: "Analisis mengembalikan kalimat yang berbeda. Silakan coba lagi.",
+  dict_error_invalid_response: "Analisis mengembalikan respons yang tidak valid. Silakan coba lagi.",
+  dict_error_save: "Kata tidak dapat disimpan. Silakan coba lagi.",
+  dict_error_remove: "Kata tidak dapat dihapus. Silakan coba lagi.",
   dict_grammar_title: "Pola Tata Bahasa",
   dict_grammar_empty: "Tidak ada pola tata bahasa menonjol yang terdeteksi dalam kalimat ini.",
 

@@ -46,6 +46,10 @@ export const ko = {
   dict_label_translation: "한국어 번역",
   dict_empty_transient: "자막의 단어에 마우스를 올리면 상세 정보가 표시됩니다.",
   dict_empty_select: "문장에서 일본어 단어를 선택하여 사전을 검색하세요.",
+  dict_error_result_mismatch: "다른 문장의 분석 결과가 반환되었습니다. 다시 시도해 주세요.",
+  dict_error_invalid_response: "분석 결과가 올바르지 않습니다. 다시 시도해 주세요.",
+  dict_error_save: "단어를 저장할 수 없습니다. 다시 시도해 주세요.",
+  dict_error_remove: "단어를 삭제할 수 없습니다. 다시 시도해 주세요.",
   dict_grammar_title: "문법 패턴",
   dict_grammar_empty: "이 문장에서 주요 문법 패턴이 감지되지 않았습니다.",
 

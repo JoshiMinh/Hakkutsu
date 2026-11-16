@@ -46,6 +46,10 @@ export const es = {
   dict_label_translation: "TRADUCCIÓN EN ESPAÑOL",
   dict_empty_transient: "Pasa el cursor sobre una palabra en los subtítulos para inspeccionar.",
   dict_empty_select: "Selecciona una palabra en japonés de la oración para inspeccionar.",
+  dict_error_result_mismatch: "El análisis devolvió otra oración. Inténtalo de nuevo.",
+  dict_error_invalid_response: "El análisis devolvió una respuesta no válida. Inténtalo de nuevo.",
+  dict_error_save: "No se pudo guardar la palabra. Inténtalo de nuevo.",
+  dict_error_remove: "No se pudo eliminar la palabra. Inténtalo de nuevo.",
   dict_grammar_title: "Patrones Gramaticales",
   dict_grammar_empty: "No se detectaron patrones gramaticales destacados en esta oración.",
 

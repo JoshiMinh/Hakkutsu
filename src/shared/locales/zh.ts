@@ -46,6 +46,10 @@ export const zh = {
   dict_label_translation: "中文翻译",
   dict_empty_transient: "悬停在字幕中的单词上以查看详细信息。",
   dict_empty_select: "在句子中选择一个日语单词以查询词典。",
+  dict_error_result_mismatch: "分析返回了另一个句子的结果，请重试。",
+  dict_error_invalid_response: "分析返回的结果无效，请重试。",
+  dict_error_save: "无法保存单词，请重试。",
+  dict_error_remove: "无法删除单词，请重试。",
   dict_grammar_title: "语法结构",
   dict_grammar_empty: "在此句子中未检测到明显的语法结构。",
 

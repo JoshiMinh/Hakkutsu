@@ -139,7 +139,7 @@ class ApiClient {
 
   /** Analyze Japanese text */
   async analyzeText(request: AnalyzeRequest): Promise<AnalyzeResponse> {
-    const targetLang = useSettingsStore.getState().settings.targetLanguage || "vi";
+    const targetLang = request.target_language || useSettingsStore.getState().settings.targetLanguage || "vi";
     const cacheKey = `${targetLang}:${JSON.stringify(request)}`;
     if (this.analyzeCache.has(cacheKey)) {
       return this.analyzeCache.get(cacheKey)!;
@@ -177,7 +177,7 @@ class ApiClient {
 
   /** Translate and deeply analyze a user-selected subtitle phrase */
   async analyzePhrase(request: AnalyzeRequest): Promise<PhraseAnalyzeResponse> {
-    const targetLang = useSettingsStore.getState().settings.targetLanguage || "vi";
+    const targetLang = request.target_language || useSettingsStore.getState().settings.targetLanguage || "vi";
     const cacheKey = `${targetLang}:${request.source || "text"}:${request.text.trim()}`;
     const cached = this.phraseCache.get(cacheKey);
     if (cached) return cached;

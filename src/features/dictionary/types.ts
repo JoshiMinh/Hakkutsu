@@ -53,6 +53,7 @@ export interface TokenAnalysis {
 
 export interface AnalyzeRequest {
   text: string;
+  target_language?: string;
   analysis_mode?: "dictionary";
   source?: "ocr";
   include_definitions?: boolean;

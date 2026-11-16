@@ -12,7 +12,7 @@ export function requestLookupAnalysis(type: string, text: string, includeDefinit
   if (cache.has(key)) return Promise.resolve(cache.get(key));
   const inFlight = pending.get(key);
   if (inFlight) return inFlight;
-  const request = chrome.runtime.sendMessage({ type, payload: { text, include_definitions: includeDefinitions,
+  const request = chrome.runtime.sendMessage({ type, payload: { text, target_language: language, include_definitions: includeDefinitions,
     ...(type !== "ANALYZE_PHRASE" && includeDefinitions && !source ? { analysis_mode: "dictionary" } : {}),
     ...(source ? { source } : {}) } })
     .then((response) => {

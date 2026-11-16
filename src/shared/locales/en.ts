@@ -46,6 +46,10 @@ export const en = {
   dict_label_translation: "ENGLISH TRANSLATION",
   dict_empty_transient: "Hover over a word in the subtitles to inspect.",
   dict_empty_select: "Select a Japanese word from the sentence to inspect.",
+  dict_error_result_mismatch: "The analysis returned a different sentence. Please try again.",
+  dict_error_invalid_response: "The analysis returned an invalid response. Please try again.",
+  dict_error_save: "Could not save the word. Please try again.",
+  dict_error_remove: "Could not remove the word. Please try again.",
   dict_grammar_title: "Grammar Patterns",
   dict_grammar_empty: "No prominent grammar patterns detected in this sentence.",
 

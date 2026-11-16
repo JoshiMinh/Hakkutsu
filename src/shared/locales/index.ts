@@ -117,7 +117,7 @@ export function getLanguageConfig(langCode?: string): LanguageConfig {
   return SUPPORTED_LANGUAGES.en; // Fallback
 }
 
-export const translations: Record<string, Record<string, string>> = {
+export const translations: Record<string, Record<TranslationKey, string>> = {
   en,
   vi,
   ja,

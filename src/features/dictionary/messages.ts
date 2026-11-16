@@ -27,7 +27,7 @@ export async function handleDictionaryMessage(
 
       if (request.analysis_mode === "dictionary") {
         try {
-          return { type: "ANALYZE_RESULT", payload: await analyzeLocal(request.text) };
+          return { type: "ANALYZE_RESULT", payload: await analyzeLocal(request.text, true, request.target_language) };
         } catch (error) {
           return { type: "ERROR", payload: { error: error instanceof Error ? error.message : "Dictionary lookup unavailable" } };
         }
@@ -42,7 +42,7 @@ export async function handleDictionaryMessage(
           llmErr,
         );
         try {
-          const fallbackResult = await analyzeLocal(request.text);
+          const fallbackResult = await analyzeLocal(request.text, true, request.target_language);
           return { type: "ANALYZE_RESULT", payload: fallbackResult };
         } catch (dictErr) {
           console.warn(
@@ -50,7 +50,7 @@ export async function handleDictionaryMessage(
             dictErr,
           );
           try {
-            const dictResult = await fetchDictionaryFallback(request.text);
+            const dictResult = await fetchDictionaryFallback(request.text, request.target_language);
             return { type: "ANALYZE_RESULT", payload: dictResult };
           } catch {
             return {
@@ -88,28 +88,14 @@ export async function handleDictionaryMessage(
         return { type: "ANALYZE_PHRASE_RESULT", payload: result };
       } catch (err) {
         console.warn(
-          "[Hakkutsu] Phrase LLM analysis failed, fallback to dictionary:",
+          "[Hakkutsu] Phrase analysis failed, using local sentence tokens:",
           err,
         );
-        try {
-          const dictResult = await fetchDictionaryFallback(request.text);
-          return {
-            type: "ANALYZE_PHRASE_RESULT",
-            payload: {
-              ...dictResult,
-              translation:
-                dictResult.tokens[0]?.definitions?.[0]?.glosses
-                  ?.slice(0, 3)
-                  .join(", ") || "",
-            },
-          };
-        } catch {
-          const fallbackResult = await analyzeLocal(request.text);
-          return {
-            type: "ANALYZE_PHRASE_RESULT",
-            payload: { ...fallbackResult, translation: "" },
-          };
-        }
+        const fallbackResult = await analyzeLocal(request.text, true, request.target_language);
+        return {
+          type: "ANALYZE_PHRASE_RESULT",
+          payload: { ...fallbackResult, translation: "" },
+        };
       }
     }
 

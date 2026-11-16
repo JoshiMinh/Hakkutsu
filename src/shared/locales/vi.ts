@@ -46,6 +46,10 @@ export const vi = {
   dict_label_translation: "BẢN DỊCH TIẾNG VIỆT",
   dict_empty_transient: "Rê chuột qua một từ trong phụ đề để xem chi tiết.",
   dict_empty_select: "Chọn một từ tiếng Nhật trong câu để tra từ điển.",
+  dict_error_result_mismatch: "Kết quả phân tích trả về một câu khác. Vui lòng thử lại.",
+  dict_error_invalid_response: "Kết quả phân tích không hợp lệ. Vui lòng thử lại.",
+  dict_error_save: "Không thể lưu từ. Vui lòng thử lại.",
+  dict_error_remove: "Không thể xóa từ. Vui lòng thử lại.",
   dict_grammar_title: "Giải thích ngữ pháp",
   dict_grammar_empty: "Không phát hiện mẫu ngữ pháp nổi bật trong câu này.",
 

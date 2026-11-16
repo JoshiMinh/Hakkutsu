@@ -22,8 +22,8 @@ function providerDefinitions(info: LookupResult | undefined): DictionaryEntry[] 
   return info?.meaning ? [{ dictionary: info.source || "Dict", glosses: [info.meaning], pos: ["Word"], field: null, misc: [] }] : [];
 }
 
-export async function fetchDictionaryFallback(text: string): Promise<AnalyzeResponse> {
-  const { targetLanguage = "vi" } = await getSettings();
+export async function fetchDictionaryFallback(text: string, language?: string): Promise<AnalyzeResponse> {
+  const targetLanguage = language || (await getSettings()).targetLanguage || "vi";
   const info = await lookupWord(text, targetLanguage);
   const reading = resolveSurfaceReading(text, info.reading);
   return {
@@ -38,9 +38,8 @@ export async function fetchDictionaryFallback(text: string): Promise<AnalyzeResp
   };
 }
 
-export async function analyzeLocal(text: string, includeDefinitions = true): Promise<AnalyzeResponse> {
-  const { targetLanguage } = await getSettings();
-  const language = targetLanguage || "vi";
+export async function analyzeLocal(text: string, includeDefinitions = true, targetLanguage?: string): Promise<AnalyzeResponse> {
+  const language = targetLanguage || (await getSettings()).targetLanguage || "vi";
   const entries = new Map<string, Promise<DictEntry[]>>();
   const lookups = new Map<string, Promise<LookupResult>>();
   const search = (word: string): Promise<DictEntry[]> => {

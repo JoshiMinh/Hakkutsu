@@ -17,6 +17,11 @@ import { MangaOcrImages } from "~/features/ocr/manga-ocr-images";
 import { useSettingsStore } from "~/features/settings/settings-store";
 import { useTranslation } from "~/shared/locales";
 import { requestLookupAnalysis, applyLookupContext } from "~/features/dictionary/lookup-analysis";
+import { readPageSelection } from "~/features/dictionary/page-selection";
+
+class LookupResponseError extends Error {
+  constructor(readonly key: "dict_error_result_mismatch" | "dict_error_invalid_response") { super(key); }
+}
 
 // Content scripts render inside arbitrary websites, so root-relative URLs point
 // at the host page. Resolve the packaged asset against the extension origin.
@@ -136,10 +141,16 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
   const [ocrCroppedImage, setOcrCroppedImage] = useState<string | null>(null);
   const [ocrRegionId, setOcrRegionId] = useState<string | null>(null);
   const { settings, isHydrated } = useSettingsStore();
-  const { t, isVietnamese } = useTranslation();
+  const { t, lang } = useTranslation();
+  const translationRef = useRef(t);
+  translationRef.current = t;
+  const refreshAnalysisRef = useRef<(() => void) | null>(null);
+  const selectedTokenRef = useRef(selectedToken);
+  selectedTokenRef.current = selectedToken;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const analysisRequestRef = useRef(0);
+  const selectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeLookupRef = useRef("");
@@ -148,7 +159,10 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const closeLookup = () => {
     ++analysisRequestRef.current;
+    refreshAnalysisRef.current = null;
     dragRef.current = null;
+    if (selectionTimerRef.current !== null) clearTimeout(selectionTimerRef.current);
+    selectionTimerRef.current = null;
     if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
     if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
     hoverTimerRef.current = dismissTimerRef.current = null;
@@ -219,10 +233,12 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
   }, []);
 
   const lastHoverWordRef = useRef<string | null>(null);
-  const selectionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const isClickInsidePopup = (e: MouseEvent): boolean => {
+    let selectionDrag: { x: number; y: number; moved: boolean } | null = null;
+    let selectionWasDragged = false;
+
+    const isClickInsidePopup = (e: Event): boolean => {
       const path = (e.composedPath && e.composedPath()) || [];
       if (
         containerRef.current &&
@@ -250,6 +266,10 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
     };
 
     const onMouseMove = (e: MouseEvent) => {
+      if (selectionDrag && Math.hypot(e.clientX - selectionDrag.x, e.clientY - selectionDrag.y) > 3) {
+        selectionDrag.moved = true;
+      }
+      if (e.buttons !== 0 || selectionTimerRef.current !== null) return;
       if (isClickInsidePopup(e)) return;
       if (isHydratedRef.current && settingsRef.current.textAnalysisEnabled === false) return;
 
@@ -277,6 +297,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           });
           setInputText(res.text);
           setSentenceMode(false);
+          setPhraseMode(false);
           setTransientMode(true);
           setOcrCroppedImage(null);
           setOcrRegionId(null);
@@ -292,6 +313,10 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
+      if (!e.isComposing && ((e.shiftKey && /^(Arrow|Home|End|Page)/.test(e.key)) ||
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a"))) {
+        handleSelection(e, false);
+      }
       const keyMode = settingsRef.current.hoverModifierKey || "alt";
       if (keyMode === "none") return;
 
@@ -311,7 +336,8 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
       setHoverHighlightRects(null);
     };
 
-    const handleSelection = (e: MouseEvent, isDoubleClick: boolean) => {
+    const handleSelection = (e: MouseEvent | KeyboardEvent, isDoubleClick: boolean) => {
+      if (e instanceof MouseEvent && e.button !== 0) return;
       if (isClickInsidePopup(e)) {
         return;
       }
@@ -328,43 +354,20 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         selectionTimerRef.current = null;
       }
 
-      const clientX = e.clientX;
-      const clientY = e.clientY;
+      const clientX = e instanceof MouseEvent ? e.clientX : 16;
+      const clientY = e instanceof MouseEvent ? e.clientY : 16;
+      const selectionRoot = e.composedPath().find((node): node is ShadowRoot => node instanceof ShadowRoot) || document;
 
       const processSelection = () => {
-        let rawSelectedText = "";
-        let rect: DOMRect | null = null;
+        selectionTimerRef.current = null;
+        if (isHydratedRef.current && settingsRef.current.textAnalysisEnabled === false) return;
+        const { text: rawSelectedText, rect } = readPageSelection(selectionRoot);
 
-        const activeEl = document.activeElement;
-        if (
-          activeEl &&
-          (activeEl instanceof HTMLInputElement ||
-            activeEl instanceof HTMLTextAreaElement) &&
-          typeof activeEl.selectionStart === "number" &&
-          typeof activeEl.selectionEnd === "number" &&
-          activeEl.selectionStart !== activeEl.selectionEnd
-        ) {
-          rawSelectedText = activeEl.value.substring(
-            activeEl.selectionStart,
-            activeEl.selectionEnd
-          );
-          rect = activeEl.getBoundingClientRect();
-        } else {
-          const selection = window.getSelection();
-          if (selection && !selection.isCollapsed) {
-            rawSelectedText = selection.toString();
-            if (selection.rangeCount > 0) {
-              rect = selection.getRangeAt(0).getBoundingClientRect();
-            }
-          }
-        }
-
-        const selectedText = cleanJapaneseText(rawSelectedText);
+        const selectedText = isDoubleClick ? cleanJapaneseText(rawSelectedText) : rawSelectedText.trim();
 
         if (!selectedText || !containsJapanese(selectedText)) {
           if (!isDoubleClick && positionRef.current) {
-            setPosition(null);
-            window.dispatchEvent(new CustomEvent("hakkutsu:analysis-closed"));
+            closeLookup();
           }
           return;
         }
@@ -380,6 +383,16 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           window.innerHeight - rect.bottom < estimatedPanelHeight &&
           rect.top > estimatedPanelHeight
         );
+        if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+        if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
+        hoverTimerRef.current = dismissTimerRef.current = null;
+        activeLookupRef.current = "";
+        remoteLookupRef.current = false;
+        lastHoverWordRef.current = null;
+        setHoverHighlightRects(null);
+        setSentenceMode(!isDoubleClick);
+        setPhraseMode(!isDoubleClick);
+        setTransientMode(false);
         setPosition({
           x: Math.max(16, Math.min(x, window.innerWidth - 340)),
           y: placeAbove && rect ? rect.top : y,
@@ -389,20 +402,26 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         setInputText(selectedText);
         setOcrCroppedImage(null);
         setOcrRegionId(null);
-        analyzeText(selectedText, false, true);
+        analyzeText(selectedText, !isDoubleClick, true);
         window.dispatchEvent(new CustomEvent("hakkutsu:analysis-opened"));
       };
 
-      if (isDoubleClick) {
-        selectionTimerRef.current = setTimeout(processSelection, 120);
-      }
+      selectionTimerRef.current = setTimeout(processSelection, 120);
     };
 
-    const onMouseUp = (e: MouseEvent) => handleSelection(e, false);
-    const onDoubleClick = (e: MouseEvent) => handleSelection(e, true);
+    const onMouseUp = (e: MouseEvent) => {
+      const dragged = selectionDrag && (selectionDrag.moved ||
+        Math.hypot(e.clientX - selectionDrag.x, e.clientY - selectionDrag.y) > 3);
+      selectionDrag = null;
+      selectionWasDragged = Boolean(dragged);
+      if (dragged || e.detail >= 3 || e.shiftKey) handleSelection(e, false);
+    };
+    const onDoubleClick = (e: MouseEvent) => {
+      if (!selectionWasDragged) handleSelection(e, true);
+    };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && positionRef.current) {
+      if (e.key === "Escape" && (positionRef.current || selectionTimerRef.current !== null)) {
         e.preventDefault();
         e.stopPropagation();
         closeLookup();
@@ -411,6 +430,8 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
 
     const onCustomAnalyze = (e: any) => {
       if (e.detail?.text) {
+        if (selectionTimerRef.current !== null) clearTimeout(selectionTimerRef.current);
+        selectionTimerRef.current = null;
         if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
         if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
         hoverTimerRef.current = dismissTimerRef.current = null;
@@ -497,6 +518,16 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
     };
 
     const onDocumentPointerDown = (e: MouseEvent) => {
+      if (selectionTimerRef.current !== null) clearTimeout(selectionTimerRef.current);
+      selectionTimerRef.current = null;
+      selectionWasDragged = false;
+      selectionDrag = e.button === 0 && !isClickInsidePopup(e)
+        ? { x: e.clientX, y: e.clientY, moved: false }
+        : null;
+      if (selectionDrag && hoverTimerRef.current !== null) {
+        clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = null;
+      }
       if (!positionRef.current) return;
       if (!isClickInsidePopup(e)) {
         if (!nativePanel) closeLookup();
@@ -582,7 +613,10 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
     source?: "ocr",
     contextToken?: TokenAnalysis
   ) => {
+    refreshAnalysisRef.current = () => void analyzeText(text, deepPhraseAnalysis, includeDefinitions,
+      selectedTokenRef.current ?? preferredTokenIndex, useJaviAnalysis, source, contextToken);
     const expectedText = text.trim();
+    const expectedLanguage = settingsRef.current.targetLanguage || "vi";
     const requestId = ++analysisRequestRef.current;
     setLoading(true);
     setError(null);
@@ -595,7 +629,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           ? "ANALYZE_PHRASE"
           : useJaviAnalysis
             ? "ANALYZE_JAVI"
-            : "ANALYZE_TEXT", text, includeDefinitions, settingsRef.current.targetLanguage || "vi", source);
+            : "ANALYZE_TEXT", text, includeDefinitions, expectedLanguage, source);
 
       if (response?.type === "ERROR") {
         throw new Error(response.payload.error);
@@ -606,13 +640,9 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         response?.type === "ANALYZE_PHRASE_RESULT"
       ) {
         const analyzeResponse = applyLookupContext(response.payload as AnalyzeResponse | PhraseAnalyzeResponse, contextToken);
-        if (requestId !== analysisRequestRef.current) return;
+        if (requestId !== analysisRequestRef.current || expectedLanguage !== (settingsRef.current.targetLanguage || "vi")) return;
         if (analyzeResponse.text.trim() !== expectedText) {
-          throw new Error(
-            isVietnamese
-              ? "Backend trả kết quả của một câu khác. Vui lòng thử lại."
-              : "Analysis result text mismatch. Please retry."
-          );
+          throw new LookupResponseError("dict_error_result_mismatch");
         }
         setResult(analyzeResponse);
 
@@ -634,11 +664,11 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           setSelectedToken(source === "ocr" && firstDefinedIndex !== -1 ? firstDefinedIndex : firstJpIndex);
         }
       } else {
-        throw new Error("Invalid response from background script");
+        throw new LookupResponseError("dict_error_invalid_response");
       }
     } catch (e) {
       if (requestId === analysisRequestRef.current) {
-        setError(e instanceof Error ? e.message : "Analysis failed");
+        setError(translationRef.current(e instanceof LookupResponseError ? e.key : "popup_error_generic"));
       }
     } finally {
       if (requestId === analysisRequestRef.current) {
@@ -646,6 +676,11 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
       }
     }
   };
+
+  useEffect(() => {
+    activeLookupRef.current = "";
+    if (positionRef.current && settingsRef.current.textAnalysisEnabled !== false) refreshAnalysisRef.current?.();
+  }, [lang]);
 
   const handleExport = async (data: AnkiExportData) => {
     if (ocrRegionId && (loading || result?.text.trim() !== inputText.trim())) return;
@@ -681,6 +716,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         setSrsError(null);
         window.dispatchEvent(new Event("hakkutsu:srs-updated"));
       } catch (e: any) {
+        setSrsError(translationRef.current("dict_error_remove"));
         console.error("Remove card failed", e);
       }
     } else {
@@ -712,6 +748,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
         setSrsError(null);
         window.dispatchEvent(new Event("hakkutsu:srs-updated"));
       } catch (e: any) {
+        setSrsError(translationRef.current("dict_error_save"));
         console.error("SRS Add failed", e);
       }
     }
@@ -721,7 +758,9 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
     result && selectedToken !== null ? result.tokens?.[selectedToken] : null;
 
   useEffect(() => {
-    if (nativePanel && position && !transientMode) containerRef.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    if (nativePanel && position && !transientMode && !containerRef.current?.matches(":focus-within")) {
+      containerRef.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    }
   }, [nativePanel, position, transientMode]);
 
   useEffect(() => {
@@ -858,7 +897,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
           ref={containerRef}
           className={`hk-popup hk-lookup ${nativePanel ? "hk-lookup--panel" : "hk-fade-in"}`}
           style={nativePanel ? undefined : popupStyle}
-          role={ocrRegionId ? "dialog" : "region"} aria-label="Hakkutsu Lookup"
+          role={ocrRegionId ? "dialog" : "region"} aria-label={t("dict_header_lookup")}
           tabIndex={ocrRegionId ? -1 : undefined}
           onMouseEnter={() => {
             isMouseOverPopupRef.current = true;
@@ -899,7 +938,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
             <div className="hk-header__logo">
               <img src={logoUrl} alt="Hakkutsu" style={{ width: 18, height: 18, borderRadius: "4px" }} />
               <h2 className="hk-header__title hk-brand-title">
-                Hakkutsu Lookup
+                {t("dict_header_lookup")}
               </h2>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -942,6 +981,7 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
                 }}
                 onChange={event => {
                   ++analysisRequestRef.current;
+                  refreshAnalysisRef.current = null;
                   activeLookupRef.current = "";
                   setInputText(event.target.value);
                   setResult(null);
@@ -959,11 +999,6 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
                   onClick={reanalyzeOcrText}>{t("ocr_reanalyze")}</button>
               </div>
             </details>}
-            {ocrRegionId && result && !loading && <section className="hk-ocr-breakdown">
-              <h3 className="hk-dict-label">{t("ocr_word_breakdown")}</h3>
-              <p>{t("ocr_select_word_hint")}</p>
-              <TokenDisplay tokens={result.tokens} selectedIndex={selectedToken} onSelect={handleTokenSelect} variant="sentence" />
-            </section>}
             {/* Translation Loading State */}
             {loading && (
               <div className="hk-loading">
@@ -998,6 +1033,12 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
                     <div className="hk-translation-text">{phraseTranslation}</div>
                   </div>
                 )}
+
+                {sentenceMode && <section className="hk-ocr-breakdown">
+                  <h3 className="hk-dict-label">{t("ocr_word_breakdown")}</h3>
+                  <p>{t("ocr_select_word_hint")}</p>
+                  <TokenDisplay tokens={result.tokens} selectedIndex={selectedToken} onSelect={handleTokenSelect} variant="sentence" />
+                </section>}
 
                 {/* Selected Token Definition Card */}
                 <div>

@@ -46,6 +46,10 @@ export const ja = {
   dict_label_translation: "翻訳",
   dict_empty_transient: "字幕の単語にホバーして詳細を表示します。",
   dict_empty_select: "文中の日本語単語を選択して辞書を検索します。",
+  dict_error_result_mismatch: "別の文の解析結果が返されました。もう一度お試しください。",
+  dict_error_invalid_response: "解析結果が無効です。もう一度お試しください。",
+  dict_error_save: "単語を保存できませんでした。もう一度お試しください。",
+  dict_error_remove: "単語を削除できませんでした。もう一度お試しください。",
   dict_grammar_title: "文法パターン",
   dict_grammar_empty: "この文章には顕著な文法パターンが見つかりませんでした。",
 

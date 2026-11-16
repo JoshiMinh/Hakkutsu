@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.8.0 — 2026-11-17
+
+- Analyze full sentence selections with translation and clickable words, including keyboard selection, frames and open shadow roots.
+- Keep lookup results and errors consistent across eight languages, including language changes during analysis.
+- Remove the duplicate divider below dictionary headwords and update store information and privacy disclosures.
+
+## 2.7.2 — 2026-11-16
+
+- Keep lookup headers, errors, translations, definitions and cached results consistent with all eight UI languages, including language changes during analysis. Check locale keys and placeholders automatically.
+- Support keyboard selections and selections inside open shadow roots, with regression checks for inline lookups, panels and framed pages.
+- Analyze the complete text selected by dragging, including double-click drags and triple-click selections, and show its translation with a clickable sentence breakdown.
+- Keep short phrases on the sentence-tokenization path instead of accepting a related dictionary result as the meaning of the whole phrase. Preserve sentence tokens when translation is unavailable or analysis falls back locally.
+- Prevent pending hover lookups and older responses from replacing a selection; retain full sentence context when saving a selected word.
+
 ## 2.7.1 — 2026-11-12
 
 - Match Anki sync, review, and field settings to the existing theme, with localized feedback, accessible selectors, compact 50-row previews, and fixed dialog controls.

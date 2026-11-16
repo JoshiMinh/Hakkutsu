@@ -18,13 +18,14 @@ export class LlmServiceError extends Error {
  * native Japanese tokenizer, offline JMDict, and Google Translate.
  */
 class LlmService {
-  async analyzeText(text: string, _isPhrase: boolean = false, targetLang: string = "vi", dictionaryAware = false): Promise<any> {
+  async analyzeText(text: string, isPhrase: boolean = false, targetLang: string = "vi", dictionaryAware = false): Promise<any> {
     const cleanText = text.trim();
+    const sentenceMode = isPhrase || dictionaryAware;
     // 1. Start Google Translate for sentence translation in parallel
-    const translationPromise = googleTranslateService.translate(cleanText, targetLang, "ja");
+    const translationPromise = googleTranslateService.translate(cleanText, targetLang, "ja").catch(() => "");
 
     // 2. Direct whole-word dictionary match check for single terms (e.g. "好き", "お知らせ")
-    if (!dictionaryAware && containsJapanese(cleanText) && cleanText.length <= 16 && !/[\s\u3000、。！？!?…]/u.test(cleanText)) {
+    if (!sentenceMode && containsJapanese(cleanText) && cleanText.length <= 16 && !/[\s\u3000、。！？!?…]/u.test(cleanText)) {
       try {
         const directDict = await lookupWord(cleanText, targetLang);
         if (directDict && directDict.meaning && directDict.meaning.trim().length > 0) {
@@ -54,7 +55,7 @@ class LlmService {
       let tokenList: Array<{ surface: string; base_form: string; reading?: string; dictionary_reading?: string; pos?: string }> = [];
 
       try {
-        const kTokens = await tokenize(text, { dictionaryAware });
+        const kTokens = await tokenize(text, { dictionaryAware: sentenceMode });
         if (kTokens && kTokens.length > 0) {
           tokenList = kTokens.map(t => ({
             surface: t.surface_form,
@@ -81,8 +82,8 @@ class LlmService {
           tokenList.map(async (t) => {
             const surface = t.surface;
             const baseForm = t.base_form || surface;
-            const isJp = dictionaryAware ? /[\u3041-\u3096\u30a1-\u30fa\u3400-\u9fff]/u.test(surface) : containsJapanese(surface);
-            if (dictionaryAware && !isJp) return {
+            const isJp = sentenceMode ? /[\u3041-\u3096\u30a1-\u30fa\u3400-\u9fff]/u.test(surface) : containsJapanese(surface);
+            if (sentenceMode && !isJp) return {
               surface, reading: "", pos: t.pos || "Punctuation", meaning: "",
               dictionary_form: surface, is_japanese: false,
             };
