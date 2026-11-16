@@ -49,9 +49,9 @@
         Your saved words and review history are stored in your browser. Hakkutsu has no user accounts or analytics tracking. Below is a guide to storage, permissions, and connections.
       </p>
       <div class="meta-row">
-        <span>Effective Date: October 2026</span>
+        <span>Updated: November 17, 2026</span>
         <span>•</span>
-        <span>Version: Hakkutsu v2.6.0</span>
+        <span>Version: Hakkutsu v2.8.0</span>
         <span>•</span>
         <span>Manifest: MV3 / MV2</span>
         <span>•</span>
@@ -83,7 +83,7 @@
       <div class="summary-card">
         <div class="summary-metric">No accounts</div>
         <h3>No registration required</h3>
-        <p>No registration, no email capture, no passwords, and no cloud synchronization tokens.</p>
+        <p>No Hakkutsu account is required. Browser preference sync and Anki integrations are optional.</p>
       </div>
 
       <div class="summary-card">
@@ -95,169 +95,44 @@
       <div class="summary-card">
         <div class="summary-metric">Local Anki</div>
         <h3>Export to your desktop</h3>
-        <p>AnkiConnect requests communicate strictly with your local desktop Anki software upon user export.</p>
+        <p>AnkiConnect communicates with local Anki for user-directed import, export, sync and review.</p>
       </div>
     </div>
 
     <!-- Policy Sections -->
     <section class="policy-section" id="philosophy">
-      <h2><span class="sec-num">01</span> What Hakkutsu does</h2>
-      <p>
-        Hakkutsu is an open-source Japanese language immersion toolkit created to assist language learners with reading Japanese webpages, following subtitle-annotated streaming videos, recognizing raw manga speech bubbles, and reviewing flashcards.
-      </p>
-      <p>
-        All computational processing is performed locally on your personal computer. Hakkutsu does not require an account, collects zero Personally Identifiable Information (PII), and operates without any remote cloud backend infrastructure.
-      </p>
+      <h2><span class="sec-num">01</span> Overview</h2>
+      <p>Hakkutsu helps you study Japanese webpages, subtitles and images. No Hakkutsu account is required. The extension contains no advertising or behavioral analytics. Online features send the text or queries needed for the requested feature to third-party providers; it is not a fully offline extension.</p>
     </section>
 
     <section class="policy-section" id="storage">
-      <h2><span class="sec-num">02</span> What is stored</h2>
-      <p>All data generated or utilized during your immersion sessions is stored strictly within your browser's local sandbox:</p>
-      <ul class="policy-list">
-        <li>
-          <strong>Vocabulary & SRS Database (<span class="code-badge">hakkutsu-srs</span> in IndexedDB)</strong>
-          Stores mined cards, context sentences, timestamps, audio clips, screenshots, and FSRS-4.5/5 scheduling parameters: Difficulty D, Stability S, Retrievability R, repetition history, and lapse counts. This database is never synced to external servers.
-        </li>
-        <li>
-          <strong>Offline Dictionary Database (<span class="code-badge">HakkutsuDictDB</span> in IndexedDB)</strong>
-          Stores local JMDict bilingual definitions, pitch accent patterns, and kanji stroke order paths to power instant offline word lookups without network delay.
-        </li>
-        <li>
-          <strong>User Preferences (<span class="code-badge">chrome.storage.local</span> / <span class="code-badge">sync</span>)</strong>
-          Stores user-configured hotkeys, target retention rate preferences, selective furigana JLPT filters, theme modes, and UI language selections in standard browser storage.
-        </li>
-      </ul>
-
-      <div class="callout">
-        <strong>Offline Tokenization & Parsing:</strong> Japanese text segmentation uses the browser’s native Intl.Segmenter and the installed local dictionary entirely offline. Highlighted sentences and read texts never leave your browser memory.
-      </div>
+      <h2><span class="sec-num">02</span> Stored data</h2>
+      <p>Saved vocabulary, sentences, source URLs and titles, screenshots, audio, review history, Anki links and imported dictionaries are stored in browser storage or IndexedDB. Preferences use browser sync storage and may sync through your browser account. Anki data you explicitly sync is also stored in Anki; AnkiWeb synchronization is controlled by Anki.</p>
     </section>
 
     <section class="policy-section" id="network">
-      <h2><span class="sec-num">03</span> When connections happen</h2>
-      <p>Hakkutsu does not transmit any user telemetry, reading statistics, or vocabulary cards to external servers. The only network interactions that may occur are:</p>
-      <ul class="policy-list">
-        <li>
-          <strong>Local AnkiConnect Bridge:</strong> When you click "Export to Anki", Hakkutsu sends an HTTP POST request to <span class="code-badge">http://127.0.0.1:8765</span> on your local machine. This communication is strictly between your browser and your local Anki desktop software.
-        </li>
-        <li>
-          <strong>Audio Pronunciation:</strong> Japanese speech audio utilizes the built-in browser Web Speech API (offline) or user-configured endpoints. No audio recordings are ever collected or uploaded.
-        </li>
-      </ul>
+      <h2><span class="sec-num">03</span> External connections</h2>
+      <p>Sentence and webpage translation send text to Google Translate. Online dictionary and example lookups send words or search queries to providers such as Jisho, Mazii and Tatoeba. Illustration searches send queries to Irasutoya and may translate search terms with Google. Pronunciation sends the text to Google speech services, with browser or operating-system speech as a fallback. These providers receive connection information such as your IP address and handle requests under their own policies. Subtitle features request captions from the video provider and may translate subtitle text. Requests support language study, not advertising or activity tracking.</p>
     </section>
 
     <section class="policy-section" id="permissions">
       <h2><span class="sec-num">04</span> Browser permissions</h2>
-      <p>Hakkutsu requests only the minimal browser permissions necessary to provide in-page immersion tools:</p>
-      <div class="table-box">
-        <table>
-          <thead>
-            <tr>
-              <th>Permission</th>
-              <th>Technical Scope & Purpose</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><span class="code-badge">storage</span></td>
-              <td>Stores user configuration, review preferences, and offline dictionary cache locally.</td>
-            </tr>
-            <tr>
-              <td><span class="code-badge">tabs</span></td>
-              <td>Reads the active video tab URL and page title to attach source attribution to mined flashcards.</td>
-            </tr>
-            <tr>
-              <td><span class="code-badge">activeTab</span></td>
-              <td>Allows inspecting selected Japanese text when opening the toolbar quick-lookup popup.</td>
-            </tr>
-            <tr>
-              <td><span class="code-badge">scripting</span></td>
-              <td>Injects lightweight HTML5 video detection helpers to synchronize subtitle tracks on YouTube and Netflix.</td>
-            </tr>
-            <tr>
-              <td><span class="code-badge">offscreen</span></td>
-              <td>Runs Tesseract OCR in an isolated background document to detect manga speech bubbles without freezing the UI.</td>
-            </tr>
-            <tr>
-              <td><span class="code-badge">https://*/*</span></td>
-              <td>Enables inline dictionary lookups, selective furigana, and subtitle overlays across Japanese web content.</td>
-            </tr>
-            <tr>
-              <td><span class="code-badge">http://127.0.0.1:8765/*</span></td>
-              <td>Connects to local AnkiConnect desktop bridge on loopback port 8765 for 1-click card export.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <p>Page access and scripting enable lookup, furigana, subtitle interaction and image selection on supported webpages. Tabs and activeTab support communication with the current tab, opening extension pages and user-triggered screenshot capture. Storage saves settings and learning data. The sidePanel permission provides the transcript panel. Offscreen documents run packaged OCR processing in Chrome. Host access permits these page features, provider requests and the local AnkiConnect bridge. Browser-protected pages cannot run extension content scripts.</p>
     </section>
 
     <section class="policy-section" id="integrations">
-      <h2><span class="sec-num">05</span> Other software</h2>
-      <p>
-        Hakkutsu integrates with third-party software strictly through user-directed, local mechanisms:
-      </p>
-      <ul class="policy-list">
-        <li>
-          <strong>Anki Desktop Software:</strong> All Anki card generation uses the local AnkiConnect add-on over loopback. You remain in complete control of your Anki decks, tags, and media collections.
-        </li>
-        <li>
-          <strong>Web Speech API:</strong> Pronunciation playback leverages the operating system's native text-to-speech synthesizer where available. No third-party TTS audio service receives user text.
-        </li>
-      </ul>
+      <h2><span class="sec-num">05</span> OCR and Anki</h2>
+      <p>Image recognition uses packaged Tesseract code and language data on your device. Screenshot/image crops are processed locally for OCR and may be retained when you save a card. Import, export, sync and review requests to AnkiConnect use the local desktop endpoint on port 8765 and can include card text, media, tags, scheduling information and note identifiers. Hakkutsu does not operate an account or collection-sync server.</p>
     </section>
 
     <section class="policy-section" id="portability">
-      <h2><span class="sec-num">06</span> Export, backups & deletion</h2>
-      <p>
-        Because all data is stored on your device, you retain total ownership:
-      </p>
-      <ul class="policy-list">
-        <li>
-          <strong>Full JSON Backup:</strong> Export your entire vocabulary collection, review intervals, stability factors, and difficulty metrics into a portable JSON file under <em>Dashboard → Backup</em>.
-        </li>
-        <li>
-          <strong>Standard CSV Export:</strong> Export mined vocabulary to standard CSV format for importing into spreadsheets or external flashcard programs.
-        </li>
-        <li>
-          <strong>Permanent Deletion:</strong> Uninstalling the extension or clearing your browser's site storage instantly and permanently purges all local IndexedDB stores and preferences.
-        </li>
-      </ul>
+      <h2><span class="sec-num">06</span> Export and deletion</h2>
+      <p>You can export or back up your collection and remove saved entries using the extension. Clearing extension storage or uninstalling removes browser-local data; exported files, browser-synced preferences and data copied to Anki or its backups may remain until you remove them separately. The extension does not sell learning data or use it to determine creditworthiness. Provider requests are limited to the language-study features described above.</p>
     </section>
 
     <section class="policy-section" id="verification">
-      <h2><span class="sec-num">07</span> Verify it yourself</h2>
-      <p>
-        We believe privacy should be verifiable, not merely promised. Any user or security researcher can audit Hakkutsu's network activity in real time:
-      </p>
-
-      <div class="verify-box">
-        <h3>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-          How to verify network isolation with DevTools:
-        </h3>
-        <div class="verify-steps">
-          <div class="verify-step">
-            <span class="step-index">1</span>
-            <span>Open your browser's Developer Tools (<kbd>F12</kbd> or <kbd>Ctrl+Shift+I</kbd> / <kbd>Cmd+Option+I</kbd>).</span>
-          </div>
-          <div class="verify-step">
-            <span class="step-index">2</span>
-            <span>Select the <strong>Network</strong> tab and click the <strong>Fetch/XHR</strong> filter.</span>
-          </div>
-          <div class="verify-step">
-            <span class="step-index">3</span>
-            <span>Use Hakkutsu to look up vocabulary, watch video with dual subtitles, run manga OCR, or review flashcards.</span>
-          </div>
-          <div class="verify-step">
-            <span class="step-index">4</span>
-            <span>Confirm that <strong>zero outbound requests</strong> are sent to remote servers (only local loopback requests to <span class="code-badge">127.0.0.1:8765</span> occur if you export to Anki).</span>
-          </div>
-          <div class="verify-step">
-            <span class="step-index">5</span>
-            <span>Open <strong>Application → Storage → IndexedDB</strong> to verify that all flashcards are stored locally under <span class="code-badge">hakkutsu-srs</span>.</span>
-          </div>
-        </div>
-      </div>
+      <h2><span class="sec-num">07</span> Verify and contact</h2>
+      <p>You can inspect the open-source implementation and extension background/network activity to see storage and provider requests. Online translation, dictionary, illustration, speech and caption features are expected to make external requests. For privacy questions or bug reports, use the support link at https://github.com/JoshiMinh/Hakkutsu/issues. Avoid posting private card contents or credentials in public issues.</p>
     </section>
 
     </div>
@@ -282,3 +157,4 @@
 
 </body>
 </html>
+
