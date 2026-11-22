@@ -200,25 +200,17 @@ const InlineDictionary = ({ nativePanel = false, sourceUrl, sourceTitle }: { nat
       .catch(() => setAnkiConnected(false));
   }, [settings.ankiEnabled]);
 
-  // Ensure shadow host is placed inside the active fullscreen or player element
+  // Keep the lookup above page content and inside the fullscreen element when active.
   useEffect(() => {
     const syncHostPlacement = (event?: Event) => {
       const host = document.getElementById("hakkutsu-inline-dictionary-host") || document.querySelector<HTMLElement>("hakkutsu-inline-dictionary-host");
       if (!host) return;
 
-      const fsEl = document.fullscreenElement as HTMLElement | null;
-      if (fsEl) {
-        if (!fsEl.contains(host)) {
-          fsEl.appendChild(host);
-        }
-      } else {
-        const netflixPlayer = document.querySelector<HTMLElement>(".watch-video");
-        const ytPlayer = document.querySelector<HTMLElement>("#movie_player");
-        const fromTranscript = (event as CustomEvent)?.detail?.fromTranscript || remoteLookupRef.current;
-        const target = fromTranscript ? document.body : netflixPlayer || ytPlayer || document.body;
-        if (target && !target.contains(host)) {
-          target.appendChild(host);
-        }
+      const fromTranscript = (event as CustomEvent)?.detail?.fromTranscript || remoteLookupRef.current;
+      const target = document.fullscreenElement ??
+        (fromTranscript ? document.body : document.querySelector(".watch-video") ?? document.body);
+      if (target && host.parentElement !== target) {
+        target.appendChild(host);
       }
     };
 

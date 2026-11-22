@@ -6,6 +6,9 @@ import "../src/styles/global.css";
 // Exercise the production lookup UI and native DOM selections without extension
 // storage, network services, or writes to the user's vocabulary collection.
 const fixture = document.querySelector<HTMLElement>("#fixture")!;
+const player = document.createElement("div");
+player.id = "movie_player";
+document.body.append(player);
 const host = document.createElement("hakkutsu-inline-dictionary-host");
 document.querySelector("#lookup")!.append(host);
 const shadow = host.attachShadow({ mode: "open" });
@@ -101,6 +104,44 @@ const analysisRequests = () => requests.filter(item => item.type.startsWith("ANA
 const sentenceText = () => Array.from(lookup.querySelectorAll(".hk-token__surface, .hk-token-punctuation"), node => node.textContent).join("");
 const close = () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
 const tests: Array<[string, () => Promise<void>]> = [
+  ["Page-text lookup shows a bundled Hán-Việt reading with no provider reading", async () => {
+    useSettingsStore.setState(state => ({ settings: { ...state.settings, targetLanguage: "vi", showHanViet: true } }));
+    const word = textElement("確実");
+    for (let detail = 1; detail <= 2; detail++) {
+      mouse(word, "mousedown", 10, 1, detail);
+      select(word);
+      mouse(word, "mouseup", 10, 0, detail);
+    }
+    mouse(word, "dblclick", 10, 0, 2);
+    await until(() => lookup.textContent?.includes("Hán-Việt: XÁC THỰC") === true);
+
+    useSettingsStore.setState(state => ({ settings: { ...state.settings, showHanViet: false } }));
+    try {
+      await until(() => !lookup.textContent?.includes("XÁC THỰC"));
+    } finally {
+      useSettingsStore.setState(state => ({ settings: { ...state.settings, showHanViet: true } }));
+    }
+  }],
+  ["YouTube lookups use the page layer outside fullscreen", async () => {
+    const node = textElement("動画のコメントを読みます。");
+    drag(node);
+    await until(() => sentenceText() === node.textContent);
+    assert(host.parentElement === document.body, "comment lookup must mount outside the video player");
+
+    let fullscreenElement: Element | null = player;
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => fullscreenElement });
+    try {
+      document.dispatchEvent(new Event("fullscreenchange"));
+      assert(host.parentElement === player, "lookup must move into the fullscreen player");
+
+      fullscreenElement = null;
+      document.dispatchEvent(new Event("fullscreenchange"));
+      assert(host.parentElement === document.body, "lookup must return to the page after exiting fullscreen");
+    } finally {
+      Reflect.deleteProperty(document, "fullscreenElement");
+      document.dispatchEvent(new Event("fullscreenchange"));
+    }
+  }],
   ["Drag analyzes the full wrapped selection across text nodes and lets users select and save any word", async () => {
     const node = textElement("");
     const first = document.createTextNode("「アップグレードして5時間の");

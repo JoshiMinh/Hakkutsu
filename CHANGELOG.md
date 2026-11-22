@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.8.1 — 2026-11-22
+
+- Keep the lookup popup above YouTube comments and restore its page placement when leaving fullscreen.
+- Expand offline Hán-Việt coverage by 6,709 characters, including Japanese kanji variants such as 実. 確実 now displays XÁC THỰC.
+
 ## 2.8.0 — 2026-11-17
 
 - Analyze full sentence selections with translation and clickable words, including keyboard selection, frames and open shadow roots.

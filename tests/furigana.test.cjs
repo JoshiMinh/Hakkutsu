@@ -23,6 +23,11 @@ test("Hán-Việt covers screenshot regressions and repairs partial saved values
 });
 
 test("Hán-Việt supports shinjitai, compatibility characters, kana and iteration marks", () => {
+  assert.equal(getHanViet("確実"), "XÁC THỰC");
+  assert.equal(getHanViet("確實"), "XÁC THỰC");
+  assert.equal(resolveHanViet("かくじつ", "XÁC", "確実"), "XÁC THỰC");
+  assert.equal(getHanViet("両方"), "LƯỠNG PHƯƠNG");
+  assert.equal(getHanViet("髪型"), "PHÁT HÌNH");
   assert.equal(getHanViet("学校"), "HỌC HIỆU");
   assert.equal(getHanViet("學校"), "HỌC HIỆU");
   assert.equal(getHanViet("想像"), "TƯỞNG TƯỢNG");
