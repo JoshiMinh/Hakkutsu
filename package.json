@@ -1,7 +1,7 @@
 {
   "name": "hakkutsu",
   "displayName": "Hakkutsu — Japanese Immersion",
-  "version": "2.8.1",
+  "version": "2.9",
   "description": "Local-first open-source Japanese immersion extension with offline dictionary, Japanese parsing, SRS, and dual subtitles.",
   "author": "Hakkutsu Team",
   "private": true,

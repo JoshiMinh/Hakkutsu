@@ -92,7 +92,7 @@ For DOM regressions and the chapter benchmark, run `pnpm test:browser`, open `ht
 
 ## Releases
 
-Version **2.6.3** improves subtitle loading and playback performance, vocabulary-based immersion density, selective furigana, and Hán-Việt coverage. It also refreshes the page difficulty and offline dictionary controls. See [release notes](CHANGELOG.md), [subtitle validation](tests/SUBTITLE-PERFORMANCE.md), and [density validation](tests/DENSITY-RESULTS.md).
+Use two-part `major.minor` versions for new releases, such as `2.9` and `2.10`. Keep the package version, browser manifests, and GitHub release tag aligned. See the [changelog](CHANGELOG.md) for release notes.
 
 Creating a GitHub Release builds and attaches Chrome and Firefox ZIPs. Store publishing (Chrome Web Store, Firefox AMO) runs automatically when the relevant repository secrets are configured. Release assets are always created regardless.
 

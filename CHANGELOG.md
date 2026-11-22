@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.9 — 2026-11-22
+
+- Use two-part release versions. This release includes the YouTube lookup and offline Hán-Việt fixes from 2.8.1.
+
 ## 2.8.1 — 2026-11-22
 
 - Keep the lookup popup above YouTube comments and restore its page placement when leaving fullscreen.
